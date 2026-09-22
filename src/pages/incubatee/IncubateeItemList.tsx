@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Empty, Tag } from 'antd'
-import { TAG_COLOR, formatStatus, statusTone } from './incubateeDashboardStatus'
+import { TAG_COLOR, formatStatus, statusTone } from '@/utils/status'
 
 export type DashboardItem = {
     id: string

@@ -10,6 +10,8 @@ from typing import Any, Callable, Literal
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 
+MAX_TOOL_ROUNDS = 3
+
 LepharoActionType = Literal[
     "appointment_accept",
     "appointment_decline",
@@ -74,6 +76,13 @@ class WhatsAppConversationInput(BaseModel):
     appointmentId: str | None = Field(default=None, max_length=200)
 
 
+class ToolResultInput(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    type: str = Field(min_length=1, max_length=100)
+    result: dict[str, Any] = Field(default_factory=dict)
+
+
 class WhatsAppContext(BaseModel):
     # The router contract can grow without changing this endpoint.
     model_config = ConfigDict(extra="allow")
@@ -83,6 +92,7 @@ class WhatsAppContext(BaseModel):
     appointmentId: str | None = Field(default=None, max_length=200)
     appointment: dict[str, Any] = Field(default_factory=dict)
     conversation: WhatsAppConversationInput | None = None
+    toolResults: list[ToolResultInput] = Field(default_factory=list)
 
 
 class WhatsAppChatRequest(BaseModel):
@@ -117,12 +127,20 @@ class WhatsAppError(BaseModel):
     code: str
 
 
+class ToolCallSelection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: LepharoActionType
+    arguments: dict[str, Any] = Field(default_factory=dict)
+
+
 class WhatsAppChatResponse(BaseModel):
     ok: bool
     reply: str
     intent: str | None = None
     confidence: float | None = Field(default=None, ge=0, le=1)
     action: LepharoAction | None = None
+    toolCall: ToolCallSelection | None = None
     conversation: WhatsAppConversation = Field(default_factory=WhatsAppConversation)
     error: WhatsAppError | None = None
 
@@ -135,6 +153,7 @@ class WhatsAppAgentDecision(BaseModel):
     intent: str = Field(min_length=1, max_length=100)
     confidence: float = Field(ge=0, le=1)
     action: LepharoAction | None = None
+    toolCall: ToolCallSelection | None = None
     conversation: WhatsAppConversation = Field(default_factory=WhatsAppConversation)
     reply: str = Field(min_length=1, max_length=1000)
 
@@ -180,6 +199,9 @@ ModelCaller = Callable[..., str]
 _MUTATING_ACTIONS = {
     name for name, definition in AVAILABLE_ACTIONS.items() if definition.kind == "mutation"
 }
+_READ_ACTIONS = {
+    name for name, definition in AVAILABLE_ACTIONS.items() if definition.kind == "read"
+}
 _RSVP_ACTIONS = {"appointment_accept", "appointment_decline"}
 
 
@@ -212,23 +234,29 @@ def _action_registry_payload() -> dict[str, dict[str, Any]]:
 def _agent_system_prompt() -> str:
     return (
         "You are the natural-language intent and action-selection agent for Lepharo WhatsApp conversations. "
-        "Return one JSON object only with exactly: intent, confidence, action, conversation, reply. "
-        "Select action.type only from actionRegistry. Understand meaning and paraphrases instead of matching "
-        "keywords. Read requests such as upcoming appointments do not require an existing appointment context. "
-        "Use get_upcoming_appointments for schedules, calendars, bookings, next meetings, or anything coming up. "
-        "Use get_appointment or get_meeting_link only when a specific appointment is known in trustedContext. "
+        "Return one JSON object only with exactly: intent, confidence, action, toolCall, conversation, reply. "
+        "Select action.type or toolCall.type only from actionRegistry. Understand meaning and paraphrases instead "
+        "of matching keywords. Read requests such as upcoming appointments do not require an existing appointment "
+        "context. Use get_upcoming_appointments for schedules, calendars, bookings, next meetings, or anything "
+        "coming up. Use get_appointment or get_meeting_link only when a specific appointment is known in "
+        "trustedContext. You cannot see real appointment data yourself: whenever you need a read action's result "
+        "to answer, set toolCall to that one read action and leave action null. The router will run it and call "
+        "you again with the result added to toolResults. Once toolResults already contains the result for your "
+        "question, answer from that real data with action null and toolCall null, and do not request the same "
+        "tool call again. Never invent appointment details that are not present in toolResults. "
         "Be conservative with mutations. appointment_accept and appointment_decline are allowed only when "
         "trustedContext indicates an RSVP or conversationState indicates RSVP confirmation. A bare yes outside "
         "that context is never an acceptance. Any mutation requires trustedAppointmentId. Never extract or copy "
         "an appointment ID from the user's message. If a target is missing, use action null and set conversation "
         "awaiting to appointment_target. A decline without a reason must use action null and awaiting "
         "appointment_decline_reason. Ambiguous attendance must use action null and awaiting "
-        "appointment_rsvp_confirmation. Use supplied appointment facts only; otherwise request a read action. "
-        "Never claim a read or mutation succeeded. Replies before execution should say you understand the request "
+        "appointment_rsvp_confirmation. "
+        "Never claim a mutation succeeded. Replies before execution should say you understand the request "
         "or will check it. Unsupported requests should receive a natural conversational or clarification reply "
-        "with action null. The action object may contain only type, appointmentId, reason, requestedDate, "
-        "requestedTime, requestedDateText, and requestedTimeText. conversation may contain only awaiting and "
-        "appointmentId. Use null for absent values."
+        "with action null and toolCall null. The action object may contain only type, appointmentId, reason, "
+        "requestedDate, requestedTime, requestedDateText, and requestedTimeText. The toolCall object may contain "
+        "only type and arguments. conversation may contain only awaiting and appointmentId. Use null for absent "
+        "values."
     )
 
 
@@ -271,6 +299,7 @@ def _call_agent(
     payload: WhatsAppChatRequest,
     pending: _PendingConversation | None,
     call_ai: ModelCaller,
+    tool_results: list[dict[str, Any]],
 ) -> WhatsAppAgentDecision | None:
     trusted_appointment_id = (
         (pending.appointment_id if pending else "") or payload.context.appointmentId or ""
@@ -288,6 +317,7 @@ def _call_agent(
             "trustedAppointmentId": trusted_appointment_id if pending else None,
         },
         "actionRegistry": _action_registry_payload(),
+        "toolResults": tool_results,
         "requiredOutputSchema": WhatsAppAgentDecision.model_json_schema(),
     }
 
@@ -324,9 +354,6 @@ def _call_agent(
 
 def _neutral_action_reply(action_type: LepharoActionType) -> str:
     return {
-        "get_upcoming_appointments": "Let me check your upcoming appointments.",
-        "get_appointment": "Let me check that appointment's details.",
-        "get_meeting_link": "Let me check the meeting link.",
         "appointment_accept": "I understand that you want to attend the appointment.",
         "appointment_decline": "I understand that you cannot attend the appointment.",
         "appointment_reschedule_request": "I understand that you would like to reschedule the appointment.",
@@ -339,6 +366,7 @@ def _apply_policy(
     pending: _PendingConversation | None,
     store: WhatsAppConversationStore,
     store_key: str,
+    tool_round: int,
 ) -> WhatsAppChatResponse:
     context_type = (payload.context.type or "").strip().lower()
     trusted_appointment_id = (
@@ -346,9 +374,50 @@ def _apply_policy(
     ).strip() or None
     pending_awaiting = pending.awaiting if pending else None
     action = decision.action.model_copy(deep=True) if decision.action else None
+    tool_call = decision.toolCall.model_copy(deep=True) if decision.toolCall else None
     awaiting = decision.conversation.awaiting
     intent = decision.intent
     reply = decision.reply.strip()
+
+    # A read-kind action selection is treated as a tool call, whichever field carried it.
+    if not tool_call and action and action.type in _READ_ACTIONS:
+        tool_call = ToolCallSelection(type=action.type, arguments={})
+        action = None
+
+    if tool_call:
+        definition = AVAILABLE_ACTIONS[tool_call.type]
+        if definition.requires_appointment and not trusted_appointment_id:
+            store.clear(store_key)
+            return WhatsAppChatResponse(
+                ok=True,
+                reply="Which appointment would you like help with?",
+                intent="unclear",
+                confidence=min(decision.confidence, 0.6),
+                action=None,
+                toolCall=None,
+                conversation=WhatsAppConversation(awaiting="appointment_target", appointmentId=None),
+            )
+        if tool_round >= MAX_TOOL_ROUNDS:
+            store.clear(store_key)
+            return WhatsAppChatResponse(
+                ok=True,
+                reply="I'm having trouble finding that right now. Could you try again in a moment?",
+                intent="unclear",
+                confidence=decision.confidence,
+                action=None,
+                toolCall=None,
+                conversation=WhatsAppConversation(),
+            )
+        store.clear(store_key)
+        return WhatsAppChatResponse(
+            ok=True,
+            reply=reply,
+            intent=intent,
+            confidence=decision.confidence,
+            action=None,
+            toolCall=tool_call,
+            conversation=WhatsAppConversation(),
+        )
 
     if action:
         definition = AVAILABLE_ACTIONS[action.type]
@@ -398,6 +467,7 @@ def _apply_policy(
         intent=intent,
         confidence=decision.confidence,
         action=action,
+        toolCall=None,
         conversation=WhatsAppConversation(
             awaiting=awaiting,
             appointmentId=trusted_appointment_id if awaiting else None,
@@ -422,7 +492,8 @@ def interpret_whatsapp_message(
 
     store_key = f"whatsapp:{payload.userId.strip()}"
     pending = _pending_conversation(payload, store, store_key)
-    decision = _call_agent(payload, pending, call_ai)
+    tool_results = [item.model_dump() for item in payload.context.toolResults[:MAX_TOOL_ROUNDS]]
+    decision = _call_agent(payload, pending, call_ai, tool_results)
     if decision is None:
         return _safe_decision(pending)
-    return _apply_policy(decision, payload, pending, store, store_key)
+    return _apply_policy(decision, payload, pending, store, store_key, len(tool_results))

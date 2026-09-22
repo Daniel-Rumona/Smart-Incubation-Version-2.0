@@ -15,6 +15,8 @@ type DashboardMetricCardProps = {
     hint?: string
     iconClassName?: string
     clickable?: boolean
+    /** Highlights the card as the current filter selection. */
+    active?: boolean
     loading?: boolean
     /** Set to false to omit this card entirely on mobile. Defaults to true. */
     onMobile?: boolean
@@ -60,6 +62,7 @@ export default function DashboardMetricCard({
     hint,
     iconClassName = '',
     clickable = false,
+    active = false,
     loading = false,
     onMobile = true,
     onClick,
@@ -78,6 +81,7 @@ export default function DashboardMetricCard({
         'motion-card',
         loading ? 'is-loading' : '',
         !loading && (clickable || onClick) ? 'is-clickable' : '',
+        !loading && active ? 'is-active' : '',
     ]
         .filter(Boolean)
         .join(' ')

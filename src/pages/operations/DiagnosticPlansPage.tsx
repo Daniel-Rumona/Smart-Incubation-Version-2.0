@@ -1,5 +1,5 @@
-import { Alert, App, Button, Card, Checkbox, Col, Descriptions, Empty, Input, List, Modal, Row, Segmented, Select, Space, Tag, Typography, type TableProps } from 'antd'
-import { BulbOutlined, CheckCircleOutlined, DownloadOutlined, FileAddOutlined, PlusOutlined, SearchOutlined, TeamOutlined } from '@ant-design/icons'
+import { Alert, App, Button, Card, Col, ConfigProvider, Descriptions, Input, Modal, Row, Space, Tag, theme as antdTheme, Typography, type TableProps } from 'antd'
+import { CheckCircleOutlined, DownloadOutlined, FileAddOutlined, PlusOutlined, SearchOutlined, TeamOutlined } from '@ant-design/icons'
 import { doc, getDoc } from 'firebase/firestore'
 import { useEffect, useMemo, useState } from 'react'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
@@ -8,27 +8,23 @@ import { FilterBar } from '@/components/shared/FilterBar'
 import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
 import { getFirebaseDb, isFirebaseConfigured } from '@/config/firebase'
 import { hasRolePermission } from '@/config/permissions'
+import { lightTheme } from '@/config/theme'
 import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
 import { useActiveProgramId } from '@/hooks/useActiveProgramId'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { useLanguage } from '@/providers/LanguageProvider'
 import {
-    acceptDiagnosticInterventionRequest,
     confirmDiagnosticPlan,
-    listDiagnosticInterventionRequests,
     listDiagnosticInterventionOptions,
     listDiagnosticPlanParticipants,
     saveDiagnosticPlan,
 } from '@/services/diagnosticPlansService'
-import type { DiagnosticInterventionRequest } from '@/services/diagnosticPlansService'
 import type { DiagnosticInterventionOption, DiagnosticPlanParticipant } from '@/types/diagnosticPlan'
-import { PlanProjectionPreview } from '@/components/interventions/PlanProjectionPreview'
 import { useAssignedInterventions } from '@/contexts/AssignedInterventionsContext'
 import { buildLivePlanItems, livePlanProgress } from '@/utils/liveDiagnosticPlan'
 import '@/styles/operations-diagnostics.css'
 
 type StatusFilter = 'All' | 'Draft' | 'Confirmed'
-type PlanSection = 'overview' | 'swot' | 'interventions' | 'requests' | 'review'
 
 type AiSuggestedIntervention = {
     area: string
@@ -163,13 +159,8 @@ export const DiagnosticPlansPage = () => {
     const [search, setSearch] = useState('')
     const [status, setStatus] = useState<StatusFilter>('All')
     const [selected, setSelected] = useState<DiagnosticPlanParticipant>()
-    const [section, setSection] = useState<PlanSection>('overview')
-    const [interventionSearch, setInterventionSearch] = useState('')
-    const [supportArea, setSupportArea] = useState('All')
     const [selectedInterventions, setSelectedInterventions] = useState<DiagnosticInterventionOption[]>([])
     const [companyLogoUrl, setCompanyLogoUrl] = useState('')
-    const [requests, setRequests] = useState<DiagnosticInterventionRequest[]>([])
-    const [acceptingRequestId, setAcceptingRequestId] = useState('')
 
     const companyCode = String(user?.companyCode || '').trim()
     const canManage = !!user && hasRolePermission(user.role, 'manage_diagnostic_plans', user.permissions)
@@ -192,7 +183,6 @@ export const DiagnosticPlansPage = () => {
 
             setParticipants(participantRows)
             setCatalogue(interventionRows)
-            setRequests(await listDiagnosticInterventionRequests(participantRows))
 
             console.log('[DiagnosticPlansPage] loaded', {
                 companyCode,
@@ -241,7 +231,7 @@ export const DiagnosticPlansPage = () => {
 
     const companyCatalogue = useMemo(() => catalogue, [catalogue])
 
-    const openPlan = (participant: DiagnosticPlanParticipant, initialSection: PlanSection = 'overview') => {
+    const openPlan = (participant: DiagnosticPlanParticipant) => {
         const known = new Map(companyCatalogue.map((item) => [item.interventionId, item]))
         const openedAiSuggestions = getAiRecommendedInterventions(participant, companyCatalogue)
 
@@ -256,9 +246,6 @@ export const DiagnosticPlansPage = () => {
         })
 
         setSelected(participant)
-        setSection(initialSection)
-        setInterventionSearch('')
-        setSupportArea('All')
         setSelectedInterventions(participant.plan.interventions.map((item) => known.get(item.interventionId) || item))
     }
 
@@ -298,21 +285,6 @@ export const DiagnosticPlansPage = () => {
         )
     }), [participants, search, status])
 
-    const areas = useMemo(() => [
-        ...new Set(companyCatalogue.map((item) => item.areaOfSupport).filter((value): value is string => !!value)),
-    ].sort(), [companyCatalogue])
-
-    const filteredCatalogue = useMemo(() => companyCatalogue.filter((item) => {
-        const needle = interventionSearch.trim().toLowerCase()
-
-        return (
-            (supportArea === 'All' || item.areaOfSupport === supportArea)
-            && (!needle || `${item.title} ${item.areaOfSupport || ''}`.toLowerCase().includes(needle))
-        )
-    }), [companyCatalogue, interventionSearch, supportArea])
-
-    const selectedIds = useMemo(() => new Set(selectedInterventions.map((item) => item.interventionId)), [selectedInterventions])
-    const selectedRequests = useMemo(() => selected ? requests.filter(request => request.participantId === selected.id) : [], [requests, selected])
     const liveForParticipant = (participant: DiagnosticPlanParticipant, interventions = participant.plan.interventions) => buildLivePlanItems(interventions, assignments.filter(assignment => String(assignment.participantId || '') === participant.id) as unknown as Array<Record<string, unknown>>)
     const selectedLiveInterventions = useMemo(() => selected ? liveForParticipant(selected, selectedInterventions) : [], [assignments, selected, selectedInterventions]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -374,33 +346,12 @@ export const DiagnosticPlansPage = () => {
         {
             title: t('common.actions'),
             render: (_, row) => (
-                <Button onClick={() => openPlan(row, 'review')}>
-                    {t('common.review')}
+                <Button onClick={() => openPlan(row)}>
+                    {tt('common.view', 'View')}
                 </Button>
             ),
         },
     ]
-
-    const toggleIntervention = (item: DiagnosticInterventionOption, checked: boolean) => {
-        setSelectedInterventions((current) => checked
-            ? [...current.filter((row) => row.interventionId !== item.interventionId), item]
-            : current.filter((row) => row.interventionId !== item.interventionId))
-    }
-
-    const acceptRequest = async (request: DiagnosticInterventionRequest) => {
-        if (!user || !selected) return
-        try {
-            setAcceptingRequestId(request.id)
-            await acceptDiagnosticInterventionRequest(user, selected, request)
-            message.success('Request accepted and added to the diagnostic plan. The SME must reconfirm the amended plan.')
-            await load()
-            const definition = companyCatalogue.find(item => normalizeText(item.title) === normalizeText(request.interventionTitle))
-            if (definition) setSelectedInterventions(current => [...current.filter(item => item.interventionId !== definition.interventionId), definition])
-        } catch (error) {
-            console.error('[DIAGNOSTIC REQUEST] Accept failed:', error)
-            message.error('The intervention request could not be accepted.')
-        } finally { setAcceptingRequestId('') }
-    }
 
     const addMatchedAiSuggestions = () => {
         setSelectedInterventions((current) => {
@@ -413,23 +364,11 @@ export const DiagnosticPlansPage = () => {
         })
     }
 
-    const swotCard = (title: string, items: string[]) => (
-        <Card size="small" title={title} className="diagnostic-swot-card">
-            {items.length
-                ? <List size="small" dataSource={items} renderItem={(item) => <List.Item>{item}</List.Item>} />
-                : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('operations.diagnostics.noSwot')} />}
-        </Card>
-    )
-
     const operationsSignature = (participant: DiagnosticPlanParticipant) => participant.plan.confirmedMeta?.operations
     const smeSignature = (participant: DiagnosticPlanParticipant) =>
         participant.plan.confirmedMeta?.participant
         || participant.plan.confirmedMeta?.incubatee
         || participant.plan.confirmedMeta?.sme
-
-    const aiScore = selected ? getAiField(selected, ['AI Score', 'aiScore']) : undefined
-    const aiRecommendation = selected ? getAiField(selected, ['AI Recommendation', 'aiRecommendation']) : undefined
-    const aiJustification = selected ? getAiField(selected, ['Justification', 'justification']) : undefined
 
     const signatureHtml = (title: string, meta?: { name?: string, email?: string, signatureURL?: string, confirmedAt?: string }) => `
         <td>
@@ -585,10 +524,24 @@ export const DiagnosticPlansPage = () => {
                     <DashboardMetricCard icon={<TeamOutlined />} label={t('nav.participants')} value={metrics.participants} />
                 </Col>
                 <Col xs={12} lg={6}>
-                    <DashboardMetricCard icon={<CheckCircleOutlined />} label={t('operations.diagnostics.confirmedPlans')} value={metrics.confirmed} />
+                    <DashboardMetricCard
+                        icon={<CheckCircleOutlined />}
+                        label={t('operations.diagnostics.confirmedPlans')}
+                        value={metrics.confirmed}
+                        hint={status === 'Confirmed' ? tt('operations.diagnostics.filterActive', 'Filter active — click to clear') : tt('operations.diagnostics.clickToFilter', 'Click to filter')}
+                        clickable
+                        onClick={() => setStatus((current) => current === 'Confirmed' ? 'All' : 'Confirmed')}
+                    />
                 </Col>
                 <Col xs={12} lg={6}>
-                    <DashboardMetricCard icon={<FileAddOutlined />} label={t('operations.diagnostics.draftPlans')} value={metrics.draft} />
+                    <DashboardMetricCard
+                        icon={<FileAddOutlined />}
+                        label={t('operations.diagnostics.draftPlans')}
+                        value={metrics.draft}
+                        hint={status === 'Draft' ? tt('operations.diagnostics.filterActive', 'Filter active — click to clear') : tt('operations.diagnostics.clickToFilter', 'Click to filter')}
+                        clickable
+                        onClick={() => setStatus((current) => current === 'Draft' ? 'All' : 'Draft')}
+                    />
                 </Col>
                 <Col xs={12} lg={6}>
                     <DashboardMetricCard icon={<FileAddOutlined />} label={t('operations.diagnostics.interventions')} value={metrics.interventions} />
@@ -596,26 +549,14 @@ export const DiagnosticPlansPage = () => {
             </Row>
 
             <FilterBar
-                title={t('nav.diagnosticPlans')}
                 primary={(
-                    <>
-                        <Input
-                            prefix={<SearchOutlined />}
-                            value={search}
-                            onChange={(event) => setSearch(event.target.value)}
-                            placeholder={t('operations.diagnostics.search')}
-                            allowClear
-                        />
-                        <Select
-                            value={status}
-                            onChange={setStatus}
-                            options={[
-                                { value: 'All', label: t('operations.diagnostics.allStatuses') },
-                                { value: 'Draft', label: t('operations.diagnostics.draft') },
-                                { value: 'Confirmed', label: t('operations.diagnostics.confirmed') },
-                            ]}
-                        />
-                    </>
+                    <Input
+                        prefix={<SearchOutlined />}
+                        value={search}
+                        onChange={(event) => setSearch(event.target.value)}
+                        placeholder={t('operations.diagnostics.search')}
+                        allowClear
+                    />
                 )}
             />
 
@@ -639,8 +580,8 @@ export const DiagnosticPlansPage = () => {
                             <Typography.Text>
                                 {row.plan.interventions.length} {t('operations.diagnostics.interventions').toLowerCase()}
                             </Typography.Text>
-                            <Button onClick={() => openPlan(row, 'review')}>
-                                {t('common.review')}
+                            <Button onClick={() => openPlan(row)}>
+                                {tt('common.view', 'View')}
                             </Button>
                         </Space>
                     )}
@@ -651,35 +592,78 @@ export const DiagnosticPlansPage = () => {
                 open={!!selected}
                 onCancel={() => setSelected(undefined)}
                 title={selected?.businessName}
-                footer={null}
+                footer={selected ? (
+                    <Space wrap className="diagnostic-modal-footer">
+                        <Button danger onClick={() => setSelected(undefined)}>
+                            {t('common.cancel')}
+                        </Button>
+
+                        <Button icon={<DownloadOutlined />} onClick={() => downloadDocument(selected)}>{t('common.download')}</Button>
+
+                        {canManage && selected.plan.status !== 'Confirmed' && (
+                            <>
+                                <Button loading={saving} onClick={() => void persist()}>
+                                    {t('common.save')}
+                                </Button>
+                                <Button
+                                    type="primary"
+                                    loading={saving}
+                                    disabled={!selectedInterventions.length || !user?.signatureURL}
+                                    onClick={() => void persist(true)}
+                                >
+                                    {t('operations.diagnostics.confirmPlan')}
+                                </Button>
+                            </>
+                        )}
+                    </Space>
+                ) : null}
                 width={1040}
+                centered
                 className="diagnostic-plan-modal"
             >
                 {selected && (
                     <Space orientation="vertical" size={16} className="operations-diagnostic-detail">
-                        <Segmented
-                            block
-                            value={section}
-                            onChange={(value) => setSection(value as PlanSection)}
-                            options={[
-                                { value: 'overview', label: t('common.overview') },
-                                { value: 'swot', label: 'SWOT' },
-                                { value: 'interventions', label: t('operations.diagnostics.interventions') },
-                                { value: 'requests', label: `Requests (${selectedRequests.filter(request => normalizeText(request.status) === 'pending').length})` },
-                                { value: 'review', label: t('common.review') },
-                            ]}
-                        />
+                        {selected.plan.status !== 'Confirmed' && (
+                            <Alert type="info" showIcon message={t('operations.diagnostics.reviewHint')} />
+                        )}
 
-                        {section === 'overview' && (
+                        {selected.plan.status !== 'Confirmed' && !user?.signatureURL && (
+                            <Alert type="warning" showIcon message="Set up your signature before confirming the growth plan." />
+                        )}
+
+                        {/* The paper is always a light page, so the antd components rendered inside it (Descriptions,
+                            Card, Tag...) need light-theme tokens even when the app is in dark mode, or their text
+                            renders in dark-mode-appropriate light colors that are invisible on the white paper. */}
+                        <ConfigProvider theme={{ ...lightTheme, algorithm: antdTheme.defaultAlgorithm }}>
+                        <article className="diagnostic-document">
+                            <header className="diagnostic-document-header">
+                                <div className="diagnostic-document-logo">
+                                    {companyLogoUrl
+                                        ? <img src={companyLogoUrl} alt="Company logo" />
+                                        : <Typography.Text strong>Company Logo</Typography.Text>}
+                                </div>
+
+                                <div className="diagnostic-document-title">
+                                    <Typography.Text>{selected.businessName || 'SME'}</Typography.Text>
+                                    <Typography.Title level={2}>Diagnostic Growth Plan</Typography.Title>
+                                </div>
+                            </header>
+
+                            <DividerTitle>Business Overview</DividerTitle>
+
                             <Descriptions
                                 bordered
                                 size="small"
                                 column={{ xs: 1, md: 2 }}
+                                className="diagnostic-clean-descriptions"
                                 items={[
-                                    { key: 'owner', label: t('common.owner'), children: selected.participantName || emptyValue },
+                                    { key: 'owner', label: 'Business Owner', children: displayValue(selected.participantName) },
+                                    { key: 'business', label: 'SME Name', children: displayValue(selected.businessName) },
                                     { key: 'program', label: t('operations.participants.programme'), children: selected.programName || t('common.unassigned') },
-                                    { key: 'sector', label: t('common.sector'), children: selected.sector || emptyValue },
-                                    { key: 'province', label: t('common.province'), children: selected.province || emptyValue },
+                                    { key: 'email', label: t('common.email'), children: selected.email || t('common.noEmail') },
+                                    { key: 'sector', label: t('common.sector'), children: displayValue(selected.sector) },
+                                    { key: 'stage', label: t('common.stage'), children: displayValue(selected.stage) },
+                                    { key: 'province', label: t('common.province'), children: displayValue(selected.province) },
                                     {
                                         key: 'status',
                                         label: t('common.status'),
@@ -691,30 +675,47 @@ export const DiagnosticPlansPage = () => {
                                     },
                                 ]}
                             />
-                        )}
 
-                        {section === 'swot' && (
-                            <Row gutter={[12, 12]}>
-                                <Col xs={24} md={12}>{swotCard(t('operations.diagnostics.strengths'), selected.swot.strengths)}</Col>
-                                <Col xs={24} md={12}>{swotCard(t('operations.diagnostics.weaknesses'), selected.swot.weaknesses)}</Col>
-                                <Col xs={24} md={12}>{swotCard(t('operations.diagnostics.opportunities'), selected.swot.opportunities)}</Col>
-                                <Col xs={24} md={12}>{swotCard(t('operations.diagnostics.threats'), selected.swot.threats)}</Col>
-                            </Row>
-                        )}
+                            <DividerTitle>SWOT Analysis</DividerTitle>
 
-                        {section === 'interventions' && (
-                            <>
-                                {aiSuggestions.length > 0 && (
+                            <div className="diagnostic-table-wrap">
+                                <table className="diagnostic-document-table">
+                                    <thead>
+                                        <tr>
+                                            <th>{t('operations.diagnostics.strengths')}</th>
+                                            <th>{t('operations.diagnostics.weaknesses')}</th>
+                                            <th>{t('operations.diagnostics.opportunities')}</th>
+                                            <th>{t('operations.diagnostics.threats')}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {Array.from({
+                                            length: Math.max(
+                                                selected.swot.strengths.length,
+                                                selected.swot.weaknesses.length,
+                                                selected.swot.opportunities.length,
+                                                selected.swot.threats.length,
+                                                1,
+                                            ),
+                                        }).map((_, index) => (
+                                            <tr key={index}>
+                                                <td>{selected.swot.strengths[index] || emptyValue}</td>
+                                                <td>{selected.swot.weaknesses[index] || emptyValue}</td>
+                                                <td>{selected.swot.opportunities[index] || emptyValue}</td>
+                                                <td>{selected.swot.threats[index] || emptyValue}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {aiSuggestions.length > 0 && (
+                                <>
+                                    <DividerTitle>{tt('operations.diagnostics.aiSuggestedInterventions', 'AI Suggested Interventions')}</DividerTitle>
+
                                     <Card
                                         size="small"
                                         className="diagnostic-ai-suggestions-card"
-                                        title={(
-                                            <Space>
-                                                <BulbOutlined />
-                                                <span>{tt('operations.diagnostics.aiSuggestedInterventions', 'AI Suggested Interventions')}</span>
-                                                <Tag>{aiSuggestions.length}</Tag>
-                                            </Space>
-                                        )}
                                         extra={canManage && selected.plan.status !== 'Confirmed' && matchedAiSuggestions.length > 0 ? (
                                             <Button size="small" icon={<PlusOutlined />} onClick={addMatchedAiSuggestions}>
                                                 {tt('operations.diagnostics.addMatchedSuggestions', 'Add matched')}
@@ -737,308 +738,75 @@ export const DiagnosticPlansPage = () => {
                                             ))}
                                         </Space>
                                     </Card>
-                                )}
-
-                                <Row gutter={[10, 10]} className="diagnostic-intervention-filters">
-                                    <Col xs={24} md={12}>
-                                        <Input
-                                            prefix={<SearchOutlined />}
-                                            value={interventionSearch}
-                                            onChange={(event) => setInterventionSearch(event.target.value)}
-                                            placeholder={t('operations.diagnostics.searchInterventions')}
-                                            allowClear
-                                        />
-                                    </Col>
-                                    <Col xs={24} md={12}>
-                                        <Select
-                                            className="diagnostic-area-select"
-                                            popupMatchSelectWidth={420}
-                                            value={supportArea}
-                                            onChange={setSupportArea}
-                                            options={[
-                                                { value: 'All', label: t('operations.diagnostics.allAreas') },
-                                                ...areas.map((value) => ({ value, label: value })),
-                                            ]}
-                                        />
-                                    </Col>
-                                </Row>
-
-                                <List
-                                    className="diagnostic-intervention-list"
-                                    dataSource={filteredCatalogue}
-                                    locale={{
-                                        emptyText: companyCatalogue.length === 0
-                                            ? `No company interventions found for ${companyCode || 'this company'}. Check the interventions collection companyCode field.`
-                                            : t('operations.diagnostics.noInterventions'),
-                                    }}
-                                    renderItem={(item) => (
-                                        <List.Item>
-                                            <Checkbox
-                                                checked={selectedIds.has(item.interventionId)}
-                                                disabled={!canManage}
-                                                onChange={(event) => toggleIntervention(item, event.target.checked)}
-                                            >
-                                                <Space orientation="vertical" size={0}>
-                                                    <Typography.Text strong>{item.title}</Typography.Text>
-                                                    {item.areaOfSupport && (
-                                                        <Typography.Text type="secondary">{item.areaOfSupport}</Typography.Text>
-                                                    )}
-                                                </Space>
-                                            </Checkbox>
-                                        </List.Item>
-                                    )}
-                                />
-                            </>
-                        )}
-
-                        {section === 'requests' && (
-                            <Card size="small" title="SME intervention requests">
-                                <Alert type="info" showIcon message="Accepted requests are added directly to this diagnostic plan." description="If the SME previously confirmed the plan, accepting a new request will require them to confirm the amended plan again." style={{ marginBottom: 16 }} />
-                                <List
-                                    dataSource={selectedRequests}
-                                    locale={{ emptyText: <Empty description="This SME has not requested additional interventions." /> }}
-                                    renderItem={(request) => <List.Item actions={normalizeText(request.status) === 'pending' ? [<Button key="accept" type="primary" loading={acceptingRequestId === request.id} disabled={!canManage} onClick={() => void acceptRequest(request)}>Accept and add to plan</Button>] : [<Tag key="status" color="green">{request.status}</Tag>]}>
-                                        <List.Item.Meta title={request.interventionTitle} description={<Space direction="vertical" size={0}><Typography.Text type="secondary">{request.areaOfSupport}</Typography.Text><Typography.Text>{request.reason || 'No reason supplied.'}</Typography.Text></Space>} />
-                                    </List.Item>}
-                                />
-                            </Card>
-                        )}
-
-                        {section === 'review' && (
-                            <Space orientation="vertical" size={16} className="diagnostic-review-panel">
-                                {selected.plan.status !== 'Confirmed' && (
-                                    <Alert type="info" showIcon message={t('operations.diagnostics.reviewHint')} />
-                                )}
-
-                                {selected.plan.status !== 'Confirmed' && !user?.signatureURL && (
-                                    <Alert type="warning" showIcon message="Set up your signature before confirming the growth plan." />
-                                )}
-
-                                <article className="diagnostic-document">
-                                    <header className="diagnostic-document-header">
-                                        <div className="diagnostic-document-logo">
-                                            {companyLogoUrl
-                                                ? <img src={companyLogoUrl} alt="Company logo" />
-                                                : <Typography.Text strong>Company Logo</Typography.Text>}
-                                        </div>
-
-                                        <div className="diagnostic-document-title">
-                                            <Typography.Text>{selected.businessName || 'SME'}</Typography.Text>
-                                            <Typography.Title level={2}>Diagnostic Growth Plan</Typography.Title>
-                                        </div>
-                                    </header>
-
-                                    <DividerTitle>Business Overview</DividerTitle>
-
-                                    <Descriptions
-                                        bordered
-                                        size="small"
-                                        column={{ xs: 1, md: 2 }}
-                                        className="diagnostic-clean-descriptions"
-                                        items={[
-                                            { key: 'owner', label: 'Business Owner', children: displayValue(selected.participantName) },
-                                            { key: 'business', label: 'SME Name', children: displayValue(selected.businessName) },
-                                            { key: 'program', label: t('operations.participants.programme'), children: selected.programName || t('common.unassigned') },
-                                            { key: 'email', label: t('common.email'), children: selected.email || t('common.noEmail') },
-                                            { key: 'sector', label: t('common.sector'), children: displayValue(selected.sector) },
-                                            { key: 'stage', label: t('common.stage'), children: displayValue(selected.stage) },
-                                            { key: 'province', label: t('common.province'), children: displayValue(selected.province) },
-                                            {
-                                                key: 'status',
-                                                label: t('common.status'),
-                                                children: (
-                                                    <Tag color={statusColor(selected.plan.status)}>
-                                                        {t(`operations.diagnostics.${selected.plan.status.toLowerCase()}`)}
-                                                    </Tag>
-                                                ),
-                                            },
-                                        ]}
-                                    />
-
-                                    <DividerTitle>Application Summary</DividerTitle>
-
-                                    <div className="diagnostic-summary-grid">
-                                        <div className="diagnostic-summary-item">
-                                            <span>{t('operations.applications.applied')}</span>
-                                            <strong>{formatDate(selected.applicationSummary.submittedAt)}</strong>
-                                        </div>
-                                        <div className="diagnostic-summary-item">
-                                            <span>{t('operations.compliance.score')}</span>
-                                            <strong>{displayScore(selected.applicationSummary.complianceScore)}</strong>
-                                        </div>
-                                        <div className="diagnostic-summary-item">
-                                            <span>{t('operations.applications.aiScore')}</span>
-                                            <strong>{displayValue(aiScore ?? selected.applicationSummary.aiScore)}</strong>
-                                        </div>
-                                        <div className="diagnostic-summary-item">
-                                            <span>{t('operations.applications.aiRecommendation')}</span>
-                                            <strong>{displayValue(aiRecommendation ?? selected.applicationSummary.aiRecommendation)}</strong>
-                                        </div>
-                                        <div className="diagnostic-summary-item diagnostic-summary-item-wide">
-                                            <span>{tt('operations.applications.aiJustification', 'AI Justification')}</span>
-                                            <p>{displayValue(aiJustification)}</p>
-                                        </div>
-                                        <div className="diagnostic-summary-item diagnostic-summary-item-wide">
-                                            <span>{t('operations.applications.motivation')}</span>
-                                            <p>{displayValue(selected.applicationSummary.motivation)}</p>
-                                        </div>
-                                        <div className="diagnostic-summary-item diagnostic-summary-item-wide">
-                                            <span>{t('operations.applications.challenges')}</span>
-                                            <p>{displayValue(selected.applicationSummary.challenges)}</p>
-                                        </div>
-                                    </div>
-
-                                    {aiSuggestions.length > 0 && (
-                                        <>
-                                            <DividerTitle>{tt('operations.diagnostics.aiSuggestedInterventions', 'AI Suggested Interventions')}</DividerTitle>
-                                            <div className="diagnostic-table-wrap">
-                                                <table className="diagnostic-document-table">
-                                                    <thead>
-                                                        <tr>
-                                                            <th>#</th>
-                                                            <th>{t('incubatee.tracker.intervention')}</th>
-                                                            <th>{t('incubatee.tracker.area')}</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {aiSuggestions.map((item, index) => (
-                                                            <tr key={`${item.area}-${item.title}`}>
-                                                                <td>{index + 1}</td>
-                                                                <td>{item.title}</td>
-                                                                <td>{item.area}</td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        </>
-                                    )}
-
-                                    <DividerTitle>SWOT Analysis</DividerTitle>
-
-                                    <div className="diagnostic-table-wrap">
-                                        <table className="diagnostic-document-table">
-                                            <thead>
-                                                <tr>
-                                                    <th>{t('operations.diagnostics.strengths')}</th>
-                                                    <th>{t('operations.diagnostics.weaknesses')}</th>
-                                                    <th>{t('operations.diagnostics.opportunities')}</th>
-                                                    <th>{t('operations.diagnostics.threats')}</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {Array.from({
-                                                    length: Math.max(
-                                                        selected.swot.strengths.length,
-                                                        selected.swot.weaknesses.length,
-                                                        selected.swot.opportunities.length,
-                                                        selected.swot.threats.length,
-                                                        1,
-                                                    ),
-                                                }).map((_, index) => (
-                                                    <tr key={index}>
-                                                        <td>{selected.swot.strengths[index] || emptyValue}</td>
-                                                        <td>{selected.swot.weaknesses[index] || emptyValue}</td>
-                                                        <td>{selected.swot.opportunities[index] || emptyValue}</td>
-                                                        <td>{selected.swot.threats[index] || emptyValue}</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-
-                                    <DividerTitle>{t('operations.diagnostics.requiredInterventions')}</DividerTitle>
-
-                                    <div className="diagnostic-table-wrap">
-                                        <table className="diagnostic-document-table">
-                                            <thead>
-                                                <tr>
-                                                    <th>#</th>
-                                                    <th>{t('incubatee.tracker.intervention')}</th>
-                                                    <th>{t('incubatee.tracker.area')}</th>
-                                                    <th>Status</th>
-                                                    <th>Progress</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {selectedLiveInterventions.length ? selectedLiveInterventions.map((item, index) => (
-                                                    <tr key={item.interventionId || item.title}>
-                                                        <td>{index + 1}</td>
-                                                        <td>{item.title}</td>
-                                                        <td>{item.areaOfSupport || emptyValue}</td>
-                                                        <td><Tag color={item.status === 'Completed' ? 'green' : item.status === 'In progress' ? 'blue' : item.status === 'Awaiting action' ? 'orange' : 'default'}>{item.status}</Tag></td>
-                                                        <td>{item.progress}%</td>
-                                                    </tr>
-                                                )) : (
-                                                    <tr>
-                                                        <td colSpan={5}>{t('operations.diagnostics.noSelectedInterventions')}</td>
-                                                    </tr>
-                                                )}
-                                            </tbody>
-                                        </table>
-                                    </div>
-
-                                    <DividerTitle>Signatures</DividerTitle>
-
-                                    <Row gutter={[12, 12]}>
-                                        <Col xs={24} md={12}>
-                                            <div className="diagnostic-signature-box">
-                                                <Typography.Text strong>Operations Signature</Typography.Text>
-                                                {operationsSignature(selected)?.signatureURL
-                                                    ? <img src={operationsSignature(selected)?.signatureURL} alt="Operations signature" />
-                                                    : <div className="diagnostic-signature-empty">Pending signature</div>}
-                                                <Typography.Text>{displayValue(operationsSignature(selected)?.name || operationsSignature(selected)?.email)}</Typography.Text>
-                                                <Typography.Text type="secondary">
-                                                    {operationsSignature(selected)?.confirmedAt
-                                                        ? new Date(operationsSignature(selected)?.confirmedAt || '').toLocaleString()
-                                                        : emptyValue}
-                                                </Typography.Text>
-                                            </div>
-                                        </Col>
-
-                                        <Col xs={24} md={12}>
-                                            <div className="diagnostic-signature-box">
-                                                <Typography.Text strong>SME Signature</Typography.Text>
-                                                {smeSignature(selected)?.signatureURL
-                                                    ? <img src={smeSignature(selected)?.signatureURL} alt="SME signature" />
-                                                    : <div className="diagnostic-signature-empty">Pending signature</div>}
-                                                <Typography.Text>{displayValue(smeSignature(selected)?.name || smeSignature(selected)?.email)}</Typography.Text>
-                                                <Typography.Text type="secondary">
-                                                    {smeSignature(selected)?.confirmedAt
-                                                        ? new Date(smeSignature(selected)?.confirmedAt || '').toLocaleString()
-                                                        : emptyValue}
-                                                </Typography.Text>
-                                            </div>
-                                        </Col>
-                                    </Row>
-                                </article>
-                            </Space>
-                        )}
-
-                        <Space wrap className="diagnostic-modal-footer">
-                            <PlanProjectionPreview interventions={selectedLiveInterventions} />
-                            <Button onClick={() => setSelected(undefined)}>
-                                {t('common.cancel')}
-                            </Button>
-
-                            <Button icon={<DownloadOutlined />} onClick={() => downloadDocument(selected)}>{t('common.download')}</Button>
-
-                            {canManage && (
-                                <>
-                                    <Button loading={saving} onClick={() => void persist()}>
-                                        {selected.plan.status === 'Confirmed' ? 'Save plan amendment' : t('common.save')}
-                                    </Button>
-                                    {selected.plan.status !== 'Confirmed' && <Button
-                                        type="primary"
-                                        loading={saving}
-                                        disabled={!selectedInterventions.length || !user?.signatureURL}
-                                        onClick={() => void persist(true)}
-                                    >
-                                        {t('operations.diagnostics.confirmPlan')}
-                                    </Button>}
                                 </>
                             )}
-                        </Space>
+
+                            <DividerTitle>{t('operations.diagnostics.requiredInterventions')}</DividerTitle>
+
+                            <div className="diagnostic-table-wrap">
+                                <table className="diagnostic-document-table">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>{t('incubatee.tracker.intervention')}</th>
+                                            <th>{t('incubatee.tracker.area')}</th>
+                                            <th>Status</th>
+                                            <th>Progress</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {selectedLiveInterventions.length ? selectedLiveInterventions.map((item, index) => (
+                                            <tr key={item.interventionId || item.title}>
+                                                <td>{index + 1}</td>
+                                                <td>{item.title}</td>
+                                                <td>{item.areaOfSupport || emptyValue}</td>
+                                                <td><Tag color={item.status === 'Completed' ? 'green' : item.status === 'In progress' ? 'blue' : item.status === 'Awaiting action' ? 'orange' : 'default'}>{item.status}</Tag></td>
+                                                <td>{item.progress}%</td>
+                                            </tr>
+                                        )) : (
+                                            <tr>
+                                                <td colSpan={5}>{t('operations.diagnostics.noSelectedInterventions')}</td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <DividerTitle>Signatures</DividerTitle>
+
+                            <Row gutter={[12, 12]}>
+                                <Col xs={24} md={12}>
+                                    <div className="diagnostic-signature-box">
+                                        <Typography.Text strong>Operations Signature</Typography.Text>
+                                        {operationsSignature(selected)?.signatureURL
+                                            ? <img src={operationsSignature(selected)?.signatureURL} alt="Operations signature" />
+                                            : <div className="diagnostic-signature-empty">Pending signature</div>}
+                                        <Typography.Text>{displayValue(operationsSignature(selected)?.name || operationsSignature(selected)?.email)}</Typography.Text>
+                                        <Typography.Text type="secondary">
+                                            {operationsSignature(selected)?.confirmedAt
+                                                ? new Date(operationsSignature(selected)?.confirmedAt || '').toLocaleString()
+                                                : emptyValue}
+                                        </Typography.Text>
+                                    </div>
+                                </Col>
+
+                                <Col xs={24} md={12}>
+                                    <div className="diagnostic-signature-box">
+                                        <Typography.Text strong>SME Signature</Typography.Text>
+                                        {smeSignature(selected)?.signatureURL
+                                            ? <img src={smeSignature(selected)?.signatureURL} alt="SME signature" />
+                                            : <div className="diagnostic-signature-empty">Pending signature</div>}
+                                        <Typography.Text>{displayValue(smeSignature(selected)?.name || smeSignature(selected)?.email)}</Typography.Text>
+                                        <Typography.Text type="secondary">
+                                            {smeSignature(selected)?.confirmedAt
+                                                ? new Date(smeSignature(selected)?.confirmedAt || '').toLocaleString()
+                                                : emptyValue}
+                                        </Typography.Text>
+                                    </div>
+                                </Col>
+                            </Row>
+                        </article>
+                        </ConfigProvider>
                     </Space>
                 )}
             </Modal>

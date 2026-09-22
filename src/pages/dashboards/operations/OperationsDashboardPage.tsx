@@ -1358,6 +1358,7 @@ export default function OperationsDashboard() {
     const smeImpactCard = (
         <Card
             className="dashboard-section-card"
+            style={{ height: 'auto' }}
             bordered={false}
             loading={cardLoading}
             title={

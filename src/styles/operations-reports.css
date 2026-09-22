@@ -6,61 +6,6 @@
     width: max-content;
 }
 
-.project-admin-reports-page .filter-bar-primary {
-    display: block;
-    width: 100%;
-}
-
-.project-admin-reports-page .project-admin-report-filter-grid {
-    display: grid;
-    grid-template-columns: minmax(420px, .9fr) minmax(300px, 1.2fr) minmax(520px, 1.1fr);
-    align-items: end;
-    gap: 12px;
-    width: 100%;
-}
-
-.project-admin-reports-page .project-admin-report-filter-control:last-child {
-    grid-column: auto;
-}
-
-.project-admin-report-filter-control {
-    display: grid;
-    min-width: 0;
-    gap: 6px;
-}
-
-.project-admin-report-filter-control > span {
-    color: rgba(15, 23, 42, .62);
-    font-size: 12px;
-    font-weight: 600;
-}
-
-.project-admin-report-filter-control .ant-segmented,
-.project-admin-report-filter-control .ant-picker {
-    width: 100%;
-}
-
-.project-admin-report-filter-control .ant-segmented {
-    overflow-x: auto;
-}
-
-.project-admin-report-filter-control .ant-segmented-group {
-    width: 100%;
-    min-width: 0;
-}
-
-.project-admin-report-filter-control .ant-segmented-item {
-    flex: 1 1 0;
-    min-width: 0;
-    text-align: center;
-}
-
-.project-admin-report-filter-control .ant-segmented-item-label {
-    overflow: visible;
-    padding-inline: 12px;
-    text-overflow: clip;
-}
-
 .project-admin-report-chart-grid {
     margin-bottom: 20px;
 }
@@ -100,10 +45,6 @@
 .operations-reports-page .dashboard-metric-icon.is-users {
     color: #7c3aed;
     background: rgba(124, 58, 237, .11);
-}
-
-html[data-theme='dark'] .project-admin-report-filter-control > span {
-    color: rgba(255, 255, 255, .62);
 }
 
 .operations-insight-card {
@@ -246,6 +187,67 @@ html[data-theme='dark'] .project-admin-report-filter-control > span {
     margin: 4px 0 0 !important;
 }
 
+.operations-workload-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.operations-workload-card,
+.operations-facilitator-card {
+    width: 100%;
+    border: 1px solid rgba(15, 23, 42, .1);
+    border-radius: 14px;
+    padding: 14px;
+    text-align: left;
+    background: rgba(255, 255, 255, .88);
+    cursor: pointer;
+    transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+
+.operations-workload-card:hover,
+.operations-facilitator-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(109, 93, 251, .42);
+    box-shadow: 0 12px 24px rgba(15, 23, 42, .09);
+}
+
+.operations-workload-counts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    color: rgba(15, 23, 42, .62);
+    font-size: 12px;
+}
+
+.operations-workload-counts strong {
+    color: rgba(15, 23, 42, .92);
+}
+
+.operations-facilitator-list {
+    display: grid;
+    gap: 10px;
+    max-height: min(62vh, 600px);
+    overflow-y: auto;
+    padding-right: 2px;
+}
+
+.operations-facilitator-card.is-at-risk {
+    border-color: rgba(220, 38, 38, .3);
+    background: linear-gradient(180deg, rgba(254, 226, 226, .72), rgba(255, 255, 255, .96));
+}
+
+.operations-facilitator-card.is-watch {
+    border-color: rgba(245, 158, 11, .3);
+    background: linear-gradient(180deg, rgba(254, 243, 199, .72), rgba(255, 255, 255, .96));
+}
+
+html[data-theme='dark'] .operations-workload-card,
+html[data-theme='dark'] .operations-facilitator-card {
+    background: rgba(30, 41, 59, .9);
+    border-color: rgba(255, 255, 255, .12);
+}
+
 @media (max-width: 767px) {
     .operations-reports-page .filter-bar-primary {
         display: grid;
@@ -266,31 +268,8 @@ html[data-theme='dark'] .project-admin-report-filter-control > span {
         flex-direction: column;
     }
 
-    .project-admin-reports-page .project-admin-report-filter-grid {
+    .operations-workload-grid {
         grid-template-columns: minmax(0, 1fr);
     }
-
-    .project-admin-reports-page .project-admin-report-filter-control:last-child {
-        grid-column: auto;
-    }
 }
 
-@media (min-width: 768px) and (max-width: 1199px) {
-    .project-admin-reports-page .project-admin-report-filter-grid {
-        grid-template-columns: minmax(0, 1fr);
-    }
-
-    .project-admin-reports-page .project-admin-report-filter-control:last-child {
-        grid-column: auto;
-    }
-}
-
-@media (min-width: 1200px) and (max-width: 1399px) {
-    .project-admin-reports-page .project-admin-report-filter-grid {
-        grid-template-columns: minmax(360px, 1fr) minmax(300px, 1fr);
-    }
-
-    .project-admin-reports-page .project-admin-report-filter-control:last-child {
-        grid-column: 1 / -1;
-    }
-}

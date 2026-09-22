@@ -21,12 +21,14 @@ export type ProgressStep = {
   targetActualBefore?: number
   targetActualAfter?: number | null
   notes?: string
+  evidenceFiles?: string[]
 }
 
 export type AssignedInterventionLike = {
   id: string
   interventionId?: string
   interventionTitle?: string
+  /** @deprecated Legacy field, replaced by `businessName`. See scripts/FIELD_MIGRATIONS.md. Kept only so older unmigrated documents still type-check. */
   beneficiaryName?: string
   beneficiaryEmail?: string
   businessName?: string
@@ -114,6 +116,7 @@ export type ProgressUpdateForm = {
   unitsAdded?: number
   progressAfter?: number
   notes?: string
+  evidenceFiles?: string[]
 }
 
 export type AiReview = {

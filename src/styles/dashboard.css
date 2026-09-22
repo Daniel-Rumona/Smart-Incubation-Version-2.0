@@ -538,6 +538,22 @@ html[data-theme='dark'] .dashboard-header-card::before {
     cursor: default;
 }
 
+.dashboard-metric-card.is-active {
+    border-color: rgba(109, 93, 251, 0.55) !important;
+
+    background: rgba(109, 93, 251, 0.06);
+
+    box-shadow: 0 0 0 2px rgba(109, 93, 251, 0.16) !important;
+}
+
+html[data-theme='dark'] .dashboard-metric-card.is-active {
+    border-color: rgba(139, 92, 246, 0.55) !important;
+
+    background: rgba(139, 92, 246, 0.14);
+
+    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.24) !important;
+}
+
 
 /* =========================================================
    Metric Card Body
@@ -918,6 +934,10 @@ html[data-theme='dark'] .dashboard-header-card::before {
     animation: motion-card-enter 0.32s ease both;
 }
 
+html[data-theme='dark'] .motion-card {
+    border-color: rgba(139, 92, 246, 0.2) !important;
+}
+
 @keyframes motion-card-enter {
     from {
         opacity: 0;
@@ -983,6 +1003,10 @@ html[data-theme='dark'] .sunken-panel {
     flex-wrap: wrap;
 
     justify-content: flex-end;
+}
+
+.filter-bar-title {
+    margin: 0 0 8px !important;
 }
 
 .filter-bar-primary {
@@ -1276,7 +1300,7 @@ html[data-theme='dark'] .apt-panel-group-title span { background: rgba(255, 255,
    ========================================================= */
 
 html[data-theme='dark'] .dashboard-metric-card {
-    border-color: rgba(139, 92, 246, 0.18) !important;
+    border-color: rgba(139, 92, 246, 0.26) !important;
 
     background: rgba(23, 25, 35, 0.86) !important;
 

@@ -314,12 +314,12 @@ export const InterventionAppointmentsPage = () => {
                 companyCode: user.companyCode || null,
                 assignedInterventionId: assignment.id,
                 interventionId: assignment.interventionId,
-                interventionTitle: assignment.interventionTitle || assignment.snapshot?.interventionTitle || 'Intervention',
+                interventionTitle: assignment.interventionTitle || 'Intervention',
                 participantId: assignment.participantId || null,
-                participantName: assignment.beneficiaryName || assignment.snapshot?.businessName || null,
+                participantName: assignment.businessName || null,
                 participantEmail: assignment.beneficiaryEmail || assignment.email || null,
                 programId: assignment.programId || null,
-                programName: assignment.programName || assignment.snapshot?.programName || null,
+                programName: assignment.programName || null,
                 assigneeId: assignment.assigneeId || user.uid,
                 assigneeEmail: assignment.assigneeEmail || user.email,
                 meetingType: values.meetingType,
@@ -554,7 +554,7 @@ export const InterventionAppointmentsPage = () => {
                 <AppointmentGuide text="Let’s schedule a useful conversation. Choose the intervention, how you’ll meet, and a time that works for everyone." onComplete={() => setCreateGuideComplete(true)} />
                 {createGuideComplete && <Form className="appointment-modal-reveal" form={form} layout="vertical" onFinish={saveAppointment}>
                     <Form.Item name="assignedInterventionId" label="Assigned intervention" rules={[{ required: true, message: 'Choose an intervention.' }]}>
-                        <Select showSearch optionFilterProp="label" options={assignableInterventions.map((assignment) => ({ value: assignment.id, label: `${assignment.interventionTitle || 'Intervention'} - ${assignment.beneficiaryName || assignment.snapshot?.businessName || 'SME'}` }))} />
+                        <Select showSearch optionFilterProp="label" options={assignableInterventions.map((assignment) => ({ value: assignment.id, label: `${assignment.interventionTitle || 'Intervention'} - ${assignment.businessName || 'SME'}` }))} />
                     </Form.Item>
                     <Row gutter={12}>
                         <Col xs={24} md={12}><Form.Item name="meetingType" label="Meeting type" rules={[{ required: true }]}><Select options={MEETING_TYPE_OPTIONS} /></Form.Item></Col>

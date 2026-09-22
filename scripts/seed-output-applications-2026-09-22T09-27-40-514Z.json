@@ -1,0 +1,87 @@
+{
+  "createdAt": "2026-09-22T09:27:40.514Z",
+  "sourceSeedTag": "demo-assigned-1789583332890",
+  "seedTag": "applications-demo-assigned-1789583332890",
+  "created": [
+    {
+      "collection": "applications",
+      "id": "3uCp8tB9dBv72CRBgjoD"
+    },
+    {
+      "collection": "applications",
+      "id": "AvIpVRIl59AL50TR3KBT"
+    },
+    {
+      "collection": "applications",
+      "id": "54FtIlB3cZEgLzuXfB2n"
+    },
+    {
+      "collection": "applications",
+      "id": "5WMtW36pGGBj1FbHaFdy"
+    },
+    {
+      "collection": "applications",
+      "id": "ROZARNdq7WRtHRXkvZI6"
+    },
+    {
+      "collection": "applications",
+      "id": "Hf7KFBm7usnjBPhrGho1"
+    },
+    {
+      "collection": "applications",
+      "id": "d6B597JiKo9YuOe8me8p"
+    },
+    {
+      "collection": "applications",
+      "id": "b8q9lAByGa4in3GEjO8I"
+    },
+    {
+      "collection": "applications",
+      "id": "xJ9JFdzFU7nsDv1U1UM6"
+    },
+    {
+      "collection": "applications",
+      "id": "VpAX1wY7RJyaEqEHoA7E"
+    },
+    {
+      "collection": "applications",
+      "id": "8wcPEfRob46PvXuSsZbs"
+    },
+    {
+      "collection": "applications",
+      "id": "LVZTbP93qgP9YBeaIpaC"
+    },
+    {
+      "collection": "applications",
+      "id": "xM83FokHINubuoyBPCVD"
+    },
+    {
+      "collection": "applications",
+      "id": "3x6OUcXXdzyyWhiFr9RJ"
+    },
+    {
+      "collection": "applications",
+      "id": "gqniOOuwEPYTsfV2aWZj"
+    },
+    {
+      "collection": "applications",
+      "id": "iQDRGXnX0n5TWjsakSZ9"
+    },
+    {
+      "collection": "applications",
+      "id": "NiTPTlfxbpNyqGTb7yTt"
+    },
+    {
+      "collection": "applications",
+      "id": "u0WMlHqxahvQGqaIAVA4"
+    },
+    {
+      "collection": "applications",
+      "id": "zguQOjwvfrZzqVuzAf18"
+    },
+    {
+      "collection": "applications",
+      "id": "gGIM7bPngJEUhzvtXZxM"
+    }
+  ]
+}

@@ -1,15 +1,43 @@
 .applications-metrics { margin-bottom: 16px; }
-.applications-panel { height: 100%; border-radius: 18px !important; border: 1px solid rgba(109, 93, 251, .12) !important; }
+.applications-panel { border-radius: 18px !important; border: 1px solid rgba(109, 93, 251, .12) !important; }
 .applications-panel .ant-card-body { padding: 14px; }
 .applications-row { cursor: pointer; transition: background .2s ease; }
 .applications-row:hover td, .applications-selected-row td { background: rgba(109, 93, 251, .08) !important; }
-.applications-detail-panel { min-height: 540px; }
 .applications-detail-body, .applications-detail-stack { width: 100%; }
 .applications-detail-body { display: grid; gap: 16px; }
 .applications-detail-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .applications-detail-heading h4 { margin: 0 !important; }
 .applications-detail-stack > div { display: grid; gap: 7px; }
 .applications-detail-stack .ant-select { width: 100%; }
+.applications-decision-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.applications-decision-card { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px; border: 1px solid rgba(109, 93, 251, .14); border-radius: 12px; background: #fff; cursor: pointer; font: inherit; transition: border-color .15s ease, background .15s ease; }
+.applications-decision-card:hover { border-color: rgba(109, 93, 251, .4); background: rgba(109, 93, 251, .04); }
+.applications-decision-icon { font-size: 18px; color: #94a3b8; }
+.applications-decision-label { font-size: 12px; font-weight: 600; color: #475569; }
+.applications-decision-card.is-active { box-shadow: 0 0 0 1px currentColor inset; }
+.applications-decision-card.is-active .applications-decision-icon, .applications-decision-card.is-active .applications-decision-label { color: inherit; }
+.applications-decision-card.is-pending.is-active { border-color: #d4b106; background: rgba(212, 177, 6, .08); color: #874d00; }
+.applications-decision-card.is-accepted.is-active { border-color: #389e0d; background: rgba(56, 158, 13, .08); color: #237804; }
+.applications-decision-card.is-rejected.is-active { border-color: #cf1322; background: rgba(207, 19, 34, .08); color: #a8071a; }
+.applications-decision-result { display: grid; justify-items: start; gap: 8px; padding: 12px; border: 1px dashed rgba(148, 163, 184, .4); border-radius: 12px; }
+html[data-theme='dark'] .applications-decision-card { background: rgba(30, 41, 59, .9); border-color: rgba(255, 255, 255, .12); }
+html[data-theme='dark'] .applications-decision-result { border-color: rgba(255, 255, 255, .18); }
+.applications-analytics-grid { display: grid; align-items: start; grid-template-columns: 1fr 1fr; gap: 14px; }
+.applications-analytics-card { display: grid; align-content: start; gap: 10px; padding: 14px; border: 1px solid rgba(109, 93, 251, .12); border-radius: 14px; background: rgba(109, 93, 251, .03); }
+.applications-analytics-gauge { justify-items: center; text-align: center; }
+.applications-analytics-gauge .ant-progress { margin-top: 4px; }
+.applications-analytics-bar-row { display: grid; grid-template-columns: 72px 1fr auto; align-items: center; gap: 8px; }
+.applications-analytics-bar-label { overflow: hidden; font-size: 12px; font-weight: 600; color: #475569; text-overflow: ellipsis; text-transform: capitalize; white-space: nowrap; }
+.applications-analytics-bar-value { font-size: 12px; color: #64748b; white-space: nowrap; }
+.applications-analytics-wordmap-card { grid-column: 1 / -1; }
+.applications-analytics-wordmap { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; padding: 4px 0 2px; }
+.applications-wordmap-word { font-weight: 700; line-height: 1; text-transform: lowercase; }
+html[data-theme='dark'] .applications-analytics-card { background: rgba(30, 41, 59, .55); border-color: rgba(255, 255, 255, .12); }
+html[data-theme='dark'] .applications-analytics-bar-label { color: #cbd5e1; }
+html[data-theme='dark'] .applications-analytics-bar-value { color: #94a3b8; }
+@media (max-width: 640px) {
+  .applications-analytics-grid { grid-template-columns: 1fr; }
+}
 @media (max-width: 767px) {
   .applications-metrics > div:nth-child(n + 3) { display: none; }
   .applications-panel .ant-card-body { padding: 8px; }

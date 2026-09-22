@@ -1,6 +1,7 @@
 import {
     Button,
     App,
+    Dropdown,
     Grid,
     Layout,
     Modal,
@@ -8,6 +9,7 @@ import {
     Select,
     Space,
     Typography,
+    type MenuProps,
 } from 'antd'
 import {
     CompassOutlined,
@@ -15,7 +17,6 @@ import {
     LogoutOutlined,
     MenuOutlined,
     MoonOutlined,
-    ProjectOutlined,
     RobotOutlined,
     AppstoreOutlined,
     ArrowLeftOutlined,
@@ -30,7 +31,7 @@ import { hasRolePermission } from '@/config/permissions'
 import { useLanguage } from '@/providers/LanguageProvider'
 import { useThemeMode } from '@/providers/ThemeProvider'
 import { LANGUAGES, type LanguageCode } from '@/config/languages'
-import { USER_ROLES, type UserRole } from '@/config/roles'
+import type { UserRole } from '@/config/roles'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import type { AppRoute } from '@/types/routes'
 import type { FullIdentity, IdentityPermission, WorkspaceAudience } from '@/types/identity'
@@ -150,35 +151,6 @@ const NAVIGATION_DESCRIPTIONS: Record<string, string> = {
 }
 
 const navigationDescription = (route: AppRoute, label: string) => NAVIGATION_DESCRIPTIONS[route.path] || `Review and manage ${label.toLowerCase()} for this workspace.`
-
-/** The 3 highest-value pages per role, surfaced as one-click topbar shortcuts. */
-const QUICK_LINK_PATHS: Partial<Record<UserRole, string[]>> = {
-    [USER_ROLES.INCUBATEE]: ['/incubatee/interventions', '/incubatee/documents', '/incubatee/compliance'],
-    [USER_ROLES.CONSULTANT]: ['/consultant/smes', '/consultant/appointments', '/consultant/reports'],
-    [USER_ROLES.PROJECT_ADMIN]: ['/operations/participants/applications', '/operations/risk-register', '/projectadmin/reports'],
-    [USER_ROLES.PROJECT_MANAGER]: ['/operations/participants/applications', '/operations/risk-register', '/operations/reports'],
-    [USER_ROLES.OPERATIONS]: ['/operations/participants/applications', '/operations/risk-register', '/operations/reports'],
-    [USER_ROLES.DIRECTOR]: ['/director/portfolio', '/director/programs', '/director/reports'],
-    [USER_ROLES.ADMIN]: ['/admin/users', '/admin/usage', '/admin/email-operations'],
-    [USER_ROLES.SYSTEM_ADMIN]: ['/admin/users', '/admin/usage', '/admin/agent-registry'],
-}
-const APPLICANT_QUICK_LINK_PATHS = ['/applicant/programs', '/applicant/application-tracker', '/applicant/roadmap']
-
-const ROLE_LABELS: Partial<Record<UserRole, string>> = {
-    [USER_ROLES.INCUBATEE]: 'SME',
-    [USER_ROLES.CONSULTANT]: 'Consultant',
-    [USER_ROLES.PROJECT_ADMIN]: 'Project Admin',
-    [USER_ROLES.PROJECT_MANAGER]: 'Project Manager',
-    [USER_ROLES.OPERATIONS]: 'Operations',
-    [USER_ROLES.DIRECTOR]: 'Director',
-    [USER_ROLES.ADMIN]: 'Admin',
-    [USER_ROLES.SYSTEM_ADMIN]: 'System Admin',
-}
-
-const flattenRoutes = (routes: AppRoute[]): AppRoute[] =>
-    routes.flatMap((route) => [route, ...(route.children?.length ? flattenRoutes(route.children) : [])])
-
-type QuickLink = { path: string, label: string, icon: AppRoute['icon'] }
 
 const filterRoutesByAudience = (
     routes: AppRoute[],
@@ -369,24 +341,6 @@ export const SystemLayout = () => {
     const selectedKey = useMemo(() => {
         return findSelectedRouteKey(visibleRoutes, location.pathname) || '/'
     }, [location.pathname, visibleRoutes])
-    const quickLinkRoutes = useMemo(() => {
-        const byPath = new Map(flattenRoutes(visibleRoutes).map((route) => [route.path, route]))
-        const homePath = workspaceDashboardPath(user)
-        const homeRoute = byPath.get(homePath)
-        const home: QuickLink[] = homeRoute ? [{ path: homeRoute.path, label: 'Home', icon: homeRoute.icon }] : []
-
-        const candidatePaths = user?.role === 'incubatee' && user.isApplicant
-            ? APPLICANT_QUICK_LINK_PATHS
-            : (user?.role && QUICK_LINK_PATHS[user.role]) || []
-        const rest = candidatePaths
-            .filter((path) => path !== homePath)
-            .map((path) => byPath.get(path))
-            .filter((route): route is AppRoute => Boolean(route))
-            .slice(0, 3)
-            .map((route) => ({ path: route.path, label: t(route.labelKey), icon: route.icon }))
-
-        return [...home, ...rest]
-    }, [t, user, visibleRoutes])
     /** Section › Page trail for the topbar, so orientation survives the navigation modal closing. */
     const currentLocationLabel = useMemo(() => {
         const trail: string[] = []
@@ -429,6 +383,14 @@ export const SystemLayout = () => {
             ...groups,
         ]
     }, [settings, t, visibleRoutes])
+
+    const languageItems = useMemo<MenuProps['items']>(() => {
+        return Object.entries(LANGUAGES).map(([value, label]) => ({
+            key: value,
+            label,
+            onClick: () => setLanguage(value as LanguageCode),
+        }))
+    }, [setLanguage])
 
     const showTopbarBackButton = shellMode === 'workspace' && pageChrome.showBackButton
     const isChromelessMobile = isMobile && pageChrome.hideChrome
@@ -498,20 +460,6 @@ export const SystemLayout = () => {
         navigate(path)
     }
 
-    const quickLinksValue = quickLinkRoutes.some((link) => link.path === selectedKey) ? selectedKey : ''
-    const quickLinksSwitch = quickLinkRoutes.length > 0 && (
-        <Segmented
-            className="app-quicklinks-switch"
-            value={quickLinksValue}
-            onChange={(value) => openWorkspace(String(value))}
-            options={quickLinkRoutes.map((link) => ({
-                value: link.path,
-                label: link.label,
-                icon: link.icon,
-            }))}
-        />
-    )
-
     const handleLogout = async () => {
         try {
             await logoutUser()
@@ -544,96 +492,121 @@ export const SystemLayout = () => {
                     <Layout className="app-shell">
                         <Layout className="app-main">
                             {!isChromelessMobile && (
-                            <header
-                                id="guide-app-topbar"
-                                className="app-topbar-pill"
-                                style={{
-                                    left: isMobile ? 10 : 12,
-                                }}
-                            >
-                                <div className="app-topbar-left">
-                                    {shellMode === 'workspace' && showTopbarBackButton && (
-                                        <Button
-                                            type="text"
-                                            shape="circle"
-                                            icon={<ArrowLeftOutlined />}
-                                            onClick={handleTopbarBack}
-                                            className="app-icon-btn"
-                                            aria-label="Go back"
-                                        />
-                                    )}
+                                <header
+                                    id="guide-app-topbar"
+                                    className="app-topbar-pill"
+                                    style={{
+                                        left: isMobile ? 10 : 12,
+                                    }}
+                                >
+                                    <div className="app-topbar-left">
+                                        {shellMode === 'workspace' && showTopbarBackButton && (
+                                            <Button
+                                                type="text"
+                                                shape="circle"
+                                                icon={<ArrowLeftOutlined />}
+                                                onClick={handleTopbarBack}
+                                                className="app-icon-btn"
+                                                aria-label="Go back"
+                                            />
+                                        )}
 
-                                    {isMobile ? (
                                         <div className="app-brand-lockup">
+                                            {!isMobile && (companyLogoUrl ? <img src={companyLogoUrl} alt="Company logo" className="app-topbar-logo" /> : <span className="app-topbar-logo">S</span>)}
                                             <span className="app-brand-copy">
                                                 <strong id="guide-app-name" className="app-page-title">{showLocationCrumb ? currentLocationLabel : 'Smart Incubation'}</strong>
                                             </span>
                                         </div>
-                                    ) : modeSwitch}
-                                </div>
+                                    </div>
 
-                                {isMobile ? (
-                                    <Space size={4} className="app-topbar-actions">
-                                        <GuideMe
-                                            mode={shellMode}
-                                            role={user?.role}
-                                            pageName={shellMode === 'agentic' ? 'Agentic workspace' : selectedKey === '/' ? 'Workspace dashboard' : selectedKey.replace(/^\//, '').replaceAll('/', ' › ')}
-                                            hideTrigger
-                                            open={guideOpen}
-                                            onOpenChange={setGuideOpen}
-                                        />
+                                    {!isMobile && modeSwitch}
 
-                                        {shellMode === 'workspace' && <AgentFab placement="topbar" />}
+                                    {isMobile ? (
+                                        <Space size={4} className="app-topbar-actions">
+                                            <GuideMe
+                                                mode={shellMode}
+                                                role={user?.role}
+                                                pageName={shellMode === 'agentic' ? 'Agentic workspace' : selectedKey === '/' ? 'Workspace dashboard' : selectedKey.replace(/^\//, '').replaceAll('/', ' › ')}
+                                                hideTrigger
+                                                open={guideOpen}
+                                                onOpenChange={setGuideOpen}
+                                            />
 
-                                        {isSmeWorkspace && <IncubateeNotificationBell />}
+                                            {shellMode === 'workspace' && <AgentFab placement="topbar" />}
 
-                                        <Button
-                                            type="text"
-                                            shape="circle"
-                                            icon={<UserOutlined />}
-                                            onClick={() => setAccountOpen(true)}
-                                            className="app-icon-btn"
-                                            aria-label="Account and settings"
-                                        />
+                                            {isSmeWorkspace && <IncubateeNotificationBell />}
 
-                                        <Button
-                                            type="text"
-                                            shape="circle"
-                                            icon={<LogoutOutlined />}
-                                            onClick={() => void handleLogout()}
-                                            className="app-icon-btn app-logout-topbar-btn"
-                                            aria-label="Logout"
-                                        />
-                                    </Space>
-                                ) : (
-                                    <Space size={8} className="app-topbar-actions">
-                                        {shellMode === 'workspace' && quickLinksSwitch}
+                                            <Button
+                                                type="text"
+                                                shape="circle"
+                                                icon={<UserOutlined />}
+                                                onClick={() => setAccountOpen(true)}
+                                                className="app-icon-btn"
+                                                aria-label="Account and settings"
+                                            />
 
-                                        {shellMode === 'workspace' && <Button icon={<MenuOutlined />} onClick={() => setNavigationOpen(true)} className="app-menu-button">Menu</Button>}
+                                            <Button
+                                                type="text"
+                                                shape="circle"
+                                                icon={<LogoutOutlined />}
+                                                onClick={() => void handleLogout()}
+                                                className="app-icon-btn app-logout-topbar-btn"
+                                                aria-label="Logout"
+                                            />
+                                        </Space>
+                                    ) : (
+                                        <Space size={8} className="app-topbar-actions">
+                                            {shellMode === 'workspace' && <Button icon={<MenuOutlined />} onClick={() => setNavigationOpen(true)} className="app-menu-button">Menu</Button>}
+                                            {projectSelector}
 
-                                        {projectSelector}
+                                            <GuideMe
+                                                mode={shellMode}
+                                                role={user?.role}
+                                                pageName={shellMode === 'agentic' ? 'Agentic workspace' : selectedKey === '/' ? 'Workspace dashboard' : selectedKey.replace(/^\//, '').replaceAll('/', ' › ')}
+                                            />
 
-                                        <GuideMe
-                                            mode={shellMode}
-                                            role={user?.role}
-                                            pageName={shellMode === 'agentic' ? 'Agentic workspace' : selectedKey === '/' ? 'Workspace dashboard' : selectedKey.replace(/^\//, '').replaceAll('/', ' › ')}
-                                        />
+                                            {isSmeWorkspace && <IncubateeNotificationBell />}
 
-                                        {isSmeWorkspace && <IncubateeNotificationBell />}
+                                            {shellMode === 'workspace' && <AgentFab placement="topbar" />}
 
-                                        {shellMode === 'workspace' && <AgentFab placement="topbar" />}
+                                            <Button
+                                                type="text"
+                                                shape="circle"
+                                                icon={mode === 'dark' ? <SunOutlined /> : <MoonOutlined />}
+                                                onClick={toggleTheme}
+                                                className="app-icon-btn"
+                                                aria-label="Toggle theme"
+                                            />
 
-                                        <Button
-                                            type="text"
-                                            shape="circle"
-                                            icon={<UserOutlined />}
-                                            onClick={() => setAccountOpen(true)}
-                                            className="app-icon-btn"
-                                            aria-label="Account and settings"
-                                        />
-                                    </Space>
-                                )}
-                            </header>
+                                            <Dropdown
+                                                trigger={['click']}
+                                                placement="bottomRight"
+                                                menu={{
+                                                    items: languageItems,
+                                                    selectable: true,
+                                                    selectedKeys: [language],
+                                                }}
+                                            >
+                                                <Button
+                                                    type="text"
+                                                    shape="circle"
+                                                    icon={<GlobalOutlined />}
+                                                    className="app-icon-btn"
+                                                    aria-label="Change language"
+                                                />
+                                            </Dropdown>
+
+                                            <Button
+                                                type="text"
+                                                shape="circle"
+                                                icon={<LogoutOutlined />}
+                                                onClick={() => void handleLogout()}
+                                                className="app-icon-btn app-logout-topbar-btn"
+                                                aria-label="Logout"
+                                            />
+                                        </Space>
+                                    )}
+                                </header>
                             )}
 
                             <Content
@@ -666,62 +639,46 @@ export const SystemLayout = () => {
 
                     <Modal
                         open={accountOpen}
-                        title={
-                            <div className="app-account-modal-title">
-                                <span className="app-account-avatar">
-                                    {companyLogoUrl ? <img src={companyLogoUrl} alt="Company logo" /> : <UserOutlined />}
-                                </span>
-                                <span className="app-account-title-copy">
-                                    <strong>{user?.displayName || user?.name || 'Account'}</strong>
-                                    {user?.role && <span className="app-account-role">{ROLE_LABELS[user.role] || user.role}</span>}
-                                </span>
-                            </div>
-                        }
+                        title={user?.displayName || user?.name || 'Account'}
                         footer={null}
                         width={360}
                         onCancel={() => setAccountOpen(false)}
                         className="app-account-modal"
                     >
-                        {isMobile && projectSelector && (
-                            <div className="app-account-section">
-                                <div className="app-account-row">
-                                    <span className="app-account-row-label"><ProjectOutlined /> Programme</span>
-                                    {projectSelector}
-                                </div>
+                        {projectSelector && (
+                            <div className="app-account-row">
+                                <span>Programme</span>
+                                {projectSelector}
                             </div>
                         )}
 
-                        <div className="app-account-section">
-                            <div className="app-account-row">
-                                <span className="app-account-row-label"><GlobalOutlined /> Language</span>
-                                <Segmented
-                                    value={language}
-                                    onChange={(value) => setLanguage(value as LanguageCode)}
-                                    options={Object.entries(LANGUAGES).map(([value, label]) => ({ value, label }))}
-                                />
-                            </div>
+                        <div className="app-account-row">
+                            <span>Language</span>
+                            <Segmented
+                                value={language}
+                                onChange={(value) => setLanguage(value as LanguageCode)}
+                                options={Object.entries(LANGUAGES).map(([value, label]) => ({ value, label }))}
+                            />
+                        </div>
 
-                            <div className="app-account-row">
-                                <span className="app-account-row-label">{mode === 'dark' ? <MoonOutlined /> : <SunOutlined />} Appearance</span>
-                                <Button
-                                    icon={mode === 'dark' ? <SunOutlined /> : <MoonOutlined />}
-                                    onClick={toggleTheme}
-                                >
-                                    {mode === 'dark' ? 'Light mode' : 'Dark mode'}
-                                </Button>
-                            </div>
+                        <div className="app-account-row">
+                            <span>Appearance</span>
+                            <Button
+                                icon={mode === 'dark' ? <SunOutlined /> : <MoonOutlined />}
+                                onClick={toggleTheme}
+                            >
+                                {mode === 'dark' ? 'Light mode' : 'Dark mode'}
+                            </Button>
                         </div>
 
                         <div className="app-account-actions">
-                            {isMobile && (
-                                <Button
-                                    block
-                                    icon={<CompassOutlined />}
-                                    onClick={() => { setAccountOpen(false); setGuideOpen(true) }}
-                                >
-                                    Guide me
-                                </Button>
-                            )}
+                            <Button
+                                block
+                                icon={<CompassOutlined />}
+                                onClick={() => { setAccountOpen(false); setGuideOpen(true) }}
+                            >
+                                Guide me
+                            </Button>
 
                             <Button
                                 block

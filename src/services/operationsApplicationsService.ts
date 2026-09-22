@@ -29,6 +29,7 @@ export const listOperationsApplications = async (user: FullIdentity) => {
       hub: data.hub,
       province: data.province,
       beeLevel: data.beeLevel || data.bbeeLevel,
+      complianceScore: typeof data.complianceScore === 'number' ? data.complianceScore : undefined,
       programName: data.programName,
       companyCode: data.companyCode,
       applicationStatus: data.applicationStatus || 'Pending',

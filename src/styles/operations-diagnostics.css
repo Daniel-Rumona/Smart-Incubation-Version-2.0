@@ -2,50 +2,109 @@
     width: 100%;
 }
 
-.diagnostic-swot-card {
-    height: 100%;
-    border-radius: 14px !important;
+/*
+ * Cap the whole modal to the viewport and let only the body flex-scroll the remainder, instead of
+ * subtracting fixed pixel guesses for header/footer height. That guesswork is what let the outer
+ * modal wrap grow past the viewport and pick up its own scrollbar alongside the body's — two
+ * scrollbars for one scroll region.
+ */
+.diagnostic-plan-modal .ant-modal-content {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    max-height: 85vh;
 }
 
-.diagnostic-intervention-list {
-    max-height: 390px;
-    margin-top: 14px;
+.diagnostic-plan-modal .ant-modal-header {
+    padding: 18px 24px;
+    flex: 0 0 auto;
+}
+
+.diagnostic-plan-modal .ant-modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
-    border: 1px solid rgba(109, 93, 251, .12);
-    border-radius: 14px;
-    padding: 0 12px;
+    padding: 32px 24px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(109, 93, 251, 0.48) transparent;
 }
 
-.diagnostic-review-panel {
-    width: 100%;
+.diagnostic-plan-modal .ant-modal-body::-webkit-scrollbar {
+    width: 10px;
 }
 
-.diagnostic-review-section {
-    display: grid;
-    gap: 12px;
+.diagnostic-plan-modal .ant-modal-body::-webkit-scrollbar-track {
+    margin-block: 10px;
+    border-radius: 999px;
+    background: transparent;
 }
 
-.diagnostic-review-section h5 {
-    margin: 0 !important;
+.diagnostic-plan-modal .ant-modal-body::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background: rgba(109, 93, 251, 0.5);
+    background-clip: padding-box;
+}
+
+.diagnostic-plan-modal .ant-modal-body::-webkit-scrollbar-thumb:hover {
+    background: rgba(109, 93, 251, 0.76);
+    background-clip: padding-box;
+}
+
+html[data-theme='dark'] .diagnostic-plan-modal .ant-modal-body {
+    scrollbar-color: rgba(167, 139, 250, 0.58) transparent;
+}
+
+html[data-theme='dark'] .diagnostic-plan-modal .ant-modal-body::-webkit-scrollbar-thumb {
+    background: rgba(167, 139, 250, 0.58);
+    background-clip: padding-box;
+}
+
+html[data-theme='dark'] .diagnostic-plan-modal .ant-modal-body::-webkit-scrollbar-thumb:hover {
+    background: rgba(196, 181, 253, 0.82);
+    background-clip: padding-box;
+}
+
+.diagnostic-plan-modal .ant-modal-footer {
+    padding: 16px 24px;
+    flex: 0 0 auto;
+}
+
+/*
+ * The paper stays a white page in both themes, like a real printed document. Dark mode only
+ * changes the canvas it sits on — the modal chrome around it — not the page itself.
+ */
+html[data-theme='dark'] .diagnostic-plan-modal .ant-modal-content,
+html[data-theme='dark'] .diagnostic-plan-modal .ant-modal-header,
+html[data-theme='dark'] .diagnostic-plan-modal .ant-modal-body,
+html[data-theme='dark'] .diagnostic-plan-modal .ant-modal-footer {
+    background: #17191f;
+}
+
+html[data-theme='dark'] .diagnostic-plan-modal .ant-modal-header,
+html[data-theme='dark'] .diagnostic-plan-modal .ant-modal-footer {
+    border-color: rgba(255, 255, 255, 0.08);
 }
 
 .diagnostic-document {
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
+    background: #fffdf9;
     color: #1f2937;
-    padding: 24px;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 48px 32px;
+    border: 1px solid rgba(15, 23, 42, 0.06);
+    border-radius: 2px;
+    box-shadow: 0 1px 1px rgba(15, 23, 42, 0.05), 0 24px 48px -16px rgba(15, 23, 42, 0.35);
 }
 
 .diagnostic-document-header {
     align-items: center;
-    border: 1px solid #d9d9d9;
-    border-radius: 8px;
+    border-bottom: 2px solid #111827;
     display: grid;
     gap: 28px;
     grid-template-columns: 220px 1fr;
-    margin-bottom: 22px;
-    padding: 24px;
+    margin-bottom: 8px;
+    padding-bottom: 22px;
 }
 
 .diagnostic-document-logo {
@@ -55,171 +114,6 @@
     justify-content: center;
     min-height: 96px;
     padding: 10px;
-}
-
-.diagnostic-plan-modal .ant-modal-body {
-    max-height: calc(100dvh - 170px);
-    overflow-y: auto;
-}
-
-.diagnostic-intervention-filters .ant-select,
-.diagnostic-area-select {
-    width: 100%;
-}
-
-.diagnostic-ai-suggestions-card {
-    border-radius: 16px;
-}
-
-.diagnostic-ai-suggestions-list {
-    width: 100%;
-}
-
-.diagnostic-ai-suggestion-item {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 10px 12px;
-    border: 1px solid rgba(100, 116, 139, 0.16);
-    border-radius: 14px;
-    background: rgba(248, 250, 252, 0.72);
-}
-
-.diagnostic-ai-suggestion-item>div {
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.diagnostic-ai-suggestion-item .ant-typography {
-    overflow-wrap: anywhere;
-}
-
-.diagnostic-clean-descriptions .ant-descriptions-item-label {
-    width: 150px;
-    white-space: normal;
-}
-
-.diagnostic-clean-descriptions .ant-descriptions-item-content {
-    min-width: 0;
-    overflow-wrap: anywhere;
-}
-
-.diagnostic-summary-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    border: 1px solid rgba(100, 116, 139, 0.18);
-    border-radius: 16px;
-    overflow: hidden;
-}
-
-.diagnostic-summary-item {
-    min-width: 0;
-    padding: 14px;
-    border-right: 1px solid rgba(100, 116, 139, 0.14);
-    border-bottom: 1px solid rgba(100, 116, 139, 0.14);
-    background: rgba(248, 250, 252, 0.58);
-}
-
-.diagnostic-summary-item:nth-child(4n) {
-    border-right: none;
-}
-
-.diagnostic-summary-item span {
-    display: block;
-    margin-bottom: 6px;
-    color: #667085;
-    font-size: 12px;
-    font-weight: 650;
-}
-
-.diagnostic-summary-item strong {
-    display: block;
-    color: inherit;
-    font-size: 14px;
-    line-height: 1.45;
-    overflow-wrap: anywhere;
-}
-
-.diagnostic-summary-item p {
-    margin: 0;
-    line-height: 1.55;
-    color: inherit;
-    overflow-wrap: anywhere;
-}
-
-.diagnostic-summary-item-wide {
-    grid-column: span 4;
-    background: transparent;
-    border-right: none;
-}
-
-.diagnostic-document-table {
-    table-layout: fixed;
-}
-
-.diagnostic-document-table th,
-.diagnostic-document-table td {
-    overflow-wrap: anywhere;
-    word-break: normal;
-}
-
-html[data-theme='dark'] .diagnostic-ai-suggestion-item {
-    background: rgba(15, 17, 23, 0.58);
-    border-color: rgba(139, 92, 246, 0.18);
-}
-
-html[data-theme='dark'] .diagnostic-summary-item {
-    background: rgba(15, 17, 23, 0.48);
-    border-color: rgba(139, 92, 246, 0.16);
-}
-
-html[data-theme='dark'] .diagnostic-summary-grid {
-    border-color: rgba(139, 92, 246, 0.18);
-}
-
-html[data-theme='dark'] .diagnostic-summary-item span {
-    color: rgba(226, 232, 240, 0.68);
-}
-
-@media (max-width: 768px) {
-    .diagnostic-summary-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .diagnostic-summary-item:nth-child(4n) {
-        border-right: 1px solid rgba(100, 116, 139, 0.14);
-    }
-
-    .diagnostic-summary-item:nth-child(2n) {
-        border-right: none;
-    }
-
-    .diagnostic-summary-item-wide {
-        grid-column: span 2;
-    }
-
-    .diagnostic-ai-suggestion-item {
-        flex-direction: column;
-    }
-}
-
-@media (max-width: 520px) {
-    .diagnostic-summary-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .diagnostic-summary-item,
-    .diagnostic-summary-item:nth-child(2n),
-    .diagnostic-summary-item:nth-child(4n) {
-        border-right: none;
-    }
-
-    .diagnostic-summary-item-wide {
-        grid-column: span 1;
-    }
 }
 
 .diagnostic-document-logo img {
@@ -235,6 +129,7 @@ html[data-theme='dark'] .diagnostic-summary-item span {
 
 .diagnostic-document-title h2 {
     color: #111827;
+    font-family: Georgia, 'Times New Roman', serif;
     font-size: 34px !important;
     margin: 0 !important;
 }
@@ -243,9 +138,11 @@ html[data-theme='dark'] .diagnostic-summary-item span {
     align-items: center;
     color: #111827;
     display: flex;
+    font-family: Georgia, 'Times New Roman', serif;
     font-weight: 700;
     justify-content: center;
-    margin: 24px 0 14px;
+    letter-spacing: .02em;
+    margin: 32px 0 16px;
     text-align: center;
 }
 
@@ -267,15 +164,18 @@ html[data-theme='dark'] .diagnostic-summary-item span {
 
 .diagnostic-document-table {
     border-collapse: collapse;
+    table-layout: fixed;
     width: 100%;
 }
 
 .diagnostic-document-table th,
 .diagnostic-document-table td {
     border: 1px solid #d9d9d9;
+    overflow-wrap: anywhere;
     padding: 9px 10px;
     text-align: left;
     vertical-align: top;
+    word-break: normal;
 }
 
 .diagnostic-document-table th {
@@ -283,9 +183,49 @@ html[data-theme='dark'] .diagnostic-summary-item span {
     font-weight: 700;
 }
 
+.diagnostic-clean-descriptions .ant-descriptions-item-label {
+    width: 150px;
+    white-space: normal;
+}
+
+.diagnostic-clean-descriptions .ant-descriptions-item-content {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.diagnostic-ai-suggestions-card {
+    border-radius: 12px;
+}
+
+.diagnostic-ai-suggestions-list {
+    width: 100%;
+}
+
+.diagnostic-ai-suggestion-item {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 1px solid rgba(100, 116, 139, 0.16);
+    border-radius: 12px;
+    background: rgba(248, 250, 252, 0.72);
+}
+
+.diagnostic-ai-suggestion-item>div {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.diagnostic-ai-suggestion-item .ant-typography {
+    overflow-wrap: anywhere;
+}
+
 .diagnostic-signature-box {
     border: 1px solid #d9d9d9;
-    border-radius: 8px;
+    border-radius: 4px;
     display: grid;
     gap: 8px;
     min-height: 170px;
@@ -301,7 +241,7 @@ html[data-theme='dark'] .diagnostic-summary-item span {
 .diagnostic-signature-empty {
     align-items: center;
     border: 1px dashed #cbd5e1;
-    border-radius: 8px;
+    border-radius: 4px;
     color: #64748b;
     display: flex;
     height: 74px;
@@ -315,23 +255,31 @@ html[data-theme='dark'] .diagnostic-summary-item span {
 }
 
 @media (max-width: 767px) {
+    .diagnostic-plan-modal .ant-modal-body {
+        padding: 16px 10px;
+    }
+
     .diagnostic-modal-footer {
         align-items: stretch;
         flex-direction: column;
     }
 
     .diagnostic-document {
-        padding: 14px;
+        padding: 20px 18px;
     }
 
     .diagnostic-document-header {
         grid-template-columns: 1fr;
         gap: 12px;
-        padding: 16px;
+        padding-bottom: 16px;
         text-align: center;
     }
 
     .diagnostic-document-title h2 {
         font-size: 26px !important;
+    }
+
+    .diagnostic-ai-suggestion-item {
+        flex-direction: column;
     }
 }

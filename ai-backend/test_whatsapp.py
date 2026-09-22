@@ -23,6 +23,7 @@ def decision(
     confidence=0.96,
     action_type=None,
     action_fields=None,
+    tool_call_type=None,
     awaiting=None,
     appointment_id=None,
     reply="Let me help with that.",
@@ -30,11 +31,13 @@ def decision(
     action = None
     if action_type:
         action = {"type": action_type, **(action_fields or {})}
+    tool_call = {"type": tool_call_type, "arguments": {}} if tool_call_type else None
     return json.dumps(
         {
             "intent": intent,
             "confidence": confidence,
             "action": action,
+            "toolCall": tool_call,
             "conversation": {"awaiting": awaiting, "appointmentId": appointment_id},
             "reply": reply,
         }
@@ -67,11 +70,11 @@ class WhatsAppAgentTests(unittest.TestCase):
         return interpret_whatsapp_message(payload, self.store, model)
 
     def test_current_failing_case_gets_upcoming_appointments_without_context_type(self):
-        model = StubModel(decision(action_type="get_upcoming_appointments"))
+        model = StubModel(decision(tool_call_type="get_upcoming_appointments"))
         result = self.send("What are my upcoming appointments", model)
         self.assertEqual(result.intent, "appointment_query")
-        self.assertEqual(result.action.type, "get_upcoming_appointments")
-        self.assertIsNone(result.action.appointmentId)
+        self.assertEqual(result.toolCall.type, "get_upcoming_appointments")
+        self.assertIsNone(result.action)
         self.assertIsNone(result.conversation.awaiting)
 
     def test_upcoming_appointment_paraphrases_are_model_selected_reads(self):
@@ -84,20 +87,20 @@ class WhatsAppAgentTests(unittest.TestCase):
         )
         for message in messages:
             with self.subTest(message=message):
-                model = StubModel(decision(action_type="get_upcoming_appointments"))
+                model = StubModel(decision(tool_call_type="get_upcoming_appointments"))
                 result = self.send(message, model, user_id=f"user-{message}")
-                self.assertEqual(result.action.type, "get_upcoming_appointments")
+                self.assertEqual(result.toolCall.type, "get_upcoming_appointments")
                 self.assertIn(message, model.calls[0][1]["message"])
 
     def test_spelling_mistake_can_still_be_understood_by_model(self):
-        model = StubModel(decision(action_type="get_upcoming_appointments"))
+        model = StubModel(decision(tool_call_type="get_upcoming_appointments"))
         result = self.send("Wat meetngs do I hav comming up?", model)
-        self.assertEqual(result.action.type, "get_upcoming_appointments")
+        self.assertEqual(result.toolCall.type, "get_upcoming_appointments")
 
     def test_reads_do_not_require_rsvp_context(self):
-        model = StubModel(decision(action_type="get_upcoming_appointments"))
+        model = StubModel(decision(tool_call_type="get_upcoming_appointments"))
         result = self.send("What's next on my calendar?", model, context={"engine": "LPH", "type": "support"})
-        self.assertEqual(result.action.type, "get_upcoming_appointments")
+        self.assertEqual(result.toolCall.type, "get_upcoming_appointments")
 
     def test_specific_read_without_trusted_target_requests_target(self):
         model = StubModel(decision(action_type="get_meeting_link"))
@@ -245,11 +248,55 @@ class WhatsAppAgentTests(unittest.TestCase):
     def test_invalid_model_output_is_repaired_once(self):
         model = StubModel(
             "not json",
-            decision(action_type="get_upcoming_appointments"),
+            decision(tool_call_type="get_upcoming_appointments"),
         )
         result = self.send("What have I got coming up?", model)
-        self.assertEqual(result.action.type, "get_upcoming_appointments")
+        self.assertEqual(result.toolCall.type, "get_upcoming_appointments")
         self.assertEqual(len(model.calls), 2)
+
+    def test_read_request_yields_tool_call_then_final_reply_from_result(self):
+        model = StubModel(decision(tool_call_type="get_upcoming_appointments"))
+        first = self.send("What's next on my calendar?", model)
+        self.assertIsNone(first.action)
+        self.assertEqual(first.toolCall.type, "get_upcoming_appointments")
+
+        final_model = StubModel(
+            decision(
+                intent="appointment_query",
+                confidence=0.95,
+                reply="Your next appointment is Financial Compliance on Friday.",
+            )
+        )
+        second = self.send(
+            "What's next on my calendar?",
+            final_model,
+            context={
+                "engine": "LPH",
+                "toolResults": [
+                    {"type": "get_upcoming_appointments", "result": {"appointments": []}},
+                ],
+            },
+        )
+        self.assertIsNone(second.toolCall)
+        self.assertIsNone(second.action)
+        self.assertIn("Financial Compliance", second.reply)
+        self.assertEqual(final_model.calls[0][1]["toolResults"][0]["type"], "get_upcoming_appointments")
+
+    def test_tool_call_round_cap_forces_a_final_reply(self):
+        model = StubModel(decision(tool_call_type="get_upcoming_appointments"))
+        result = self.send(
+            "What's next on my calendar?",
+            model,
+            context={
+                "engine": "LPH",
+                "toolResults": [
+                    {"type": "get_upcoming_appointments", "result": {"appointments": []}}
+                ]
+                * 3,
+            },
+        )
+        self.assertIsNone(result.toolCall)
+        self.assertIsNone(result.action)
 
     def test_twice_invalid_model_output_returns_safe_no_action(self):
         model = StubModel("not json", '{"action":"unsupported"}')

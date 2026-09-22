@@ -162,13 +162,31 @@ export const loadProjectAdminWorkspace = async (
     interventionsSnap,
     complianceSnap,
     staffSnap,
+    programsSnap,
   ] = await Promise.all([
     getDocs(query(collection(db, 'applications'), ...companyConstraints)),
     getDocs(query(collection(db, 'participants'), ...companyConstraints)),
     getDocs(collection(db, 'assignedInterventions')),
     getDocs(query(collection(db, 'complianceDocuments'), ...companyConstraints)),
     getDocs(query(collection(db, 'users'), ...companyConstraints)),
+    getDocs(query(collection(db, 'programs'), ...companyConstraints)),
   ])
+
+  // Applications/participants/interventions often only carry programId, not programName -
+  // resolve the display name from the programs collection instead of falling through to
+  // "Unassigned program" (which previously split one cohort's participants and their own
+  // interventions into two different-looking programmes).
+  const programNameById = new Map<string, string>()
+  programsSnap.docs.forEach((row) => {
+    const data = row.data()
+    const name = String(data.name || data.title || '').trim()
+    if (name) programNameById.set(row.id, name)
+  })
+  const resolveProgramName = (programId: string, rawName: unknown, rawTitle: unknown) => {
+    const explicit = String(rawName || rawTitle || '').trim()
+    if (explicit) return explicit
+    return programNameById.get(programId) || 'Unassigned program'
+  }
 
   const applications = applicationsSnap.docs.flatMap((row) => {
     const data = row.data()
@@ -188,7 +206,7 @@ export const loadProjectAdminWorkspace = async (
       id: row.id,
       businessName: readBusinessName(data),
       programId,
-      programName: String(data.programName || data.programTitle || 'Unassigned program'),
+      programName: resolveProgramName(programId, data.programName, data.programTitle),
       status: String(data.applicationStatus || data.status || data.stage || 'pending'),
       createdAt: toDate(data.createdAt),
       submittedAt: toDate(data.submittedAt),
@@ -223,7 +241,7 @@ export const loadProjectAdminWorkspace = async (
       id: row.id,
       businessName: readBusinessName(data),
       programId,
-      programName: String(data.programName || data.programTitle || 'Unassigned program'),
+      programName: resolveProgramName(programId, data.programName, data.programTitle),
       status: String(data.status || data.participantStatus || 'active'),
       createdAt: toDate(data.createdAt || data.acceptedAt),
       onboardedAt: toDate(data.onboardedAt || data.acceptedAt || data.approvedAt),
@@ -266,7 +284,7 @@ export const loadProjectAdminWorkspace = async (
       title: String(data.interventionTitle || 'Untitled intervention'),
       owner: String(data.assigneeName || 'Unassigned'),
       programId,
-      programName: String(data.programName || 'Unassigned program'),
+      programName: resolveProgramName(programId, data.programName, undefined),
       status: String(data.status || data.completionStatus || data.coordinatorCompletionStatus || 'pending'),
       progress: numberValue(data.progress),
       dueDate: toDate(data.dueDate),

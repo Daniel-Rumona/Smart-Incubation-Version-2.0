@@ -1,0 +1,167 @@
+{
+  "createdAt": "2026-09-16T18:29:24.586Z",
+  "targetEmail": "danieltmazorodze@gmail.com",
+  "seedTag": "demo-assigned-1789583332890",
+  "created": [
+    {
+      "collection": "participants",
+      "id": "aEIfBKoms7oqUqXZnBkQ"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "mtVTrhx0vtimIYpddPSb"
+    },
+    {
+      "collection": "participants",
+      "id": "GLL9isBmWQgKvfzjpP5O"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "8NQ9hN0g0JuGdUAmLDer"
+    },
+    {
+      "collection": "participants",
+      "id": "0E0UOzgMgSpuHGX8B2Va"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "y54pauF89HP3I5qTWi6a"
+    },
+    {
+      "collection": "participants",
+      "id": "liZfoC9NBfiTdrXY2L2i"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "zfmQhZ8NVlVRW4kNsMPC"
+    },
+    {
+      "collection": "participants",
+      "id": "2SUlBlf3dVX9BLb80XMY"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "a4qAOcI6MFnZzqdVDYmk"
+    },
+    {
+      "collection": "participants",
+      "id": "LMoWnxaeto7GaSXwU5Bk"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "PzDF1yPOvExjpvnwGaLi"
+    },
+    {
+      "collection": "participants",
+      "id": "3ll5U9oEwlAER23JThjl"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "xJlseo06IvF1VKvOYW3g"
+    },
+    {
+      "collection": "participants",
+      "id": "EyBHxrzsJeHdOYgd4ks9"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "7kMAynsnABD1B2nma4HT"
+    },
+    {
+      "collection": "participants",
+      "id": "g5m2IBjQXy1KZm2or8n3"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "AwSHZZduVDq5vjTkKgQn"
+    },
+    {
+      "collection": "participants",
+      "id": "ZYKEC379y0jNbni6Y0Lq"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "8Vg8iyYAyzR7VEKE5vo8"
+    },
+    {
+      "collection": "participants",
+      "id": "XUC299mpFZQrfFU6qcJI"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "qlVkxy9HILWJsrVz9qqI"
+    },
+    {
+      "collection": "participants",
+      "id": "7xoSSxySrdGQKqiwKXAE"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "5haNJBOJYN4WR5O9kiyN"
+    },
+    {
+      "collection": "participants",
+      "id": "tTirY9hjlYK3kbQ4d3Hf"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "A7W4vD2hjQR1WGS5XP6m"
+    },
+    {
+      "collection": "participants",
+      "id": "DOd5ncj9eZGW9Q3cPwph"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "DpOVeUVnhqYUegDK5s0D"
+    },
+    {
+      "collection": "participants",
+      "id": "391Gl4qbTwzTZILmzEQT"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "yUxv3cnAvuchqrmrH6uq"
+    },
+    {
+      "collection": "participants",
+      "id": "JeY2R4EbmAZ7Ab7ksTcJ"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "6SOrGrKoY6s88aTj5hFA"
+    },
+    {
+      "collection": "participants",
+      "id": "mmcOaGIL8BcTypNZXVSr"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "BWYtdFJXVsZuBveWx7aB"
+    },
+    {
+      "collection": "participants",
+      "id": "KYnXmdzhmbTA2ChZmwAT"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "0tnf4CZhNV3q3VlsMDVl"
+    },
+    {
+      "collection": "participants",
+      "id": "UXrmkGaabuZO8INr9oa3"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "0jFL9YNSFAxkV7k0aq5O"
+    },
+    {
+      "collection": "participants",
+      "id": "eybU3DnBy3WrIV8Uprxw"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "a0Xe8PSZtHhgwsqudXs1"
+    }
+  ]
+}

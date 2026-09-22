@@ -11,6 +11,7 @@ export type OperationsApplication = {
   hub?: string
   province?: string
   beeLevel?: string
+  complianceScore?: number
   programName?: string
   companyCode?: string
   applicationStatus: string

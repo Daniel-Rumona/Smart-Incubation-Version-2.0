@@ -1,7 +1,8 @@
-import { App, Button, Card, Col, DatePicker, Descriptions, Empty, Form, Input, Modal, Progress, Row, Select, Space, Tag, Typography, Upload, type TableProps, type UploadProps } from 'antd'
-import { CheckCircleOutlined, CloseCircleOutlined, EditOutlined, EyeOutlined, FileProtectOutlined, FileSearchOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, UploadOutlined, WarningOutlined } from '@ant-design/icons'
+import { App, Button, Card, Col, DatePicker, Descriptions, Empty, Form, Input, Modal, Progress, Row, Select, Space, Tag, theme, Typography, Upload, type TableProps, type UploadProps } from 'antd'
+import { CheckCircleOutlined, ClockCircleOutlined, CloseCircleOutlined, EditOutlined, EyeOutlined, FileProtectOutlined, FileSearchOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, UploadOutlined, WarningOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
@@ -16,8 +17,11 @@ import { COMPLIANCE_DOCUMENT_TYPES } from '@/services/complianceService'
 import '@/styles/operations-compliance.css'
 
 const { TextArea } = Input
-const STATUS_OPTIONS: ComplianceStatus[] = ['pending', 'valid', 'queried', 'invalid', 'expired']
-type DocumentForm = Omit<SaveComplianceDocument, 'participantId' | 'programId' | 'companyCode' | 'issueDate' | 'expiryDate'> & { participantId: string, issueDate?: dayjs.Dayjs, expiryDate?: dayjs.Dayjs }
+const MANUAL_STATUS_OPTIONS: Array<{ value: ComplianceStatus, icon: ReactNode }> = [
+    { value: 'pending', icon: <ClockCircleOutlined /> },
+    { value: 'valid', icon: <CheckCircleOutlined /> },
+]
+type DocumentForm = Omit<SaveComplianceDocument, 'participantId' | 'programId' | 'companyCode' | 'issueDate' | 'expiryDate' | 'documentName' | 'notes'> & { participantId: string, issueDate?: dayjs.Dayjs, expiryDate?: dayjs.Dayjs }
 const titleCase = (value: string) => value.charAt(0).toUpperCase() + value.slice(1)
 const statusColor = (value: ComplianceStatus) => value === 'valid' ? 'green' : value === 'pending' ? 'blue' : value === 'expired' ? 'orange' : 'red'
 const score = (participant: ComplianceParticipant) => participant.documents.length
@@ -26,11 +30,49 @@ const score = (participant: ComplianceParticipant) => participant.documents.leng
 const missingCount = (participant: ComplianceParticipant) => Math.max(0, COMPLIANCE_DOCUMENT_TYPES.length - participant.documents.length)
 const needsAction = (participant: ComplianceParticipant) => missingCount(participant) > 0 || participant.documents.some((document) => document.currentStatus !== 'valid')
 
+/** A selectable card used for binary choices, e.g. the manual document status field. */
+const OptionCard = ({ icon, title, selected, onClick }: { icon: ReactNode, title: string, selected?: boolean, onClick: () => void }) => {
+    const { token } = theme.useToken()
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            style={{
+                width: '100%',
+                display: 'flex',
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                padding: '8px 12px',
+                borderRadius: 10,
+                border: `1px solid ${selected ? token.colorPrimary : token.colorBorder}`,
+                background: selected ? token.colorPrimaryBg : token.colorBgContainer,
+                cursor: 'pointer',
+            }}
+        >
+            <span style={{ fontSize: 16, color: selected ? token.colorPrimary : token.colorTextSecondary }}>{icon}</span>
+            <strong>{title}</strong>
+        </button>
+    )
+}
+const StatusField = ({ value, onChange }: { value?: ComplianceStatus, onChange?: (value: ComplianceStatus) => void }) => (
+    <Row gutter={12}>
+        {MANUAL_STATUS_OPTIONS.map((option) => (
+            <Col span={12} key={option.value}>
+                <OptionCard icon={option.icon} title={titleCase(option.value)} selected={value === option.value} onClick={() => onChange?.(option.value)} />
+            </Col>
+        ))}
+    </Row>
+)
+
 export const CompliancePage = () => {
     const { message } = App.useApp()
     const { t } = useLanguage()
     const { user } = useFullIdentity()
     const { activeProgramId } = useActiveProgramId()
+    const location = useLocation()
+    const navigate = useNavigate()
     const [form] = Form.useForm<DocumentForm>()
     const [verifyForm] = Form.useForm<{ reason?: string }>()
     const [participants, setParticipants] = useState<ComplianceParticipant[]>([])
@@ -39,6 +81,7 @@ export const CompliancePage = () => {
     const [filter, setFilter] = useState('all')
     const [active, setActive] = useState<ComplianceParticipant>()
     const [editing, setEditing] = useState<ComplianceDocument>()
+    const [documentParticipant, setDocumentParticipant] = useState<ComplianceParticipant>()
     const [verifyDocument, setVerifyDocument] = useState<ComplianceDocument>()
     const [documentModalOpen, setDocumentModalOpen] = useState(false)
     const [reviewModalOpen, setReviewModalOpen] = useState(false)
@@ -64,6 +107,18 @@ export const CompliancePage = () => {
         return () => window.clearTimeout(timeout)
     }, [activeProgramId, user]) // eslint-disable-line react-hooks/exhaustive-deps
 
+    // Landed here from the risk register's "Take Action" - open the review modal for the
+    // flagged SME instead of leaving the user to find them in the list.
+    useEffect(() => {
+        const focusParticipantId = (location.state as { focusParticipantId?: string } | null)?.focusParticipantId
+        if (!focusParticipantId) return
+        const participant = participants.find((row) => row.participantId === focusParticipantId)
+        if (!participant) return
+        setActive(participant)
+        setReviewModalOpen(true)
+        navigate(location.pathname, { replace: true, state: null })
+    }, [location.pathname, location.state, navigate, participants])
+
     const visibleParticipants = useMemo(() => participants.filter((participant) => {
         const matchesFilter = filter === 'all' || (filter === 'issues' ? needsAction(participant) : !needsAction(participant))
         return matchesFilter && `${participant.businessName} ${participant.email || ''} ${participant.phone || ''}`.toLowerCase().includes(search.trim().toLowerCase())
@@ -82,16 +137,15 @@ export const CompliancePage = () => {
     const openDocumentModal = (participant?: ComplianceParticipant, document?: ComplianceDocument) => {
         const selectedParticipant = participant || active
         setEditing(document)
+        setDocumentParticipant(participant)
         setFile(undefined)
         form.resetFields()
         form.setFieldsValue({
             participantId: selectedParticipant?.id,
             type: document?.type,
-            documentName: document?.documentName,
-            currentStatus: document?.currentStatus || 'pending',
+            currentStatus: document?.currentStatus === 'valid' ? 'valid' : 'pending',
             issueDate: document?.issueDate ? dayjs(document.issueDate) : undefined,
             expiryDate: document?.expiryDate ? dayjs(document.expiryDate) : undefined,
-            notes: document?.notes,
         })
         setDocumentModalOpen(true)
     }
@@ -107,11 +161,10 @@ export const CompliancePage = () => {
                 programId: participant.programId,
                 companyCode: participant.companyCode || user.companyCode || undefined,
                 type: values.type,
-                documentName: values.documentName,
+                documentName: values.type,
                 currentStatus: values.currentStatus,
                 issueDate: values.issueDate?.format('YYYY-MM-DD'),
                 expiryDate: values.expiryDate?.format('YYYY-MM-DD'),
-                notes: values.notes,
                 fileName: file?.name || editing?.fileName,
                 url,
             }, editing?.id)
@@ -178,19 +231,17 @@ export const CompliancePage = () => {
             <Col xs={12} lg={6}><DashboardMetricCard icon={<WarningOutlined />} label={t('operations.common.needsAction')} value={metrics.needsAction} /></Col>
             <Col xs={12} lg={6}><DashboardMetricCard icon={<CloseCircleOutlined />} label={t('operations.compliance.missing')} value={metrics.missing} /></Col>
         </Row>
-        <FilterBar title={t('operations.compliance.participantCompliance')} primary={<><Input prefix={<SearchOutlined />} placeholder={t('operations.compliance.search')} value={search} onChange={(event) => setSearch(event.target.value)} allowClear /><Select value={filter} onChange={setFilter} options={[{ value: 'all', label: t('operations.compliance.allParticipants') }, { value: 'issues', label: t('operations.compliance.onlyActionNeeded') }, { value: 'clean', label: t('operations.compliance.onlyCompliant') }]} /></>} actions={<Space><Button icon={<ReloadOutlined />} onClick={() => void load()}>{t('common.refresh')}</Button><Button icon={<FileSearchOutlined />} loading={scanning === 'all'} onClick={() => void scan()}>{t('operations.compliance.scanAll')}</Button><Button type="primary" icon={<PlusOutlined />} onClick={() => openDocumentModal()}>{t('operations.compliance.addDocument')}</Button></Space>} />
+        <FilterBar primary={<><Input prefix={<SearchOutlined />} placeholder={t('operations.compliance.search')} value={search} onChange={(event) => setSearch(event.target.value)} allowClear /><Select value={filter} onChange={setFilter} options={[{ value: 'all', label: t('operations.compliance.allParticipants') }, { value: 'issues', label: t('operations.compliance.onlyActionNeeded') }, { value: 'clean', label: t('operations.compliance.onlyCompliant') }]} /></>} actions={<Space><Button icon={<ReloadOutlined />} onClick={() => void load()}>{t('common.refresh')}</Button><Button icon={<FileSearchOutlined />} loading={scanning === 'all'} onClick={() => void scan()}>{t('operations.compliance.scanAll')}</Button><Button type="primary" icon={<PlusOutlined />} onClick={() => openDocumentModal()}>{t('operations.compliance.addDocument')}</Button></Space>} />
         <Card className="operations-compliance-card"><ResponsiveDataView rowKey="id" rows={visibleParticipants} columns={participantColumns} loading={loading} emptyText={t('operations.compliance.empty')} renderCard={(row) => <div className="operations-compliance-mobile-card"><Space orientation="vertical" size={8} className="operations-compliance-card-content"><Typography.Text strong>{row.businessName}</Typography.Text><Typography.Text type="secondary">{row.email || t('common.noEmail')}</Typography.Text><Progress percent={score(row)} size="small" /></Space><Space className="operations-compliance-card-actions"><Button icon={<FileSearchOutlined />} loading={scanning === row.participantId} onClick={() => void scan(row)}>{t('operations.compliance.scan')}</Button><Button icon={<EyeOutlined />} onClick={() => { setActive(row); setReviewModalOpen(true) }}>{t('common.review')}</Button></Space></div>} /></Card>
         <Modal title={active ? `${t('nav.compliance')}: ${active.businessName}` : t('nav.compliance')} open={reviewModalOpen} onCancel={() => setReviewModalOpen(false)} width={960} footer={<Space><Button onClick={() => setReviewModalOpen(false)}>{t('common.close')}</Button><Button icon={<FileSearchOutlined />} loading={!!active && scanning === active.participantId} onClick={() => active && void scan(active)}>{t('operations.compliance.scan')}</Button><Button type="primary" icon={<PlusOutlined />} onClick={() => openDocumentModal(active)}>{t('operations.compliance.addDocument')}</Button></Space>}>
-            {active ? <><Descriptions bordered size="small" items={[{ key: 'name', label: t('operations.compliance.participant'), children: active.businessName }, { key: 'email', label: t('common.email'), children: active.email || 'N/A' }, { key: 'score', label: t('operations.compliance.score'), children: `${score(active)}%` }]} /><ResponsiveDataView rowKey="id" columns={documentColumns} rows={active.documents} emptyText={t('operations.compliance.noDocuments')} renderCard={(document) => <div className="operations-compliance-mobile-card"><Space orientation="vertical" className="operations-compliance-card-content"><Typography.Text strong>{document.type}</Typography.Text><Typography.Text>{document.documentName}</Typography.Text><Tag color={statusColor(document.currentStatus)}>{titleCase(document.currentStatus)}</Tag></Space><Space className="operations-compliance-card-actions"><Button icon={<EditOutlined />} onClick={() => openDocumentModal(active, document)}>{t('common.edit')}</Button><Button icon={<CheckCircleOutlined />} onClick={() => setVerifyDocument(document)}>{t('operations.compliance.verify')}</Button></Space></div>} /></> : <Empty />}
+            {active ? <><Descriptions bordered size="small" items={[{ key: 'name', label: t('operations.compliance.participant'), children: active.businessName }, { key: 'email', label: t('common.email'), children: active.email || 'N/A' }, { key: 'score', label: t('operations.compliance.score'), children: `${score(active)}%` }]} style={{ marginBottom: 16 }} /><ResponsiveDataView rowKey="id" columns={documentColumns} rows={active.documents} emptyText={t('operations.compliance.noDocuments')} renderCard={(document) => <div className="operations-compliance-mobile-card"><Space orientation="vertical" className="operations-compliance-card-content"><Typography.Text strong>{document.type}</Typography.Text><Typography.Text>{document.documentName}</Typography.Text><Tag color={statusColor(document.currentStatus)}>{titleCase(document.currentStatus)}</Tag></Space><Space className="operations-compliance-card-actions"><Button icon={<EditOutlined />} onClick={() => openDocumentModal(active, document)}>{t('common.edit')}</Button><Button icon={<CheckCircleOutlined />} onClick={() => setVerifyDocument(document)}>{t('operations.compliance.verify')}</Button></Space></div>} /></> : <Empty />}
         </Modal>
-        <Modal open={documentModalOpen} title={t(editing ? 'operations.compliance.editDocument' : 'operations.compliance.addDocument')} footer={null} onCancel={() => setDocumentModalOpen(false)}>
+        <Modal open={documentModalOpen} title={documentParticipant ? `${t(editing ? 'operations.compliance.editDocument' : 'operations.compliance.addDocument')}: ${documentParticipant.businessName}` : t(editing ? 'operations.compliance.editDocument' : 'operations.compliance.addDocument')} footer={null} onCancel={() => setDocumentModalOpen(false)}>
             <Form form={form} layout="vertical" onFinish={(values) => void save(values)}>
-                <Form.Item name="participantId" label={t('operations.compliance.participant')} rules={[{ required: true }]}><Select showSearch optionFilterProp="label" options={participants.map((participant) => ({ value: participant.id, label: participant.businessName }))} /></Form.Item>
+                <Form.Item name="participantId" label={t('operations.compliance.participant')} rules={documentParticipant ? [] : [{ required: true }]} style={documentParticipant ? { display: 'none' } : undefined}><Select showSearch optionFilterProp="label" options={participants.map((participant) => ({ value: participant.id, label: participant.businessName }))} /></Form.Item>
                 <Form.Item name="type" label={t('operations.compliance.documentType')} rules={[{ required: true }]}><Select options={COMPLIANCE_DOCUMENT_TYPES.map((value) => ({ value, label: value }))} /></Form.Item>
-                <Form.Item name="documentName" label={t('operations.compliance.documentName')} rules={[{ required: true }]}><Input /></Form.Item>
-                <Row gutter={12}><Col span={12}><Form.Item name="issueDate" label={t('operations.compliance.issueDate')}><DatePicker /></Form.Item></Col><Col span={12}><Form.Item name="expiryDate" label={t('operations.compliance.expiryDate')}><DatePicker /></Form.Item></Col></Row>
-                <Form.Item name="currentStatus" label={t('common.status')} rules={[{ required: true }]}><Select options={STATUS_OPTIONS.map((value) => ({ value, label: titleCase(value) }))} /></Form.Item>
-                <Form.Item name="notes" label={t('common.notes')}><TextArea rows={3} /></Form.Item>
+                <Row gutter={12}><Col span={12}><Form.Item name="issueDate" label={t('operations.compliance.issueDate')}><DatePicker style={{ width: '100%' }} /></Form.Item></Col><Col span={12}><Form.Item name="expiryDate" label={t('operations.compliance.expiryDate')}><DatePicker style={{ width: '100%' }} /></Form.Item></Col></Row>
+                <Form.Item name="currentStatus" label={t('common.status')} rules={[{ required: true }]}><StatusField /></Form.Item>
                 <Form.Item label={t('common.file')}><Upload {...uploadProps}><Button icon={<UploadOutlined />}>{t('operations.compliance.chooseFile')}</Button></Upload></Form.Item>
                 <Button block type="primary" htmlType="submit" loading={uploading}>{t(uploading ? 'common.saving' : 'operations.compliance.saveDocument')}</Button>
             </Form>

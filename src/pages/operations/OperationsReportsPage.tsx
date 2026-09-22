@@ -7,21 +7,26 @@ import {
   Col,
   DatePicker,
   Empty,
+  Modal,
+  Pagination,
   Progress,
   Row,
   Segmented,
-  Select,
   Space,
   Table,
   Tag,
+  theme,
   Typography,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import {
+  ArrowLeftOutlined,
   AuditOutlined,
   BarChartOutlined,
+  CalendarOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
+  DashboardOutlined,
   DownloadOutlined,
   ExclamationCircleOutlined,
   FileProtectOutlined,
@@ -37,16 +42,14 @@ import isSameOrAfter from 'dayjs/plugin/isSameOrAfter'
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore'
 import quarterOfYear from 'dayjs/plugin/quarterOfYear'
 import { collection, getDocs, query, where } from 'firebase/firestore'
-import DashboardHeader from '@/components/shared/DashboardHeader'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
 import { ThemedHighcharts } from '@/components/shared/ThemedHighcharts'
-import { CHART_COLORS } from '@/config/chartPalette'
+import { CHART_COLORS, CHART_PALETTE } from '@/config/chartPalette'
 import { db } from '@/firebase/config'
 import { useActiveProgramId } from '@/hooks/useActiveProgramId'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
-import { useLanguage } from '@/providers/LanguageProvider'
 import {
   generateOperationsReportInsights,
   OPERATIONS_REPORT_TEMPLATE_PATH,
@@ -63,8 +66,8 @@ dayjs.extend(quarterOfYear)
 const { RangePicker } = DatePicker
 const { Text, Title } = Typography
 
-type PeriodPreset = 'week' | 'month' | 'quarter' | 'year' | 'custom'
-type ReportView = 'overview' | 'applications' | 'interventions' | 'participants'
+type BucketGranularity = 'day' | 'week' | 'month'
+type ReportView = 'overview' | 'applications' | 'interventions' | 'appointments' | 'workload' | 'participants'
 
 type FirestoreDate =
   | Date
@@ -146,6 +149,16 @@ type AssignmentDoc = {
   area?: string | null
   consultantId?: string | null
   assigneeName?: string | null
+  deliveryActorType?: 'human' | 'agent' | string | null
+  agentName?: string | null
+  agentId?: string | null
+  assignedAgentId?: string | null
+  agentWorkStatus?: string | null
+  deliveryStrategy?: string | null
+  assigneeStatus?: string | null
+  assigneeCompletionStatus?: string | null
+  participantStatus?: string | null
+  participantCompletionStatus?: string | null
   status?: string | null
   completionStatus?: string | null
   progress?: number | string | null
@@ -180,6 +193,17 @@ type AppointmentDoc = {
 type SupportDemandRow = {
   key: string
   title: string
+  area: string
+  requested: number
+  assigned: number
+  completed: number
+  gap: number
+  completionRate: number
+}
+
+type AreaDemandRow = {
+  key: string
+  area: string
   requested: number
   assigned: number
   completed: number
@@ -208,6 +232,31 @@ type AttendanceRow = {
   attendance: 'Present' | 'Absent' | 'Not captured'
 }
 
+type WorkloadInterventionRow = {
+  key: string
+  title: string
+  assigned: number
+  inProgress: number
+  completed: number
+  overdue: number
+  facilitatorHeld: number
+  smeHeld: number
+  riskScore: number
+}
+
+type FacilitatorHealthRow = {
+  key: string
+  name: string
+  actorType: 'Facilitator' | 'Agent'
+  assigned: number
+  inProgress: number
+  completed: number
+  facilitatorHeld: number
+  smeHeld: number
+  riskScore: number
+  health: 'On track' | 'Watch' | 'At risk'
+}
+
 const normalize = (value: unknown) => String(value ?? '').trim().toLowerCase()
 
 const toDate = (value: FirestoreDate): Date | null => {
@@ -228,12 +277,17 @@ const primaryApplicationDate = (application: ApplicationDoc) =>
 const assignmentDate = (assignment: AssignmentDoc) =>
   toDate(assignment.assignedAt) || toDate(assignment.createdAt) || toDate(assignment.updatedAt) || toDate(assignment.dueDate)
 
-const getRangeFromPreset = (preset: PeriodPreset): [Dayjs, Dayjs] => {
-  const now = dayjs()
-  if (preset === 'week') return [now.startOf('isoWeek'), now.endOf('isoWeek')]
-  if (preset === 'month') return [now.startOf('month'), now.endOf('month')]
-  if (preset === 'quarter') return [now.startOf('quarter'), now.endOf('quarter')]
-  return [now.startOf('year'), now.endOf('year')]
+const bucketGranularityForRange = (rangeStart: Dayjs, rangeEnd: Dayjs): BucketGranularity => {
+  const days = rangeEnd.diff(rangeStart, 'day')
+  if (days <= 45) return 'day'
+  if (days <= 200) return 'week'
+  return 'month'
+}
+
+const shortPeriodLabel = (rangeStart: Dayjs, rangeEnd: Dayjs) => {
+  if (rangeStart.isSame(rangeEnd, 'month')) return rangeStart.format('MMM YYYY')
+  if (rangeStart.isSame(rangeEnd, 'year')) return `${rangeStart.format('MMM')} - ${rangeEnd.format('MMM YYYY')}`
+  return `${rangeStart.format('MMM YYYY')} - ${rangeEnd.format('MMM YYYY')}`
 }
 
 const inRange = (date: Date | null, start: Dayjs, end: Dayjs) => {
@@ -258,8 +312,8 @@ const isAccepted = (application: ApplicationDoc) => {
 const isCompletedAssignment = (assignment: AssignmentDoc) => {
   const status = normalize(assignment.status)
   const completion = normalize(assignment.completionStatus)
-  const progress = numberValue(assignment.progress)
-  return status === 'completed' || status === 'done' || completion === 'confirmed' || progress >= 100
+  const participantCompletion = normalize(assignment.participantCompletionStatus)
+  return status === 'completed' || status === 'done' || completion === 'confirmed' || participantCompletion === 'confirmed'
 }
 
 const isInProgressAssignment = (assignment: AssignmentDoc) => {
@@ -267,11 +321,54 @@ const isInProgressAssignment = (assignment: AssignmentDoc) => {
   return ['in-progress', 'in progress', 'active', 'started'].includes(status) || numberValue(assignment.progress) > 0
 }
 
-const bucketLabel = (date: Date, preset: PeriodPreset) => {
+type AssignmentHoldUp = 'facilitator' | 'sme' | 'delivery' | 'complete'
+
+const assignmentHoldUp = (assignment: AssignmentDoc): AssignmentHoldUp => {
+  if (isCompletedAssignment(assignment)) return 'complete'
+  const assigneeStatus = normalize(assignment.assigneeStatus)
+  const participantStatus = normalize(assignment.participantStatus)
+  const assigneeCompletion = normalize(assignment.assigneeCompletionStatus)
+  const participantCompletion = normalize(assignment.participantCompletionStatus)
+  const progress = numberValue(assignment.progress)
+
+  if (assigneeStatus === 'pending' || assigneeStatus === 'declined') return 'facilitator'
+  if (participantStatus === 'pending' || participantStatus === 'declined') return 'sme'
+  if ((progress >= 100 || assigneeCompletion === 'done') && participantCompletion !== 'confirmed') return 'sme'
+  return 'delivery'
+}
+
+const isDeliveryOwnerRisk = (assignment: AssignmentDoc) => {
+  if (assignmentHoldUp(assignment) === 'sme' || isCompletedAssignment(assignment)) return false
+  if (isAgentAssignment(assignment)) {
+    return ['failed', 'error', 'blocked'].includes(normalize(assignment.agentWorkStatus))
+  }
+  const dueDate = toDate(assignment.dueDate)
+  return !!dueDate && dayjs(dueDate).isBefore(dayjs(), 'day')
+}
+
+// Older agent assignments were not all backfilled with deliveryActorType. Treat the
+// assignment's configured strategy and agent identity as authoritative fallbacks.
+const isAgentAssignment = (assignment: AssignmentDoc) => {
+  const strategy = normalize(assignment.deliveryStrategy)
+  return normalize(assignment.deliveryActorType) === 'agent'
+    || strategy.includes('agent')
+    || Boolean(String(assignment.agentId || assignment.assignedAgentId || assignment.agentName || assignment.agentWorkStatus || '').trim())
+}
+
+const deliveryOwnerFor = (assignment: AssignmentDoc) => {
+  if (isAgentAssignment(assignment)) {
+    return {
+      name: String(assignment.agentName || assignment.agentId || assignment.assignedAgentId || 'Unassigned agent'),
+      actorType: 'Agent' as const,
+    }
+  }
+  return { name: String(assignment.assigneeName || 'Unassigned facilitator'), actorType: 'Facilitator' as const }
+}
+
+const bucketLabel = (date: Date, granularity: BucketGranularity) => {
   const value = dayjs(date)
-  if (preset === 'week') return `W${value.isoWeek()} ${value.year()}`
-  if (preset === 'quarter') return value.format('YYYY [Q]Q')
-  if (preset === 'year') return value.format('MMM')
+  if (granularity === 'week') return `W${value.isoWeek()} ${value.year()}`
+  if (granularity === 'month') return value.format('MMM YYYY')
   return value.format('DD MMM')
 }
 
@@ -279,6 +376,14 @@ const topEntries = (map: Map<string, number>, limit = 8) =>
   Array.from(map.entries())
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .slice(0, limit)
+
+const areaAvatarColor = (area: string) => {
+  let hash = 0
+  for (let index = 0; index < area.length; index += 1) hash = (hash * 31 + area.charCodeAt(index)) >>> 0
+  return CHART_PALETTE[hash % CHART_PALETTE.length]
+}
+
+const AREA_PAGE_SIZE = 9
 
 const complianceStatusLabel = (status: string) => {
   const value = normalize(status)
@@ -306,20 +411,6 @@ const appointmentStatusLabel = (status: string) => {
   if (value === 'declined') return 'Declined'
   if (value === 'cancelled') return 'Cancelled'
   return String(status || 'Scheduled').replace(/[_-]/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
-}
-
-const appointmentStatusColor = (status: string) => {
-  const value = normalize(status)
-  if (value === 'completed') return 'success'
-  if (value === 'accepted') return 'processing'
-  if (value === 'declined' || value === 'cancelled') return 'error'
-  return 'warning'
-}
-
-const attendanceStatusColor = (status: AttendanceRow['attendance']) => {
-  if (status === 'Present') return 'success'
-  if (status === 'Absent') return 'error'
-  return 'warning'
 }
 
 const fileSafe = (value: string) =>
@@ -363,25 +454,129 @@ const renderDocxTemplate = async (data: Record<string, unknown>) => {
   })
 }
 
+const AreaCard = ({ row, onClick }: { row: AreaDemandRow, onClick: () => void }) => {
+  const { token } = theme.useToken()
+  const coverage = percent(row.assigned, row.requested)
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        width: '100%',
+        textAlign: 'left',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+        padding: '12px 14px',
+        borderRadius: 12,
+        border: `1px solid ${token.colorBorderSecondary}`,
+        background: token.colorBgContainer,
+        boxShadow: token.boxShadowTertiary,
+        cursor: 'pointer',
+      }}
+    >
+      <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
+        <Space size={8} align="center">
+          <span style={{ width: 26, height: 26, borderRadius: '50%', background: areaAvatarColor(row.area), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, flexShrink: 0 }}>
+            {row.area.charAt(0).toUpperCase()}
+          </span>
+          <Typography.Text strong ellipsis style={{ maxWidth: 130 }}>{row.area}</Typography.Text>
+        </Space>
+        <Typography.Text strong style={{ color: coverage >= 75 ? token.colorSuccess : coverage >= 40 ? token.colorWarning : token.colorError }}>{coverage}%</Typography.Text>
+      </Space>
+      <Progress percent={coverage} size="small" showInfo={false} />
+      <Space size={10} style={{ width: '100%', justifyContent: 'space-between' }}>
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>{row.requested} requested · {row.assigned} assigned</Typography.Text>
+        {row.gap > 0 && <Tag color="orange" style={{ marginInlineEnd: 0 }}>Gap {row.gap}</Tag>}
+      </Space>
+    </button>
+  )
+}
+
+const InterventionCoverageCard = ({ row }: { row: SupportDemandRow }) => {
+  const { token } = theme.useToken()
+  return (
+    <div
+      style={{
+        width: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+        padding: '12px 14px',
+        borderRadius: 12,
+        border: `1px solid ${token.colorBorderSecondary}`,
+        background: token.colorBgContainer,
+      }}
+    >
+      <Typography.Text strong ellipsis>{row.title}</Typography.Text>
+      <Progress percent={percent(row.assigned, row.requested)} size="small" status={row.gap > 0 ? 'active' : 'success'} />
+      <Space size={10} wrap style={{ width: '100%', justifyContent: 'space-between' }}>
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>{row.requested} requested · {row.assigned} assigned · {row.completed} completed</Typography.Text>
+        <Tag color={row.gap > 0 ? 'orange' : 'green'} style={{ marginInlineEnd: 0 }}>{row.gap > 0 ? `Gap ${row.gap}` : 'Covered'}</Tag>
+      </Space>
+    </div>
+  )
+}
+
+const workloadRiskColor = (score: number) => score >= 60 ? 'red' : score >= 30 ? 'orange' : 'green'
+
+const DeliveryOwnerWorkloadCard = ({ row, onClick }: { row: FacilitatorHealthRow, onClick: () => void }) => (
+  <button type="button" className="operations-workload-card" onClick={onClick}>
+    <Space direction="vertical" size={8} style={{ width: '100%' }}>
+      <Space align="start" style={{ width: '100%', justifyContent: 'space-between' }}>
+        <Space size={6}><Tag color={row.actorType === 'Agent' ? 'purple' : 'blue'}>{row.actorType}</Tag><Text strong ellipsis style={{ maxWidth: 160 }}>{row.name}</Text></Space>
+        <Tag color={workloadRiskColor(row.riskScore)} style={{ marginInlineEnd: 0 }}>Risk {row.riskScore}</Tag>
+      </Space>
+      <Progress percent={percent(row.completed, row.assigned)} size="small" showInfo={false} status={row.riskScore >= 60 ? 'exception' : 'active'} />
+      <div className="operations-workload-counts">
+        <span><strong>{row.assigned}</strong> assigned</span><span><strong>{row.inProgress}</strong> in progress</span><span><strong>{row.completed}</strong> complete</span>
+      </div>
+      <Space wrap size={[4, 4]}>
+        {row.facilitatorHeld > 0 && <Tag color="red">{row.facilitatorHeld} {row.actorType.toLowerCase()}-held</Tag>}
+        {row.smeHeld > 0 && <Tag color="gold">{row.smeHeld} awaiting SME</Tag>}
+        {!row.facilitatorHeld && !row.smeHeld && <Tag color="green">No hold-ups</Tag>}
+      </Space>
+    </Space>
+  </button>
+)
+
+const FacilitatorHealthCard = ({ row, onClick }: { row: FacilitatorHealthRow, onClick: () => void }) => (
+  <button type="button" className={`operations-facilitator-card is-${row.health.toLowerCase().replace(' ', '-')}`} onClick={onClick}>
+    <Space direction="vertical" size={7} style={{ width: '100%' }}>
+      <Space wrap style={{ justifyContent: 'space-between', width: '100%' }}><Space size={6}><Tag color={row.actorType === 'Agent' ? 'purple' : 'blue'}>{row.actorType}</Tag><Text strong ellipsis style={{ maxWidth: 135 }}>{row.name}</Text></Space><Space size={4}><Tag color={row.health === 'On track' ? 'green' : row.health === 'Watch' ? 'orange' : 'red'}>Health: {row.health}</Tag><Tag color={workloadRiskColor(row.riskScore)} style={{ marginInlineEnd: 0 }}>Risk {row.riskScore}</Tag></Space></Space>
+      <Progress percent={percent(row.completed, row.assigned)} size="small" showInfo={false} status={row.health === 'At risk' ? 'exception' : row.health === 'Watch' ? 'active' : 'success'} />
+      <Text type="secondary">{row.assigned} assigned · {row.inProgress} active · {row.completed} complete</Text>
+      <Space wrap size={[4, 4]}>{row.facilitatorHeld > 0 && <Tag color="red">{row.facilitatorHeld} held by {row.actorType.toLowerCase()}</Tag>}{row.smeHeld > 0 && <Tag color="gold">{row.smeHeld} awaiting SME</Tag>}{!row.facilitatorHeld && <Tag color="green">No {row.actorType.toLowerCase()} block</Tag>}</Space>
+    </Space>
+  </button>
+)
+
 export const OperationsReportsPage = () => {
   const { message } = App.useApp()
-  const { t } = useLanguage()
   const { user } = useFullIdentity()
   const { activeProgramId, isAllPrograms } = useActiveProgramId()
+  const { token } = theme.useToken()
   const [view, setView] = useState<ReportView>('overview')
-  const [period, setPeriod] = useState<PeriodPreset>('year')
-  const [[start, end], setRange] = useState<[Dayjs, Dayjs]>(getRangeFromPreset('year'))
+  const [[start, end], setRange] = useState<[Dayjs, Dayjs]>([dayjs().startOf('month'), dayjs().endOf('month')])
   const [applications, setApplications] = useState<ApplicationDoc[]>([])
   const [participants, setParticipants] = useState<ParticipantDoc[]>([])
   const [assignments, setAssignments] = useState<AssignmentDoc[]>([])
   const [appointments, setAppointments] = useState<AppointmentDoc[]>([])
   const [loading, setLoading] = useState(false)
   const [downloadingReport, setDownloadingReport] = useState(false)
+  const [selectedArea, setSelectedArea] = useState<string>()
+  const [selectedWorkloadIntervention, setSelectedWorkloadIntervention] = useState<string>()
+  const [selectedDeliveryOwner, setSelectedDeliveryOwner] = useState<string>()
+  const [areaPage, setAreaPage] = useState(1)
 
-  const changePeriod = (nextPeriod: PeriodPreset) => {
-    setPeriod(nextPeriod)
-    if (nextPeriod !== 'custom') setRange(getRangeFromPreset(nextPeriod))
-  }
+  const rangePresets = useMemo(() => {
+    const now = dayjs()
+    return [
+      { label: 'This month', value: [now.startOf('month'), now.endOf('month')] as [Dayjs, Dayjs] },
+      { label: 'This quarter', value: [now.startOf('quarter'), now.endOf('quarter')] as [Dayjs, Dayjs] },
+      { label: 'Year to date', value: [now.startOf('year'), now] as [Dayjs, Dayjs] },
+    ]
+  }, [])
 
   useEffect(() => {
     let mounted = true
@@ -417,6 +612,11 @@ export const OperationsReportsPage = () => {
       mounted = false
     }
   }, [message, user?.companyCode])
+
+  useEffect(() => {
+    setAreaPage(1)
+    setSelectedArea(undefined)
+  }, [activeProgramId, start, end])
 
   const reportData = useMemo(() => {
     const acceptedIds = new Set(applications.filter(isAccepted).map((application) => application.participantId).filter(Boolean))
@@ -470,10 +670,13 @@ export const OperationsReportsPage = () => {
     })
 
     const requestedMap = new Map<string, number>()
+    const titleArea = new Map<string, string>()
     scopedApplications.forEach((application) => {
       ;(application.interventions?.required || []).forEach((intervention) => {
         const title = String(intervention.title || intervention.id || 'Unspecified intervention')
+        const area = String(intervention.areaOfSupport || 'Unspecified')
         requestedMap.set(title, (requestedMap.get(title) || 0) + 1)
+        if (!titleArea.has(title)) titleArea.set(title, area)
       })
     })
 
@@ -481,7 +684,10 @@ export const OperationsReportsPage = () => {
     const completedMap = new Map<string, number>()
     const areaDemand = new Map<string, number>()
     const areaDelivery = new Map<string, number>()
+    const areaCompleted = new Map<string, number>()
     const consultantMap = new Map<string, { assigned: number; inProgress: number; completed: number; overdue: number }>()
+    const workloadByIntervention = new Map<string, WorkloadInterventionRow>()
+    const facilitatorHealth = new Map<string, Omit<FacilitatorHealthRow, 'health'>>()
 
     scopedApplications.forEach((application) => {
       ;(application.interventions?.required || []).forEach((intervention) => {
@@ -493,10 +699,15 @@ export const OperationsReportsPage = () => {
     scopedAssignments.forEach((assignment) => {
       const title = String(assignment.interventionTitle || 'Unspecified intervention')
       const area = String(assignment.areaOfSupport || 'Unspecified')
-      const consultant = String(assignment.assigneeName || 'Unassigned')
+      const deliveryOwner = deliveryOwnerFor(assignment)
+      const consultant = deliveryOwner.name
       assignedMap.set(title, (assignedMap.get(title) || 0) + 1)
       areaDelivery.set(area, (areaDelivery.get(area) || 0) + 1)
-      if (isCompletedAssignment(assignment)) completedMap.set(title, (completedMap.get(title) || 0) + 1)
+      if (!titleArea.has(title)) titleArea.set(title, area)
+      if (isCompletedAssignment(assignment)) {
+        completedMap.set(title, (completedMap.get(title) || 0) + 1)
+        areaCompleted.set(area, (areaCompleted.get(area) || 0) + 1)
+      }
 
       const current = consultantMap.get(consultant) || { assigned: 0, inProgress: 0, completed: 0, overdue: 0 }
       current.assigned += 1
@@ -504,7 +715,57 @@ export const OperationsReportsPage = () => {
       else if (isInProgressAssignment(assignment)) current.inProgress += 1
       if (overdueAssignments.some((item) => item.id === assignment.id)) current.overdue += 1
       consultantMap.set(consultant, current)
+
+      const holdUp = assignmentHoldUp(assignment)
+      const ownerRisk = isDeliveryOwnerRisk(assignment)
+      const interventionWorkload = workloadByIntervention.get(title) || {
+        key: title,
+        title,
+        assigned: 0,
+        inProgress: 0,
+        completed: 0,
+        overdue: 0,
+        facilitatorHeld: 0,
+        smeHeld: 0,
+        riskScore: 0,
+      }
+      interventionWorkload.assigned += 1
+      if (isCompletedAssignment(assignment)) interventionWorkload.completed += 1
+      else if (isInProgressAssignment(assignment)) interventionWorkload.inProgress += 1
+      if (ownerRisk) interventionWorkload.overdue += 1
+      if (holdUp === 'facilitator') interventionWorkload.facilitatorHeld += 1
+      if (holdUp === 'sme') interventionWorkload.smeHeld += 1
+      workloadByIntervention.set(title, interventionWorkload)
+
+      const facilitator = facilitatorHealth.get(consultant) || {
+        key: consultant,
+        name: consultant,
+        actorType: deliveryOwner.actorType,
+        assigned: 0,
+        inProgress: 0,
+        completed: 0,
+        facilitatorHeld: 0,
+        smeHeld: 0,
+        riskScore: 0,
+      }
+      facilitator.assigned += 1
+      if (isCompletedAssignment(assignment)) facilitator.completed += 1
+      else if (isInProgressAssignment(assignment)) facilitator.inProgress += 1
+      if (holdUp === 'facilitator' || ownerRisk) facilitator.facilitatorHeld += 1
+      if (holdUp === 'sme') facilitator.smeHeld += 1
+      facilitatorHealth.set(consultant, facilitator)
     })
+
+    const workloadRows = Array.from(workloadByIntervention.values()).map((row) => ({
+      ...row,
+      riskScore: Math.min(100, row.overdue * 35 + row.facilitatorHeld * 25 + Math.max(row.inProgress - row.completed, 0) * 5),
+    })).sort((left, right) => right.riskScore - left.riskScore || right.assigned - left.assigned || left.title.localeCompare(right.title))
+
+    const facilitatorRows = Array.from(facilitatorHealth.values()).map((row) => {
+      const unstartedRisk = row.actorType === 'Agent' ? 0 : Math.max(row.assigned - row.completed - row.inProgress, 0) * 10
+      const riskScore = Math.min(100, row.facilitatorHeld * 30 + unstartedRisk)
+      return { ...row, riskScore, health: riskScore >= 60 ? 'At risk' as const : riskScore >= 30 ? 'Watch' as const : 'On track' as const }
+    }).sort((left, right) => right.riskScore - left.riskScore || right.assigned - left.assigned || left.name.localeCompare(right.name))
 
     const supportRows: SupportDemandRow[] = Array.from(new Set([...requestedMap.keys(), ...assignedMap.keys()])).map((title) => {
       const requested = requestedMap.get(title) || 0
@@ -513,6 +774,7 @@ export const OperationsReportsPage = () => {
       return {
         key: title,
         title,
+        area: titleArea.get(title) || 'Unspecified',
         requested,
         assigned,
         completed,
@@ -520,6 +782,21 @@ export const OperationsReportsPage = () => {
         completionRate: percent(completed, assigned),
       }
     }).sort((a, b) => b.gap - a.gap || b.requested - a.requested)
+
+    const areaRows: AreaDemandRow[] = Array.from(new Set([...areaDemand.keys(), ...areaDelivery.keys()])).map((area) => {
+      const requested = areaDemand.get(area) || 0
+      const assigned = areaDelivery.get(area) || 0
+      const completed = areaCompleted.get(area) || 0
+      return {
+        key: area,
+        area,
+        requested,
+        assigned,
+        completed,
+        gap: Math.max(requested - assigned, 0),
+        completionRate: percent(completed, assigned),
+      }
+    }).sort((a, b) => b.requested - a.requested || a.area.localeCompare(b.area))
 
     const attentionRows: AttentionRow[] = scopedAssignments
       .filter((assignment) => !isCompletedAssignment(assignment))
@@ -564,15 +841,44 @@ export const OperationsReportsPage = () => {
       })
       .sort((left, right) => right.date.localeCompare(left.date))
 
+    const granularity = bucketGranularityForRange(start, end)
     const intakeBuckets = new Map<string, { submitted: number; accepted: number }>()
     scopedApplications.forEach((application) => {
       const date = primaryApplicationDate(application)
       if (!date) return
-      const label = bucketLabel(date, period)
+      const label = bucketLabel(date, granularity)
       const bucket = intakeBuckets.get(label) || { submitted: 0, accepted: 0 }
       bucket.submitted += 1
       if (isAccepted(application)) bucket.accepted += 1
       intakeBuckets.set(label, bucket)
+    })
+
+    const appointmentBuckets = new Map<string, { total: number; attended: number; absent: number }>()
+    scopedAppointments.forEach((appointment) => {
+      const date = toDate(appointment.startTime)
+      if (!date) return
+      const label = bucketLabel(date, granularity)
+      const bucket = appointmentBuckets.get(label) || { total: 0, attended: 0, absent: 0 }
+      bucket.total += 1
+      const attendanceValues = Object.values(appointment.attendance || {}).map((value) => normalize(value))
+      if (attendanceValues.includes('present')) bucket.attended += 1
+      else if (attendanceValues.includes('absent')) bucket.absent += 1
+      appointmentBuckets.set(label, bucket)
+    })
+
+    const interventionStatusBuckets = new Map<string, { completed: number; inProgress: number; overdue: number; notStarted: number }>()
+    scopedAssignments.forEach((assignment) => {
+      const date = assignmentDate(assignment)
+      if (!date) return
+      const label = bucketLabel(date, granularity)
+      const bucket = interventionStatusBuckets.get(label) || { completed: 0, inProgress: 0, overdue: 0, notStarted: 0 }
+      const dueDate = toDate(assignment.dueDate)
+      const overdue = !!dueDate && dayjs(dueDate).isBefore(dayjs(), 'day') && !isCompletedAssignment(assignment)
+      if (isCompletedAssignment(assignment)) bucket.completed += 1
+      else if (overdue) bucket.overdue += 1
+      else if (isInProgressAssignment(assignment)) bucket.inProgress += 1
+      else bucket.notStarted += 1
+      interventionStatusBuckets.set(label, bucket)
     })
 
     return {
@@ -592,12 +898,17 @@ export const OperationsReportsPage = () => {
       areaDemand,
       areaDelivery,
       consultantMap,
+      workloadRows,
+      facilitatorRows,
       supportRows,
+      areaRows,
       attentionRows,
       attendanceRows,
       intakeBuckets,
+      appointmentBuckets,
+      interventionStatusBuckets,
     }
-  }, [activeProgramId, applications, appointments, assignments, end, isAllPrograms, participants, period, start, user])
+  }, [activeProgramId, applications, appointments, assignments, end, isAllPrograms, participants, start, user])
 
   const summary = useMemo(() => {
     const submitted = reportData.scopedApplications.length
@@ -628,7 +939,7 @@ export const OperationsReportsPage = () => {
       attendanceRate: percent(attended, attended + absent),
       topDemand: topDemand ? `${topDemand[0]} (${topDemand[1]})` : 'No demand yet',
       topGap: topGap ? `${topGap.title} needs ${topGap.gap} more assignment${topGap.gap === 1 ? '' : 's'}` : 'Demand is covered',
-      busiestConsultant: busiestConsultant ? `${busiestConsultant[0]} (${busiestConsultant[1].assigned})` : 'No workload yet',
+      busiestConsultant: busiestConsultant ? `${busiestConsultant[0]} (${busiestConsultant[1].assigned})` : 'No delivery-owner workload yet',
     }
   }, [reportData])
 
@@ -682,7 +993,7 @@ export const OperationsReportsPage = () => {
       key: 'attendance',
       title: 'Attendance capture',
       body: summary.notCaptured ? `${summary.notCaptured} appointments still need attendance captured.` : 'Attendance is captured for all period appointments.',
-      target: 'interventions' as ReportView,
+      target: 'appointments' as ReportView,
       tone: summary.notCaptured ? 'watch' : 'good',
     },
   ], [summary])
@@ -728,42 +1039,108 @@ export const OperationsReportsPage = () => {
     }],
   }), [reportData])
 
-  const areaOptions = useMemo<Highcharts.Options>(() => {
-    const categories = Array.from(new Set([...reportData.areaDemand.keys(), ...reportData.areaDelivery.keys()])).sort()
+  const appointmentHealthOptions = useMemo<Highcharts.Options>(() => {
+    const held = summary.attended + summary.absent
     return {
-      colors: [CHART_COLORS.violet, CHART_COLORS.cyan],
-      chart: { type: 'bar', height: Math.max(300, categories.length * 36) },
-      title: { text: 'Demand vs Delivery by Support Area' },
-      xAxis: { categories },
-      yAxis: { min: 0, title: { text: 'Count' }, allowDecimals: false },
-      tooltip: { shared: true },
-      plotOptions: { series: { dataLabels: { enabled: true } } },
-      series: [
-        { name: 'Requested', type: 'bar', data: categories.map((key) => reportData.areaDemand.get(key) || 0) },
-        { name: 'Assigned', type: 'bar', data: categories.map((key) => reportData.areaDelivery.get(key) || 0) },
-      ],
+      chart: { type: 'column', height: 240 },
+      title: { text: undefined },
+      xAxis: { categories: ['Planned', 'Held'] },
+      yAxis: { min: 0, title: { text: undefined }, allowDecimals: false },
+      legend: { enabled: false },
+      tooltip: { pointFormat: '<b>{point.y}</b> appointments' },
+      plotOptions: { column: { borderRadius: 4, colorByPoint: true, dataLabels: { enabled: true } } },
+      series: [{ type: 'column', name: 'Appointments', data: [summary.appointments, held] }],
     }
-  }, [reportData.areaDelivery, reportData.areaDemand])
+  }, [summary.absent, summary.appointments, summary.attended])
 
-  const consultantOptions = useMemo<Highcharts.Options>(() => {
-    const rows = Array.from(reportData.consultantMap.entries())
-      .sort((a, b) => b[1].assigned - a[1].assigned)
-      .slice(0, 10)
+  const attendanceGaugeOptions = useMemo<Highcharts.Options>(() => ({
+    chart: { type: 'pie', height: 170, margin: [0, 0, 0, 0] },
+    title: { text: undefined },
+    tooltip: { enabled: false },
+    plotOptions: {
+      pie: {
+        startAngle: -90,
+        endAngle: 90,
+        center: ['50%', '85%'],
+        size: '170%',
+        innerSize: '70%',
+        borderWidth: 0,
+        dataLabels: { enabled: false },
+        states: { hover: { enabled: false } },
+      },
+    },
+    series: [{
+      type: 'pie',
+      name: 'Attendance',
+      data: [
+        { name: 'Present', y: summary.attendanceRate, color: CHART_COLORS.success },
+        { name: 'Remaining', y: Math.max(0, 100 - summary.attendanceRate), color: token.colorFillSecondary },
+      ],
+    }],
+  }), [summary.attendanceRate, token.colorFillSecondary])
+
+  const appointmentTrendOptions = useMemo<Highcharts.Options>(() => {
+    const categories = Array.from(reportData.appointmentBuckets.keys())
     return {
-      colors: [CHART_COLORS.success, CHART_COLORS.primary, CHART_COLORS.danger],
-      chart: { type: 'column', height: 330 },
-      title: { text: 'Consultant Workload' },
-      xAxis: { categories: rows.map(([name]) => name) },
-      yAxis: { min: 0, title: { text: 'Assignments' }, allowDecimals: false },
+      colors: [CHART_COLORS.primary, CHART_COLORS.success],
+      chart: { height: 300 },
+      title: { text: undefined },
+      subtitle: { text: `${start.format('DD MMM YYYY')} to ${end.format('DD MMM YYYY')}` },
+      xAxis: { categories },
+      yAxis: [
+        { min: 0, allowDecimals: false, title: { text: 'Appointments' } },
+        { min: 0, max: 100, title: { text: 'Attendance rate' }, labels: { format: '{value}%' }, opposite: true },
+      ],
       tooltip: { shared: true },
-      plotOptions: { column: { stacking: 'normal', borderRadius: 4, dataLabels: { enabled: true } } },
+      plotOptions: { column: { borderRadius: 4, opacity: 0.7 }, spline: { marker: { enabled: true } } },
       series: [
-        { name: 'Completed', type: 'column', data: rows.map(([, row]) => row.completed) },
-        { name: 'In progress', type: 'column', data: rows.map(([, row]) => row.inProgress) },
-        { name: 'Overdue', type: 'column', data: rows.map(([, row]) => row.overdue) },
+        {
+          name: 'Appointments',
+          type: 'spline',
+          yAxis: 0,
+          data: categories.map((key) => reportData.appointmentBuckets.get(key)?.total || 0),
+        },
+        {
+          name: 'Attendance rate',
+          type: 'column',
+          yAxis: 1,
+          tooltip: { valueSuffix: '%' },
+          data: categories.map((key) => {
+            const bucket = reportData.appointmentBuckets.get(key)
+            return bucket ? percent(bucket.attended, bucket.attended + bucket.absent) : 0
+          }),
+        },
       ],
     }
-  }, [reportData.consultantMap])
+  }, [end, reportData.appointmentBuckets, start])
+
+  const interventionStatusTrendOptions = useMemo<Highcharts.Options>(() => {
+    const categories = Array.from(reportData.interventionStatusBuckets.keys())
+    const assignedPerBucket = categories.map((key) => {
+      const bucket = reportData.interventionStatusBuckets.get(key)
+      return bucket ? bucket.completed + bucket.inProgress + bucket.overdue + bucket.notStarted : 0
+    })
+    return {
+      colors: [CHART_COLORS.slate, CHART_COLORS.success, CHART_COLORS.primary, CHART_COLORS.danger, CHART_COLORS.amber],
+      chart: { height: 320 },
+      title: { text: undefined },
+      subtitle: { text: `${start.format('DD MMM YYYY')} to ${end.format('DD MMM YYYY')}` },
+      xAxis: { categories },
+      yAxis: { min: 0, allowDecimals: false, title: { text: 'Interventions' } },
+      tooltip: { shared: true },
+      plotOptions: {
+        column: { stacking: 'normal', borderRadius: 4, dataLabels: { enabled: true } },
+        spline: { dataLabels: { enabled: true, style: { fontWeight: 'bold', textOutline: 'none' } } },
+      },
+      series: [
+        { name: 'Assigned', type: 'spline', data: assignedPerBucket, zIndex: 5, marker: { enabled: true } },
+        { name: 'Completed', type: 'column', data: categories.map((key) => reportData.interventionStatusBuckets.get(key)?.completed || 0) },
+        { name: 'In progress', type: 'column', data: categories.map((key) => reportData.interventionStatusBuckets.get(key)?.inProgress || 0) },
+        { name: 'Overdue', type: 'column', data: categories.map((key) => reportData.interventionStatusBuckets.get(key)?.overdue || 0) },
+        { name: 'Not started', type: 'column', data: categories.map((key) => reportData.interventionStatusBuckets.get(key)?.notStarted || 0) },
+      ],
+    }
+  }, [end, reportData.interventionStatusBuckets, start])
 
   const participantOptions = useMemo<Highcharts.Options>(() => {
     const hubs = new Map<string, number>()
@@ -842,36 +1219,12 @@ export const OperationsReportsPage = () => {
     }
   }, [reportData.scopedParticipants])
 
-  const demandColumns: ColumnsType<SupportDemandRow> = [
-    { title: 'Intervention', dataIndex: 'title', key: 'title' },
-    { title: 'Requested', dataIndex: 'requested', key: 'requested', width: 110, sorter: (a, b) => a.requested - b.requested },
-    { title: 'Assigned', dataIndex: 'assigned', key: 'assigned', width: 100 },
-    { title: 'Completed', dataIndex: 'completed', key: 'completed', width: 110 },
-    {
-      title: 'Coverage',
-      key: 'coverage',
-      width: 150,
-      render: (_, row) => <Progress percent={percent(row.assigned, row.requested)} size="small" status={row.gap > 0 ? 'active' : 'success'} />,
-    },
-    { title: 'Gap', dataIndex: 'gap', key: 'gap', width: 80, render: (gap: number) => <Tag color={gap > 0 ? 'orange' : 'green'}>{gap}</Tag> },
-  ]
-
   const attentionColumns: ColumnsType<AttentionRow> = [
     { title: 'Issue', dataIndex: 'issue', key: 'issue', width: 140, render: (issue: string, row) => <Tag color={row.severity === 'high' ? 'red' : 'orange'}>{issue}</Tag> },
     { title: 'Intervention', dataIndex: 'intervention', key: 'intervention' },
     { title: 'Participant', dataIndex: 'participant', key: 'participant' },
     { title: 'Owner', dataIndex: 'owner', key: 'owner', width: 170 },
     { title: 'Due', dataIndex: 'dueDate', key: 'dueDate', width: 130 },
-  ]
-
-  const attendanceColumns: ColumnsType<AttendanceRow> = [
-    { title: 'Appointment', dataIndex: 'appointment', key: 'appointment' },
-    { title: 'Participant', dataIndex: 'participant', key: 'participant' },
-    ...(isAllPrograms ? [{ title: 'Programme', dataIndex: 'program', key: 'program', width: 170 }] as ColumnsType<AttendanceRow> : []),
-    { title: 'Date', dataIndex: 'date', key: 'date', width: 150 },
-    { title: 'Type', dataIndex: 'meetingType', key: 'meetingType', width: 120, render: (value: string) => value.replace(/\b\w/g, (letter) => letter.toUpperCase()) },
-    { title: 'Status', dataIndex: 'status', key: 'status', width: 130, render: (value: string) => <Tag color={appointmentStatusColor(value)}>{appointmentStatusLabel(value)}</Tag> },
-    { title: 'Attendance', dataIndex: 'attendance', key: 'attendance', width: 140, render: (value: AttendanceRow['attendance']) => <Tag color={attendanceStatusColor(value)}>{value}</Tag> },
   ]
 
   const complianceCounts = useMemo(() => {
@@ -882,6 +1235,32 @@ export const OperationsReportsPage = () => {
     })
     return topEntries(counts, 6)
   }, [reportData.complianceDocuments])
+
+  const interventionCoverageRows = useMemo(
+    () => reportData.supportRows.filter((row) => row.area === selectedArea),
+    [reportData.supportRows, selectedArea],
+  )
+
+  const pagedAreaRows = useMemo(() => {
+    const pageStart = (areaPage - 1) * AREA_PAGE_SIZE
+    return reportData.areaRows.slice(pageStart, pageStart + AREA_PAGE_SIZE)
+  }, [reportData.areaRows, areaPage])
+
+  const workloadDrilldownRows = useMemo(() => reportData.scopedAssignments
+    .filter((assignment) => !selectedWorkloadIntervention || String(assignment.interventionTitle || assignment.title || 'Unspecified intervention') === selectedWorkloadIntervention)
+    .filter((assignment) => {
+      if (!selectedDeliveryOwner) return true
+      return deliveryOwnerFor(assignment).name === selectedDeliveryOwner
+    }), [reportData.scopedAssignments, selectedDeliveryOwner, selectedWorkloadIntervention])
+
+  const workloadDrilldownColumns: ColumnsType<AssignmentDoc> = [
+    { title: 'Intervention', key: 'intervention', render: (_, row) => String(row.interventionTitle || row.title || 'Unspecified intervention') },
+    { title: 'SME', key: 'participant', render: (_, row) => String(row.beneficiaryName || row.businessName || row.participantName || 'Participant') },
+    { title: 'Delivery owner', key: 'facilitator', render: (_, row) => { const owner = deliveryOwnerFor(row); return <Tag color={owner.actorType === 'Agent' ? 'purple' : 'blue'}>{owner.actorType} · {owner.name}</Tag> } },
+    { title: 'Workflow', key: 'workflow', render: (_, row) => <Space direction="vertical" size={3}><Tag color={isCompletedAssignment(row) ? 'green' : numberValue(row.progress) >= 100 ? 'purple' : isInProgressAssignment(row) ? 'blue' : 'default'}>{isCompletedAssignment(row) ? 'Completed' : numberValue(row.progress) >= 100 ? 'Awaiting SME confirmation' : isInProgressAssignment(row) ? 'In progress' : 'Assigned'}</Tag><Progress percent={Math.min(100, numberValue(row.progress))} size="small" style={{ width: 110 }} /></Space> },
+    { title: 'Hold-up', key: 'holdUp', render: (_, row) => { const holdUp = assignmentHoldUp(row); const owner = deliveryOwnerFor(row); return <Tag color={holdUp === 'facilitator' ? 'red' : holdUp === 'sme' ? 'gold' : holdUp === 'complete' ? 'green' : 'blue'}>{holdUp === 'facilitator' ? `${owner.actorType} action` : holdUp === 'sme' ? 'Awaiting SME' : holdUp === 'complete' ? 'Completed' : 'In delivery'}</Tag> } },
+    { title: 'Due', key: 'due', render: (_, row) => { const dueDate = toDate(row.dueDate); return <Text type={isDeliveryOwnerRisk(row) ? 'danger' : undefined}>{dueDate ? dayjs(dueDate).format('DD MMM YYYY') : 'No due date'}</Text> } },
+  ]
 
   const downloadReport = async () => {
     const periodLabel = `${start.format('DD MMM YYYY')} to ${end.format('DD MMM YYYY')}`
@@ -929,7 +1308,7 @@ export const OperationsReportsPage = () => {
       const reportBlob = await renderDocxTemplate({
         report_title: 'Operations Report',
         report_period: periodLabel,
-        report_period_short: period === 'custom' ? 'Custom' : period === 'year' ? start.format('YYYY') : period === 'quarter' ? start.format('[Q]Q') : period === 'month' ? start.format('MMM') : `W${start.isoWeek()}`,
+        report_period_short: shortPeriodLabel(start, end),
         prepared_for: preparedFor,
         prepared_by: user?.name || user?.displayName || user?.email || 'Operations',
         prepared_date: dayjs().format('DD MMM YYYY'),
@@ -1009,18 +1388,6 @@ export const OperationsReportsPage = () => {
 
   return (
     <DashboardPage className="operations-reports-page">
-      <DashboardHeader
-        title={t('nav.reports')}
-        subtitle="A concise view of intake, delivery, compliance, and the work that needs attention."
-        actions={
-          <Space wrap>
-            <Button type="primary" icon={<DownloadOutlined />} loading={downloadingReport} onClick={() => void downloadReport()}>
-              Download report
-            </Button>
-          </Space>
-        }
-      />
-
       {view === 'overview' && (
         <Row gutter={[16, 16]} className="dashboard-metrics-row operations-reports-metrics">
           <Col xs={12} lg={6}>
@@ -1039,40 +1406,34 @@ export const OperationsReportsPage = () => {
       )}
 
       <FilterBar
-        title="Report scope"
         primary={
           <>
             <Segmented<ReportView>
               value={view}
               onChange={(value) => setView(value)}
               options={[
-                { label: 'Overview', value: 'overview' },
-                { label: 'Applications', value: 'applications' },
-                { label: 'Interventions', value: 'interventions' },
-                { label: 'Participants', value: 'participants' },
+                { label: 'Overview', value: 'overview', icon: <DashboardOutlined /> },
+                { label: 'Applications', value: 'applications', icon: <AuditOutlined /> },
+                { label: 'Interventions', value: 'interventions', icon: <RiseOutlined /> },
+                { label: 'Appointments', value: 'appointments', icon: <CalendarOutlined /> },
+                { label: 'Workload', value: 'workload', icon: <BarChartOutlined /> },
+                { label: 'Participants', value: 'participants', icon: <TeamOutlined /> },
               ]}
             />
-            <Select<PeriodPreset>
-              value={period}
-              onChange={changePeriod}
-              options={[
-                { value: 'week', label: 'This week' },
-                { value: 'month', label: 'This month' },
-                { value: 'quarter', label: 'This quarter' },
-                { value: 'year', label: 'This year' },
-                { value: 'custom', label: 'Custom range' },
-              ]}
+            <RangePicker
+              value={[start, end]}
+              allowClear={false}
+              presets={rangePresets}
+              onChange={(value) => {
+                if (value?.[0] && value?.[1]) setRange([value[0], value[1]])
+              }}
             />
-            {period === 'custom' && (
-              <RangePicker
-                value={[start, end]}
-                allowClear={false}
-                onChange={(value) => {
-                  if (value?.[0] && value?.[1]) setRange([value[0], value[1]])
-                }}
-              />
-            )}
           </>
+        }
+        actions={
+          <Button type="primary" icon={<DownloadOutlined />} loading={downloadingReport} onClick={() => void downloadReport()}>
+            Download report
+          </Button>
         }
       />
 
@@ -1087,7 +1448,7 @@ export const OperationsReportsPage = () => {
                       className={`operations-health-tile is-${item.tone}`}
                       key={item.key}
                       type="button"
-                      onClick={() => setView(item.key === 'applications' ? 'applications' : item.key === 'compliance' ? 'participants' : 'interventions')}
+                      onClick={() => setView(item.key === 'applications' ? 'applications' : item.key === 'compliance' ? 'participants' : item.key === 'attendance' ? 'appointments' : 'interventions')}
                     >
                       <Text type="secondary">{item.label}</Text>
                       <strong>{item.value}</strong>
@@ -1145,27 +1506,52 @@ export const OperationsReportsPage = () => {
               </Card>
             </Col>
             <Col xs={24} lg={16}>
-              <Card loading={loading} className="dashboard-section-card motion-card">
-                {reportData.areaDemand.size || reportData.areaDelivery.size ? <ThemedHighcharts options={areaOptions} /> : <Empty description="No support-area data" />}
+              <Card
+                loading={loading}
+                className="dashboard-section-card motion-card"
+                title={selectedArea ? <Space><RiseOutlined /> {`Demand Coverage — ${selectedArea}`}</Space> : 'Demand vs Delivery by Support Area'}
+                extra={selectedArea && <Button size="small" icon={<ArrowLeftOutlined />} onClick={() => setSelectedArea(undefined)}>Back to areas</Button>}
+              >
+                {selectedArea ? (
+                  interventionCoverageRows.length ? (
+                    <Row gutter={[10, 10]}>
+                      {interventionCoverageRows.map((row) => (
+                        <Col xs={24} sm={12} key={row.key}>
+                          <InterventionCoverageCard row={row} />
+                        </Col>
+                      ))}
+                    </Row>
+                  ) : <Empty description="No intervention demand has been recorded for this area." />
+                ) : reportData.areaRows.length ? (
+                  <>
+                    <Row gutter={[10, 10]}>
+                      {pagedAreaRows.map((row) => (
+                        <Col xs={12} sm={8} key={row.key}>
+                          <AreaCard row={row} onClick={() => setSelectedArea(row.area)} />
+                        </Col>
+                      ))}
+                    </Row>
+                    {reportData.areaRows.length > AREA_PAGE_SIZE && (
+                      <div style={{ marginTop: 14, textAlign: 'center' }}>
+                        <Pagination simple current={areaPage} pageSize={AREA_PAGE_SIZE} total={reportData.areaRows.length} onChange={setAreaPage} />
+                      </div>
+                    )}
+                  </>
+                ) : <Empty description="No support-area data" />}
               </Card>
             </Col>
           </Row>
 
           <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-            <Col xs={24} xl={14}>
-              <Card loading={loading} className="dashboard-section-card motion-card" title={<Space><RiseOutlined /> Demand Coverage</Space>}>
-                <Table
-                  size="middle"
-                  rowKey="key"
-                  columns={demandColumns}
-                  dataSource={reportData.supportRows.slice(0, 10)}
-                  pagination={false}
-                  locale={{ emptyText: 'No intervention demand has been recorded for this period.' }}
-                  scroll={{ x: 720 }}
-                />
+            <Col span={24}>
+              <Card loading={loading} className="dashboard-section-card motion-card" title={<Space><BarChartOutlined /> Intervention Status Over Time</Space>}>
+                {reportData.interventionStatusBuckets.size ? <ThemedHighcharts options={interventionStatusTrendOptions} /> : <Empty description="No assigned interventions in this report period" />}
               </Card>
             </Col>
-            <Col xs={24} xl={10}>
+          </Row>
+
+          <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+            <Col span={24}>
               <Card loading={loading} className="dashboard-section-card motion-card" title={<Space><ClockCircleOutlined /> Needs Attention</Space>}>
                 <Table
                   size="middle"
@@ -1182,29 +1568,43 @@ export const OperationsReportsPage = () => {
         </>
       )}
 
-      {view === 'interventions' && (
+      {view === 'appointments' && (
+        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+          <Col xs={24} lg={14}>
+            <Card className="dashboard-section-card motion-card" title={<Space><ClockCircleOutlined /> Appointment Health</Space>}>
+              {summary.appointments ? (
+                <>
+                  <ThemedHighcharts options={appointmentHealthOptions} />
+                  <Text type="secondary">
+                    {summary.notCaptured
+                      ? `${summary.notCaptured} appointment${summary.notCaptured === 1 ? '' : 's'} still awaiting attendance capture.`
+                      : 'Attendance has been captured for every appointment in this period.'}
+                  </Text>
+                </>
+              ) : <Empty description="No appointments were scheduled in this report period." />}
+            </Card>
+          </Col>
+          <Col xs={24} lg={10}>
+            <Card className="dashboard-section-card motion-card" title={<Space><CheckCircleOutlined /> Attendance Rate</Space>}>
+              {summary.attended + summary.absent ? (
+                <div style={{ position: 'relative' }}>
+                  <ThemedHighcharts options={attendanceGaugeOptions} />
+                  <div style={{ position: 'absolute', left: 0, right: 0, top: '66%', textAlign: 'center', pointerEvents: 'none' }}>
+                    <Typography.Text strong style={{ fontSize: 30, display: 'block', lineHeight: 1 }}>{summary.attendanceRate}%</Typography.Text>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>{summary.attended} present · {summary.absent} absent of {summary.attended + summary.absent} held</Typography.Text>
+                  </div>
+                </div>
+              ) : <Empty description="No appointments have been held yet in this period." />}
+            </Card>
+          </Col>
+        </Row>
+      )}
+
+      {view === 'appointments' && (
         <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
           <Col span={24}>
-            <Card
-              className="dashboard-section-card motion-card"
-              title={<Space><ClockCircleOutlined /> Appointment Attendance</Space>}
-              extra={<Text type="secondary">{summary.attendanceRate}% attendance rate</Text>}
-            >
-              <Row gutter={[12, 12]} className="operations-attendance-summary">
-                <Col xs={12} md={6}><Card size="small"><Text type="secondary">Appointments</Text><Title level={4}>{summary.appointments}</Title></Card></Col>
-                <Col xs={12} md={6}><Card size="small"><Text type="secondary">Present</Text><Title level={4}>{summary.attended}</Title></Card></Col>
-                <Col xs={12} md={6}><Card size="small"><Text type="secondary">Absent</Text><Title level={4}>{summary.absent}</Title></Card></Col>
-                <Col xs={12} md={6}><Card size="small"><Text type="secondary">Not captured</Text><Title level={4}>{summary.notCaptured}</Title></Card></Col>
-              </Row>
-              <Table
-                size="middle"
-                rowKey="key"
-                columns={attendanceColumns}
-                dataSource={reportData.attendanceRows}
-                pagination={{ pageSize: 5, showSizeChanger: false, position: ['bottomCenter'] }}
-                locale={{ emptyText: 'No appointments were scheduled in this report period.' }}
-                scroll={{ x: 900 }}
-              />
+            <Card className="dashboard-section-card motion-card" title={<Space><RiseOutlined /> Appointments Over Time</Space>}>
+              {reportData.appointmentBuckets.size ? <ThemedHighcharts options={appointmentTrendOptions} /> : <Empty description="No appointments were scheduled in this report period." />}
             </Card>
           </Col>
         </Row>
@@ -1257,16 +1657,24 @@ export const OperationsReportsPage = () => {
         </Row>
       )}
 
-      {view === 'interventions' && (
+      {view === 'workload' && (
         <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-          <Col span={24}>
-            <Card loading={loading} className="dashboard-section-card motion-card" title={<Space><BarChartOutlined /> Capacity Snapshot</Space>}>
-              {reportData.consultantMap.size ? <ThemedHighcharts options={consultantOptions} /> : <Empty description="No consultant workload in this period" />}
-              <Text type="secondary">Highest workload: {summary.busiestConsultant}</Text>
+          <Col xs={24} xl={15}>
+            <Card loading={loading} className="dashboard-section-card motion-card" title={<Space><BarChartOutlined /> Delivery workload</Space>} extra={<Text type="secondary">Click a facilitator or agent to open assigned interventions</Text>}>
+              {reportData.facilitatorRows.length ? <div className="operations-workload-grid">{reportData.facilitatorRows.map((row) => <DeliveryOwnerWorkloadCard key={row.key} row={row} onClick={() => { setSelectedWorkloadIntervention(undefined); setSelectedDeliveryOwner(row.name) }} />)}</div> : <Empty description="No facilitator or agent workload in this period" />}
+            </Card>
+          </Col>
+          <Col xs={24} xl={9}>
+            <Card loading={loading} className="dashboard-section-card motion-card" title={<Space><TeamOutlined /> Facilitator & agent health</Space>} extra={<Text type="secondary">Only owner-held delays add risk</Text>}>
+              {reportData.facilitatorRows.length ? <div className="operations-facilitator-list">{reportData.facilitatorRows.map((row) => <FacilitatorHealthCard key={row.key} row={row} onClick={() => { setSelectedWorkloadIntervention(undefined); setSelectedDeliveryOwner(row.name) }} />)}</div> : <Empty description="No facilitator or agent workload in this period" />}
+              <Text type="secondary" style={{ display: 'block', marginTop: 12 }}>Awaiting SME acceptance or completion confirmation remains visible, but does not lower the facilitator or agent health score.</Text>
             </Card>
           </Col>
         </Row>
       )}
+      <Modal open={!!selectedWorkloadIntervention || !!selectedDeliveryOwner} title={selectedWorkloadIntervention ? `${selectedWorkloadIntervention} — delivery status` : `${selectedDeliveryOwner} — assigned interventions`} onCancel={() => { setSelectedWorkloadIntervention(undefined); setSelectedDeliveryOwner(undefined) }} footer={null} width={1100} destroyOnClose>
+        <Table rowKey="id" dataSource={workloadDrilldownRows} columns={workloadDrilldownColumns} pagination={{ pageSize: 5, showSizeChanger: false, position: ['bottomCenter'] }} locale={{ emptyText: 'No assignments match this workload selection.' }} scroll={{ x: 880 }} />
+      </Modal>
     </DashboardPage>
   )
 }

@@ -1276,7 +1276,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                     interventionId,
                     interventionTitle: agent.matchedInterventionTitle || agent.focus,
                     areaOfSupport: agent.department,
-                    beneficiaryName: selectedSubmission?.contactName || user?.displayName || 'SME',
+                    businessName: selectedSubmission?.contactName || user?.displayName || 'SME',
                     programId: deliveryProgramId,
                     programName: selectedSubmission?.recommendedProgramName || null,
                     assigneeId: agent.id,

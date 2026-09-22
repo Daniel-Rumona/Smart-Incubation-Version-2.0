@@ -1,8 +1,24 @@
-import { App, Button, Card, Col, DatePicker, Descriptions, Form, Input, Modal, Progress, Row, Select, Space, Tag, Typography, type TableProps } from 'antd'
-import { CalendarOutlined, CheckCircleOutlined, DatabaseOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, TeamOutlined, UserSwitchOutlined } from '@ant-design/icons'
+import { App, Button, Card, Col, DatePicker, Form, Input, Modal, Progress, Row, Select, Space, Tag, theme, TimePicker, Typography, type TableProps } from 'antd'
+import {
+    CalendarOutlined,
+    CheckCircleOutlined,
+    ClockCircleOutlined,
+    DatabaseOutlined,
+    EnvironmentOutlined,
+    ExclamationCircleOutlined,
+    PhoneOutlined,
+    PlusOutlined,
+    ReloadOutlined,
+    SearchOutlined,
+    TeamOutlined,
+    ToolOutlined,
+    UserSwitchOutlined,
+    VideoCameraOutlined,
+} from '@ant-design/icons'
 import { addDoc, collection, getDocs, query, serverTimestamp, Timestamp, where } from 'firebase/firestore'
 import type { Dayjs } from 'dayjs'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
@@ -56,15 +72,17 @@ type AssignmentForm = {
     assigneeId?: string
     deliveryMode?: 'human' | 'agent'
     assignedAgentId?: string
-    implementationDate?: Dayjs
     dueDate?: Dayjs
     targetMetric?: string
     targetValue?: number
-    firstAppointmentRange?: [Dayjs, Dayjs]
+    appointmentDate?: Dayjs
+    appointmentTimeRange?: [Dayjs, Dayjs]
     meetingType?: 'telephonic' | 'online' | 'in_person'
     meetingLink?: string
     location?: string
 }
+
+type AssignStep = 'details' | 'appointmentGate' | 'appointment'
 
 type ManageInterventionRow = {
     id: string
@@ -96,6 +114,30 @@ const assignmentStepComplete = (assignment: AssignedIntervention) => normalize(a
     || normalize(assignment.status) === 'completed'
     || normalize((assignment as AssignedIntervention & { completionStatus?: string }).completionStatus) === 'confirmed'
 
+/**
+ * A declined/cancelled assignment shouldn't permanently block reassigning a single-session
+ * intervention - only an assignment still actually in play (pending, in progress, or completed)
+ * should count as "this SME already has this intervention".
+ */
+const assignmentIsActive = (assignment: AssignedIntervention) => {
+    const status = normalize(assignment.status)
+    const assigneeStatus = normalize(assignment.assigneeStatus)
+    const participantStatus = normalize(assignment.participantStatus)
+    const participantCompletion = normalize(assignment.participantCompletionStatus)
+    const isRejected = status === 'cancelled' || assigneeStatus === 'declined' || participantStatus === 'declined' || participantCompletion === 'rejected'
+    return !isRejected
+}
+
+type ManageStatusFilter = 'All' | 'Assigned' | 'Unassigned' | 'InProgress' | 'Completed'
+
+const rowIsAssigned = (row: ManageInterventionRow) => row.executionMode === 'multi_step'
+    ? (row.matchingAssignments?.length || 0) > 0
+    : !!row.assigned
+const rowIsCompleted = (row: ManageInterventionRow) => row.executionMode === 'multi_step'
+    ? (row.matchingAssignments?.length || 0) > 0 && !row.activeStep && !row.nextStep
+    : !!row.assigned && assignmentStepComplete(row.assigned)
+const rowIsInProgress = (row: ManageInterventionRow) => rowIsAssigned(row) && !rowIsCompleted(row)
+
 const TARGET_METRIC_OPTIONS = [
     { value: 'Hours', label: 'Hours of Support' },
     { value: 'Sessions', label: 'Sessions Completed' },
@@ -104,11 +146,49 @@ const TARGET_METRIC_OPTIONS = [
     { value: 'Progress Reports', label: 'Progress Reports' },
 ]
 
-const MEETING_TYPE_OPTIONS: Array<{ value: NonNullable<AssignmentForm['meetingType']>; label: string }> = [
-    { value: 'in_person', label: 'In-Person' },
-    { value: 'online', label: 'Online' },
-    { value: 'telephonic', label: 'Telephonic' },
+const MEETING_TYPE_OPTIONS: Array<{ value: NonNullable<AssignmentForm['meetingType']>; label: string; icon: ReactNode }> = [
+    { value: 'in_person', label: 'In-Person', icon: <EnvironmentOutlined /> },
+    { value: 'online', label: 'Online', icon: <VideoCameraOutlined /> },
+    { value: 'telephonic', label: 'Telephonic', icon: <PhoneOutlined /> },
 ]
+
+/** A selectable card used both for the meeting-type picker and the appointment yes/no gate. */
+const OptionCard = ({ icon, title, description, selected, onClick }: { icon: ReactNode, title: string, description?: string, selected?: boolean, onClick: () => void }) => {
+    const { token } = theme.useToken()
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            style={{
+                width: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 6,
+                textAlign: 'center',
+                padding: description ? '16px 12px' : '14px 8px',
+                borderRadius: 10,
+                border: `1px solid ${selected ? token.colorPrimary : token.colorBorder}`,
+                background: selected ? token.colorPrimaryBg : token.colorBgContainer,
+                cursor: 'pointer',
+            }}
+        >
+            <span style={{ fontSize: 22, color: selected ? token.colorPrimary : token.colorTextSecondary }}>{icon}</span>
+            <strong>{title}</strong>
+            {description && <span style={{ fontSize: 12, color: token.colorTextSecondary, fontWeight: 400 }}>{description}</span>}
+        </button>
+    )
+}
+
+const MeetingTypeField = ({ value, onChange }: { value?: AssignmentForm['meetingType'], onChange?: (value: AssignmentForm['meetingType']) => void }) => (
+    <Row gutter={8}>
+        {MEETING_TYPE_OPTIONS.map((option) => (
+            <Col span={8} key={option.value}>
+                <OptionCard icon={option.icon} title={option.label} selected={value === option.value} onClick={() => onChange?.(option.value)} />
+            </Col>
+        ))}
+    </Row>
+)
 
 const getRequiredInterventions = (application: Record<string, any>, diagnosticPlan: Record<string, any> = {}): RequiredIntervention[] => {
     const candidates = [
@@ -149,10 +229,13 @@ export const InterventionsAssignemnts = () => {
     const { consultantLabel, getSetting } = useSystemSettings()
     const interventionDeliveryRoles = getSetting<string[]>('interventionDeliveryRoles', ['consultant', 'projectadmin', 'operations'])
     const { activeProgramId, isAllPrograms } = useActiveProgramId()
+    const location = useLocation()
+    const navigate = useNavigate()
     const [form] = Form.useForm<AssignmentForm>()
     const meetingType = Form.useWatch('meetingType', form)
     const targetMetric = Form.useWatch('targetMetric', form)
     const deliveryMode = Form.useWatch('deliveryMode', form)
+    const assigneeIdWatch = Form.useWatch('assigneeId', form)
     const [participants, setParticipants] = useState<ParticipantRow[]>([])
     const [assignees, setAssignees] = useState<AssigneeRow[]>([])
     const [agents, setAgents] = useState<AgentDefinition[]>([])
@@ -161,8 +244,10 @@ export const InterventionsAssignemnts = () => {
     const [search, setSearch] = useState('')
     const [programme, setProgramme] = useState('All')
     const [selected, setSelected] = useState<ParticipantRow>()
+    const [manageFilter, setManageFilter] = useState<ManageStatusFilter>('All')
     const [assignmentTarget, setAssignmentTarget] = useState<ManageInterventionRow>()
     const [assignmentOpen, setAssignmentOpen] = useState(false)
+    const [assignStep, setAssignStep] = useState<AssignStep>('details')
     const [emptyReason, setEmptyReason] = useState('No SMEs have confirmed interventions matching the selected filters.')
     const canAssign = !!user && hasRolePermission(user.role, 'assign_interventions', user.permissions)
     const consultantSingular = consultantLabel.endsWith('s') ? consultantLabel.slice(0, -1) : consultantLabel
@@ -175,6 +260,7 @@ export const InterventionsAssignemnts = () => {
             role: user.role,
         }
     }, [canAssign, user])
+    const isSelfAssign = !!user && !!assigneeIdWatch && assigneeIdWatch === user.uid
     const assigneeRoleLabel = (role?: string) => {
         const normalizedRole = normalize(role)
         if (normalizedRole === 'operations') return 'Operations'
@@ -285,8 +371,6 @@ export const InterventionsAssignemnts = () => {
         void listActiveAgents().then(setAgents)
     }, [])
 
-    const agentNameFor = (agentId?: string | null) => agents.find((agent) => agent.id === agentId)?.name
-
     const assignmentsByParticipant = useMemo(() => {
         const grouped = new Map<string, AssignedIntervention[]>()
         assignments.forEach((assignment) => {
@@ -330,7 +414,19 @@ export const InterventionsAssignemnts = () => {
     const openParticipant = (participant: ParticipantRow) => {
         setSelected(participant)
         setAssignmentTarget(undefined)
+        setManageFilter('All')
     }
+
+    // Landed here from the risk register's "Take Action" for an SME with no assigned
+    // intervention yet - open their Manage panel instead of leaving them to search for it.
+    useEffect(() => {
+        const focusParticipantId = (location.state as { focusParticipantId?: string } | null)?.focusParticipantId
+        if (!focusParticipantId) return
+        const participant = participants.find((row) => row.id === focusParticipantId)
+        if (!participant) return
+        openParticipant(participant)
+        navigate(location.pathname, { replace: true, state: null })
+    }, [location.pathname, location.state, navigate, participants]) // eslint-disable-line react-hooks/exhaustive-deps
 
     const managedRows = useMemo<ManageInterventionRow[]>(() => {
         if (!selected) return []
@@ -338,11 +434,12 @@ export const InterventionsAssignemnts = () => {
         return selected.requiredInterventions.map((item) => {
             const id = interventionId(item)
             const matchingAssignments = assigned.filter((assignment) => assignmentMatches(assignment, item))
-            const assignedStepIds = new Set(matchingAssignments.map(assignment => assignment.assignedStepId).filter(Boolean))
+            const activeAssignments = matchingAssignments.filter(assignmentIsActive)
+            const assignedStepIds = new Set(activeAssignments.map(assignment => assignment.assignedStepId).filter(Boolean))
             const nextStep = item.executionMode === 'multi_step'
-                ? (item.steps || []).find((step, index) => !assignedStepIds.has(step.id) && index >= matchingAssignments.filter(assignment => !assignment.assignedStepId).length)
+                ? (item.steps || []).find((step, index) => !assignedStepIds.has(step.id) && index >= activeAssignments.filter(assignment => !assignment.assignedStepId).length)
                 : undefined
-            const activeStep = matchingAssignments.find(assignment => !assignmentStepComplete(assignment))
+            const activeStep = activeAssignments.find(assignment => !assignmentStepComplete(assignment))
             return {
                 id,
                 title: interventionTitle(item),
@@ -353,17 +450,39 @@ export const InterventionsAssignemnts = () => {
                 agentId: item.agentId,
                 reviewRequired: item.reviewRequired,
                 reviewerType: item.reviewerType,
-                assigned: matchingAssignments[0],
-                matchingAssignments,
+                assigned: item.executionMode === 'multi_step' ? matchingAssignments[0] : activeAssignments[0],
+                matchingAssignments: item.executionMode === 'multi_step' ? activeAssignments : matchingAssignments,
                 nextStep,
                 activeStep,
             }
         })
     }, [assignmentsByParticipant, selected])
 
+    const manageMetrics = useMemo(() => {
+        const total = managedRows.length
+        const assignedCount = managedRows.filter(rowIsAssigned).length
+        const completedCount = managedRows.filter(rowIsCompleted).length
+        return {
+            total,
+            assignedCount,
+            unassignedCount: total - assignedCount,
+            inProgressCount: assignedCount - completedCount,
+            completedCount,
+        }
+    }, [managedRows])
+
+    const filteredManagedRows = useMemo(() => managedRows.filter((row) => {
+        if (manageFilter === 'Assigned') return rowIsAssigned(row)
+        if (manageFilter === 'Unassigned') return !rowIsAssigned(row)
+        if (manageFilter === 'InProgress') return rowIsInProgress(row)
+        if (manageFilter === 'Completed') return rowIsCompleted(row)
+        return true
+    }), [managedRows, manageFilter])
+
     const startAssign = (row: ManageInterventionRow) => {
         setAssignmentTarget(row)
         setAssignmentOpen(true)
+        setAssignStep('details')
         form.resetFields()
         form.setFieldsValue({ deliveryMode: isAgentStrategy(row.deliveryStrategy) ? 'agent' : 'human', assignedAgentId: row.agentId })
     }
@@ -372,6 +491,7 @@ export const InterventionsAssignemnts = () => {
         setSelected(undefined)
         setAssignmentTarget(undefined)
         setAssignmentOpen(true)
+        setAssignStep('details')
         form.resetFields()
     }
 
@@ -385,12 +505,12 @@ export const InterventionsAssignemnts = () => {
         const existingAssignment = (assignmentsByParticipant.get(targetParticipant.id) || []).find((assignment) => assignmentMatches(assignment, {
             interventionId: targetIntervention.id,
             title: targetIntervention.title,
-        }))
+        }) && assignmentIsActive(assignment))
         if (existingAssignment && targetIntervention.executionMode !== 'multi_step') {
             message.warning('This intervention already has a current assignment for this SME.')
             return
         }
-        const matchingAssignments = (assignmentsByParticipant.get(targetParticipant.id) || []).filter((assignment) => assignmentMatches(assignment, { interventionId: targetIntervention.id, title: targetIntervention.title }))
+        const matchingAssignments = (assignmentsByParticipant.get(targetParticipant.id) || []).filter((assignment) => assignmentMatches(assignment, { interventionId: targetIntervention.id, title: targetIntervention.title }) && assignmentIsActive(assignment))
         const activeStep = matchingAssignments.find((assignment) => !assignmentStepComplete(assignment))
         if (targetIntervention.executionMode === 'multi_step' && activeStep) {
             message.warning(`${activeStep.assignedStepTitle || 'The current step'} must be completed before the next step is assigned.`)
@@ -427,7 +547,7 @@ export const InterventionsAssignemnts = () => {
                 interventionId: targetIntervention.id,
                 interventionTitle: targetIntervention.title,
                 areaOfSupport: targetIntervention.area || null,
-                beneficiaryName: targetParticipant.beneficiaryName,
+                businessName: targetParticipant.beneficiaryName,
                 programName: targetParticipant.programName || null,
                 programId: (targetParticipant as any).programId || null,
                 assigneeId: assignee.id,
@@ -461,7 +581,6 @@ export const InterventionsAssignemnts = () => {
                 assigneeCompletionStatus: 'pending',
                 participantCompletionStatus: 'pending',
                 progress: 0,
-                implementationDate: values.implementationDate ? Timestamp.fromDate(values.implementationDate.toDate()) : null,
                 dueDate: values.dueDate ? Timestamp.fromDate(values.dueDate.toDate()) : null,
                 targetMetric: values.targetMetric || null,
                 targetValue: values.targetValue ?? null,
@@ -471,7 +590,9 @@ export const InterventionsAssignemnts = () => {
                 createdByEmail: user.email,
             })
 
-            if (!isAgentStrategy(deliveryStrategy) && values.firstAppointmentRange?.[0] && values.firstAppointmentRange?.[1] && values.meetingType) {
+            if (!isAgentStrategy(deliveryStrategy) && values.appointmentDate && values.appointmentTimeRange?.[0] && values.appointmentTimeRange?.[1] && values.meetingType) {
+                const startTime = values.appointmentDate.hour(values.appointmentTimeRange[0].hour()).minute(values.appointmentTimeRange[0].minute()).second(0).millisecond(0)
+                const endTime = values.appointmentDate.hour(values.appointmentTimeRange[1].hour()).minute(values.appointmentTimeRange[1].minute()).second(0).millisecond(0)
                 await addDoc(collection(db, 'appointments'), {
                     companyCode: user.companyCode,
                     assignedInterventionId: assignmentRef.id,
@@ -487,8 +608,8 @@ export const InterventionsAssignemnts = () => {
                     meetingType: values.meetingType,
                     meetingLink: values.meetingLink || null,
                     location: values.location || null,
-                    startTime: Timestamp.fromDate(values.firstAppointmentRange[0].toDate()),
-                    endTime: Timestamp.fromDate(values.firstAppointmentRange[1].toDate()),
+                    startTime: Timestamp.fromDate(startTime.toDate()),
+                    endTime: Timestamp.fromDate(endTime.toDate()),
                     status: 'pending',
                     requiresSmeAcceptance: true,
                     acceptanceBundle: 'intervention_and_first_appointment',
@@ -507,7 +628,7 @@ export const InterventionsAssignemnts = () => {
                 interventionTitle: targetIntervention.title,
                 type: 'intervention_assigned',
                 recipientRoles: ['consultant', 'operations', 'incubatee'],
-                message: values.firstAppointmentRange?.[0]
+                message: values.appointmentDate
                     ? `${targetIntervention.title} has been assigned to ${assignee.name} with a first appointment awaiting SME acceptance.`
                     : `${targetIntervention.title} has been assigned to ${assignee.name}.`,
                 createdAt: serverTimestamp(),
@@ -522,6 +643,51 @@ export const InterventionsAssignemnts = () => {
         } finally {
             setSaving(false)
         }
+    }
+
+    const closeAssignmentModal = () => {
+        setAssignmentOpen(false)
+        setAssignmentTarget(undefined)
+    }
+
+    /** Details step "Continue"/"Assign" - agent delivery has no appointment step, so it saves immediately. */
+    const handleDetailsContinue = async () => {
+        const fields: Array<keyof AssignmentForm> = [
+            ...(!assignmentTarget ? (['participantId', 'interventionId'] as const) : []),
+            'deliveryMode',
+            ...(deliveryMode === 'agent' ? (['assignedAgentId'] as const) : (['assigneeId'] as const)),
+        ]
+        try {
+            await form.validateFields(fields)
+        } catch {
+            return
+        }
+        if (deliveryMode === 'agent') {
+            await saveAssignment(form.getFieldsValue())
+            return
+        }
+        setAssignStep(isSelfAssign ? 'appointment' : 'appointmentGate')
+    }
+
+    /** Appointment gate "No" - save the assignment now, schedule the appointment separately later. */
+    const handleSkipAppointment = async () => {
+        await saveAssignment(form.getFieldsValue())
+    }
+
+    const handleFinalAssign = async () => {
+        const fields: Array<keyof AssignmentForm> = [
+            'appointmentDate',
+            'appointmentTimeRange',
+            'meetingType',
+            ...(meetingType === 'online' ? (['meetingLink'] as const) : []),
+            ...(meetingType === 'in_person' ? (['location'] as const) : []),
+        ]
+        try {
+            await form.validateFields(fields)
+        } catch {
+            return
+        }
+        await saveAssignment(form.getFieldsValue())
     }
 
     const programColumns: NonNullable<TableProps<ParticipantRow>['columns']> = isAllPrograms
@@ -547,7 +713,6 @@ export const InterventionsAssignemnts = () => {
             </Row>
 
             <FilterBar
-                title="Intervention assignments"
                 primary={<><Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search SME name, email, or program" allowClear />{isAllPrograms && <Select value={programme} onChange={setProgramme} options={programmes.map((value) => ({ value, label: value }))} />}</>}
                 actions={<><Button type="primary" icon={<PlusOutlined />} disabled={!canAssign || !participants.length} onClick={startGlobalAssign}>Assign intervention</Button><Button icon={<ReloadOutlined />} onClick={() => { void loadParticipants(); void refresh() }}>Refresh</Button></>}
             />
@@ -566,125 +731,289 @@ export const InterventionsAssignemnts = () => {
             <Modal open={!!selected} onCancel={() => setSelected(undefined)} title={selected?.beneficiaryName} footer={null} width={920}>
                 {selected && (
                     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-                        <Descriptions bordered size="small" column={{ xs: 1, md: 2 }} items={[
-                            { key: 'email', label: 'Email', children: selected.email || 'No email' },
-                            { key: 'program', label: 'Program', children: selected.programName || 'Unassigned' },
-                            { key: 'sector', label: 'Sector', children: selected.sector || 'N/A' },
-                            { key: 'progress', label: 'Assigned', children: `${assignmentsByParticipant.get(selected.id)?.length || 0}/${selected.requiredInterventions.length}` },
-                        ]} />
+                        <Row gutter={[12, 12]}>
+                            {manageMetrics.total > 0 && (
+                                <Col flex="1" key="required">
+                                    <DashboardMetricCard
+                                        icon={<DatabaseOutlined />}
+                                        label="Required"
+                                        value={manageMetrics.total}
+                                        hint={manageFilter === 'All' ? 'Showing all' : 'Click to show all'}
+                                        clickable
+                                        onClick={() => setManageFilter('All')}
+                                    />
+                                </Col>
+                            )}
+                            {manageMetrics.assignedCount > 0 && (
+                                <Col flex="1" key="assigned">
+                                    <DashboardMetricCard
+                                        icon={<CheckCircleOutlined />}
+                                        label="Assigned"
+                                        value={manageMetrics.assignedCount}
+                                        hint={manageFilter === 'Assigned' ? 'Filter active — click to clear' : 'Click to filter'}
+                                        clickable
+                                        onClick={() => setManageFilter((current) => current === 'Assigned' ? 'All' : 'Assigned')}
+                                    />
+                                </Col>
+                            )}
+                            {manageMetrics.unassignedCount > 0 && (
+                                <Col flex="1" key="unassigned">
+                                    <DashboardMetricCard
+                                        icon={<ExclamationCircleOutlined />}
+                                        label="Unassigned"
+                                        value={manageMetrics.unassignedCount}
+                                        hint={manageFilter === 'Unassigned' ? 'Filter active — click to clear' : 'Click to filter'}
+                                        clickable
+                                        onClick={() => setManageFilter((current) => current === 'Unassigned' ? 'All' : 'Unassigned')}
+                                    />
+                                </Col>
+                            )}
+                            {manageMetrics.inProgressCount > 0 && (
+                                <Col flex="1" key="inprogress">
+                                    <DashboardMetricCard
+                                        icon={<ToolOutlined />}
+                                        label="In progress"
+                                        value={manageMetrics.inProgressCount}
+                                        hint={manageFilter === 'InProgress' ? 'Filter active — click to clear' : 'Click to filter'}
+                                        clickable
+                                        onClick={() => setManageFilter((current) => current === 'InProgress' ? 'All' : 'InProgress')}
+                                    />
+                                </Col>
+                            )}
+                            {manageMetrics.completedCount > 0 && (
+                                <Col flex="1" key="completed">
+                                    <DashboardMetricCard
+                                        icon={<CheckCircleOutlined />}
+                                        label="Completed"
+                                        value={manageMetrics.completedCount}
+                                        hint={manageFilter === 'Completed' ? 'Filter active — click to clear' : 'Click to filter'}
+                                        clickable
+                                        onClick={() => setManageFilter((current) => current === 'Completed' ? 'All' : 'Completed')}
+                                    />
+                                </Col>
+                            )}
+                        </Row>
                         <ResponsiveDataView
                             rowKey="id"
-                            rows={managedRows}
+                            rows={filteredManagedRows}
                             loading={assignmentsLoading}
-                            emptyText="No required interventions found for this SME."
+                            emptyText={manageFilter === 'All' ? 'No required interventions found for this SME.' : 'No interventions match this filter.'}
                             columns={[
                                 { title: 'Intervention', dataIndex: 'title' },
                                 { title: 'Area', dataIndex: 'area', render: (value?: string) => value || 'N/A' },
-                                { title: 'Default delivery', render: (_, row) => isAgentStrategy(row.deliveryStrategy) ? <Tag color="purple">{agentNameFor(row.agentId) || 'Agent'}</Tag> : <Tag color="blue">Human</Tag> },
                                 { title: 'Execution', render: (_, row) => <Tag color={row.executionMode === 'multi_step' ? 'purple' : 'default'}>{row.executionMode === 'multi_step' ? `Multi-step (${row.steps?.length || 0})` : 'Single session'}</Tag> },
-                                { title: 'Status', render: (_, row) => row.executionMode === 'multi_step' ? <Space direction="vertical" size={0}><Tag color={row.activeStep ? 'blue' : row.nextStep ? 'orange' : 'green'}>{row.activeStep ? `Step ${Number(row.activeStep.stepIndex || 0) + 1} active` : row.nextStep ? 'Ready for next step' : 'All steps assigned'}</Tag><Typography.Text type="secondary">{row.matchingAssignments?.length || 0}/{row.steps?.length || 0} assigned</Typography.Text></Space> : row.assigned ? <Tag color="blue">Assigned</Tag> : <Tag>Unassigned</Tag> },
-                                { title: 'Current / next step', render: (_, row) => row.executionMode === 'multi_step' ? row.activeStep?.assignedStepTitle || row.nextStep?.title || 'All steps assigned' : row.assigned?.assigneeName || 'Not assigned' },
+                                {
+                                    title: 'Status',
+                                    render: (_, row) => {
+                                        const label = rowIsCompleted(row) ? 'Completed' : rowIsInProgress(row) ? 'In progress' : 'Unassigned'
+                                        const color = rowIsCompleted(row) ? 'green' : rowIsInProgress(row) ? 'blue' : 'default'
+                                        const detail = row.executionMode === 'multi_step'
+                                            ? (row.activeStep
+                                                ? `Step ${Number(row.activeStep.stepIndex || 0) + 1}: ${row.activeStep.assignedStepTitle || ''}`
+                                                : row.nextStep
+                                                    ? `Next: ${row.nextStep.title}`
+                                                    : `${row.matchingAssignments?.length || 0}/${row.steps?.length || 0} steps assigned`)
+                                            : undefined
+                                        return (
+                                            <Space direction="vertical" size={0}>
+                                                <Tag color={color}>{label}</Tag>
+                                                {detail && <Typography.Text type="secondary">{detail}</Typography.Text>}
+                                            </Space>
+                                        )
+                                    },
+                                },
+                                {
+                                    title: 'Assignee',
+                                    render: (_, row) => {
+                                        const current = row.executionMode === 'multi_step' ? row.activeStep : row.assigned
+                                        if (!current) return <Typography.Text type="secondary">Not assigned</Typography.Text>
+                                        return <Space size={4}><Tag color={current.deliveryActorType === 'agent' ? 'purple' : 'blue'} style={{ marginInlineEnd: 0 }}>{current.deliveryActorType === 'agent' ? 'Agent' : 'Human'}</Tag>{current.assigneeName || 'Unnamed'}</Space>
+                                    },
+                                },
                                 { title: 'Actions', render: (_, row) => row.assigned && row.executionMode !== 'multi_step' ? <Tag color="green">Assigned</Tag> : <Button disabled={!canAssign || !!row.activeStep || (row.executionMode === 'multi_step' && !row.nextStep)} icon={<PlusOutlined />} onClick={() => startAssign(row)}>{row.executionMode === 'multi_step' ? row.matchingAssignments?.length ? 'Assign next step' : 'Assign first step' : 'Assign'}</Button> },
                             ]}
-                            renderCard={(row) => <Space direction="vertical" size={8}><Typography.Text strong>{row.title}</Typography.Text><Space wrap><Tag>{row.area || 'General support'}</Tag><Tag>{row.executionMode === 'multi_step' ? `Multi-step (${row.steps?.length || 0})` : 'Single session'}</Tag></Space>{row.executionMode === 'multi_step' && <Typography.Text type="secondary">{row.activeStep ? `Current: ${row.activeStep.assignedStepTitle}` : row.nextStep ? `Next: ${row.nextStep.title}` : 'All steps assigned'}</Typography.Text>}{row.assigned && row.executionMode !== 'multi_step' ? <Typography.Text type="secondary">{row.assigned.assigneeName}</Typography.Text> : <Button disabled={!canAssign || !!row.activeStep || (row.executionMode === 'multi_step' && !row.nextStep)} icon={<PlusOutlined />} onClick={() => startAssign(row)}>{row.executionMode === 'multi_step' ? row.matchingAssignments?.length ? 'Assign next step' : 'Assign first step' : 'Assign'}</Button>}</Space>}
+                            renderCard={(row) => {
+                                const current = row.executionMode === 'multi_step' ? row.activeStep : row.assigned
+                                const statusLabel = rowIsCompleted(row) ? 'Completed' : rowIsInProgress(row) ? 'In progress' : 'Unassigned'
+                                const statusColor = rowIsCompleted(row) ? 'green' : rowIsInProgress(row) ? 'blue' : 'default'
+                                return (
+                                    // Plain flex div, not Space: this card mixes tags/text with a conditional
+                                    // Button, which trips the global .ant-space:has(>.ant-space-item>.ant-btn)
+                                    // modal-body rule (see the appointmentGate step above for the full story).
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                        <Typography.Text strong>{row.title}</Typography.Text>
+                                        <Space wrap>
+                                            <Tag>{row.area || 'General support'}</Tag>
+                                            <Tag>{row.executionMode === 'multi_step' ? `Multi-step (${row.steps?.length || 0})` : 'Single session'}</Tag>
+                                            <Tag color={statusColor}>{statusLabel}</Tag>
+                                        </Space>
+                                        {row.executionMode === 'multi_step' && (
+                                            <Typography.Text type="secondary">
+                                                {row.activeStep ? `Step ${Number(row.activeStep.stepIndex || 0) + 1}: ${row.activeStep.assignedStepTitle}` : row.nextStep ? `Next: ${row.nextStep.title}` : `${row.matchingAssignments?.length || 0}/${row.steps?.length || 0} steps assigned`}
+                                            </Typography.Text>
+                                        )}
+                                        {current ? (
+                                            <Space size={4}>
+                                                <Tag color={current.deliveryActorType === 'agent' ? 'purple' : 'blue'} style={{ marginInlineEnd: 0 }}>{current.deliveryActorType === 'agent' ? 'Agent' : 'Human'}</Tag>
+                                                <Typography.Text type="secondary">{current.assigneeName}</Typography.Text>
+                                            </Space>
+                                        ) : (
+                                            <Button disabled={!canAssign || !!row.activeStep || (row.executionMode === 'multi_step' && !row.nextStep)} icon={<PlusOutlined />} onClick={() => startAssign(row)}>
+                                                {row.executionMode === 'multi_step' ? (row.matchingAssignments?.length ? 'Assign next step' : 'Assign first step') : 'Assign'}
+                                            </Button>
+                                        )}
+                                    </div>
+                                )
+                            }}
                         />
                     </Space>
                 )}
             </Modal>
 
-            <Modal open={assignmentOpen} onCancel={() => { setAssignmentOpen(false); setAssignmentTarget(undefined) }} title={`Assign ${assignmentTarget?.nextStep?.title || assignmentTarget?.title || 'intervention'}`} footer={null} destroyOnClose>
-                <Form form={form} layout="vertical" onFinish={saveAssignment}>
-                    {!assignmentTarget && (
+            <Modal open={assignmentOpen} onCancel={closeAssignmentModal} title={`Assign ${assignmentTarget?.nextStep?.title || assignmentTarget?.title || 'intervention'}`} footer={null} destroyOnClose>
+                <Form form={form} layout="vertical">
+                    {assignStep === 'details' && (
                         <>
-                            <Form.Item name="participantId" label="SME Name" rules={[{ required: true, message: 'Choose an SME.' }]}>
-                                <Select
-                                    showSearch
-                                    optionFilterProp="label"
-                                    options={rows.map((participant) => ({ value: participant.id, label: `${participant.beneficiaryName}${participant.programName ? ` - ${participant.programName}` : ''}` }))}
-                                />
+                            {!assignmentTarget && (
+                                <>
+                                    <Form.Item name="participantId" label="SME Name" rules={[{ required: true, message: 'Choose an SME.' }]}>
+                                        <Select
+                                            showSearch
+                                            optionFilterProp="label"
+                                            options={rows.map((participant) => ({ value: participant.id, label: `${participant.beneficiaryName}${participant.programName ? ` - ${participant.programName}` : ''}` }))}
+                                        />
+                                    </Form.Item>
+                                    <Form.Item noStyle dependencies={['participantId']}>
+                                        {({ getFieldValue }) => {
+                                            const participant = participants.find((row) => row.id === getFieldValue('participantId'))
+                                            const options = (participant?.requiredInterventions || []).map((item) => ({ value: interventionId(item), label: interventionTitle(item) }))
+                                            return (
+                                                <Form.Item name="interventionId" label="Intervention" rules={[{ required: true, message: 'Choose an intervention.' }]}>
+                                                    <Select showSearch optionFilterProp="label" options={options} disabled={!participant} onChange={(value) => {
+                                                        const item = participant?.requiredInterventions.find(row => interventionId(row) === value)
+                                                        form.setFieldsValue({ deliveryMode: isAgentStrategy(item?.deliveryStrategy) ? 'agent' : 'human', assignedAgentId: item?.agentId, assigneeId: undefined })
+                                                    }} />
+                                                </Form.Item>
+                                            )
+                                        }}
+                                    </Form.Item>
+                                </>
+                            )}
+                            <Form.Item name="deliveryMode" label="Delivery for this assignment" rules={[{ required: true, message: 'Choose human or agent delivery.' }]} help="Preselected from the catalogue — you can still change it.">
+                                <Select options={[{ value: 'human', label: 'Human delivery' }, { value: 'agent', label: 'Agent delivery' }]} />
                             </Form.Item>
-                            <Form.Item noStyle dependencies={['participantId']}>
-                                {({ getFieldValue }) => {
-                                    const participant = participants.find((row) => row.id === getFieldValue('participantId'))
-                                    const options = (participant?.requiredInterventions || []).map((item) => ({ value: interventionId(item), label: interventionTitle(item) }))
-                                    return (
-                                        <Form.Item name="interventionId" label="Intervention" rules={[{ required: true, message: 'Choose an intervention.' }]}>
-                                            <Select showSearch optionFilterProp="label" options={options} disabled={!participant} onChange={(value) => {
-                                                const item = participant?.requiredInterventions.find(row => interventionId(row) === value)
-                                                form.setFieldsValue({ deliveryMode: isAgentStrategy(item?.deliveryStrategy) ? 'agent' : 'human', assignedAgentId: item?.agentId, assigneeId: undefined })
-                                            }} />
-                                        </Form.Item>
-                                    )
-                                }}
-                            </Form.Item>
-                        </>
-                    )}
-                    <Form.Item name="deliveryMode" label="Delivery for this assignment" rules={[{ required: true, message: 'Choose human or agent delivery.' }]} help="The catalogue default is preselected, but either mode can be used for performance comparison.">
-                        <Select options={[{ value: 'human', label: 'Human delivery' }, { value: 'agent', label: 'Agent delivery' }]} />
-                    </Form.Item>
-                    {deliveryMode === 'agent' && <Form.Item name="assignedAgentId" label="Delivery agent" rules={[{ required: true, message: 'Choose an agent.' }]}>
-                        <Select options={agents.map(agent => ({ value: agent.id, label: agent.name }))} />
-                    </Form.Item>}
-                    {deliveryMode === 'human' && (
-                        <Form.Item name="assigneeId" label="Human delivery owner" rules={[{ required: true, message: 'Choose a delivery owner.' }]}>
-                            <Select showSearch optionFilterProp="label" options={assignees.map((assignee) => ({ value: assignee.id, label: `${assignee.name}${assignee.id === user?.uid ? ' (Me)' : ''} (${assigneeRoleLabel(assignee.role)})${assignee.email ? ` - ${assignee.email}` : ''}` }))} />
-                        </Form.Item>
-                    )}
-                    <Row gutter={12}>
-                        <Col xs={24} md={12}><Form.Item name="implementationDate" label="Implementation date"><DatePicker style={{ width: '100%' }} /></Form.Item></Col>
-                        <Col xs={24} md={12}><Form.Item name="dueDate" label="Due date"><DatePicker style={{ width: '100%' }} /></Form.Item></Col>
-                    </Row>
-                    <Row gutter={12}>
-                        <Col xs={24} md={12}>
-                            <Form.Item
-                                name="targetMetric"
-                                label="Target type"
-                                help="Choose the outcome you will use to measure progress."
-                            >
-                                <Select allowClear options={TARGET_METRIC_OPTIONS} placeholder="Select how progress will be measured" />
-                            </Form.Item>
-                        </Col>
-                        <Col xs={24} md={12}>
-                            <Form.Item
-                                name="targetValue"
-                                label="Target amount"
-                                help={targetMetric ? `How many ${String(targetMetric).toLowerCase()} should be completed?` : 'Set the quantity expected for this assignment.'}
-                            >
-                                <Input type="number" min={0} placeholder="e.g. 3" />
-                            </Form.Item>
-                        </Col>
-                    </Row>
-                    {deliveryMode === 'human' && <Card size="small" style={{ marginBottom: 16 }}>
-                        <Space direction="vertical" size={8} style={{ width: '100%' }}>
-                            <Typography.Text strong>First appointment</Typography.Text>
-                            <Typography.Text type="secondary">Schedule this now so the SME accepts the intervention and first appointment together.</Typography.Text>
-                            <Form.Item name="firstAppointmentRange" label="First appointment date and time" rules={[{ required: true, message: 'Schedule the first appointment.' }]}>
-                                <DatePicker.RangePicker showTime format="DD MMM YYYY HH:mm" style={{ width: '100%' }} />
+                            {deliveryMode === 'agent' && <Form.Item name="assignedAgentId" label="Delivery agent" rules={[{ required: true, message: 'Choose an agent.' }]}>
+                                <Select options={agents.map(agent => ({ value: agent.id, label: agent.name }))} />
+                            </Form.Item>}
+                            {deliveryMode === 'human' && (
+                                <Form.Item name="assigneeId" label="Human delivery owner" rules={[{ required: true, message: 'Choose a delivery owner.' }]}>
+                                    <Select showSearch optionFilterProp="label" options={assignees.map((assignee) => ({ value: assignee.id, label: `${assignee.name}${assignee.id === user?.uid ? ' (Me)' : ''} (${assigneeRoleLabel(assignee.role)})${assignee.email ? ` - ${assignee.email}` : ''}` }))} />
+                                </Form.Item>
+                            )}
+                            <Form.Item name="dueDate" label="Due date">
+                                <DatePicker style={{ width: '100%' }} />
                             </Form.Item>
                             <Row gutter={12}>
                                 <Col xs={24} md={12}>
-                                    <Form.Item name="meetingType" label="Meeting type" rules={[{ required: true, message: 'Choose meeting type.' }]}>
-                                        <Select options={MEETING_TYPE_OPTIONS} />
+                                    <Form.Item
+                                        name="targetMetric"
+                                        label="Target type"
+                                    >
+                                        <Select allowClear options={TARGET_METRIC_OPTIONS} placeholder="Select how progress will be measured" />
                                     </Form.Item>
                                 </Col>
                                 <Col xs={24} md={12}>
-                                    {meetingType === 'online' ? (
-                                        <Form.Item name="meetingLink" label="Meeting link" rules={[{ required: true, message: 'Add the meeting link.' }]}>
-                                            <Input placeholder="Paste Zoom, Google Meet, Teams, or any online meeting link" />
-                                        </Form.Item>
-                                    ) : meetingType === 'in_person' ? (
-                                        <Form.Item name="location" label="Location" rules={[{ required: true, message: 'Add the appointment location.' }]}>
-                                            <Input />
-                                        </Form.Item>
-                                    ) : null}
+                                    <Form.Item
+                                        name="targetValue"
+                                        label="Target amount"
+                                        help={targetMetric ? `How many ${String(targetMetric).toLowerCase()}?` : 'Optional completion target.'}
+                                    >
+                                        <Input type="number" min={0} placeholder="e.g. 3" />
+                                    </Form.Item>
                                 </Col>
                             </Row>
+                            <Space style={{ justifyContent: 'flex-end', width: '100%' }}>
+                                <Button onClick={closeAssignmentModal}>Cancel</Button>
+                                <Button type="primary" icon={<UserSwitchOutlined />} loading={saving} onClick={() => void handleDetailsContinue()}>
+                                    {deliveryMode === 'agent' ? 'Assign' : 'Continue'}
+                                </Button>
+                            </Space>
+                        </>
+                    )}
+
+                    {assignStep === 'appointmentGate' && (
+                        /*
+                          Plain flex div, not antd's Space: a global rule (.ant-modal .ant-modal-body
+                          .ant-space:has(> .ant-space-item > .ant-btn)) forces ANY Space in a modal body
+                          that has a button among its direct children into a horizontal, equal-width row -
+                          meant for footer-style action rows, but it doesn't care that this one also holds
+                          a heading and a row of cards. Same bug as AIInterventionUpdateModal.tsx earlier.
+                        */
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%' }}>
+                            <div>
+                                <Typography.Text strong>Set up the first appointment now?</Typography.Text>
+                                <br />
+                                <Typography.Text type="secondary">Scheduling it now lets the SME accept the intervention and the appointment together.</Typography.Text>
+                            </div>
+                            <Row gutter={16}>
+                                <Col span={12}>
+                                    <OptionCard
+                                        icon={<CalendarOutlined />}
+                                        title="Yes, schedule now"
+                                        description="Set the date, time and meeting details."
+                                        onClick={() => setAssignStep('appointment')}
+                                    />
+                                </Col>
+                                <Col span={12}>
+                                    <OptionCard
+                                        icon={<ClockCircleOutlined />}
+                                        title="Not now"
+                                        description="Assign it now and schedule the appointment separately later."
+                                        onClick={() => void handleSkipAppointment()}
+                                    />
+                                </Col>
+                            </Row>
+                            <Button onClick={() => setAssignStep('details')} loading={saving}>Back</Button>
+                        </div>
+                    )}
+
+                    {assignStep === 'appointment' && (
+                        <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                            <Typography.Text type="secondary">Schedule the first appointment so the SME accepts the intervention and appointment together.</Typography.Text>
+                            <Row gutter={12}>
+                                <Col xs={24} md={12}>
+                                    <Form.Item name="appointmentDate" label="Appointment date" rules={[{ required: true, message: 'Choose the appointment date.' }]}>
+                                        <DatePicker style={{ width: '100%' }} />
+                                    </Form.Item>
+                                </Col>
+                                <Col xs={24} md={12}>
+                                    <Form.Item name="appointmentTimeRange" label="Time" rules={[{ required: true, message: 'Choose the start and end time.' }]}>
+                                        <TimePicker.RangePicker style={{ width: '100%' }} format="HH:mm" minuteStep={15} />
+                                    </Form.Item>
+                                </Col>
+                            </Row>
+                            <Form.Item name="meetingType" label="Meeting type" rules={[{ required: true, message: 'Choose meeting type.' }]}>
+                                <MeetingTypeField />
+                            </Form.Item>
+                            {meetingType === 'online' && (
+                                <Form.Item name="meetingLink" label="Meeting link" rules={[{ required: true, message: 'Add the meeting link.' }]}>
+                                    <Input placeholder="Paste Zoom, Google Meet, Teams, or any online meeting link" />
+                                </Form.Item>
+                            )}
+                            {meetingType === 'in_person' && (
+                                <Form.Item name="location" label="Location" rules={[{ required: true, message: 'Add the appointment location.' }]}>
+                                    <Input />
+                                </Form.Item>
+                            )}
+                            <Space style={{ justifyContent: 'space-between', width: '100%' }}>
+                                <Button onClick={() => setAssignStep(isSelfAssign ? 'details' : 'appointmentGate')}>Back</Button>
+                                <Space>
+                                    <Button onClick={closeAssignmentModal}>Cancel</Button>
+                                    <Button type="primary" icon={<UserSwitchOutlined />} loading={saving} onClick={() => void handleFinalAssign()}>Assign</Button>
+                                </Space>
+                            </Space>
                         </Space>
-                    </Card>}
-                    <Space style={{ justifyContent: 'flex-end', width: '100%' }}>
-                        <Button onClick={() => { setAssignmentOpen(false); setAssignmentTarget(undefined) }}>Cancel</Button>
-                        <Button type="primary" htmlType="submit" icon={<UserSwitchOutlined />} loading={saving}>Assign</Button>
-                    </Space>
+                    )}
                 </Form>
             </Modal>
         </DashboardPage>

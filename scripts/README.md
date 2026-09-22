@@ -1,5 +1,10 @@
 # Firestore Migration Scripts
 
+See `FIELD_MIGRATIONS.md` for the running registry of legacy-field -> canonical-field drift
+found across the app, what's been fixed, and what's still pending. Check it before adding a
+runtime fallback (`a.new || a.old`) for a field that looks renamed — the fix is almost always to
+pick one field and migrate the data, not to keep both alive forever.
+
 ## Agent registry seed
 
 Use `seed-agent-catalogue.cjs` to seed/update the `agents` collection (business-plan, strategic-plan, pitch-coach) used by the Firestore Agent Registry.
@@ -9,6 +14,79 @@ node scripts/seed-agent-catalogue.cjs --service-account ./new-service-account.js
 ```
 
 Writes are merges, so re-running it is safe. See `firestore.rules` (project root) for the security rules this collection needs before going live — that file is currently incomplete and must be merged with your real rules before deploying.
+
+## Demo/seed data for a user's "Assigned to me" page
+
+Use `seed-assigned-interventions.cjs` to create N fake SME `participants` plus one
+`assignedIntervention` per SME, assigned to a given user, so their "Assigned to me" page
+(`AllocatedInterventionsPage`) has something to show. Dry run by default; every created document
+is tagged with a `seedTag` and a manifest is written to `scripts/seed-output-<timestamp>.json` so
+the batch can be undone.
+
+```bash
+node scripts/seed-assigned-interventions.cjs --service-account ./scripts/new-service-account.json --email user@example.com --count 20 --apply
+
+# undo
+node scripts/seed-assigned-interventions.cjs --service-account ./scripts/new-service-account.json --undo ./scripts/seed-output-<timestamp>.json --apply
+```
+
+## Demo/seed appointments for those dummy SMEs
+
+Use `seed-appointments.cjs` to add `appointments` for a previous `seed-assigned-interventions.cjs`
+run, so the Operations Reports "Appointments" tab and the intervention appointment calendar have
+something to show. Reads the `seedTag` printed by that earlier run, creates 1-3 appointments per
+assignment (a mix of already-"held"/completed ones with attendance captured, and still-"planned"
+upcoming pending/accepted ones). Dry run by default; tagged and undoable the same way.
+
+```bash
+node scripts/seed-appointments.cjs --service-account ./scripts/new-service-account.json --seed-tag demo-assigned-<timestamp> --apply
+
+# undo
+node scripts/seed-appointments.cjs --service-account ./scripts/new-service-account.json --undo ./scripts/seed-output-appointments-<timestamp>.json --apply
+```
+
+## Backfilling history for those dummy SMEs (2025 onward)
+
+Use `seed-historical-activity.cjs` to add more `assignedInterventions` + `appointments` for the
+same dummy SMEs, dated across Jan 2025 - Jun 2026, so report trend charts have more than a
+couple of months to show over a wider/custom date range. Reads participants by `seedTag`, adds
+2-4 historical assignments per participant (mostly completed, some overdue/in-progress) plus one
+appointment per assignment around the same date. Dry run by default; tagged and undoable.
+
+```bash
+node scripts/seed-historical-activity.cjs --service-account ./scripts/new-service-account.json --email user@example.com --seed-tag demo-assigned-<timestamp> --apply
+
+# undo
+node scripts/seed-historical-activity.cjs --service-account ./scripts/new-service-account.json --undo ./scripts/seed-output-historical-<timestamp>.json --apply
+```
+
+## Demo/seed applications for those dummy SMEs
+
+Use `seed-applications.cjs` to backfill `applications` documents for the same dummy SMEs. They
+were seeded straight into `participants` with no corresponding application, so Operations/Project
+Admin Reports (acceptance rate, applicant demographic charts, intake trend) showed zero data for
+this cohort. Reads participants by `seedTag`, creates one accepted application per participant
+reusing their real businessName/email/phone/sector/stage/province/beeLevel/programId, plus
+generated demographic fields (gender, age, hub, city, disability/education/employment/marital
+status, location type, ownership percentages) so those charts have real data. Skips participants
+that already have one from a previous run. Dry run by default; tagged and undoable.
+
+```bash
+node scripts/seed-applications.cjs --service-account ./scripts/new-service-account.json --seed-tag demo-assigned-<timestamp> --apply
+
+# undo
+node scripts/seed-applications.cjs --service-account ./scripts/new-service-account.json --undo ./scripts/seed-output-applications-<timestamp>.json --apply
+```
+
+## `assignedInterventions.businessName` backfill
+
+Use `migrate-assigned-interventions-business-name.cjs` to backfill `businessName` on
+`assignedInterventions` documents that only have the legacy `beneficiaryName` field. Additive
+only (doesn't touch `beneficiaryName`), safe to re-run. See `FIELD_MIGRATIONS.md`.
+
+```bash
+node scripts/migrate-assigned-interventions-business-name.cjs --service-account ./scripts/new-service-account.json --apply
+```
 
 ## Smart schema cleanup
 

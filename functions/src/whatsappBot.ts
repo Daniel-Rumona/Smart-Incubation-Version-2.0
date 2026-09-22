@@ -757,6 +757,17 @@ type AiAction = {
   requestedTime?: string | null
   requestedDateText?: string | null
   requestedTimeText?: string | null
+  foodItems?: string[] | null
+}
+
+type AiToolCall = {
+  type?: string
+  arguments?: Record<string, unknown>
+}
+
+type AiToolResult = {
+  type: string
+  result: unknown
 }
 
 type AiResponse = {
@@ -765,6 +776,7 @@ type AiResponse = {
   intent?: string | null
   confidence?: number | null
   action?: AiAction | null
+  toolCall?: AiToolCall | null
   conversation?: AiConversationState | null
   error?: { code?: string } | null
 }
@@ -786,6 +798,8 @@ type LphGatewayResponse = {
   appointment?: Record<string, unknown>
   appointments?: Array<Record<string, unknown>>
   meetingLink?: string | null
+  foodMenu?: Array<{ id?: string, name?: string, category?: string }>
+  foodSelections?: Array<Record<string, unknown>>
   error?: string
 }
 
@@ -802,6 +816,7 @@ async function callAiBackend(
   message: string,
   state: BotState,
   appointment?: Record<string, unknown> | null,
+  toolResults?: AiToolResult[],
 ): Promise<AiResponse> {
   const secret = aiRouterSecret(engine)
   if (!secret) throw new Error(`WhatsApp router secret is not configured for ${engine}.`)
@@ -822,6 +837,7 @@ async function callAiBackend(
         ...(state.appointmentId ? { appointmentId: state.appointmentId } : {}),
         ...(appointment ? { appointment } : {}),
         ...(state.conversation ? { conversation: state.conversation } : {}),
+        ...(toolResults && toolResults.length ? { toolResults } : {}),
       },
     }),
     signal: AbortSignal.timeout(20000),
@@ -946,45 +962,42 @@ async function qtxUpcomingAppointmentSummaries(identity: UserRecord) {
   return rows.slice(0, 10).map(row => qtxAppointmentSummary(row.id, row.data()))
 }
 
-const formatAppointment = (appointment: Record<string, unknown>) => {
-  const title = String(appointment.interventionTitle || 'Appointment')
-  const date = String(appointment.date || '')
-  const start = String(appointment.startTime || '')
-  const mode = String(appointment.deliveryMode || '')
-  const location = String(appointment.location || '')
-  return [title, date && `Date: ${date}`, start && `Start: ${start}`, mode && `Mode: ${mode}`, location && `Location: ${location}`]
-    .filter(Boolean)
-    .join('\n')
+const toCompactAppointment = (appointment: Record<string, unknown>) => ({
+  title: String(appointment.interventionTitle || appointment.title || 'Appointment'),
+  date: String(appointment.date || ''),
+  startTime: String(appointment.startTime || ''),
+  mode: String(appointment.deliveryMode || appointment.deliveryMethod || ''),
+  location: String(appointment.location || ''),
+})
+
+async function runQtxReadTool(
+  identity: UserRecord,
+  type: string,
+  appointmentId?: string,
+): Promise<Record<string, unknown>> {
+  if (type === 'get_upcoming_appointments') {
+    const appointments = await qtxUpcomingAppointmentSummaries(identity)
+    return { appointments: appointments.map(toCompactAppointment) }
+  }
+  const found = await qtxAppointmentForIdentity(String(appointmentId || ''), identity)
+  if (!found) return { found: false }
+  const summary = qtxAppointmentSummary(found.id, found.data)
+  if (type === 'get_appointment') return { appointment: toCompactAppointment(summary) }
+  if (type === 'get_meeting_link') return { meetingLink: summary.meetingLink || null }
+  throw new Error(`Unsupported QTX read tool: ${type}`)
 }
 
-async function executeQtxAiAction(
+async function runQtxMutation(
   to: string,
   phone: string,
   identity: UserRecord,
   action: AiAction,
 ) {
   const type = String(action.type || '')
-  if (type === 'get_upcoming_appointments') {
-    const appointments = await qtxUpcomingAppointmentSummaries(identity)
-    await sendText(to, appointments.length
-      ? `Upcoming appointments\n\n${appointments.map((appointment, index) => `${index + 1}. ${formatAppointment(appointment)}`).join('\n\n')}`
-      : 'You do not have any upcoming appointments.')
-    return
-  }
-
   const appointmentId = String(action.appointmentId || '')
   const appointment = await qtxAppointmentForIdentity(appointmentId, identity)
   if (!appointment) throw new Error('That appointment could not be found for your account.')
 
-  if (type === 'get_appointment') {
-    await sendText(to, formatAppointment(qtxAppointmentSummary(appointment.id, appointment.data)))
-    return
-  }
-  if (type === 'get_meeting_link') {
-    const link = String(appointment.data.meetingLink || '')
-    await sendText(to, link ? `Meeting link: ${link}` : 'There is no meeting link saved for this appointment.')
-    return
-  }
   if (type === 'appointment_accept') {
     await appointment.ref.set({
       beneficiaryConfirmation: 'confirmed', userConfirmation: 'confirmed', confirmationSource: 'whatsapp',
@@ -1018,40 +1031,62 @@ async function executeQtxAiAction(
     return
   }
 
-  throw new Error(`Unsupported QTX WhatsApp action: ${type}`)
+  throw new Error(`Unsupported QTX WhatsApp mutation: ${type}`)
 }
 
-async function executeLphAiAction(to: string, phone: string, action: AiAction) {
-  const type = String(action.type || '')
+async function runLphReadTool(
+  phone: string,
+  type: string,
+  appointmentId?: string,
+): Promise<Record<string, unknown>> {
   const result = await callLphGateway({
     action: type,
     phoneNumber: `+${phone}`,
-    appointmentId: action.appointmentId || null,
-    reason: action.reason || null,
-    requestedDate: action.requestedDate || null,
-    requestedTime: action.requestedTime || null,
-    requestedDateText: action.requestedDateText || null,
-    requestedTimeText: action.requestedTimeText || null,
+    appointmentId: appointmentId || null,
   })
-
   if (type === 'get_upcoming_appointments') {
-    const appointments = result.appointments || []
-    await sendText(to, appointments.length
-      ? `Upcoming appointments\n\n${appointments.map((appointment, index) => `${index + 1}. ${formatAppointment(appointment)}`).join('\n\n')}`
-      : 'You do not have any upcoming Lepharo appointments.')
-    return
+    return { appointments: (result.appointments || []).map(toCompactAppointment) }
   }
   if (type === 'get_appointment') {
-    if (!result.appointment) throw new Error('The appointment details are unavailable.')
-    await sendText(to, formatAppointment(result.appointment))
-    return
+    return result.appointment ? { appointment: toCompactAppointment(result.appointment) } : { found: false }
   }
   if (type === 'get_meeting_link') {
-    await sendText(to, result.meetingLink
-      ? `Meeting link: ${result.meetingLink}`
-      : 'There is no meeting link saved for this appointment.')
-    return
+    return { meetingLink: result.meetingLink || null }
   }
+  if (type === 'get_food_menu') {
+    return { foodMenu: (result.foodMenu || []).map(item => ({ name: item.name, category: item.category })) }
+  }
+  throw new Error(`Unsupported LPH read tool: ${type}`)
+}
+
+async function runLphMutation(to: string, phone: string, action: AiAction) {
+  const type = String(action.type || '')
+  try {
+    await callLphGateway({
+      action: type,
+      phoneNumber: `+${phone}`,
+      appointmentId: action.appointmentId || null,
+      reason: action.reason || null,
+      requestedDate: action.requestedDate || null,
+      requestedTime: action.requestedTime || null,
+      requestedDateText: action.requestedDateText || null,
+      requestedTimeText: action.requestedTimeText || null,
+      foodItems: action.foodItems || undefined,
+    })
+  } catch (error) {
+    if (type === 'select_food_items') {
+      const menu = await runLphReadTool(phone, 'get_food_menu', action.appointmentId || undefined)
+      const names = ((menu.foodMenu as Array<{ name?: string }> | undefined) || [])
+        .map(item => item.name)
+        .filter(Boolean)
+      await sendText(to, names.length
+        ? `I couldn't match that to the menu. Options are: ${names.join(', ')}.`
+        : "I couldn't find a food menu for this appointment.")
+      return
+    }
+    throw error
+  }
+
   if (type === 'appointment_accept') {
     await sendText(to, 'Your Lepharo appointment has been confirmed.')
     return
@@ -1064,7 +1099,44 @@ async function executeLphAiAction(to: string, phone: string, action: AiAction) {
     await sendText(to, 'Your request to reschedule has been recorded for the Lepharo team to review.')
     return
   }
-  throw new Error(`Unsupported LPH WhatsApp action: ${type}`)
+  if (type === 'select_food_items') {
+    await sendText(to, 'Thanks, your food selection has been saved.')
+    return
+  }
+  throw new Error(`Unsupported LPH WhatsApp mutation: ${type}`)
+}
+
+const MAX_AI_TOOL_ROUNDS = 3
+
+async function resolveAiTurn(
+  engine: Engine,
+  phone: string,
+  input: string,
+  state: BotState,
+  appointment: Record<string, unknown> | null,
+  identity?: UserRecord | null,
+): Promise<AiResponse> {
+  const toolResults: AiToolResult[] = []
+  for (let round = 0; round < MAX_AI_TOOL_ROUNDS; round++) {
+    const response = await callAiBackend(engine, phone, input, state, appointment, toolResults)
+    const toolCall = response.toolCall
+    if (!toolCall?.type) return response
+    try {
+      let data: Record<string, unknown>
+      if (engine === 'LPH') {
+        data = await runLphReadTool(phone, toolCall.type, state.appointmentId)
+      } else {
+        if (!identity) throw new Error('QTX identity is required to read appointment data.')
+        data = await runQtxReadTool(identity, toolCall.type, state.appointmentId)
+      }
+      toolResults.push({ type: toolCall.type, result: data })
+    } catch (error) {
+      console.error('WhatsApp AI tool call failed', { engine, type: toolCall.type, error: String(error) })
+      return { ok: true, reply: "I couldn't retrieve that information right now. Please try again in a moment." }
+    }
+  }
+  console.warn('WhatsApp AI tool loop exceeded max rounds', { engine, senderSuffix: phone.slice(-4) })
+  return { ok: true, reply: "I'm having trouble finding what you need. Could you rephrase your request?" }
 }
 
 async function processAiMessage(
@@ -1088,7 +1160,7 @@ async function processAiMessage(
     }
   }
 
-  const response = await callAiBackend(engine, phone, input, state, appointment)
+  const response = await resolveAiTurn(engine, phone, input, state, appointment, identity)
   const nextConversation = response.conversation || { awaiting: null, appointmentId: state.appointmentId || null }
   const nextAppointmentId = String(response.action?.appointmentId || nextConversation.appointmentId || state.appointmentId || '') || undefined
   await saveState(phone, {
@@ -1100,8 +1172,8 @@ async function processAiMessage(
   })
 
   if (response.action?.type) {
-    if (engine === 'LPH') await executeLphAiAction(to, phone, response.action)
-    else if (identity) await executeQtxAiAction(to, phone, identity, response.action)
+    if (engine === 'LPH') await runLphMutation(to, phone, response.action)
+    else if (identity) await runQtxMutation(to, phone, identity, response.action)
     else throw new Error('QTX identity is required to execute this action.')
     return
   }
@@ -1134,7 +1206,7 @@ async function processStructuredRsvp(to: string, phone: string, parsed: ReturnTy
 
   const identity = await findUserByPhone(phone)
   if (!identity) throw new Error('This WhatsApp number is not linked to a Smart Incubation account.')
-  await executeQtxAiAction(to, phone, identity, { type: 'appointment_accept', appointmentId: parsed.appointmentId })
+  await runQtxMutation(to, phone, identity, { type: 'appointment_accept', appointmentId: parsed.appointmentId })
   return true
 }
 

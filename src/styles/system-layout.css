@@ -434,7 +434,7 @@ html[data-theme='dark'] .workspace-navigation-card:hover, html[data-theme='dark'
 
     display: grid;
 
-    grid-template-columns: minmax(0, 1fr) 260px minmax(max-content, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(max-content, 1fr);
 
     align-items: center;
 
@@ -471,12 +471,31 @@ html[data-theme='dark'] .workspace-navigation-card:hover, html[data-theme='dark'
 
 .app-mode-switch {
     height: 38px;
-
-    justify-self: center;
 }
 
 .app-mode-switch .ant-segmented-item {
     min-width: 116px;
+}
+
+/* =========================================================
+   QUICK LINKS SEGMENTED
+   The 3 role-scoped shortcuts, styled to match the mode switch.
+   ========================================================= */
+
+.app-quicklinks-switch {
+    height: 38px;
+}
+
+.app-quicklinks-switch .ant-segmented-item {
+    min-width: 0;
+
+    padding-inline: 10px;
+}
+
+.app-quicklinks-switch .ant-segmented-item-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }
 
 /* =========================================================
@@ -509,6 +528,14 @@ html[data-theme='dark'] .workspace-navigation-card:hover, html[data-theme='dark'
     border-color: rgba(109, 93, 251, 0.42) !important;
 
     background: rgba(109, 93, 251, 0.08) !important;
+
+    color: #6d5dfb !important;
+}
+
+.app-icon-btn.is-active {
+    border-color: rgba(109, 93, 251, 0.5) !important;
+
+    background: rgba(109, 93, 251, 0.12) !important;
 
     color: #6d5dfb !important;
 }
@@ -756,6 +783,136 @@ html[data-theme='dark'] .workspace-navigation-card:hover, html[data-theme='dark'
 }
 
 /* =========================================================
+   ACCOUNT PANEL
+   Everything set-and-forget, off the bars.
+   ========================================================= */
+
+.app-account-modal .ant-modal-content {
+    border-radius: 20px;
+}
+
+.app-account-modal .ant-modal-header {
+    margin-bottom: 18px;
+}
+
+.app-account-modal .ant-modal-body {
+    display: flex;
+    flex-direction: column;
+
+    gap: 16px;
+}
+
+.app-account-modal-title {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+
+    gap: 10px;
+
+    text-align: center;
+}
+
+.app-account-avatar {
+    display: grid;
+    width: 52px;
+    height: 52px;
+    flex: 0 0 auto;
+    place-items: center;
+    overflow: hidden;
+
+    border-radius: 14px;
+
+    background: linear-gradient(135deg, #6d5dfb, #3b82f6);
+
+    color: #fff;
+    font-size: 22px;
+    font-weight: 800;
+}
+
+.app-account-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.app-account-title-copy {
+    display: grid;
+    justify-items: center;
+    min-width: 0;
+
+    gap: 2px;
+}
+
+.app-account-title-copy strong {
+    max-width: 280px;
+    overflow: hidden;
+
+    font-size: 15px;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.app-account-role {
+    color: rgba(100, 116, 139, 0.9);
+
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: capitalize;
+}
+
+.app-account-section {
+    display: flex;
+    flex-direction: column;
+
+    gap: 10px;
+
+    padding: 12px;
+
+    border: 1px solid rgba(109, 93, 251, 0.12);
+    border-radius: 14px;
+
+    background: rgba(109, 93, 251, 0.04);
+}
+
+.app-account-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 12px;
+}
+
+.app-account-row-label {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+
+    gap: 8px;
+
+    color: rgba(51, 65, 85, 0.85);
+
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.app-account-row .app-project-select {
+    width: auto;
+    min-width: 0;
+
+    flex: 1 1 auto;
+}
+
+.app-account-actions {
+    display: flex;
+    flex-direction: column;
+
+    gap: 8px;
+
+    margin-top: 2px;
+}
+
+/* =========================================================
    DARK MODE
    ========================================================= */
 
@@ -770,6 +927,20 @@ html[data-theme='dark'] .app-topbar-pill {
     border-color: rgba(139, 92, 246, 0.2);
 
     box-shadow: 0 18px 45px rgba(0, 0, 0, 0.26);
+}
+
+html[data-theme='dark'] .app-account-section {
+    border-color: rgba(139, 92, 246, 0.22);
+
+    background: rgba(139, 92, 246, 0.08);
+}
+
+html[data-theme='dark'] .app-account-row-label {
+    color: rgba(226, 232, 240, 0.85);
+}
+
+html[data-theme='dark'] .app-account-role {
+    color: rgba(203, 213, 225, 0.75);
 }
 
 html[data-theme='dark'] .app-sidebar-menu {
@@ -809,13 +980,21 @@ html[data-theme='dark'] .app-sidebar-logout-icon:hover {
 html[data-theme='dark'] .app-icon-btn {
     background: rgba(15, 17, 23, 0.76) !important;
 
-    border-color: rgba(139, 92, 246, 0.24) !important;
+    border-color: rgba(139, 92, 246, 0.34) !important;
 
     color: #e5e7eb !important;
 }
 
 html[data-theme='dark'] .app-icon-btn:hover {
     background: rgba(139, 92, 246, 0.16) !important;
+
+    color: #c4b5fd !important;
+}
+
+html[data-theme='dark'] .app-icon-btn.is-active {
+    background: rgba(139, 92, 246, 0.2) !important;
+
+    border-color: rgba(139, 92, 246, 0.5) !important;
 
     color: #c4b5fd !important;
 }
@@ -881,7 +1060,7 @@ html[data-theme='dark'] .app-search-hint {
 
 @media (max-width: 1200px) {
     .app-topbar-pill {
-        grid-template-columns: minmax(0, 1fr) 260px minmax(max-content, 1fr);
+        grid-template-columns: minmax(0, 1fr) minmax(max-content, 1fr);
         gap: 8px;
     }
 
@@ -1078,52 +1257,6 @@ html[data-theme='dark'] .app-search-hint {
         background: rgba(23, 25, 35, 0.92);
 
         box-shadow: 0 18px 45px rgba(0, 0, 0, 0.32);
-    }
-
-
-    /* =====================================================
-       Account Panel
-       Everything set-and-forget, off the bars.
-       ===================================================== */
-
-    .app-account-modal .ant-modal-body {
-        display: flex;
-        flex-direction: column;
-
-        gap: 14px;
-    }
-
-    .app-account-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-
-        gap: 12px;
-    }
-
-    .app-account-row>span:first-child {
-        flex: 0 0 auto;
-
-        color: rgba(100, 116, 139, 0.9);
-
-        font-size: 12px;
-        font-weight: 700;
-    }
-
-    .app-account-row .app-project-select {
-        width: auto;
-        min-width: 0;
-
-        flex: 1 1 auto;
-    }
-
-    .app-account-actions {
-        display: flex;
-        flex-direction: column;
-
-        gap: 8px;
-
-        margin-top: 2px;
     }
 
     /*

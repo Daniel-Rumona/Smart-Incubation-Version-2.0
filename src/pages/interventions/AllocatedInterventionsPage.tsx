@@ -1,7 +1,8 @@
-import { App, Button, Card, Col, Descriptions, Input, Modal, Progress, Row, Segmented, Select, Space, Tag, Typography, type TableProps } from 'antd'
-import { CheckOutlined, ClockCircleOutlined, CloseOutlined, EyeOutlined, ReloadOutlined, SaveOutlined, SearchOutlined, TeamOutlined, ToolOutlined } from '@ant-design/icons'
+import { App, Button, Card, Col, Descriptions, Input, Modal, Progress, Row, Segmented, Select, Space, Tag, Timeline, Typography, type TableProps } from 'antd'
+import { CheckOutlined, ClockCircleOutlined, CloseOutlined, EyeOutlined, PaperClipOutlined, ReloadOutlined, SaveOutlined, SearchOutlined, TeamOutlined, ToolOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { arrayUnion, doc, serverTimestamp, Timestamp, updateDoc } from 'firebase/firestore'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
@@ -15,6 +16,7 @@ import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { matchesActiveProgram } from '@/services/workspaceProgramsService'
 import AIInterventionUpdateModal from '@/components/interventions/AIInterventionUpdateModal'
 import type { AssignedInterventionLike, InterventionRow, ProgressUpdateForm, StatusFilter, UpdateMode } from '@/types/interventions'
+import { formatStatus } from '@/utils/status'
 
 type ViewFilter = 'active' | 'history'
 
@@ -102,8 +104,8 @@ const makeRow = (assignment: AssignedInterventionLike, localOnly = false): Inter
     return {
         id: assignment.id,
         title: String(assignment.interventionTitle || 'Intervention'),
-        beneficiaryName: String(assignment.beneficiaryName || assignment.snapshot?.businessName || 'Unassigned SME'),
-        programmeName: String(assignment.programName || assignment.snapshot?.programName || ''),
+        beneficiaryName: String(assignment.businessName || 'Unassigned SME'),
+        programmeName: String(assignment.programName || ''),
         programmeId: String(assignment.programId || ''),
         assigneeStatus: String(assignment.assigneeStatus || 'pending'),
         participantStatus: String(assignment.participantStatus || 'pending'),
@@ -121,6 +123,8 @@ export const AllocatedInterventions = () => {
     const { assignments, loading, refresh, isMine } = useAssignedInterventions()
     const { activeProgramId, isAllPrograms } = useActiveProgramId()
     const { user } = useFullIdentity()
+    const location = useLocation()
+    const navigate = useNavigate()
     const [view, setView] = useState<ViewFilter>('active')
     const [search, setSearch] = useState('')
     const [status, setStatus] = useState<StatusFilter>('All')
@@ -140,6 +144,18 @@ export const AllocatedInterventions = () => {
     const visibleByProgramme = useMemo(() => {
         return scopedRealRows
     }, [scopedRealRows])
+
+    // Landed here from the risk register's "Take Action" - open the specific intervention it flagged
+    // instead of leaving the user to find it themselves in the list.
+    useEffect(() => {
+        const focusInterventionId = (location.state as { focusInterventionId?: string } | null)?.focusInterventionId
+        if (!focusInterventionId) return
+        const row = visibleByProgramme.find((candidate) => candidate.id === focusInterventionId)
+        if (!row) return
+        setSelected(row)
+        setView(['Completed', 'Rejected'].includes(row.status) ? 'history' : 'active')
+        navigate(location.pathname, { replace: true, state: null })
+    }, [location.pathname, location.state, navigate, visibleByProgramme])
 
     const activeRows = useMemo(() => visibleByProgramme.filter((row) => !['Completed', 'Rejected'].includes(row.status)), [visibleByProgramme])
     const historyRows = useMemo(() => visibleByProgramme.filter((row) => ['Completed', 'Rejected'].includes(row.status)), [visibleByProgramme])
@@ -213,6 +229,12 @@ export const AllocatedInterventions = () => {
         const progressAfter = calculateProgressAfter(assignment, values)
         const targetActualAfter = calculateTargetActualAfter(assignment, values)
         const nextStatus = progressAfter >= 100 ? 'awaiting_confirmation' : 'in-progress'
+        const evidenceFiles = values.evidenceFiles || []
+
+        if (progressAfter >= 100 && evidenceFiles.length === 0) {
+            message.error('Attach proof of evidence before marking this 100% complete.')
+            return
+        }
 
         try {
             setSaving(true)
@@ -239,6 +261,7 @@ export const AllocatedInterventions = () => {
                     targetActualBefore,
                     targetActualAfter: targetActualAfter ?? null,
                     notes: values.notes || '',
+                    evidenceFiles,
                 }),
             })
             message.success('Progress updated.')
@@ -377,17 +400,47 @@ export const AllocatedInterventions = () => {
                         <Descriptions bordered size="small" column={{ xs: 1, md: 2 }} items={[
                             { key: 'beneficiary', label: 'SME Name', children: selected.beneficiaryName },
                             { key: 'status', label: 'Status', children: <Tag color={statusColor(selected.status)}>{selected.status}</Tag> },
-                            { key: 'assignee', label: 'Facilitator acceptance', children: selected.assigneeStatus },
-                            { key: 'participant', label: 'SME acceptance', children: selected.participantStatus },
-                            { key: 'completion', label: 'Completion confirmation', children: selected.completionStatus },
+                            { key: 'assignee', label: 'Facilitator acceptance', children: formatStatus(selected.assigneeStatus) },
+                            { key: 'participant', label: 'SME acceptance', children: formatStatus(selected.participantStatus) },
+                            { key: 'completion', label: 'Completion confirmation', children: formatStatus(selected.completionStatus) },
                             { key: 'due', label: 'Due date', children: toDate(selected.dueDate) ? dayjs(toDate(selected.dueDate)!).format('DD MMM YYYY') : 'No due date' },
                             { key: 'delivery', label: 'Delivery', children: selected.raw.deliveryActorType === 'agent' ? <Tag color="purple">{String((selected.raw as Record<string, unknown>).agentName || 'Agent')}</Tag> : <Tag color="blue">Human</Tag> },
-                            { key: 'review', label: 'Review status', children: String((selected.raw as Record<string, unknown>).reviewStatus || 'Not required') },
+                            { key: 'review', label: 'Review status', children: formatStatus(String((selected.raw as Record<string, unknown>).reviewStatus || 'Not required')) },
                         ]} />
                         <Progress percent={selected.progress} />
+
+                        {(selected.raw.progressSteps?.length ?? 0) > 0 && (
+                            <Card size="small" title="Progress history">
+                                <Timeline
+                                    items={[...selected.raw.progressSteps!].reverse().map((step, index) => ({
+                                        key: index,
+                                        color: (step.progressAfter ?? 0) >= 100 ? 'green' : 'blue',
+                                        children: (
+                                            <Space direction="vertical" size={2}>
+                                                <Space wrap>
+                                                    <Typography.Text strong>{step.progressBefore ?? 0}% {'→'} {step.progressAfter ?? 0}%</Typography.Text>
+                                                    <Tag>{formatStatus(step.source || 'manual')}</Tag>
+                                                </Space>
+                                                <Typography.Text type="secondary">
+                                                    {toDate(step.createdAt) ? dayjs(toDate(step.createdAt)!).format('DD MMM YYYY, HH:mm') : 'Unknown date'}
+                                                    {step.actorRole ? ` · ${formatStatus(step.actorRole)}` : ''}
+                                                </Typography.Text>
+                                                {step.notes && <Typography.Text>{step.notes}</Typography.Text>}
+                                                {(step.evidenceFiles?.length ?? 0) > 0 && (
+                                                    <Space wrap>
+                                                        {step.evidenceFiles!.map((file) => <Tag key={file} icon={<PaperClipOutlined />}>{file}</Tag>)}
+                                                    </Space>
+                                                )}
+                                            </Space>
+                                        ),
+                                    }))}
+                                />
+                            </Card>
+                        )}
+
                         <Space wrap style={{ justifyContent: 'flex-end', width: '100%' }}>
                             <Button onClick={() => setSelected(undefined)}>Close</Button>
-                            {selected.raw.deliveryActorType !== 'agent' && <Button icon={<SaveOutlined />} onClick={() => openUpdate('manual')}>Update</Button>}
+                            {selected.raw.deliveryActorType !== 'agent' && !['Completed', 'Rejected'].includes(selected.status) && <Button icon={<SaveOutlined />} onClick={() => openUpdate('manual')}>Update</Button>}
                             {selected.raw.deliveryActorType === 'agent' && (selected.raw as Record<string, unknown>).reviewerType === 'consultant' && (selected.raw as Record<string, unknown>).agentWorkStatus === 'awaiting_review' && (
                                 <>
                                     <Button type="primary" loading={saving} onClick={() => void reviewAgentWork('approved')}>Approve agent work</Button>

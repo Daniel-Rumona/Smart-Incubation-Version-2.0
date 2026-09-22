@@ -1,11 +1,15 @@
-import { useEffect, useMemo, useState } from 'react'
-import { App, Card, Col, DatePicker, Empty, Row, Segmented } from 'antd'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { App, Button, Card, Col, DatePicker, Empty, Modal, Progress, Row, Segmented, Space, Table, Tag, theme, Typography } from 'antd'
 import {
     AppstoreOutlined,
     AuditOutlined,
     CheckCircleOutlined,
+    DashboardOutlined,
     ExclamationCircleOutlined,
+    FallOutlined,
     FileProtectOutlined,
+    MinusOutlined,
+    RiseOutlined,
     TeamOutlined,
 } from '@ant-design/icons'
 import type Highcharts from 'highcharts'
@@ -15,7 +19,7 @@ import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
 import { ThemedHighcharts } from '@/components/shared/ThemedHighcharts'
-import { CHART_COLORS } from '@/config/chartPalette'
+import { CHART_COLORS, CHART_PALETTE } from '@/config/chartPalette'
 import { useActiveProgramId } from '@/hooks/useActiveProgramId'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import {
@@ -25,6 +29,9 @@ import {
     isOpenApplicationStatus,
     isOverdueIntervention,
     loadProjectAdminWorkspace,
+    type ProjectAdminApplication,
+    type ProjectAdminComplianceDocument,
+    type ProjectAdminIntervention,
     type ProjectAdminWorkspaceData,
 } from '@/services/projectAdminWorkspaceService'
 import '@/styles/dashboard.css'
@@ -34,9 +41,13 @@ dayjs.extend(quarterOfYear)
 
 const { RangePicker } = DatePicker
 
-type PeriodPreset = 'week' | 'month' | 'quarter' | 'year' | 'custom'
-type ReportView = 'overview' | 'applications' | 'programmes' | 'interventions' | 'compliance'
+type ReportView = 'overview' | 'applications' | 'interventions' | 'compliance'
 type TimeBucket = { key: string, label: string }
+
+type DrilldownState =
+    | { kind: 'applications', title: string, rows: ProjectAdminApplication[] }
+    | { kind: 'interventions', title: string, rows: ProjectAdminIntervention[] }
+    | { kind: 'compliance', title: string, rows: ProjectAdminComplianceDocument[] }
 
 type ProgrammeRow = {
     key: string
@@ -88,15 +99,6 @@ const statusColor = (value: string) => {
     return CHART_COLORS.slate
 }
 
-const getPresetRange = (preset: PeriodPreset): [Dayjs, Dayjs] | null => {
-    const now = dayjs()
-    if (preset === 'week') return [now.startOf('week'), now.endOf('week')]
-    if (preset === 'month') return [now.startOf('month'), now.endOf('month')]
-    if (preset === 'quarter') return [now.startOf('quarter'), now.endOf('quarter')]
-    if (preset === 'year') return [now.startOf('year'), now.endOf('year')]
-    return null
-}
-
 const countBy = <T,>(rows: T[], readKey: (row: T) => string) =>
     rows.reduce<Record<string, number>>((acc, row) => {
         const rawKey = readKey(row).trim()
@@ -120,6 +122,112 @@ const categoryColors = [
     CHART_COLORS.teal,
     CHART_COLORS.danger,
 ]
+
+const percent = (numerator: number, denominator: number) => (denominator > 0 ? Math.round((numerator / denominator) * 100) : 0)
+
+const computeRates = (scoped: ProjectAdminWorkspaceData) => {
+    const acceptedApplications = scoped.applications.filter((application) => ['accepted', 'approved'].includes(normalize(application.status))).length
+    const completedInterventions = scoped.interventions.filter((intervention) => isCompletedInterventionStatus(intervention.status)).length
+    const complianceAttention = scoped.complianceDocuments.filter((document) => isComplianceAttentionStatus(document.status)).length
+    const compliantDocuments = Math.max(0, scoped.complianceDocuments.length - complianceAttention)
+    return {
+        acceptanceRate: percent(acceptedApplications, scoped.applications.length),
+        deliveryRate: percent(completedInterventions, scoped.interventions.length),
+        complianceRate: percent(compliantDocuments, scoped.complianceDocuments.length),
+    }
+}
+
+const programmeAvatarColor = (programme: string) => {
+    let hash = 0
+    for (let index = 0; index < programme.length; index += 1) hash = (hash * 31 + programme.charCodeAt(index)) >>> 0
+    return CHART_PALETTE[hash % CHART_PALETTE.length]
+}
+
+const ProgrammeCard = ({ row, onClick }: { row: ProgrammeRow, onClick: () => void }) => {
+    const { token } = theme.useToken()
+    const completionRate = percent(row.completed, row.interventions)
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            style={{
+                width: '100%',
+                textAlign: 'left',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+                padding: '14px 16px',
+                borderRadius: 12,
+                border: `1px solid ${token.colorBorderSecondary}`,
+                background: token.colorBgContainer,
+                boxShadow: token.boxShadowTertiary,
+                cursor: 'pointer',
+            }}
+        >
+            <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
+                <Space size={8} align="center">
+                    <span style={{ width: 28, height: 28, borderRadius: '50%', background: programmeAvatarColor(row.programme), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, flexShrink: 0 }}>
+                        {row.programme.charAt(0).toUpperCase()}
+                    </span>
+                    <Typography.Text strong ellipsis style={{ maxWidth: 170 }}>{row.programme}</Typography.Text>
+                </Space>
+                <Typography.Text strong style={{ color: completionRate >= 75 ? token.colorSuccess : completionRate >= 40 ? token.colorWarning : token.colorError }}>{completionRate}%</Typography.Text>
+            </Space>
+            <Progress percent={completionRate} size="small" showInfo={false} />
+            <Space size={10} style={{ width: '100%', justifyContent: 'space-between' }}>
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>{row.applications} applications · {row.participants} participants · {row.interventions} interventions</Typography.Text>
+                {row.overdue > 0 && <Tag color="orange" style={{ marginInlineEnd: 0 }}>{row.overdue} overdue</Tag>}
+            </Space>
+        </button>
+    )
+}
+
+const RateChangeCard = ({ title, icon, value, previousValue, caption, loading }: {
+    title: string
+    icon: ReactNode
+    value: number
+    previousValue: number
+    caption: string
+    loading?: boolean
+}) => {
+    const { token } = theme.useToken()
+    const delta = value - previousValue
+    const deltaColor = delta > 0 ? token.colorSuccess : delta < 0 ? token.colorError : token.colorTextSecondary
+    const DeltaIcon = delta > 0 ? RiseOutlined : delta < 0 ? FallOutlined : MinusOutlined
+
+    return (
+        <Card loading={loading} className="dashboard-section-card motion-card" title={<Space>{icon} {title}</Space>}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+                <Typography.Text strong style={{ fontSize: 34, lineHeight: 1 }}>{value}%</Typography.Text>
+                <Space size={4} style={{ color: deltaColor }}>
+                    <DeltaIcon />
+                    <Typography.Text strong style={{ color: deltaColor }}>{Math.abs(delta)}pt{Math.abs(delta) === 1 ? '' : 's'}</Typography.Text>
+                </Space>
+            </div>
+            <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 6 }}>vs {previousValue}% previous period</Typography.Text>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>{caption}</Typography.Text>
+        </Card>
+    )
+}
+
+const StatusBreakdownList = ({ counts }: { counts: Record<string, number> }) => {
+    const entries = Object.entries(counts).sort((left, right) => right[1] - left[1])
+    const total = entries.reduce((sum, [, count]) => sum + count, 0)
+    if (!entries.length) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No records" style={{ margin: '20px 0' }} />
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {entries.map(([name, count]) => (
+                <div key={name}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
+                        <Typography.Text>{statusLabel(name)}</Typography.Text>
+                        <Typography.Text strong>{count}</Typography.Text>
+                    </div>
+                    <Progress percent={percent(count, total)} showInfo={false} size="small" strokeColor={statusColor(name)} />
+                </div>
+            ))}
+        </div>
+    )
+}
 
 const distributionChart = (
     counts: Record<string, number>,
@@ -175,10 +283,21 @@ export default function ProjectAdminReportsPage() {
     const { user, loading: identityLoading } = useFullIdentity()
     const { activeProgramId } = useActiveProgramId()
     const [loading, setLoading] = useState(true)
-    const [preset, setPreset] = useState<PeriodPreset>('month')
-    const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(getPresetRange('month'))
+    const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>([dayjs().startOf('month'), dayjs().endOf('month')])
     const [view, setView] = useState<ReportView>('overview')
     const [data, setData] = useState<ProjectAdminWorkspaceData>(emptyWorkspace)
+    const [selectedProgramme, setSelectedProgramme] = useState<string>()
+    const [applicantProfileOpen, setApplicantProfileOpen] = useState(false)
+    const [drilldown, setDrilldown] = useState<DrilldownState | null>(null)
+
+    const rangePresets = useMemo(() => {
+        const now = dayjs()
+        return [
+            { label: 'This month', value: [now.startOf('month'), now.endOf('month')] as [Dayjs, Dayjs] },
+            { label: 'This quarter', value: [now.startOf('quarter'), now.endOf('quarter')] as [Dayjs, Dayjs] },
+            { label: 'Year to date', value: [now.startOf('year'), now] as [Dayjs, Dayjs] },
+        ]
+    }, [])
 
     useEffect(() => {
         let cancelled = false
@@ -210,6 +329,17 @@ export default function ProjectAdminReportsPage() {
 
     const periodData = useMemo(() => filterProjectAdminDataByRange(data, dateRange), [data, dateRange])
 
+    const previousRange = useMemo<[Dayjs, Dayjs]>(() => {
+        const [start, end] = dateRange
+        const durationDays = end.diff(start, 'day') + 1
+        const previousEnd = start.subtract(1, 'day').endOf('day')
+        const previousStart = previousEnd.subtract(durationDays - 1, 'day').startOf('day')
+        return [previousStart, previousEnd]
+    }, [dateRange])
+
+    const previousPeriodData = useMemo(() => filterProjectAdminDataByRange(data, previousRange), [data, previousRange])
+    const previousRates = useMemo(() => computeRates(previousPeriodData), [previousPeriodData])
+
     const metrics = useMemo(() => {
         const openApplications = periodData.applications.filter((application) => isOpenApplicationStatus(application.status)).length
         const acceptedApplications = periodData.applications.filter((application) =>
@@ -234,6 +364,7 @@ export default function ProjectAdminReportsPage() {
             overdueInterventions,
             complianceAttention,
             completionRate,
+            ...computeRates(periodData),
         }
     }, [periodData])
 
@@ -270,6 +401,31 @@ export default function ProjectAdminReportsPage() {
 
         return [...byProgramme.values()].sort((left, right) => right.participants - left.participants)
     }, [periodData])
+
+    const programNameById = useMemo(() => {
+        const map = new Map<string, string>()
+        periodData.applications.forEach((application) => { if (application.programId && application.programName) map.set(application.programId, application.programName) })
+        periodData.participants.forEach((participant) => { if (participant.programId && participant.programName) map.set(participant.programId, participant.programName) })
+        periodData.interventions.forEach((intervention) => { if (intervention.programId && intervention.programName) map.set(intervention.programId, intervention.programName) })
+        return map
+    }, [periodData])
+
+    const selectedProgrammeDetail = useMemo(() => {
+        if (!selectedProgramme) return null
+        const row = programmeRows.find((candidate) => candidate.programme === selectedProgramme)
+        if (!row) return null
+
+        const applications = periodData.applications.filter((application) => (application.programName || 'Unassigned programme') === selectedProgramme)
+        const interventions = periodData.interventions.filter((intervention) => (intervention.programName || 'Unassigned programme') === selectedProgramme)
+        const complianceDocuments = periodData.complianceDocuments.filter((document) => (programNameById.get(document.programId) || 'Unassigned programme') === selectedProgramme)
+
+        return {
+            row,
+            applicationCounts: countBy(applications, (application) => application.status),
+            interventionCounts: countBy(interventions, (intervention) => intervention.status),
+            complianceCounts: countBy(complianceDocuments, (document) => document.status),
+        }
+    }, [periodData, programNameById, programmeRows, selectedProgramme])
 
     const applicationTimelineChart = useMemo<Highcharts.Options>(() => {
         const timeline = buildTimeBuckets(
@@ -435,41 +591,27 @@ export default function ProjectAdminReportsPage() {
         }
     }, [periodData.applications])
 
-    const programmeChart = useMemo<Highcharts.Options>(() => ({
-        chart: { type: 'column', height: 320 },
-        title: { text: undefined },
-        xAxis: { type: 'category' },
-        yAxis: { title: { text: 'Records' }, allowDecimals: false },
-        tooltip: { shared: true },
-        plotOptions: { series: { dataLabels: { enabled: true, format: '{point.y}' } } },
-        series: [
-            { type: 'column', name: 'Applications', color: CHART_COLORS.violet, data: programmeRows.map((row) => [row.programme, row.applications]) },
-            { type: 'column', name: 'Participants', color: CHART_COLORS.cyan, data: programmeRows.map((row) => [row.programme, row.participants]) },
-            { type: 'column', name: 'Interventions', color: CHART_COLORS.primary, data: programmeRows.map((row) => [row.programme, row.interventions]) },
-        ],
-    }), [programmeRows])
-
-    const programmeHealthChart = useMemo<Highcharts.Options>(() => ({
-        chart: { type: 'bar', height: 360 },
-        title: { text: undefined },
-        xAxis: { categories: programmeRows.map((row) => row.programme) },
-        yAxis: { min: 0, title: { text: 'Interventions' }, allowDecimals: false },
-        plotOptions: { series: { stacking: 'normal', dataLabels: { enabled: true, format: '{point.y}' } } },
-        tooltip: { shared: true },
-        series: [
-            { type: 'bar', name: 'Completed', color: CHART_COLORS.success, data: programmeRows.map((row) => row.completed) },
-            { type: 'bar', name: 'On track', color: CHART_COLORS.primary, data: programmeRows.map((row) => Math.max(0, row.interventions - row.completed - row.overdue)) },
-            { type: 'bar', name: 'Overdue', color: CHART_COLORS.danger, data: programmeRows.map((row) => row.overdue) },
-        ],
-    }), [programmeRows])
-
     const applicationStatusChart = useMemo<Highcharts.Options>(() => ({
         chart: { type: 'column', height: 320 },
         title: { text: undefined },
         xAxis: { type: 'category' },
         yAxis: { title: { text: 'Applications' }, allowDecimals: false },
         legend: { enabled: false },
-        plotOptions: { series: { dataLabels: { enabled: true, format: '{point.y}' } } },
+        plotOptions: {
+            series: {
+                cursor: 'pointer',
+                dataLabels: { enabled: true, format: '{point.y}' },
+                point: {
+                    events: {
+                        click: function (this: Highcharts.Point) {
+                            const label = this.name
+                            const rows = periodData.applications.filter((application) => statusLabel(application.status) === label)
+                            setDrilldown({ kind: 'applications', title: `Applications — ${label}`, rows })
+                        },
+                    },
+                },
+            },
+        },
         series: [{
             type: 'column',
             name: 'Applications',
@@ -480,7 +622,22 @@ export default function ProjectAdminReportsPage() {
     const interventionChart = useMemo<Highcharts.Options>(() => ({
         chart: { type: 'pie', height: 320 },
         title: { text: undefined },
-        plotOptions: { pie: { innerSize: '58%', dataLabels: { enabled: true, format: '{point.name}: {point.y}' } } },
+        plotOptions: {
+            pie: {
+                innerSize: '58%',
+                dataLabels: { enabled: true, format: '{point.name}: {point.y}' },
+                cursor: 'pointer',
+                point: {
+                    events: {
+                        click: function (this: Highcharts.Point) {
+                            const label = this.name
+                            const rows = periodData.interventions.filter((intervention) => statusLabel(intervention.status) === label)
+                            setDrilldown({ kind: 'interventions', title: `Interventions — ${label}`, rows })
+                        },
+                    },
+                },
+            },
+        },
         series: [{
             type: 'pie',
             name: 'Interventions',
@@ -488,22 +645,51 @@ export default function ProjectAdminReportsPage() {
         }],
     }), [periodData.interventions])
 
+    /**
+     * Bucketed by progress range rather than one bar per intervention, so this stays readable
+     * and renders in constant time regardless of how many SMEs/interventions are in scope -
+     * a per-row bar chart would become unusable (and slice off most rows) well before 100 SMEs.
+     */
     const interventionProgressChart = useMemo<Highcharts.Options>(() => {
-        const rows = [...periodData.interventions]
-            .sort((left, right) => right.progress - left.progress)
-            .slice(0, 12)
+        const buckets: { label: string, test: (progress: number) => boolean, color: string }[] = [
+            { label: 'Not started (0%)', test: (progress) => progress <= 0, color: CHART_COLORS.slate },
+            { label: '1–24%', test: (progress) => progress > 0 && progress < 25, color: CHART_COLORS.danger },
+            { label: '25–49%', test: (progress) => progress >= 25 && progress < 50, color: CHART_COLORS.amber },
+            { label: '50–74%', test: (progress) => progress >= 50 && progress < 75, color: CHART_COLORS.primary },
+            { label: '75–99%', test: (progress) => progress >= 75 && progress < 100, color: CHART_COLORS.cyan },
+            { label: 'Completed (100%)', test: (progress) => progress >= 100, color: CHART_COLORS.success },
+        ]
         return {
-            chart: { type: 'bar', height: Math.max(360, rows.length * 42) },
+            chart: { type: 'column', height: 340 },
             title: { text: undefined },
-            xAxis: { categories: rows.map((row) => `${row.title} — ${row.participantName}`) },
-            yAxis: { min: 0, max: 100, title: { text: 'Progress (%)' }, tickInterval: 25 },
+            xAxis: { categories: buckets.map((bucket) => bucket.label) },
+            yAxis: { min: 0, title: { text: 'Interventions' }, allowDecimals: false },
             legend: { enabled: false },
-            tooltip: { pointFormat: '<b>{point.y}%</b>' },
-            plotOptions: { series: { dataLabels: { enabled: true, format: '{point.y}%' } } },
+            tooltip: { pointFormat: '<b>{point.y}</b> interventions' },
+            plotOptions: {
+                column: {
+                    borderRadius: 4,
+                    dataLabels: { enabled: true },
+                    cursor: 'pointer',
+                    point: {
+                        events: {
+                            click: function (this: Highcharts.Point) {
+                                const bucket = buckets[this.index]
+                                if (!bucket) return
+                                const rows = periodData.interventions.filter((row) => bucket.test(row.progress))
+                                setDrilldown({ kind: 'interventions', title: `Interventions — ${bucket.label}`, rows })
+                            },
+                        },
+                    },
+                },
+            },
             series: [{
-                type: 'bar',
-                name: 'Progress',
-                data: rows.map((row) => ({ y: row.progress, color: statusColor(row.status) })),
+                type: 'column',
+                name: 'Interventions',
+                data: buckets.map((bucket) => ({
+                    y: periodData.interventions.filter((row) => bucket.test(row.progress)).length,
+                    color: bucket.color,
+                })),
             }],
         }
     }, [periodData.interventions])
@@ -511,7 +697,22 @@ export default function ProjectAdminReportsPage() {
     const complianceStatusChart = useMemo<Highcharts.Options>(() => ({
         chart: { type: 'pie', height: 340 },
         title: { text: undefined },
-        plotOptions: { pie: { innerSize: '58%', dataLabels: { enabled: true, format: '{point.name}: {point.y}' } } },
+        plotOptions: {
+            pie: {
+                innerSize: '58%',
+                dataLabels: { enabled: true, format: '{point.name}: {point.y}' },
+                cursor: 'pointer',
+                point: {
+                    events: {
+                        click: function (this: Highcharts.Point) {
+                            const label = this.name
+                            const rows = periodData.complianceDocuments.filter((document) => statusLabel(document.status) === label)
+                            setDrilldown({ kind: 'compliance', title: `Compliance — ${label}`, rows })
+                        },
+                    },
+                },
+            },
+        },
         series: [{
             type: 'pie',
             name: 'Documents',
@@ -520,182 +721,241 @@ export default function ProjectAdminReportsPage() {
     }), [periodData.complianceDocuments])
 
     const complianceHealthChart = useMemo<Highcharts.Options>(() => {
-        const attention = periodData.complianceDocuments.filter((document) => isComplianceAttentionStatus(document.status)).length
-        const clear = Math.max(0, periodData.complianceDocuments.length - attention)
+        const attentionRows = periodData.complianceDocuments.filter((document) => isComplianceAttentionStatus(document.status))
+        const clearRows = periodData.complianceDocuments.filter((document) => !isComplianceAttentionStatus(document.status))
         return {
             chart: { type: 'column', height: 340 },
             title: { text: undefined },
             xAxis: { type: 'category' },
             yAxis: { title: { text: 'Documents' }, allowDecimals: false },
             legend: { enabled: false },
-            plotOptions: { series: { dataLabels: { enabled: true, format: '{point.y}' } } },
+            plotOptions: {
+                series: {
+                    cursor: 'pointer',
+                    dataLabels: { enabled: true, format: '{point.y}' },
+                    point: {
+                        events: {
+                            click: function (this: Highcharts.Point) {
+                                const isAttention = this.name === 'Action required'
+                                setDrilldown({ kind: 'compliance', title: `Compliance — ${this.name}`, rows: isAttention ? attentionRows : clearRows })
+                            },
+                        },
+                    },
+                },
+            },
             series: [{
                 type: 'column',
                 name: 'Documents',
                 data: [
-                    { name: 'Clear', y: clear, color: CHART_COLORS.success },
-                    { name: 'Action required', y: attention, color: CHART_COLORS.danger },
+                    { name: 'Clear', y: clearRows.length, color: CHART_COLORS.success },
+                    { name: 'Action required', y: attentionRows.length, color: CHART_COLORS.danger },
                 ],
             }],
         }
     }, [periodData.complianceDocuments])
 
-    const handlePresetChange = (value: PeriodPreset) => {
-        setPreset(value)
-        if (value !== 'custom') setDateRange(getPresetRange(value))
-    }
-
     return (
         <DashboardPage className="operations-reports-page project-admin-reports-page">
             <Row gutter={[12, 12]} className="dashboard-metrics-row operations-reports-metrics">
-                <Col xs={12} lg={4}>
-                    <DashboardMetricCard
-                        loading={identityLoading || loading}
-                        icon={<AuditOutlined />}
-                        iconClassName="is-applications"
-                        label="Open Applications"
-                        value={metrics.openApplications}
-                        hint={`${metrics.acceptedApplications} accepted`} />
-                </Col>
-                <Col xs={12} lg={4}><DashboardMetricCard loading={identityLoading || loading} icon={<TeamOutlined />} iconClassName="is-participants" label="Participants" value={metrics.participants} /></Col>
-                <Col xs={12} lg={4}><DashboardMetricCard loading={identityLoading || loading} icon={<CheckCircleOutlined />} iconClassName="is-delivery" label="Completed interventions" value={metrics.completedInterventions} hint={`${metrics.completionRate}% rate`} /></Col>
-                <Col xs={12} lg={4}><DashboardMetricCard loading={identityLoading || loading} icon={<ExclamationCircleOutlined />} iconClassName="is-attention" label="Overdue interventions" value={metrics.overdueInterventions} /></Col>
-                <Col xs={12} lg={4}><DashboardMetricCard loading={identityLoading || loading} icon={<FileProtectOutlined />} iconClassName="is-attention" label="Compliance alerts" value={metrics.complianceAttention} /></Col>
-                <Col xs={12} lg={4}><DashboardMetricCard loading={identityLoading || loading} icon={<AppstoreOutlined />} iconClassName="is-users" label="Programmes" value={programmeRows.length} /></Col>
+                {(identityLoading || loading || metrics.openApplications > 0) && (
+                    <Col xs={12} lg={{ flex: 1 }}>
+                        <DashboardMetricCard
+                            loading={identityLoading || loading}
+                            icon={<AuditOutlined />}
+                            iconClassName="is-applications"
+                            label="Open Applications"
+                            value={metrics.openApplications}
+                            hint={`${metrics.acceptedApplications} accepted`} />
+                    </Col>
+                )}
+                {(identityLoading || loading || metrics.participants > 0) && (
+                    <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={identityLoading || loading} icon={<TeamOutlined />} iconClassName="is-participants" label="Participants" value={metrics.participants} /></Col>
+                )}
+                {(identityLoading || loading || metrics.completedInterventions > 0) && (
+                    <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={identityLoading || loading} icon={<CheckCircleOutlined />} iconClassName="is-delivery" label="Completed interventions" value={metrics.completedInterventions} hint={`${metrics.completionRate}% rate`} /></Col>
+                )}
+                {(identityLoading || loading || metrics.overdueInterventions > 0) && (
+                    <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={identityLoading || loading} icon={<ExclamationCircleOutlined />} iconClassName="is-attention" label="Overdue interventions" value={metrics.overdueInterventions} /></Col>
+                )}
+                {(identityLoading || loading || metrics.complianceAttention > 0) && (
+                    <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={identityLoading || loading} icon={<FileProtectOutlined />} iconClassName="is-attention" label="Compliance alerts" value={metrics.complianceAttention} /></Col>
+                )}
+                {(identityLoading || loading || programmeRows.length > 0) && (
+                    <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={identityLoading || loading} icon={<AppstoreOutlined />} iconClassName="is-users" label="Programmes" value={programmeRows.length} /></Col>
+                )}
             </Row>
 
             <FilterBar
-                title="Report filters"
                 primary={(
-                    <div className="project-admin-report-filter-grid">
-                        <div className="project-admin-report-filter-control">
-                            <span>Period</span>
-                            <Segmented<PeriodPreset>
-                                block
-                                value={preset}
-                                onChange={handlePresetChange}
-                                options={[
-                                    { label: 'Week', value: 'week' },
-                                    { label: 'Month', value: 'month' },
-                                    { label: 'Quarter', value: 'quarter' },
-                                    { label: 'Year', value: 'year' },
-                                    { label: 'Custom', value: 'custom' },
-                                ]}
-                            />
-                        </div>
-                        <div className="project-admin-report-filter-control">
-                            <span>Date range</span>
-                            <RangePicker
-                                value={dateRange}
-                                onChange={(range) => {
-                                    setPreset('custom')
-                                    setDateRange(range ? [range[0] as Dayjs, range[1] as Dayjs] : null)
-                                }}
-                            />
-                        </div>
-                        <div className="project-admin-report-filter-control">
-                            <span>Analysis</span>
-                            <Segmented<ReportView>
-                                block
-                                value={view}
-                                onChange={setView}
-                                options={[
-                                    { label: 'Overview', value: 'overview' },
-                                    { label: 'Applications', value: 'applications' },
-                                    { label: 'Programmes', value: 'programmes' },
-                                    { label: 'Interventions', value: 'interventions' },
-                                    { label: 'Compliance', value: 'compliance' },
-                                ]}
-                            />
-                        </div>
-                    </div>
+                    <>
+                        <Segmented<ReportView>
+                            value={view}
+                            onChange={setView}
+                            options={[
+                                { label: 'Overview', value: 'overview', icon: <DashboardOutlined /> },
+                                { label: 'Applications', value: 'applications', icon: <AuditOutlined /> },
+                                { label: 'Interventions', value: 'interventions', icon: <RiseOutlined /> },
+                                { label: 'Compliance', value: 'compliance', icon: <FileProtectOutlined /> },
+                            ]}
+                        />
+                        <RangePicker
+                            value={dateRange}
+                            allowClear={false}
+                            presets={rangePresets}
+                            onChange={(range) => {
+                                if (range?.[0] && range?.[1]) setDateRange([range[0], range[1]])
+                            }}
+                        />
+                    </>
                 )}
             />
 
             {view === 'overview' && (
                 <>
-                    <Row gutter={[20, 20]} className="project-admin-report-chart-grid">
-                        <Col xs={24} xl={12}>
-                            <Card loading={identityLoading || loading} className="dashboard-section-card motion-card" title="Programme Activity">
-                                {programmeRows.length ? <ThemedHighcharts options={programmeChart} /> : <Empty description="No programme report data for this period." />}
-                            </Card>
+                    <Row gutter={[16, 16]} className="project-admin-report-chart-grid">
+                        <Col xs={24} lg={8}>
+                            <RateChangeCard
+                                loading={identityLoading || loading}
+                                title="Acceptance Rate"
+                                icon={<AuditOutlined />}
+                                value={metrics.acceptanceRate}
+                                previousValue={previousRates.acceptanceRate}
+                                caption={`${metrics.openApplications} of ${periodData.applications.length} still open`}
+                            />
                         </Col>
-                        <Col xs={24} xl={12}>
-                            <Card loading={identityLoading || loading} className="dashboard-section-card motion-card" title="Application Status">
-                                {periodData.applications.length ? <ThemedHighcharts options={applicationStatusChart} /> : <Empty description="No application data for this period." />}
-                            </Card>
+                        <Col xs={24} lg={8}>
+                            <RateChangeCard
+                                loading={identityLoading || loading}
+                                title="Delivery Rate"
+                                icon={<CheckCircleOutlined />}
+                                value={metrics.deliveryRate}
+                                previousValue={previousRates.deliveryRate}
+                                caption={`${metrics.completedInterventions} of ${periodData.interventions.length} completed`}
+                            />
                         </Col>
-                        <Col xs={24} xl={12}>
-                            <Card loading={identityLoading || loading} className="dashboard-section-card motion-card" title="Intervention Status">
-                                {periodData.interventions.length ? <ThemedHighcharts options={interventionChart} /> : <Empty description="No intervention report data for this period." />}
-                            </Card>
+                        <Col xs={24} lg={8}>
+                            <RateChangeCard
+                                loading={identityLoading || loading}
+                                title="Compliance Rate"
+                                icon={<FileProtectOutlined />}
+                                value={metrics.complianceRate}
+                                previousValue={previousRates.complianceRate}
+                                caption={`${metrics.complianceAttention} of ${periodData.complianceDocuments.length} need attention`}
+                            />
                         </Col>
-                        <Col xs={24} xl={12}>
-                            <Card loading={identityLoading || loading} className="dashboard-section-card motion-card" title="Compliance Health">
-                                {periodData.complianceDocuments.length ? <ThemedHighcharts options={complianceHealthChart} /> : <Empty description="No compliance data for this period." />}
+                    </Row>
+
+                    <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+                        <Col span={24}>
+                            <Card loading={identityLoading || loading} className="dashboard-section-card motion-card" title="Programme Health" extra={<Typography.Text type="secondary">Click a programme for its breakdown</Typography.Text>}>
+                                {programmeRows.length ? (
+                                    <Row gutter={[10, 10]}>
+                                        {programmeRows.map((row) => (
+                                            <Col xs={24} sm={12} xl={8} key={row.key}>
+                                                <ProgrammeCard row={row} onClick={() => setSelectedProgramme(row.programme)} />
+                                            </Col>
+                                        ))}
+                                    </Row>
+                                ) : <Empty description="No programme report data for this period." />}
                             </Card>
                         </Col>
                     </Row>
                 </>
             )}
 
+            <Modal
+                open={!!selectedProgrammeDetail}
+                onCancel={() => setSelectedProgramme(undefined)}
+                footer={<Button onClick={() => setSelectedProgramme(undefined)}>Close</Button>}
+                title={selectedProgrammeDetail ? `${selectedProgrammeDetail.row.programme} — Programme Breakdown` : ''}
+                width={760}
+                destroyOnClose
+            >
+                {selectedProgrammeDetail && (
+                    <>
+                        <Row gutter={[12, 12]} style={{ marginBottom: 24 }}>
+                            <Col xs={12} md={6}><Typography.Text type="secondary">Applications</Typography.Text><div style={{ fontSize: 22, fontWeight: 700 }}>{selectedProgrammeDetail.row.applications}</div></Col>
+                            <Col xs={12} md={6}><Typography.Text type="secondary">Participants</Typography.Text><div style={{ fontSize: 22, fontWeight: 700 }}>{selectedProgrammeDetail.row.participants}</div></Col>
+                            <Col xs={12} md={6}><Typography.Text type="secondary">Interventions</Typography.Text><div style={{ fontSize: 22, fontWeight: 700 }}>{selectedProgrammeDetail.row.interventions}</div></Col>
+                            <Col xs={12} md={6}><Typography.Text type="secondary">Overdue</Typography.Text><div style={{ fontSize: 22, fontWeight: 700, color: selectedProgrammeDetail.row.overdue > 0 ? '#EF4444' : undefined }}>{selectedProgrammeDetail.row.overdue}</div></Col>
+                        </Row>
+                        <Row gutter={[24, 24]}>
+                            <Col xs={24} md={8}>
+                                <Typography.Text strong style={{ display: 'block', marginBottom: 12 }}>Applications</Typography.Text>
+                                <StatusBreakdownList counts={selectedProgrammeDetail.applicationCounts} />
+                            </Col>
+                            <Col xs={24} md={8}>
+                                <Typography.Text strong style={{ display: 'block', marginBottom: 12 }}>Interventions</Typography.Text>
+                                <StatusBreakdownList counts={selectedProgrammeDetail.interventionCounts} />
+                            </Col>
+                            <Col xs={24} md={8}>
+                                <Typography.Text strong style={{ display: 'block', marginBottom: 12 }}>Compliance</Typography.Text>
+                                <StatusBreakdownList counts={selectedProgrammeDetail.complianceCounts} />
+                            </Col>
+                        </Row>
+                    </>
+                )}
+            </Modal>
+
             {view === 'applications' && (
                 <Row gutter={[20, 20]} className="project-admin-report-chart-grid">
                     <Col xs={24}>
-                        <Card loading={identityLoading || loading} className="dashboard-section-card motion-card" title="Applications And Statuses Over Time">
+                        <Card
+                            loading={identityLoading || loading}
+                            className="dashboard-section-card motion-card"
+                            title="Applications And Statuses Over Time"
+                            extra={<Button onClick={() => setApplicantProfileOpen(true)}>View applicant profile</Button>}
+                        >
                             {periodData.applications.length ? <ThemedHighcharts options={applicationTimelineChart} /> : <Empty description="No applications found for this period." />}
                         </Card>
                     </Col>
-                    <Col xs={24} xl={12}>
-                        <Card loading={identityLoading || loading} className="dashboard-section-card motion-card" title="Application Status Mix">
+                    <Col xs={24}>
+                        <Card
+                            loading={identityLoading || loading}
+                            className="dashboard-section-card motion-card"
+                            title="Application Status Mix"
+                            extra={<Typography.Text type="secondary">Click a bar for details</Typography.Text>}
+                        >
                             {periodData.applications.length ? <ThemedHighcharts options={applicationStatusChart} /> : <Empty description="No application statuses found." />}
                         </Card>
                     </Col>
+                </Row>
+            )}
+
+            <Modal
+                open={applicantProfileOpen}
+                onCancel={() => setApplicantProfileOpen(false)}
+                footer={<Button onClick={() => setApplicantProfileOpen(false)}>Close</Button>}
+                title="Applicant Profile"
+                width={960}
+                destroyOnClose
+            >
+                <Row gutter={[16, 16]}>
                     {ownershipChart && (
                         <Col xs={24} xl={12}>
-                            <Card loading={identityLoading || loading} className="dashboard-section-card motion-card" title="Ownership Profile">
-                                <ThemedHighcharts options={ownershipChart} />
-                            </Card>
+                            <Typography.Text strong>Ownership Profile</Typography.Text>
+                            <ThemedHighcharts options={ownershipChart} />
                         </Col>
                     )}
                     {sectorBubbleChart && (
                         <Col xs={24}>
-                            <Card loading={identityLoading || loading} className="dashboard-section-card motion-card" title="Sector Profile: Applicant Age, Trading Experience And Volume">
-                                <ThemedHighcharts options={sectorBubbleChart} />
-                            </Card>
+                            <Typography.Text strong>Sector Profile: Applicant Age, Trading Experience And Volume</Typography.Text>
+                            <ThemedHighcharts options={sectorBubbleChart} />
                         </Col>
                     )}
                     {applicantDemographicCharts.map((chart) => (
                         <Col xs={24} xl={12} key={chart.key}>
-                            <Card loading={identityLoading || loading} className="dashboard-section-card motion-card" title={chart.title}>
-                                <ThemedHighcharts options={chart.options} />
-                            </Card>
+                            <Typography.Text strong>{chart.title}</Typography.Text>
+                            <ThemedHighcharts options={chart.options} />
                         </Col>
                     ))}
                     {!applicantDemographicCharts.length && !ownershipChart && !sectorBubbleChart && (
                         <Col xs={24}>
-                            <Card loading={identityLoading || loading} className="dashboard-section-card motion-card">
-                                <Empty description="Applicant demographic fields have not been captured for this period." />
-                            </Card>
+                            <Empty description="Applicant demographic fields have not been captured for this period." />
                         </Col>
                     )}
                 </Row>
-            )}
-
-            {view === 'programmes' && (
-                <Row gutter={[20, 20]} className="project-admin-report-chart-grid">
-                    <Col xs={24} xl={12}>
-                        <Card loading={identityLoading || loading} className="dashboard-section-card motion-card" title="Activity By Programme">
-                            {programmeRows.length ? <ThemedHighcharts options={programmeChart} /> : <Empty description="No programme records found." />}
-                        </Card>
-                    </Col>
-                    <Col xs={24} xl={12}>
-                        <Card loading={identityLoading || loading} className="dashboard-section-card motion-card" title="Intervention Health By Programme">
-                            {programmeRows.length ? <ThemedHighcharts options={programmeHealthChart} /> : <Empty description="No programme intervention data found." />}
-                        </Card>
-                    </Col>
-                </Row>
-            )}
+            </Modal>
 
             {view === 'interventions' && (
                 <Row gutter={[20, 20]} className="project-admin-report-chart-grid">
@@ -705,12 +965,22 @@ export default function ProjectAdminReportsPage() {
                         </Card>
                     </Col>
                     <Col xs={24} xl={9}>
-                        <Card loading={identityLoading || loading} className="dashboard-section-card motion-card" title="Intervention Status Mix">
+                        <Card
+                            loading={identityLoading || loading}
+                            className="dashboard-section-card motion-card"
+                            title="Intervention Status Mix"
+                            extra={<Typography.Text type="secondary">Click a segment for details</Typography.Text>}
+                        >
                             {periodData.interventions.length ? <ThemedHighcharts options={interventionChart} /> : <Empty description="No interventions found." />}
                         </Card>
                     </Col>
                     <Col xs={24} xl={15}>
-                        <Card loading={identityLoading || loading} className="dashboard-section-card motion-card" title="Intervention Progress By SME">
+                        <Card
+                            loading={identityLoading || loading}
+                            className="dashboard-section-card motion-card"
+                            title="Intervention Progress Distribution"
+                            extra={<Typography.Text type="secondary">Click a bar for details</Typography.Text>}
+                        >
                             {periodData.interventions.length ? <ThemedHighcharts options={interventionProgressChart} /> : <Empty description="No intervention progress found." />}
                         </Card>
                     </Col>
@@ -720,17 +990,83 @@ export default function ProjectAdminReportsPage() {
             {view === 'compliance' && (
                 <Row gutter={[20, 20]} className="project-admin-report-chart-grid">
                     <Col xs={24} xl={12}>
-                        <Card loading={identityLoading || loading} className="dashboard-section-card motion-card" title="Compliance Status Mix">
+                        <Card
+                            loading={identityLoading || loading}
+                            className="dashboard-section-card motion-card"
+                            title="Compliance Status Mix"
+                            extra={<Typography.Text type="secondary">Click a segment for details</Typography.Text>}
+                        >
                             {periodData.complianceDocuments.length ? <ThemedHighcharts options={complianceStatusChart} /> : <Empty description="No compliance records found." />}
                         </Card>
                     </Col>
                     <Col xs={24} xl={12}>
-                        <Card loading={identityLoading || loading} className="dashboard-section-card motion-card" title="Compliance Action Summary">
+                        <Card
+                            loading={identityLoading || loading}
+                            className="dashboard-section-card motion-card"
+                            title="Compliance Action Summary"
+                            extra={<Typography.Text type="secondary">Click a bar for details</Typography.Text>}
+                        >
                             {periodData.complianceDocuments.length ? <ThemedHighcharts options={complianceHealthChart} /> : <Empty description="No compliance records found." />}
                         </Card>
                     </Col>
                 </Row>
             )}
+
+            <Modal
+                open={!!drilldown}
+                onCancel={() => setDrilldown(null)}
+                footer={<Button onClick={() => setDrilldown(null)}>Close</Button>}
+                title={drilldown?.title}
+                width={800}
+                destroyOnClose
+            >
+                {drilldown?.kind === 'applications' && (
+                    <Table<ProjectAdminApplication>
+                        rowKey="id"
+                        size="small"
+                        dataSource={drilldown.rows}
+                        pagination={{ pageSize: 8, showSizeChanger: false }}
+                        locale={{ emptyText: 'No applications match this selection.' }}
+                        columns={[
+                            { title: 'Business', dataIndex: 'businessName' },
+                            { title: 'Programme', dataIndex: 'programName' },
+                            { title: 'Status', dataIndex: 'status', render: (value: string) => <Tag color={statusColor(value)}>{statusLabel(value)}</Tag> },
+                            { title: 'Submitted', dataIndex: 'submittedAt', render: (value: Date | null) => value ? dayjs(value).format('DD MMM YYYY') : '—' },
+                        ]}
+                    />
+                )}
+                {drilldown?.kind === 'interventions' && (
+                    <Table<ProjectAdminIntervention>
+                        rowKey="id"
+                        size="small"
+                        dataSource={drilldown.rows}
+                        pagination={{ pageSize: 8, showSizeChanger: false }}
+                        locale={{ emptyText: 'No interventions match this selection.' }}
+                        columns={[
+                            { title: 'Intervention', dataIndex: 'title' },
+                            { title: 'SME', dataIndex: 'participantName' },
+                            { title: 'Owner', dataIndex: 'owner' },
+                            { title: 'Progress', dataIndex: 'progress', width: 140, render: (value: number) => <Progress percent={value} size="small" /> },
+                            { title: 'Status', dataIndex: 'status', render: (value: string) => <Tag color={statusColor(value)}>{statusLabel(value)}</Tag> },
+                        ]}
+                    />
+                )}
+                {drilldown?.kind === 'compliance' && (
+                    <Table<ProjectAdminComplianceDocument>
+                        rowKey="id"
+                        size="small"
+                        dataSource={drilldown.rows}
+                        pagination={{ pageSize: 8, showSizeChanger: false }}
+                        locale={{ emptyText: 'No compliance documents match this selection.' }}
+                        columns={[
+                            { title: 'Participant', dataIndex: 'participantId' },
+                            { title: 'Status', dataIndex: 'status', render: (value: string) => <Tag color={statusColor(value)}>{statusLabel(value)}</Tag> },
+                            { title: 'Expiry', dataIndex: 'expiryDate', render: (value: Date | null) => value ? dayjs(value).format('DD MMM YYYY') : '—' },
+                            { title: 'Updated', dataIndex: 'updatedAt', render: (value: Date | null) => value ? dayjs(value).format('DD MMM YYYY') : '—' },
+                        ]}
+                    />
+                )}
+            </Modal>
         </DashboardPage>
     )
 }

@@ -246,7 +246,7 @@ export const appRoutes: AppRoute[] = [
     { path: '/projectadmin/esg/performance', labelKey: 'nav.esgPerformance', icon: <TeamOutlined />, element: <ProjectAdminEsgPerformancePage />, allowedRoles: projectAdminRoles, requiredPermission: 'view_reports', audiences: ['operations'], showInNav: false },
     { path: '/operations', labelKey: 'nav.dashboard', icon: <DashboardOutlined />, element: <OperationsDashboardPage />, allowedRoles: operationsDashboardRoles, audiences: ['operations'], showInNav: true },
     { path: '/operations/programs', labelKey: 'nav.programs', icon: <ProjectOutlined />, element: <ProgramsPage />, allowedRoles: [USER_ROLES.PROJECT_ADMIN, USER_ROLES.OPERATIONS], requiredPermission: 'manage_programs', audiences: ['operations'], showInNav: true },
-    // Compatibility path for older links. The visible task entry lives in Team Workroom.
+    // Compatibility path for older links. The visible task entry lives under Staff > Tasks.
     { path: '/operations/tasks', labelKey: 'nav.tasks', icon: <CalendarOutlined />, element: <OperationsTasksPage />, allowedRoles: operationsRoles, audiences: ['operations'], showInNav: false },
     {
         path: '/operations/staff',
@@ -258,7 +258,6 @@ export const appRoutes: AppRoute[] = [
         audiences: ['operations'],
         showInNav: true,
         children: [
-            { path: '/operations/staff/workroom', labelKey: 'nav.workroom', icon: <TeamOutlined />, element: placeholder, allowedRoles: applicationReviewRoles, requiredPermission: 'view_staff', audiences: ['operations'], showInNav: true },
             { path: '/operations/staff/tasks', labelKey: 'nav.tasks', icon: <CalendarOutlined />, element: <OperationsTasksPage />, allowedRoles: applicationReviewRoles, requiredPermission: 'view_staff', audiences: ['operations'], showInNav: true },
             { path: '/operations/staff/manage', labelKey: 'nav.manageTeam', icon: <UserSwitchOutlined />, element: <OperationsStaffPage />, allowedRoles: applicationReviewRoles, requiredPermission: 'manage_staff', audiences: ['operations'], showInNav: true },
         ],

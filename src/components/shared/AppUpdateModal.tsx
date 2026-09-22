@@ -19,9 +19,15 @@ export const AppUpdateModal = () => {
     const dismissedRef = useRef(false)
 
     useEffect(() => {
+        // Vite's dev server transforms index.html on the fly, so it isn't stable
+        // across requests. Update checks only make sense against a real deploy.
+        if (import.meta.env.DEV) return
+
         let cancelled = false
 
         const checkForUpdate = async () => {
+            if (!navigator.onLine) return
+
             const html = await fetchIndexHtml()
             if (cancelled || html === null) return
 

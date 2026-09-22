@@ -53,10 +53,10 @@ export const assignmentTitle = (assignment: AssignedIntervention) =>
   String(assignment.interventionTitle || 'Intervention')
 
 export const assignmentParticipant = (assignment: AssignedIntervention) =>
-  String(assignment.beneficiaryName || assignment.snapshot?.businessName || assignment.businessName || assignment.participantName || 'Unassigned SME')
+  String(assignment.businessName || 'Unassigned SME')
 
 export const assignmentProgram = (assignment: AssignedIntervention) =>
-  String(assignment.programName || assignment.snapshot?.programName || '')
+  String(assignment.programName || '')
 
 export const getFeedback = (assignment: AssignedIntervention) => {
   const feedback = (assignment as Record<string, any>).feedback

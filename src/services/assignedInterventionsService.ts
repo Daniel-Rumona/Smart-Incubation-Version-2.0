@@ -53,7 +53,7 @@ export const createInterventionReminder = async (
 ) => {
   const assignment = target.assignment as AssignedIntervention & Record<string, unknown>
   const title = String(assignment.interventionTitle || 'Intervention')
-  const participantName = String(assignment.beneficiaryName || assignment.businessName || assignment.participantName || assignment.snapshot?.businessName || 'SME')
+  const participantName = String(assignment.businessName || 'SME')
   const assigneeName = String(assignment.assigneeName || 'assignee')
   const message = `${title} needs attention: ${target.reason}`
 

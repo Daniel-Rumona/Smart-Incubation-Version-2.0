@@ -1,0 +1,479 @@
+{
+  "createdAt": "2026-09-21T12:46:31.683Z",
+  "sourceSeedTag": "demo-assigned-1789583332890",
+  "seedTag": "history-demo-assigned-1789583332890",
+  "created": [
+    {
+      "collection": "assignedInterventions",
+      "id": "FGIUcCfal8CWCMkD7Frc"
+    },
+    {
+      "collection": "appointments",
+      "id": "sAtTz3z9dTNWmZPZqcKS"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "BDMJoRk5OeoVgTfJ6Jga"
+    },
+    {
+      "collection": "appointments",
+      "id": "lB0Uq8PwmfNNsF3UHPLD"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "mHrcAR8tpEPrxe2OQ7Xt"
+    },
+    {
+      "collection": "appointments",
+      "id": "LmPoSPlc1Mn2oeYWU2CK"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "qXKkPENjyycFF6JzYRwJ"
+    },
+    {
+      "collection": "appointments",
+      "id": "Dylk7swaPQPxqmZimS9o"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "VdkYeNshiYa9Pl5LKXuP"
+    },
+    {
+      "collection": "appointments",
+      "id": "wo4tz9hUjtuDyhXlygmW"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "wZUnfg5J1b9cLKReCxpg"
+    },
+    {
+      "collection": "appointments",
+      "id": "uk6ztHtNKVKCcCUFSn0T"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "EBsq5EQUbwK13pz9PaLv"
+    },
+    {
+      "collection": "appointments",
+      "id": "ZixQCfffpTZIXWyb0aUG"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "IRWiG2CJV1p9hDM22pqC"
+    },
+    {
+      "collection": "appointments",
+      "id": "knjsn0a0BL7C7RnF6tLi"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "rzqEFfD5GQP2rxg5WbPC"
+    },
+    {
+      "collection": "appointments",
+      "id": "40JhLec9GKb2oyclUbOc"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "Amoeuj8h5L9M4LNziOx3"
+    },
+    {
+      "collection": "appointments",
+      "id": "zwvBAy5n6QeNcQXVeqMj"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "qg2jY1gXaSNuxaudkEkm"
+    },
+    {
+      "collection": "appointments",
+      "id": "3QANNEYb55qREcDA6GEl"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "MGoL4Qa9Eu90p05MeNZL"
+    },
+    {
+      "collection": "appointments",
+      "id": "C6xawgPFdQRq79f9FTtz"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "wo0b4ZChcGQITFHAB3c8"
+    },
+    {
+      "collection": "appointments",
+      "id": "Bfh9epuo07BoxjVTvRTs"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "TLZr8lg0C9mfuJMajt5K"
+    },
+    {
+      "collection": "appointments",
+      "id": "pBNFtkIFaBh0GiYsWhBS"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "AI3nilfBSj3eK4mibvCU"
+    },
+    {
+      "collection": "appointments",
+      "id": "dpJk4koM6AXh45fdhyIS"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "apD7sNjas7FvYFAjPdKX"
+    },
+    {
+      "collection": "appointments",
+      "id": "s6HDFqACoIytULREgnIc"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "ONv8bnL5YYw4hWN4fVWC"
+    },
+    {
+      "collection": "appointments",
+      "id": "0DY82Ynu6bBKgaNNuQJt"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "7bZLKIHt3R9kOnNI36nG"
+    },
+    {
+      "collection": "appointments",
+      "id": "qfcZwg2QUaOqcT1Haor4"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "EcE47hLP9h9FhfzBIvaS"
+    },
+    {
+      "collection": "appointments",
+      "id": "OLcwtyeyw5P1lQFiZEFY"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "9uT3BGXDno3MjQaxT5vd"
+    },
+    {
+      "collection": "appointments",
+      "id": "JBAOlGshptkHnyGqj40k"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "I8Nqws3VaK7FvHV4xOVa"
+    },
+    {
+      "collection": "appointments",
+      "id": "9k67LXFTYF2polh1ruez"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "zuXdm2nfhOldmuUVDP8c"
+    },
+    {
+      "collection": "appointments",
+      "id": "G0dcaM4PIitrsRpASEtV"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "yscTjnuLItQ1lWidBu9O"
+    },
+    {
+      "collection": "appointments",
+      "id": "498lSlelneDyshQuOH2X"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "Eh0L1G4dlayYEM0Kfe8E"
+    },
+    {
+      "collection": "appointments",
+      "id": "By8ACj00o2ud9VV1mfoo"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "Va3JfXqvDoJEYff3izfd"
+    },
+    {
+      "collection": "appointments",
+      "id": "Lr72GqBJ9n9zP0ysgYZd"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "IIcGtdTVhXCTErYJZHN9"
+    },
+    {
+      "collection": "appointments",
+      "id": "m36zJryMK5jzhI1tEq9L"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "xcIvYQzfFePQ5DhhKUOt"
+    },
+    {
+      "collection": "appointments",
+      "id": "J0QYah9revLhPKrC6NOn"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "oOUXegdBJhZymmwBec1s"
+    },
+    {
+      "collection": "appointments",
+      "id": "qDSaKBJImxylatsvJetO"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "FHz5DFu5wD7oMLOHMFj1"
+    },
+    {
+      "collection": "appointments",
+      "id": "bCMRbQuCXgRBAZG0G043"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "ZPajChgyLhJWHn7xKJjJ"
+    },
+    {
+      "collection": "appointments",
+      "id": "bXm9XfoawMySZczDDFy0"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "fmjMltHBITDEkbRYK5sT"
+    },
+    {
+      "collection": "appointments",
+      "id": "wJvr3dRVEERBe23RH3EU"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "dpTkDY2xUNSUSgHyzxE2"
+    },
+    {
+      "collection": "appointments",
+      "id": "R7Sby96tJCVozkSpouxJ"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "ZJthgxS2ndsAGyPlVORe"
+    },
+    {
+      "collection": "appointments",
+      "id": "BLL12XJcI76yoJdXilvB"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "4BySYSitAjvozmVN5b5N"
+    },
+    {
+      "collection": "appointments",
+      "id": "chdKWOiGNbqR0TbPDbFY"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "eU3DxfrXo0snGDp51XE1"
+    },
+    {
+      "collection": "appointments",
+      "id": "TIuTeAMw7kwsNe1AjYVh"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "hcJx7GKyS6jDvptd5d8U"
+    },
+    {
+      "collection": "appointments",
+      "id": "toTYncI7DQ6aSN5LE7AS"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "DSeNXdEkNg51y3Dlfa6a"
+    },
+    {
+      "collection": "appointments",
+      "id": "5xSvd18PANfxNuJnjl2G"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "kdCRxWVmdLSGqRdPQlU4"
+    },
+    {
+      "collection": "appointments",
+      "id": "AzEeBwSvVgFBj2chA6cD"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "r9AmZinIhAXGFEbGw8mK"
+    },
+    {
+      "collection": "appointments",
+      "id": "lC84FEQBid7hsrOd6lZD"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "GJ8ewvP2CzHseDcOEs2L"
+    },
+    {
+      "collection": "appointments",
+      "id": "96DCrxRjqu4dlhjlNc6v"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "neoPX6qmMPmpyXzEgKqs"
+    },
+    {
+      "collection": "appointments",
+      "id": "OEFAzqTZMR4MfiZLnULl"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "E1xu2B2RmyXIEC9yzH98"
+    },
+    {
+      "collection": "appointments",
+      "id": "gsQnBY6S0HG2Anzn9nTp"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "5uRh1aZwae900NSFkdOi"
+    },
+    {
+      "collection": "appointments",
+      "id": "3locHbQjVCeQdmAu20pV"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "x7S2WnUxzNruc8BYj4tZ"
+    },
+    {
+      "collection": "appointments",
+      "id": "rsUqLjEdjMvYrBR6M6hL"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "Ar5VdYLVGlRJGwRorxtF"
+    },
+    {
+      "collection": "appointments",
+      "id": "oSppkBRlLeV28Kp6i8cU"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "0PGxsStlQXKD7BjsS634"
+    },
+    {
+      "collection": "appointments",
+      "id": "zXEkKRZVPlpqVMa7naRd"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "R9XSnq0wYCXeSe9bUPJa"
+    },
+    {
+      "collection": "appointments",
+      "id": "2RyGtR8RkpsUzCilE17t"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "Xw7gikN8SONlBjTK0RNq"
+    },
+    {
+      "collection": "appointments",
+      "id": "tPv9ROmDRgglfV8omcE6"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "qwlbyeV8krCrWezoAv4G"
+    },
+    {
+      "collection": "appointments",
+      "id": "tCDFQfKwEekZJncVzle4"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "4T24W6CaGEoIqnpSL0UQ"
+    },
+    {
+      "collection": "appointments",
+      "id": "Jhkc9qwnTkHLUWU6IgeF"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "SzvXUm2mZrlJXZfyKiXc"
+    },
+    {
+      "collection": "appointments",
+      "id": "gpRdc7Cv3agYdwDMUEhs"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "h2ozdBm94aWQKHzEAQMq"
+    },
+    {
+      "collection": "appointments",
+      "id": "cMiR0eT5RubwPiERVzhe"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "DHRSnfqG4ueHYUFisWkc"
+    },
+    {
+      "collection": "appointments",
+      "id": "ekLrAA7c2fDGvtfMIlwE"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "Z0oNxdzzPnqSkiAZ25hk"
+    },
+    {
+      "collection": "appointments",
+      "id": "Otl2Sap1udxfqyob0Hni"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "XyMpk3x5CMcdJqb6GLDN"
+    },
+    {
+      "collection": "appointments",
+      "id": "XxTTgd25XfPiAbDkxMu3"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "VL2C9v8GNu3Ujr6jUdR7"
+    },
+    {
+      "collection": "appointments",
+      "id": "Sav8nSRQvJNRKWXj4T6p"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "ONu5rN3BJZ0dMWAQghrc"
+    },
+    {
+      "collection": "appointments",
+      "id": "BFfIbnib6gr2T1y8M434"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "cndrzqsUKdE8NOTMy86H"
+    },
+    {
+      "collection": "appointments",
+      "id": "umnDpNU58I8Lt7zw1mvI"
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "Ux2TGhQoXyKukuLqxs6t"
+    },
+    {
+      "collection": "appointments",
+      "id": "k9fZMX4VOU4nVK2Gs6mV"
+    }
+  ]
+}
