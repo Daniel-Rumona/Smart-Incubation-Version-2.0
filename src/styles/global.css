@@ -232,6 +232,31 @@ html[data-theme='dark'] .public-result-page {
   body {
     font-size: var(--app-mobile-font-size);
   }
+
+  /* iOS Safari auto-zooms the page on focus of any field whose computed
+     font-size is under 16px, and (being an SPA) never un-zooms on route
+     change since the document never reloads. Keeping every focusable
+     field at >=16px on mobile stops the zoom from triggering at all,
+     which is the only fix that doesn't also disable user pinch-zoom. */
+  input,
+  textarea,
+  select,
+  .ant-input,
+  .ant-input-affix-wrapper,
+  .ant-input-number,
+  .ant-input-number-input,
+  .ant-select-selector,
+  .ant-select-selection-search-input,
+  .ant-select-selection-item,
+  .ant-select-selection-placeholder,
+  .ant-picker,
+  .ant-picker-input > input,
+  .ant-cascader-input,
+  .ant-mentions,
+  .ant-mentions-measure,
+  [contenteditable='true'] {
+    font-size: 16px !important;
+  }
 }
 
 @media (max-width: 767px) {
