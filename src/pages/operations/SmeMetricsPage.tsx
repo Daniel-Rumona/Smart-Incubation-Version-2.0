@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   Alert,
   App,
@@ -10,6 +10,7 @@ import {
   Empty,
   Input,
   Modal,
+  Progress,
   Row,
   Segmented,
   Select,
@@ -22,6 +23,7 @@ import type { ColumnsType } from 'antd/es/table'
 import {
   BankOutlined,
   BarChartOutlined,
+  CalendarOutlined,
   EyeOutlined,
   LineChartOutlined,
   RiseOutlined,
@@ -51,7 +53,6 @@ dayjs.extend(quarterOfYear)
 const { RangePicker } = DatePicker
 const { Text } = Typography
 
-type PeriodPreset = 'month' | 'quarter' | 'year' | 'custom'
 type HistoryCadence = 'monthly' | 'annual'
 
 type FirestoreDate =
@@ -152,13 +153,6 @@ const toDayjs = (value: FirestoreDate): Dayjs | null => {
   return parsed.isValid() ? parsed : null
 }
 
-const getRangeFromPreset = (preset: PeriodPreset): [Dayjs, Dayjs] => {
-  const now = dayjs()
-  if (preset === 'month') return [now.startOf('month'), now.endOf('month')]
-  if (preset === 'quarter') return [now.startOf('quarter'), now.endOf('quarter')]
-  return [now.startOf('year'), now.endOf('year')]
-}
-
 const getPreviousRange = ([start, end]: [Dayjs, Dayjs]): [Dayjs, Dayjs] => {
   const days = end.startOf('day').diff(start.startOf('day'), 'day') + 1
   const previousEnd = start.subtract(1, 'day').endOf('day')
@@ -249,6 +243,31 @@ const formatCurrency = (value: number) =>
 
 const formatNumber = (value: number) => new Intl.NumberFormat('en-ZA', { maximumFractionDigits: 0 }).format(value)
 
+const percent = (numerator: number, denominator: number) => (denominator > 0 ? Math.round((numerator / denominator) * 100) : 0)
+
+type RangePresetKey = 'month' | 'quarter' | 'ytd'
+
+const rangePresetOptions: Array<{ label: string; value: RangePresetKey; icon: ReactNode }> = [
+  { label: 'This month', value: 'month', icon: <CalendarOutlined /> },
+  { label: 'This quarter', value: 'quarter', icon: <CalendarOutlined /> },
+  { label: 'Year to date', value: 'ytd', icon: <CalendarOutlined /> },
+]
+
+const rangeForPresetKey = (key: RangePresetKey): [Dayjs, Dayjs] => {
+  const now = dayjs()
+  if (key === 'month') return [now.startOf('month'), now.endOf('month')]
+  if (key === 'quarter') return [now.startOf('quarter'), now.endOf('quarter')]
+  return [now.startOf('year'), now]
+}
+
+const matchPresetKey = ([start, end]: [Dayjs, Dayjs]): RangePresetKey | '' => {
+  const match = rangePresetOptions.find(({ value }) => {
+    const [presetStart, presetEnd] = rangeForPresetKey(value)
+    return start.isSame(presetStart, 'day') && end.isSame(presetEnd, 'day')
+  })
+  return match?.value || ''
+}
+
 const uniqueOptions = (rows: SmeMetricRow[], key: 'sector' | 'gender' | 'province' | 'beeLevel') =>
   Array.from(new Set(rows.map(row => String(row[key] || '').trim()).filter(Boolean)))
     .sort((a, b) => a.localeCompare(b))
@@ -291,8 +310,7 @@ export const SmeMetricsPage = () => {
   const { message } = App.useApp()
   const { user } = useFullIdentity()
   const { activeProgramId, isAllPrograms } = useActiveProgramId()
-  const [period, setPeriod] = useState<PeriodPreset>('year')
-  const [[start, end], setRange] = useState<[Dayjs, Dayjs]>(getRangeFromPreset('year'))
+  const [[start, end], setRange] = useState<[Dayjs, Dayjs]>(rangeForPresetKey('ytd'))
   const [rows, setRows] = useState<SmeMetricRow[]>([])
   const [search, setSearch] = useState('')
   const [sector, setSector] = useState('All')
@@ -304,14 +322,10 @@ export const SmeMetricsPage = () => {
   const [analyticsOpen, setAnalyticsOpen] = useState(false)
   const [[analyticsStart, analyticsEnd], setAnalyticsRange] = useState<[Dayjs, Dayjs]>([dayjs().startOf('month'), dayjs().endOf('month')])
 
-  const analyticsRangePresets = useMemo(() => {
-    const now = dayjs()
-    return [
-      { label: 'This month', value: [now.startOf('month'), now.endOf('month')] as [Dayjs, Dayjs] },
-      { label: 'This quarter', value: [now.startOf('quarter'), now.endOf('quarter')] as [Dayjs, Dayjs] },
-      { label: 'Year to date', value: [now.startOf('year'), now] as [Dayjs, Dayjs] },
-    ]
-  }, [])
+  const datePickerPresets = useMemo(
+    () => rangePresetOptions.map(({ label, value }) => ({ label, value: rangeForPresetKey(value) })),
+    [],
+  )
 
   useEffect(() => {
     let mounted = true
@@ -507,7 +521,7 @@ export const SmeMetricsPage = () => {
     pageKey: 'operations-sme-metrics',
     pageName: 'SME Metrics',
     purpose: 'Shows collective SME revenue and employee totals for a selected period, with deltas against the previous equivalent period.',
-    currentFilters: { activeProgramId: isAllPrograms ? 'all' : activeProgramId, period, search, sector, gender, province, beeLevel, from: start.format('YYYY-MM-DD'), to: end.format('YYYY-MM-DD') },
+    currentFilters: { activeProgramId: isAllPrograms ? 'all' : activeProgramId, search, sector, gender, province, beeLevel, from: start.format('YYYY-MM-DD'), to: end.format('YYYY-MM-DD') },
     metrics: {
       smes: filteredRows.length,
       revenue: computed.revenue,
@@ -534,16 +548,10 @@ export const SmeMetricsPage = () => {
     ],
   }), [analyticsComputed.buckets, analyticsRangeLabel])
 
-  const sectorOptions = useMemo<Highcharts.Options>(() => ({
-    chart: { type: 'bar', height: 340 },
-    title: { text: 'Sector Contribution' },
-    xAxis: { categories: analyticsComputed.sectors.slice(0, 8).map(([sector]) => sector) },
-    yAxis: { title: { text: 'Revenue' }, min: 0 },
-    tooltip: { pointFormat: '<b>{point.y:,.0f}</b>' },
-    series: [
-      { type: 'bar', name: 'Revenue', data: analyticsComputed.sectors.slice(0, 8).map(([, values]) => values.revenue) },
-    ],
-  }), [analyticsComputed.sectors])
+  const topSectors = useMemo(() => analyticsComputed.sectors.slice(0, 8), [analyticsComputed.sectors])
+  const maxSectorRevenue = useMemo(() => Math.max(1, ...topSectors.map(([, values]) => values.revenue)), [topSectors])
+
+  const analyticsPresetKey = matchPresetKey([analyticsStart, analyticsEnd])
 
   const selectedImpactOptions = useMemo<Highcharts.Options>(() => ({
     chart: { type: 'column', height: 300 },
@@ -570,7 +578,7 @@ export const SmeMetricsPage = () => {
         <Space direction="vertical" size={0}>
           <Typography.Text strong>{value}</Typography.Text>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            {[row.sector, row.gender, row.province, `BEE ${row.beeLevel}`, isAllPrograms ? row.programName : null].filter(Boolean).join(' · ')}
+            {[row.sector, row.gender, row.province, isAllPrograms ? row.programName : null].filter(Boolean).join(' · ')}
           </Typography.Text>
         </Space>
       ),
@@ -579,7 +587,7 @@ export const SmeMetricsPage = () => {
       title: 'Revenue',
       dataIndex: 'revenue',
       key: 'revenue',
-      width: 170,
+      width: 230,
       align: 'right',
       render: (value: number, row) => (
         <Space direction="vertical" size={0} style={{ alignItems: 'flex-end' }}>
@@ -592,7 +600,7 @@ export const SmeMetricsPage = () => {
       title: 'Employees',
       dataIndex: 'employees',
       key: 'employees',
-      width: 140,
+      width: 190,
       align: 'right',
       render: (value: number, row) => (
         <Space direction="vertical" size={0} style={{ alignItems: 'flex-end' }}>
@@ -625,30 +633,14 @@ export const SmeMetricsPage = () => {
             <Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search SME name" allowClear />
             <Select value={sector} onChange={setSector} options={[{ value: 'All', label: 'All sectors' }, ...uniqueOptions(rows, 'sector')]} />
             <Select value={gender} onChange={setGender} options={[{ value: 'All', label: 'All genders' }, ...uniqueOptions(rows, 'gender')]} />
-            <div className="sme-metrics-period-control">
-              <Segmented<PeriodPreset>
-                value={period}
-                onChange={(value) => {
-                  setPeriod(value)
-                  if (value !== 'custom') setRange(getRangeFromPreset(value))
-                }}
-                options={[
-                  { label: 'Month', value: 'month' },
-                  { label: 'Quarter', value: 'quarter' },
-                  { label: 'Year', value: 'year' },
-                  { label: 'Custom', value: 'custom' },
-                ]}
-              />
-            </div>
-            {period === 'custom' ? (
-              <RangePicker
-                value={[start, end]}
-                allowClear={false}
-                onChange={(value) => {
-                  if (value?.[0] && value?.[1]) setRange([value[0], value[1]])
-                }}
-              />
-            ) : null}
+            <RangePicker
+              value={[start, end]}
+              allowClear={false}
+              presets={datePickerPresets}
+              onChange={(value) => {
+                if (value?.[0] && value?.[1]) setRange([value[0], value[1]])
+              }}
+            />
           </>
         }
         advanced={
@@ -693,20 +685,29 @@ export const SmeMetricsPage = () => {
       <Modal
         open={analyticsOpen}
         onCancel={() => setAnalyticsOpen(false)}
-        footer={<Button onClick={() => setAnalyticsOpen(false)}>Close</Button>}
+        footer={null}
         title={<Space><BarChartOutlined /> SME Analytics</Space>}
         width={960}
         destroyOnClose
       >
-        <RangePicker
-          value={[analyticsStart, analyticsEnd]}
-          allowClear={false}
-          presets={analyticsRangePresets}
-          onChange={(value) => {
-            if (value?.[0] && value?.[1]) setAnalyticsRange([value[0], value[1]])
-          }}
-          style={{ marginBottom: 16 }}
-        />
+        <div style={{ display: 'flex', gap: 10, width: '100%', marginBottom: 16 }}>
+          <Segmented<RangePresetKey | ''>
+            style={{ flex: 1 }}
+            value={analyticsPresetKey}
+            onChange={(value) => {
+              if (value) setAnalyticsRange(rangeForPresetKey(value))
+            }}
+            options={rangePresetOptions}
+          />
+          <RangePicker
+            style={{ flex: 1 }}
+            value={[analyticsStart, analyticsEnd]}
+            allowClear={false}
+            onChange={(value) => {
+              if (value?.[0] && value?.[1]) setAnalyticsRange([value[0], value[1]])
+            }}
+          />
+        </div>
         <Row gutter={[16, 16]}>
           <Col xs={24} xl={15}>
             <Card loading={loading} className="dashboard-section-card motion-card">
@@ -716,8 +717,20 @@ export const SmeMetricsPage = () => {
             </Card>
           </Col>
           <Col xs={24} xl={9}>
-            <Card loading={loading} className="dashboard-section-card motion-card">
-              {analyticsComputed.sectors.length ? <ThemedHighcharts options={sectorOptions} /> : <Empty description="No sector metrics found" />}
+            <Card loading={loading} className="dashboard-section-card motion-card" title="Sector Contribution">
+              {topSectors.length ? (
+                <Space direction="vertical" size={14} style={{ width: '100%' }}>
+                  {topSectors.map(([sectorName, values]) => (
+                    <div key={sectorName}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <Text>{sectorName}</Text>
+                        <Text strong>{formatCurrency(values.revenue)}</Text>
+                      </div>
+                      <Progress percent={percent(values.revenue, maxSectorRevenue)} showInfo={false} />
+                    </div>
+                  ))}
+                </Space>
+              ) : <Empty description="No sector metrics found" />}
             </Card>
           </Col>
         </Row>
@@ -734,30 +747,16 @@ export const SmeMetricsPage = () => {
           <Space direction="vertical" size={16} className="sme-metrics-drilldown">
             <Row gutter={[12, 12]}>
               <Col xs={12} md={6}>
-                <Card size="small">
-                  <Text type="secondary">Revenue</Text>
-                  <Typography.Title level={4}>{formatCurrency(selectedSummary.revenue)}</Typography.Title>
-                  <Tag color={selectedSummary.revenueDelta >= 0 ? 'green' : 'red'}>{selectedRevenueDelta?.label} from previous</Tag>
-                </Card>
+                <DashboardMetricCard icon={<BankOutlined />} label="Revenue" value={formatCurrency(selectedSummary.revenue)} hint={`${selectedRevenueDelta?.label} from previous`} />
               </Col>
               <Col xs={12} md={6}>
-                <Card size="small">
-                  <Text type="secondary">Previous revenue</Text>
-                  <Typography.Title level={4}>{formatCurrency(selectedSummary.previousRevenue)}</Typography.Title>
-                </Card>
+                <DashboardMetricCard icon={<BankOutlined />} label="Previous revenue" value={formatCurrency(selectedSummary.previousRevenue)} />
               </Col>
               <Col xs={12} md={6}>
-                <Card size="small">
-                  <Text type="secondary">Employees</Text>
-                  <Typography.Title level={4}>{formatNumber(selectedSummary.employees)}</Typography.Title>
-                  <Tag color={selectedSummary.employeeDelta >= 0 ? 'green' : 'red'}>{selectedEmployeeDelta?.label} from previous</Tag>
-                </Card>
+                <DashboardMetricCard icon={<RiseOutlined />} label="Employees" value={formatNumber(selectedSummary.employees)} hint={`${selectedEmployeeDelta?.label} from previous`} />
               </Col>
               <Col xs={12} md={6}>
-                <Card size="small">
-                  <Text type="secondary">Previous employees</Text>
-                  <Typography.Title level={4}>{formatNumber(selectedSummary.previousEmployees)}</Typography.Title>
-                </Card>
+                <DashboardMetricCard icon={<RiseOutlined />} label="Previous employees" value={formatNumber(selectedSummary.previousEmployees)} />
               </Col>
             </Row>
             <Descriptions bordered size="small" column={{ xs: 1, md: 2 }}>

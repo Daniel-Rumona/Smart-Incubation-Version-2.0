@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   Alert,
   App,
@@ -27,9 +27,12 @@ import {
   CheckCircleOutlined,
   ClockCircleOutlined,
   DashboardOutlined,
+  DollarCircleOutlined,
   DownloadOutlined,
   ExclamationCircleOutlined,
+  FallOutlined,
   FileProtectOutlined,
+  FundOutlined,
   RiseOutlined,
   TeamOutlined,
 } from '@ant-design/icons'
@@ -54,6 +57,16 @@ import {
   generateOperationsReportInsights,
   OPERATIONS_REPORT_TEMPLATE_PATH,
 } from '@/services/operationsReportsService'
+import {
+  bucketRange as performanceBucketRange,
+  computeMetricPerformance,
+  employeesInRange,
+  formatCurrencyZAR,
+  formatMetricNumber,
+  getPreviousRange,
+  revenueInRange,
+  type PerformanceSourceRow,
+} from '@/services/smePerformanceMetrics'
 import { matchesActiveProgram } from '@/services/workspaceProgramsService'
 import '@/styles/dashboard.css'
 import '@/styles/operations-reports.css'
@@ -67,7 +80,7 @@ const { RangePicker } = DatePicker
 const { Text, Title } = Typography
 
 type BucketGranularity = 'day' | 'week' | 'month'
-type ReportView = 'overview' | 'applications' | 'interventions' | 'appointments' | 'workload' | 'participants'
+type ReportView = 'overview' | 'applications' | 'interventions' | 'appointments' | 'workload' | 'participants' | 'performance'
 
 type FirestoreDate =
   | Date
@@ -129,7 +142,20 @@ type ParticipantDoc = {
   blackOwnedPercent?: number | string | null
   createdAt?: FirestoreDate
   acceptedAt?: FirestoreDate
+  approvedAt?: FirestoreDate
   onboardedAt?: FirestoreDate
+  revenue?: unknown
+  annualRevenue?: unknown
+  monthlyRevenue?: unknown
+  turnover?: unknown
+  annualTurnover?: unknown
+  employeeCount?: unknown
+  employees?: unknown
+  numberOfEmployees?: unknown
+  staffCount?: unknown
+  jobsCreated?: unknown
+  revenueHistory?: { monthly?: Record<string, unknown>; annual?: Record<string, unknown> }
+  headcountHistory?: { monthly?: Record<string, unknown>; annual?: Record<string, unknown> }
 }
 
 type AssignmentDoc = {
@@ -540,6 +566,38 @@ const DeliveryOwnerWorkloadCard = ({ row, onClick }: { row: FacilitatorHealthRow
   </button>
 )
 
+const PerformanceStatCard = ({ title, icon, formattedValue, deltaLabel, deltaPositive, headline, caption, loading }: {
+  title: string
+  icon: ReactNode
+  formattedValue: string
+  deltaLabel: string
+  deltaPositive: boolean
+  headline: { label: string; value: number; positive: boolean }
+  caption: string
+  loading?: boolean
+}) => {
+  const { token } = theme.useToken()
+  const deltaColor = deltaPositive ? token.colorSuccess : token.colorError
+  const DeltaIcon = deltaPositive ? RiseOutlined : FallOutlined
+  const headlineColor = headline.positive ? token.colorSuccess : token.colorError
+  return (
+    <Card loading={loading} className="dashboard-section-card motion-card" title={<Space>{icon} {title}</Space>}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+        <Text strong style={{ fontSize: 28, lineHeight: 1 }}>{formattedValue}</Text>
+        <Space size={4} style={{ color: deltaColor }}>
+          <DeltaIcon />
+          <Text strong style={{ color: deltaColor }}>{deltaLabel}</Text>
+        </Space>
+      </div>
+      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 6 }}>vs previous period · {caption}</Text>
+      <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 10, borderTop: `1px solid ${token.colorBorderSecondary}` }}>
+        <Text type="secondary" style={{ fontSize: 12 }}>{headline.label}</Text>
+        <Text strong style={{ color: headlineColor }}>{headline.value}%</Text>
+      </div>
+    </Card>
+  )
+}
+
 const FacilitatorHealthCard = ({ row, onClick }: { row: FacilitatorHealthRow, onClick: () => void }) => (
   <button type="button" className={`operations-facilitator-card is-${row.health.toLowerCase().replace(' ', '-')}`} onClick={onClick}>
     <Space direction="vertical" size={7} style={{ width: '100%' }}>
@@ -909,6 +967,41 @@ export const OperationsReportsPage = () => {
       interventionStatusBuckets,
     }
   }, [activeProgramId, applications, appointments, assignments, end, isAllPrograms, participants, start, user])
+
+  const previousRange = useMemo<[Dayjs, Dayjs]>(() => getPreviousRange([start, end]), [start, end])
+
+  const performanceData = useMemo(() => {
+    const rows: PerformanceSourceRow[] = reportData.scopedParticipants
+    const revenue = computeMetricPerformance(rows, revenueInRange, [start, end], previousRange)
+    const employees = computeMetricPerformance(rows, employeesInRange, [start, end], previousRange)
+    const trend = performanceBucketRange([start, end]).map((bucket) => ({
+      label: bucket.label,
+      revenue: rows.reduce((sum, row) => sum + revenueInRange(row, bucket.range), 0),
+      employees: rows.reduce((sum, row) => sum + employeesInRange(row, bucket.range), 0),
+    }))
+    return { revenue, employees, trend, smeCount: rows.length }
+  }, [end, previousRange, reportData.scopedParticipants, start])
+
+  const performanceTrendOptions = useMemo<Highcharts.Options>(() => {
+    const categories = performanceData.trend.map((bucket) => bucket.label)
+    return {
+      colors: [CHART_COLORS.success, CHART_COLORS.primary],
+      chart: { height: 300 },
+      title: { text: undefined },
+      subtitle: { text: `${start.format('DD MMM YYYY')} to ${end.format('DD MMM YYYY')}` },
+      xAxis: { categories },
+      yAxis: [
+        { min: 0, title: { text: 'Revenue' }, labels: { formatter() { return formatCurrencyZAR(Number(this.value)) } } },
+        { min: 0, allowDecimals: false, title: { text: 'Employees' }, opposite: true },
+      ],
+      tooltip: { shared: true },
+      plotOptions: { column: { borderRadius: 4 }, spline: { marker: { enabled: true } } },
+      series: [
+        { name: 'Revenue', type: 'column', yAxis: 0, data: performanceData.trend.map((bucket) => bucket.revenue), tooltip: { valuePrefix: 'R ' } },
+        { name: 'Employees', type: 'spline', yAxis: 1, data: performanceData.trend.map((bucket) => bucket.employees) },
+      ],
+    }
+  }, [end, performanceData.trend, start])
 
   const summary = useMemo(() => {
     const submitted = reportData.scopedApplications.length
@@ -1418,6 +1511,7 @@ export const OperationsReportsPage = () => {
                 { label: 'Appointments', value: 'appointments', icon: <CalendarOutlined /> },
                 { label: 'Workload', value: 'workload', icon: <BarChartOutlined /> },
                 { label: 'Participants', value: 'participants', icon: <TeamOutlined /> },
+                { label: 'Performance', value: 'performance', icon: <FundOutlined /> },
               ]}
             />
             <RangePicker
@@ -1672,6 +1766,40 @@ export const OperationsReportsPage = () => {
           </Col>
         </Row>
       )}
+      {view === 'performance' && (
+        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+          <Col xs={24} lg={12}>
+            <PerformanceStatCard
+              loading={loading}
+              title="Revenue"
+              icon={<DollarCircleOutlined />}
+              formattedValue={formatCurrencyZAR(performanceData.revenue.current)}
+              deltaLabel={performanceData.revenue.delta.label}
+              deltaPositive={performanceData.revenue.delta.positive}
+              headline={performanceData.revenue.headline}
+              caption={`${performanceData.revenue.growing} of ${performanceData.smeCount} SMEs growing`}
+            />
+          </Col>
+          <Col xs={24} lg={12}>
+            <PerformanceStatCard
+              loading={loading}
+              title="Employees"
+              icon={<TeamOutlined />}
+              formattedValue={formatMetricNumber(performanceData.employees.current)}
+              deltaLabel={performanceData.employees.delta.label}
+              deltaPositive={performanceData.employees.delta.positive}
+              headline={performanceData.employees.headline}
+              caption={`${performanceData.employees.growing} of ${performanceData.smeCount} SMEs growing`}
+            />
+          </Col>
+          <Col span={24}>
+            <Card loading={loading} className="dashboard-section-card motion-card" title={<Space><FundOutlined /> Revenue & Employees Trend</Space>}>
+              {performanceData.smeCount ? <ThemedHighcharts options={performanceTrendOptions} /> : <Empty description="No SME revenue or employee data in this report period." />}
+            </Card>
+          </Col>
+        </Row>
+      )}
+
       <Modal open={!!selectedWorkloadIntervention || !!selectedDeliveryOwner} title={selectedWorkloadIntervention ? `${selectedWorkloadIntervention} — delivery status` : `${selectedDeliveryOwner} — assigned interventions`} onCancel={() => { setSelectedWorkloadIntervention(undefined); setSelectedDeliveryOwner(undefined) }} footer={null} width={1100} destroyOnClose>
         <Table rowKey="id" dataSource={workloadDrilldownRows} columns={workloadDrilldownColumns} pagination={{ pageSize: 5, showSizeChanger: false, position: ['bottomCenter'] }} locale={{ emptyText: 'No assignments match this workload selection.' }} scroll={{ x: 880 }} />
       </Modal>

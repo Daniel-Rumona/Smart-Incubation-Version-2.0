@@ -5,9 +5,11 @@ import {
     AuditOutlined,
     CheckCircleOutlined,
     DashboardOutlined,
+    DollarCircleOutlined,
     ExclamationCircleOutlined,
     FallOutlined,
     FileProtectOutlined,
+    FundOutlined,
     MinusOutlined,
     RiseOutlined,
     TeamOutlined,
@@ -34,6 +36,14 @@ import {
     type ProjectAdminIntervention,
     type ProjectAdminWorkspaceData,
 } from '@/services/projectAdminWorkspaceService'
+import {
+    bucketRange as performanceBucketRange,
+    computeMetricPerformance,
+    employeesInRange,
+    formatCurrencyZAR,
+    formatMetricNumber,
+    revenueInRange,
+} from '@/services/smePerformanceMetrics'
 import '@/styles/dashboard.css'
 import '@/styles/operations-reports.css'
 
@@ -41,7 +51,7 @@ dayjs.extend(quarterOfYear)
 
 const { RangePicker } = DatePicker
 
-type ReportView = 'overview' | 'applications' | 'interventions' | 'compliance'
+type ReportView = 'overview' | 'applications' | 'interventions' | 'compliance' | 'performance'
 type TimeBucket = { key: string, label: string }
 
 type DrilldownState =
@@ -210,6 +220,38 @@ const RateChangeCard = ({ title, icon, value, previousValue, caption, loading }:
     )
 }
 
+const PerformanceStatCard = ({ title, icon, formattedValue, deltaLabel, deltaPositive, headline, caption, loading }: {
+    title: string
+    icon: ReactNode
+    formattedValue: string
+    deltaLabel: string
+    deltaPositive: boolean
+    headline: { label: string; value: number; positive: boolean }
+    caption: string
+    loading?: boolean
+}) => {
+    const { token } = theme.useToken()
+    const deltaColor = deltaPositive ? token.colorSuccess : token.colorError
+    const DeltaIcon = deltaPositive ? RiseOutlined : FallOutlined
+    const headlineColor = headline.positive ? token.colorSuccess : token.colorError
+    return (
+        <Card loading={loading} className="dashboard-section-card motion-card" title={<Space>{icon} {title}</Space>}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+                <Typography.Text strong style={{ fontSize: 28, lineHeight: 1 }}>{formattedValue}</Typography.Text>
+                <Space size={4} style={{ color: deltaColor }}>
+                    <DeltaIcon />
+                    <Typography.Text strong style={{ color: deltaColor }}>{deltaLabel}</Typography.Text>
+                </Space>
+            </div>
+            <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 6 }}>vs previous period · {caption}</Typography.Text>
+            <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 10, borderTop: `1px solid ${token.colorBorderSecondary}` }}>
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>{headline.label}</Typography.Text>
+                <Typography.Text strong style={{ color: headlineColor }}>{headline.value}%</Typography.Text>
+            </div>
+        </Card>
+    )
+}
+
 const StatusBreakdownList = ({ counts }: { counts: Record<string, number> }) => {
     const entries = Object.entries(counts).sort((left, right) => right[1] - left[1])
     const total = entries.reduce((sum, [, count]) => sum + count, 0)
@@ -339,6 +381,39 @@ export default function ProjectAdminReportsPage() {
 
     const previousPeriodData = useMemo(() => filterProjectAdminDataByRange(data, previousRange), [data, previousRange])
     const previousRates = useMemo(() => computeRates(previousPeriodData), [previousPeriodData])
+
+    const performanceData = useMemo(() => {
+        const rows = data.participants
+        const revenue = computeMetricPerformance(rows, revenueInRange, dateRange, previousRange)
+        const employees = computeMetricPerformance(rows, employeesInRange, dateRange, previousRange)
+        const trend = performanceBucketRange(dateRange).map((bucket) => ({
+            label: bucket.label,
+            revenue: rows.reduce((sum, row) => sum + revenueInRange(row, bucket.range), 0),
+            employees: rows.reduce((sum, row) => sum + employeesInRange(row, bucket.range), 0),
+        }))
+        return { revenue, employees, trend, smeCount: rows.length }
+    }, [data.participants, dateRange, previousRange])
+
+    const performanceTrendOptions = useMemo<Highcharts.Options>(() => {
+        const categories = performanceData.trend.map((bucket) => bucket.label)
+        return {
+            colors: [CHART_COLORS.success, CHART_COLORS.primary],
+            chart: { height: 300 },
+            title: { text: undefined },
+            subtitle: { text: `${dateRange[0].format('DD MMM YYYY')} to ${dateRange[1].format('DD MMM YYYY')}` },
+            xAxis: { categories },
+            yAxis: [
+                { min: 0, title: { text: 'Revenue' }, labels: { formatter() { return formatCurrencyZAR(Number(this.value)) } } },
+                { min: 0, allowDecimals: false, title: { text: 'Employees' }, opposite: true },
+            ],
+            tooltip: { shared: true },
+            plotOptions: { column: { borderRadius: 4 }, spline: { marker: { enabled: true } } },
+            series: [
+                { name: 'Revenue', type: 'column', yAxis: 0, data: performanceData.trend.map((bucket) => bucket.revenue), tooltip: { valuePrefix: 'R ' } },
+                { name: 'Employees', type: 'spline', yAxis: 1, data: performanceData.trend.map((bucket) => bucket.employees) },
+            ],
+        }
+    }, [dateRange, performanceData.trend])
 
     const metrics = useMemo(() => {
         const openApplications = periodData.applications.filter((application) => isOpenApplicationStatus(application.status)).length
@@ -796,6 +871,7 @@ export default function ProjectAdminReportsPage() {
                                 { label: 'Applications', value: 'applications', icon: <AuditOutlined /> },
                                 { label: 'Interventions', value: 'interventions', icon: <RiseOutlined /> },
                                 { label: 'Compliance', value: 'compliance', icon: <FileProtectOutlined /> },
+                                { label: 'Performance', value: 'performance', icon: <FundOutlined /> },
                             ]}
                         />
                         <RangePicker
@@ -1007,6 +1083,40 @@ export default function ProjectAdminReportsPage() {
                             extra={<Typography.Text type="secondary">Click a bar for details</Typography.Text>}
                         >
                             {periodData.complianceDocuments.length ? <ThemedHighcharts options={complianceHealthChart} /> : <Empty description="No compliance records found." />}
+                        </Card>
+                    </Col>
+                </Row>
+            )}
+
+            {view === 'performance' && (
+                <Row gutter={[16, 16]} className="project-admin-report-chart-grid">
+                    <Col xs={24} lg={12}>
+                        <PerformanceStatCard
+                            loading={identityLoading || loading}
+                            title="Revenue"
+                            icon={<DollarCircleOutlined />}
+                            formattedValue={formatCurrencyZAR(performanceData.revenue.current)}
+                            deltaLabel={performanceData.revenue.delta.label}
+                            deltaPositive={performanceData.revenue.delta.positive}
+                            headline={performanceData.revenue.headline}
+                            caption={`${performanceData.revenue.growing} of ${performanceData.smeCount} SMEs growing`}
+                        />
+                    </Col>
+                    <Col xs={24} lg={12}>
+                        <PerformanceStatCard
+                            loading={identityLoading || loading}
+                            title="Employees"
+                            icon={<TeamOutlined />}
+                            formattedValue={formatMetricNumber(performanceData.employees.current)}
+                            deltaLabel={performanceData.employees.delta.label}
+                            deltaPositive={performanceData.employees.delta.positive}
+                            headline={performanceData.employees.headline}
+                            caption={`${performanceData.employees.growing} of ${performanceData.smeCount} SMEs growing`}
+                        />
+                    </Col>
+                    <Col span={24}>
+                        <Card loading={identityLoading || loading} className="dashboard-section-card motion-card" title={<Space><FundOutlined /> Revenue & Employees Trend</Space>}>
+                            {performanceData.smeCount ? <ThemedHighcharts options={performanceTrendOptions} /> : <Empty description="No SME revenue or employee data for this programme scope." />}
                         </Card>
                     </Col>
                 </Row>

@@ -46,6 +46,20 @@ export type ProjectAdminParticipant = {
   status: string
   createdAt: Date | null
   onboardedAt: Date | null
+  acceptedAt: Date | null
+  approvedAt: Date | null
+  revenue?: unknown
+  annualRevenue?: unknown
+  monthlyRevenue?: unknown
+  turnover?: unknown
+  annualTurnover?: unknown
+  employeeCount?: unknown
+  employees?: unknown
+  numberOfEmployees?: unknown
+  staffCount?: unknown
+  jobsCreated?: unknown
+  revenueHistory?: { monthly?: Record<string, unknown>; annual?: Record<string, unknown> }
+  headcountHistory?: { monthly?: Record<string, unknown>; annual?: Record<string, unknown> }
 }
 
 export type ProjectAdminIntervention = {
@@ -245,6 +259,20 @@ export const loadProjectAdminWorkspace = async (
       status: String(data.status || data.participantStatus || 'active'),
       createdAt: toDate(data.createdAt || data.acceptedAt),
       onboardedAt: toDate(data.onboardedAt || data.acceptedAt || data.approvedAt),
+      acceptedAt: toDate(data.acceptedAt),
+      approvedAt: toDate(data.approvedAt),
+      revenue: data.revenue,
+      annualRevenue: data.annualRevenue,
+      monthlyRevenue: data.monthlyRevenue,
+      turnover: data.turnover,
+      annualTurnover: data.annualTurnover,
+      employeeCount: data.employeeCount,
+      employees: data.employees,
+      numberOfEmployees: data.numberOfEmployees,
+      staffCount: data.staffCount,
+      jobsCreated: data.jobsCreated,
+      revenueHistory: data.revenueHistory as ProjectAdminParticipant['revenueHistory'],
+      headcountHistory: data.headcountHistory as ProjectAdminParticipant['headcountHistory'],
     }]
   })
 
