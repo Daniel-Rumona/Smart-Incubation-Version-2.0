@@ -207,37 +207,6 @@ export const DirectorPortfolioPage = () => {
     }
   }, [selected])
 
-  const executionDonut = useMemo<Highcharts.Options | null>(() => {
-    if (!selected) return null
-    const completed = Math.round(selected.progress)
-    const remaining = Math.max(100 - completed, 0)
-    return {
-      chart: { type: 'pie', height: 280 },
-      title: { text: 'Execution (Required vs Completed)' },
-      tooltip: { pointFormat: '<b>{point.y}</b>%' },
-      plotOptions: {
-        pie: {
-          innerSize: '65%',
-          dataLabels: {
-            enabled: true,
-            formatter() {
-              const point = (this as unknown as { point: { name?: string; y?: number } }).point
-              return `${point.name}: ${point.y}%`
-            },
-          },
-        },
-      },
-      series: [{
-        type: 'pie',
-        name: 'Items',
-        data: [
-          { name: 'Completed', y: completed, color: '#16a34a' },
-          { name: 'Remaining', y: remaining, color: '#f59e0b' },
-        ].filter(point => point.y > 0),
-      }],
-    }
-  }, [selected])
-
   const pageSize = isMobile ? MOBILE_PAGE_SIZE : DESKTOP_PAGE_SIZE
   const pagedRows = useMemo(() => filtered.slice((page - 1) * pageSize, page * pageSize), [filtered, page, pageSize])
 
@@ -455,15 +424,21 @@ export const DirectorPortfolioPage = () => {
         style={isMobile ? { top: 0, paddingBottom: 0 } : undefined}
         title={
           selected ? (
-            <Space>
-              <Avatar style={{ borderRadius: 12 }}>{makeInitials(selected.name)}</Avatar>
-              <div className="director-modal-title">
-                <strong style={{ fontSize: 16 }}>{selected.name}</strong>
-                <div style={{ fontSize: 12, opacity: 0.75 }}>
-                  {selected.sector} <Tag color={stageColor(selected.stage)}>{selected.stage}</Tag> <Tag color={riskColor(selected.risk)}>{selected.risk} Risk</Tag>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, paddingRight: 24 }}>
+              <Avatar size={52} style={{ borderRadius: 14, fontSize: 18, fontWeight: 700, background: 'linear-gradient(135deg, #6d5dfb, #2563eb)', flexShrink: 0 }}>
+                {makeInitials(selected.name)}
+              </Avatar>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.25 }}>{selected.name}</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                  <Tag bordered={false} style={{ margin: 0 }}>{selected.sector}</Tag>
+                  <Tag color={stageColor(selected.stage)} style={{ margin: 0 }}>{selected.stage}</Tag>
+                  <Tag color={riskColor(selected.risk)} style={{ margin: 0 }}>{selected.risk} Risk</Tag>
+                  <Tag color={statusColor(selected.status)} style={{ margin: 0 }}>{selected.status}</Tag>
+                  {selected.programName && <Tag bordered={false} style={{ margin: 0 }}>{selected.programName}</Tag>}
                 </div>
               </div>
-            </Space>
+            </div>
           ) : 'SME Performance'
         }
       >
@@ -493,7 +468,21 @@ export const DirectorPortfolioPage = () => {
 
               <Col xs={24} md={10}>
                 <Card style={{ borderRadius: 16 }}>
-                  {executionDonut && <ThemedHighcharts options={executionDonut} />}
+                  <div style={{ fontWeight: 600, marginBottom: 12 }}>Execution (Required vs Completed)</div>
+                  <Space direction="vertical" size={14} style={{ width: '100%' }}>
+                    {[
+                      { name: 'Completed', value: Math.round(selected.progress), color: '#16a34a' },
+                      { name: 'Remaining', value: Math.max(100 - Math.round(selected.progress), 0), color: '#f59e0b' },
+                    ].filter(item => item.value > 0).map(item => (
+                      <div key={item.name}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <span>{item.name}</span>
+                          <strong>{item.value}%</strong>
+                        </div>
+                        <Progress percent={item.value} showInfo={false} strokeColor={item.color} />
+                      </div>
+                    ))}
+                  </Space>
                   <Divider style={{ margin: '10px 0' }} />
                   <Row gutter={[10, 10]}>
                     <Col span={12}>
