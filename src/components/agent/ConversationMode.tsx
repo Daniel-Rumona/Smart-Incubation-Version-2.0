@@ -19,6 +19,11 @@ const estimateSpeakingMs = (text: string) => {
     return Math.min(8000, Math.max(1500, (words / 2.5) * 1000))
 }
 
+// How long to wait after the mic goes quiet before treating a spoken turn as
+// finished and sending it. Long enough to survive a natural mid-sentence
+// pause, short enough to still feel immediate once someone stops talking.
+const SILENCE_MS = 1200
+
 // The Web Speech API has no lib.dom typings and is only exposed under a
 // vendor prefix in Chromium — feature-detect and type just the surface this
 // component uses rather than pulling in a typings package for one narrow use.
@@ -88,7 +93,10 @@ export const ConversationMode = ({ messages, isTyping, onSend, onClose }: Conver
     const speakingTimeoutRef = useRef<number | undefined>(undefined)
     const lastMessageCountRef = useRef(messages.length)
     const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
-    const finalTranscriptRef = useRef('')
+    // Accumulates finalized speech-recognition chunks for the turn currently
+    // being spoken — cleared once that turn is sent (see SILENCE_MS above).
+    const bufferRef = useRef('')
+    const silenceTimerRef = useRef<number | undefined>(undefined)
     const voiceSupported = Boolean(getSpeechRecognitionCtor())
     const messagesRef = useRef<HTMLDivElement | null>(null)
     const currentAudioRef = useRef<HTMLAudioElement | null>(null)
@@ -133,7 +141,27 @@ export const ConversationMode = ({ messages, isTyping, onSend, onClose }: Conver
         )
     }
 
+    const detachRecognition = () => {
+        const recognition = recognitionRef.current
+        if (!recognition) return
+        recognition.onresult = null
+        recognition.onerror = null
+        recognition.onend = null
+        try {
+            recognition.abort()
+        } catch {
+            // already stopped
+        }
+        recognitionRef.current = null
+    }
+
     const playReply = async (text: string) => {
+        // Stop capturing while the reply is read out loud — otherwise the mic
+        // picks up the assistant's own voice and tries to transcribe it.
+        // Listening resumes automatically once playback settles back to idle.
+        window.clearTimeout(silenceTimerRef.current)
+        bufferRef.current = ''
+        detachRecognition()
         setPhase('speaking')
         const controller = new AbortController()
         ttsAbortRef.current = controller
@@ -181,28 +209,31 @@ export const ConversationMode = ({ messages, isTyping, onSend, onClose }: Conver
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [messages])
 
-    const detachRecognition = () => {
-        const recognition = recognitionRef.current
-        if (!recognition) return
-        recognition.onresult = null
-        recognition.onerror = null
-        recognition.onend = null
-        try {
-            recognition.abort()
-        } catch {
-            // already stopped
-        }
-        recognitionRef.current = null
-    }
-
     useEffect(() => () => {
+        window.clearTimeout(silenceTimerRef.current)
         detachRecognition()
         stopSpeaking()
     }, [])
 
-    const sendMessage = (text: string) => {
+    // A finalized chunk of speech, sent as soon as SILENCE_MS of quiet
+    // follows it — the mic itself is never stopped for this, so whatever is
+    // said next just starts the next turn's buffer. This is what lets
+    // someone keep talking through the assistant's "thinking" phase instead
+    // of losing anything said while a previous turn is still in flight.
+    const sendSpokenPhrase = (text: string) => {
         const content = text.trim()
         if (!content) return
+        setDraft('')
+        onSend(content)
+    }
+
+    // The manual text box overrides voice entirely — stop capturing so the
+    // two inputs never race to send the same turn twice.
+    const sendTypedMessage = (text: string) => {
+        const content = text.trim()
+        if (!content) return
+        window.clearTimeout(silenceTimerRef.current)
+        bufferRef.current = ''
         detachRecognition()
         stopSpeaking()
         setPhase((current) => (current === 'listening' || current === 'speaking' ? 'idle' : current))
@@ -219,26 +250,42 @@ export const ConversationMode = ({ messages, isTyping, onSend, onClose }: Conver
 
         setMicError(null)
         setDraft('')
-        finalTranscriptRef.current = ''
+        bufferRef.current = ''
 
         const recognition = new Ctor()
         recognition.lang = navigator.language || 'en-US'
         recognition.interimResults = true
-        recognition.continuous = false
+        // Continuous so the session survives across multiple sentences and
+        // natural pauses instead of ending — and dropping everything said
+        // after it — the instant the first phrase finalizes.
+        recognition.continuous = true
         recognition.maxAlternatives = 1
 
+        const scheduleAutoSend = () => {
+            window.clearTimeout(silenceTimerRef.current)
+            silenceTimerRef.current = window.setTimeout(() => {
+                const content = bufferRef.current.trim()
+                bufferRef.current = ''
+                if (content) sendSpokenPhrase(content)
+            }, SILENCE_MS)
+        }
+
         recognition.onresult = (event: SpeechRecognitionEventLike) => {
-            let finalText = ''
             let interimText = ''
             for (let i = event.resultIndex; i < event.results.length; i++) {
                 const result = event.results[i]
-                if (result.isFinal) finalText += result[0].transcript
-                else interimText += result[0].transcript
+                if (result.isFinal) {
+                    bufferRef.current = `${bufferRef.current} ${result[0].transcript}`.trim()
+                } else {
+                    interimText += result[0].transcript
+                }
             }
-            if (finalText.trim()) finalTranscriptRef.current = finalText.trim()
             // Mirrors what's being heard straight into the composer, like
             // dictation — the same box someone would otherwise type into.
-            setDraft(finalTranscriptRef.current || interimText)
+            setDraft(`${bufferRef.current} ${interimText}`.trim())
+            // Any activity — finalized or still interim — means the person
+            // is still talking, so push the auto-send back out.
+            scheduleAutoSend()
         }
 
         recognition.onerror = (event: SpeechRecognitionErrorEventLike) => {
@@ -248,10 +295,15 @@ export const ConversationMode = ({ messages, isTyping, onSend, onClose }: Conver
 
         recognition.onend = () => {
             recognitionRef.current = null
-            const transcript = finalTranscriptRef.current
-            finalTranscriptRef.current = ''
+            window.clearTimeout(silenceTimerRef.current)
+            const content = bufferRef.current.trim()
+            bufferRef.current = ''
             setPhase((current) => (current === 'listening' ? 'idle' : current))
-            if (transcript) sendMessage(transcript)
+            // Some browsers end a continuous session on their own well
+            // before SILENCE_MS fires (long pauses, backgrounding, internal
+            // timeouts) — flush anything already captured rather than lose
+            // it, and the auto-restart effect below picks listening back up.
+            if (content) sendSpokenPhrase(content)
         }
 
         recognitionRef.current = recognition
@@ -270,18 +322,22 @@ export const ConversationMode = ({ messages, isTyping, onSend, onClose }: Conver
 
     // "Always on": once conversation mode is open and not muted, listening
     // restarts automatically every time we settle back to idle — after a
-    // reply finishes, after a false start, whatever — so talking again never
-    // needs another tap. Gated on !isTyping too so a reply already in flight
-    // can't get a recognition session started underneath it (see the isTyping
-    // effect above, which can flip phase to 'thinking' in the same commit).
+    // reply finishes speaking, after a false start, whatever — so talking
+    // again never needs another tap. Deliberately NOT gated on isTyping —
+    // the mic keeps running through the assistant's "thinking" phase so nothing
+    // said while a reply is in flight gets lost; playReply() is what pauses
+    // capture for the "speaking" phase specifically, to avoid picking up the
+    // assistant's own voice.
     useEffect(() => {
-        if (muted || isTyping || phase !== 'idle' || !voiceSupported) return
+        if (muted || phase !== 'idle' || !voiceSupported) return
         startListening()
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [phase, muted, isTyping])
+    }, [phase, muted, voiceSupported])
 
     const toggleMuted = () => {
         if (!muted) {
+            window.clearTimeout(silenceTimerRef.current)
+            bufferRef.current = ''
             stopListening()
             setMuted(true)
         } else {
@@ -295,6 +351,8 @@ export const ConversationMode = ({ messages, isTyping, onSend, onClose }: Conver
     // race where they click in just before the auto-restart effect below
     // fires and starts a recognition session underneath their typing.
     const handleManualTyping = () => {
+        window.clearTimeout(silenceTimerRef.current)
+        bufferRef.current = ''
         setMuted(true)
         stopListening()
     }
@@ -347,7 +405,7 @@ export const ConversationMode = ({ messages, isTyping, onSend, onClose }: Conver
                         onChange={(event) => setDraft(event.target.value)}
                         onKeyDown={handleManualTyping}
                         onFocus={handleManualTyping}
-                        onPressEnter={() => sendMessage(draft)}
+                        onPressEnter={() => sendTypedMessage(draft)}
                         placeholder={phase === 'listening' ? 'Listening…' : 'Type your message…'}
                         disabled={isBusy}
                         aria-label="Message"
@@ -356,7 +414,7 @@ export const ConversationMode = ({ messages, isTyping, onSend, onClose }: Conver
                         type="primary"
                         shape="circle"
                         icon={<SendOutlined />}
-                        onClick={() => sendMessage(draft)}
+                        onClick={() => sendTypedMessage(draft)}
                         disabled={!draft.trim() || isBusy}
                         aria-label="Send message"
                     />

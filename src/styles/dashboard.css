@@ -474,56 +474,17 @@ html[data-theme='dark'] .dashboard-header-card::before {
 
     box-shadow: 0 8px 22px rgba(22, 31, 54, 0.045);
 
-    transition:
-        transform 0.2s ease,
-        box-shadow 0.2s ease,
-        border-color 0.2s ease,
-        background 0.2s ease;
-}
-
-
-/* =========================================================
-   Metric Card Light Sweep
-   ========================================================= */
-
-.dashboard-metric-card::before {
-    content: '';
-
-    position: absolute;
-
-    top: -140%;
-    left: -50%;
-
-    width: 36%;
-    height: 360%;
-
-    pointer-events: none;
-
-    background: linear-gradient(90deg,
-            transparent,
-            rgba(109, 93, 251, 0.1),
-            transparent);
-
-    transform: rotate(18deg);
-
-    transition: left 0.55s ease;
+    transition: border-color 0.2s ease, background 0.2s ease;
 }
 
 
 /* =========================================================
    Metric Card Hover
+   Border outline only - no lift, no shadow bump.
    ========================================================= */
 
 .dashboard-metric-card:hover {
-    transform: translateY(-1px);
-
     border-color: rgba(109, 93, 251, 0.34) !important;
-
-    box-shadow: 0 10px 25px rgba(69, 55, 150, 0.1) !important;
-}
-
-.dashboard-metric-card:hover::before {
-    left: 120%;
 }
 
 .dashboard-metric-card.is-clickable {
@@ -584,7 +545,7 @@ html[data-theme='dark'] .dashboard-metric-card.is-active {
     width: 100%;
     min-width: 0;
 
-    gap: 11px;
+    gap: 18px;
 }
 
 
@@ -693,18 +654,21 @@ html[data-theme='dark'] .dashboard-metric-card.is-active {
 
     font-size: 15px;
 
-    transition:
-        transform 0.2s ease,
-        background 0.2s ease;
+    transition: background 0.2s ease, box-shadow 0.2s ease;
 }
 
 
 /* =========================================================
    Metric Icon Hover
+   Glow instead of a scale/lift animation.
    ========================================================= */
 
 .dashboard-metric-card:hover .dashboard-metric-icon {
-    transform: scale(1.05);
+    background: rgba(109, 93, 251, 0.18);
+
+    box-shadow:
+        0 0 0 4px rgba(109, 93, 251, 0.1),
+        0 0 16px rgba(109, 93, 251, 0.45);
 }
 
 
@@ -764,15 +728,7 @@ html[data-theme='dark'] .dashboard-metric-card.is-active {
 }
 
 .dashboard-metric-card.is-loading:hover {
-    transform: none;
-
     border-color: rgba(109, 93, 251, 0.14) !important;
-
-    box-shadow: 0 8px 22px rgba(22, 31, 54, 0.045) !important;
-}
-
-.dashboard-metric-card.is-loading:hover::before {
-    left: -50%;
 }
 
 .dashboard-metric-card.is-loading .ant-skeleton-avatar {
@@ -1309,15 +1265,6 @@ html[data-theme='dark'] .dashboard-metric-card {
 
 html[data-theme='dark'] .dashboard-metric-card:hover {
     border-color: rgba(167, 139, 250, 0.42) !important;
-
-    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28) !important;
-}
-
-html[data-theme='dark'] .dashboard-metric-card::before {
-    background: linear-gradient(90deg,
-            transparent,
-            rgba(167, 139, 250, 0.13),
-            transparent);
 }
 
 html[data-theme='dark'] .dashboard-metric-label {
@@ -1332,6 +1279,14 @@ html[data-theme='dark'] .dashboard-metric-icon {
     background: rgba(139, 92, 246, 0.16);
 
     color: #a78bfa;
+}
+
+html[data-theme='dark'] .dashboard-metric-card:hover .dashboard-metric-icon {
+    background: rgba(139, 92, 246, 0.26);
+
+    box-shadow:
+        0 0 0 4px rgba(139, 92, 246, 0.16),
+        0 0 16px rgba(167, 139, 250, 0.55);
 }
 
 html[data-theme='dark'] .dashboard-metric-arrow {
@@ -1416,10 +1371,6 @@ html[data-theme='dark'] .dashboard-metric-card:hover .dashboard-metric-arrow {
 
     .dashboard-metric-value {
         font-size: 18px;
-    }
-
-    .dashboard-metric-card:hover {
-        transform: none;
     }
 
 
@@ -1738,18 +1689,8 @@ html[data-theme='dark'] .loading-overlay-copy span {
 
     .dashboard-metric-card,
     .dashboard-metric-icon,
-    .dashboard-metric-arrow,
-    .dashboard-metric-card::before {
+    .dashboard-metric-arrow {
         transition: none;
-    }
-
-    .dashboard-metric-card:hover {
-        transform: none;
-    }
-
-    .dashboard-metric-card:hover .dashboard-metric-icon,
-    .dashboard-metric-card:hover .dashboard-metric-arrow {
-        transform: none;
     }
 
     .loading-incubator-orbit-dot,
