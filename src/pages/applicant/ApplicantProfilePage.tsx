@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { App, Button, Card, Form, Grid, Progress, Segmented, Space, Spin, Steps, Typography } from 'antd'
 import {
+    ArrowLeftOutlined,
+    ArrowRightOutlined,
     AuditOutlined,
     BankOutlined,
     CheckCircleOutlined,
@@ -401,13 +403,13 @@ export const ApplicantProfilePage = () => {
                             )}
 
                             <div className="applicant-profile-actions">
-                                <Button disabled={activeStep === 0} onClick={() => goToStep(activeStep - 1)}>
+                                <Button icon={<ArrowLeftOutlined />} disabled={activeStep === 0} onClick={() => goToStep(activeStep - 1)}>
                                     Previous
                                 </Button>
 
                                 <Space className="applicant-profile-actions-right">
                                     {activeStep < stepItems.length - 1 ? (
-                                        <Button type="primary" onClick={() => goToStep(activeStep + 1)}>
+                                        <Button type="primary" icon={<ArrowRightOutlined />} iconPosition="end" onClick={() => goToStep(activeStep + 1)}>
                                             Next
                                         </Button>
                                     ) : null}

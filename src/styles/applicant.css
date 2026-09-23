@@ -1,5 +1,10 @@
 .applicant-page { padding-bottom: 12px; }
 .applicant-metrics { margin-bottom: 16px; }
+/* The shared filter bar keeps Segmented at its own content width by default
+   (so compact mode switches elsewhere don't stretch); this page's view
+   toggle is one of only two controls sharing the row, so it earns real
+   width instead of hugging "All / Suggested". */
+.applicant-programs-page .filter-bar-controls > .ant-segmented { flex: 1 1 280px; }
 .applicant-card { border-radius: 18px !important; border: 1px solid rgba(109, 93, 251, 0.12) !important; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.045); }
 .applicant-card .ant-card-head { border-bottom-color: rgba(109, 93, 251, 0.1); }
 .applicant-full-width { width: 100%; }

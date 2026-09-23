@@ -16,6 +16,26 @@
     justify-content: center;
 }
 
+/* This page owns its own header (Back + programme name) instead of the
+   system topbar. useFullscreenMobilePage() already removes the topbar and
+   bottom bar on phones, but that hook is shared with other pages and is
+   deliberately desktop-safe, so desktop needs its own override here. The
+   topbar and this page are siblings under .app-main, hence :has(). */
+.app-main:has(.program-application-page) .app-topbar-pill {
+    display: none;
+}
+
+/* .app-content normally reserves 82px of margin-top for the fixed topbar
+   pill above. With the topbar hidden for this page, that space is just a
+   dead gap, so this page's own header moves up to fill it -- the same
+   collapse .app-content.is-chromeless already does for the mobile case of
+   useFullscreenMobilePage(), mirrored here for desktop. */
+.app-main:has(.program-application-page) .app-content {
+    height: 100dvh;
+    margin-top: 0;
+    padding: 0;
+}
+
 .program-application-back-top {
     right: 28px;
     bottom: 92px;
@@ -46,47 +66,66 @@
    2. Compact Header & Global Actions
    ========================================================================== */
 .program-application-header>.ant-card-body {
-    padding: 18px 24px 14px;
+    padding: 18px 24px;
 }
 
-.program-application-header-main {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    width: 100%;
-}
-
-.program-application-heading,
-.program-application-header-actions {
-    display: flex;
+/* Back and the progress arc get matching fixed-width edge columns (sized to
+   the wider of the two, the arc) so the title's column is the row's true
+   center regardless of either side's own content width -- a plain 1fr/auto/1fr
+   split would let the wider side pull the title off-center. */
+.program-application-heading {
+    display: grid;
+    grid-template-columns: 120px 1fr 120px;
     align-items: center;
     gap: 12px;
     min-width: 0;
 }
 
-.program-application-heading .ant-btn {
+.program-application-heading > .ant-btn {
+    justify-self: start;
     flex-shrink: 0;
 }
 
 .program-application-heading .program-application-title {
+    justify-self: center;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    min-width: 0;
+    max-width: 100%;
 }
 
-.program-application-header-progress {
-    display: grid;
-    gap: 6px;
-    margin-top: 14px;
-    padding-top: 12px;
-    border-top: 1px solid rgba(100, 116, 139, 0.12);
+.program-application-progress-arc-wrap {
+    justify-self: end;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+/* The dashboard type's SVG canvas is a full square even though only the top
+   half is drawn (gapDegree 180 hides the rest) -- cropping the wrapper to
+   just past the visible arc is what lets a bigger, more readable arc still
+   read as a slim header instead of doubling the row's height. */
+.program-application-progress-arc {
+    height: 46px;
+    overflow: hidden;
+    display: flex;
+    align-items: flex-start;
+}
+
+.program-application-progress-label {
+    font-weight: 700;
+    font-size: 15px;
+    color: #6d5dfb;
 }
 
 .program-application-actions {
     display: flex;
     justify-content: flex-end;
     flex-shrink: 0;
+    gap: 10px;
+    margin-top: 20px;
 }
 
 /* ==========================================================================
@@ -335,15 +374,16 @@ html[data-theme='dark'] .program-application-chat-row.is-user .program-applicati
         padding: 24px;
     }
 
-    .program-application-header-main,
-    .program-application-header-actions {
-        flex-direction: column;
-        align-items: stretch;
+    /* Narrower edge columns than desktop's 120px -- the arc itself shrinks
+       (see the isMobile size prop) so its column can too, leaving the title
+       enough room to read as more than an initial before it ellipsizes. */
+    .program-application-heading {
+        grid-template-columns: 64px 1fr 84px;
+        gap: 8px;
     }
 
-    .program-application-header-actions .ant-segmented,
-    .program-application-header-actions>.ant-btn {
-        width: 100%;
+    .program-application-heading > .ant-btn > span:last-child {
+        display: none;
     }
 
     .program-application-chat-list.is-full {

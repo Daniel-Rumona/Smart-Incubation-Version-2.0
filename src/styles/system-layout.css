@@ -434,7 +434,7 @@ html[data-theme='dark'] .workspace-navigation-card:hover, html[data-theme='dark'
 
     display: grid;
 
-    grid-template-columns: minmax(0, 1fr) minmax(max-content, 1fr);
+    grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
 
     align-items: center;
 
@@ -450,6 +450,11 @@ html[data-theme='dark'] .workspace-navigation-card:hover, html[data-theme='dark'
     align-items: center;
 
     gap: 10px;
+}
+
+.app-topbar-center {
+    display: flex;
+    justify-content: center;
 }
 
 .app-page-title {
@@ -1060,7 +1065,7 @@ html[data-theme='dark'] .app-search-hint {
 
 @media (max-width: 1200px) {
     .app-topbar-pill {
-        grid-template-columns: minmax(0, 1fr) minmax(max-content, 1fr);
+        grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
         gap: 8px;
     }
 

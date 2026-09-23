@@ -1,5 +1,3 @@
-export type ApplicationInputMode = 'manual' | 'ai'
-
 export type ProgramQuestionType = 'text' | 'textarea' | 'longText' | 'long_text' | 'dropdown' | 'select' | 'single_select' | 'multi_select' | 'yes_no' | 'number' | 'date'
 
 export type ProgramQuestion = {
@@ -75,6 +73,10 @@ export type ApplicationFormValues = {
   facebook?: string
   instagram?: string
   linkedIn?: string
+  swotStrengths?: string
+  swotWeaknesses?: string
+  swotOpportunities?: string
+  swotThreats?: string
   stage?: string
   age?: number
   profile?: Record<string, unknown>
@@ -97,41 +99,4 @@ export type ApplicationSubmissionPayload = {
     participationRate: number
   }
   aiEvaluation?: unknown
-}
-
-export type ApplicationAIInputType = 'text' | 'textarea' | 'select' | 'date' | 'upload' | 'confirm'
-
-export type ApplicationAIFollowUp = {
-  field: string
-  question: string
-  inputType: ApplicationAIInputType
-  options?: string[]
-  documentRequirementId?: string
-}
-
-export type ApplicationAIResponse = {
-  ok?: boolean
-  assistantMessage?: string
-  flatFields?: Partial<ApplicationFormValues>
-  programAnswers?: Record<string, unknown>
-  missingFields?: string[]
-  followUpQuestions?: ApplicationAIFollowUp[]
-  documentPrompt?: {
-    requirementId: string
-    type: string
-    description?: string
-    requiresExpiry: boolean
-    allowedFormats: string[]
-    maxSizeMB: number
-    question: string
-  } | null
-  completedSections?: string[]
-  confidence?: number
-  model?: string
-}
-
-export type ApplicationConversationMessage = {
-  role: 'assistant' | 'user'
-  content: string
-  field?: string
 }

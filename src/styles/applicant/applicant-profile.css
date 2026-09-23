@@ -57,32 +57,43 @@
 }
 
 .applicant-profile-hero-actions {
-    width: min(100%, 430px);
+    width: min(100%, 480px);
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    align-items: center;
     gap: 10px;
 }
 
+/* Desktop: hug the labels like the top nav's mode switch (.app-mode-switch)
+   instead of stretching across the hero card. The component already passes
+   block={isMobile}, so only the mobile rules below should force full width. */
 .applicant-profile-hero-actions > .ant-segmented {
-    width: 100%;
-}
-
-.applicant-profile-hero-actions > .ant-segmented .ant-segmented-group {
-    width: 100%;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.applicant-profile-hero-actions > .ant-segmented .ant-segmented-item {
-    min-width: 0;
-    text-align: center;
+    flex: 0 0 auto;
 }
 
 .applicant-profile-hero-actions > .ant-segmented .ant-segmented-item-label {
     justify-content: center;
 }
 
+@media (max-width: 767px) {
+    .applicant-profile-hero-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    /* Let Ant Design's own block mode (block={isMobile} on the component)
+       stretch the two items evenly via flex: 1 — it also drives the sliding
+       thumb's width. Overriding .ant-segmented-group to display:grid here
+       used to fight that: flex:1 is a no-op inside a grid, so the thumb and
+       items fell back to their intrinsic content width instead of 50/50. */
+    .applicant-profile-hero-actions > .ant-segmented {
+        width: 100%;
+    }
+}
+
 .applicant-profile-progress {
+    flex: 1 1 auto;
+    min-width: 0;
     width: 100%;
     padding: 10px 12px;
     border-radius: 16px;
@@ -114,6 +125,56 @@
 
 .applicant-profile-step-panel .ant-typography {
     margin-top: 0 !important;
+}
+
+/* Icon-card radio group, matching the choice-card pattern used elsewhere
+   (consultant-profile-choice-card, welcome-choice-card) for fields with a
+   small, fixed set of options. */
+.applicant-profile-choice-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.applicant-profile-choice-card {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 8px 12px;
+    border: 1px solid rgba(109, 93, 251, 0.18);
+    border-radius: 12px;
+    background: var(--ant-color-bg-container);
+    color: var(--ant-color-text);
+    cursor: pointer;
+    transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.applicant-profile-choice-card:hover {
+    border-color: #8b7cf6;
+    transform: translateY(-1px);
+}
+
+.applicant-profile-choice-card.is-selected {
+    border-color: #6d5dfb;
+    background: #f1efff;
+    box-shadow: 0 0 0 2px rgba(109, 93, 251, 0.12);
+}
+
+.applicant-profile-choice-card > .anticon {
+    font-size: 16px;
+    color: #6d5dfb;
+}
+
+html[data-theme='dark'] .applicant-profile-choice-card {
+    border-color: rgba(139, 92, 246, 0.28);
+    background: rgba(30, 34, 47, 0.88);
+}
+
+html[data-theme='dark'] .applicant-profile-choice-card.is-selected {
+    color: #e7e0ff;
+    background: rgba(109, 93, 251, 0.2);
 }
 
 .applicant-profile-actions {
@@ -330,19 +391,33 @@ html[data-theme='dark'] .applicant-profile-ai-done {
         overflow-x: auto;
     }
 
+    /* Previous / Next / Save stay inline on mobile, sharing the row equally,
+       instead of stacking into a tall column of full-width buttons. */
     .applicant-profile-actions {
         align-items: stretch;
+        flex-direction: row;
+        width: 100%;
     }
 
-    .applicant-profile-actions,
     .applicant-profile-actions-right {
-        flex-direction: column;
-        width: 100%;
+        flex: 2 1 0;
+        width: auto;
+        flex-wrap: nowrap;
+    }
+
+    .applicant-profile-actions-right .ant-space-item {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+
+    .applicant-profile-actions > .ant-btn {
+        flex: 1 1 0;
     }
 
     .applicant-profile-actions .ant-btn,
     .applicant-profile-actions-right .ant-btn {
         width: 100%;
+        padding-inline: 8px;
     }
 
     .applicant-profile-ai-head,

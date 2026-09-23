@@ -1,19 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { App, Button, Card, FloatButton, Form, Grid, Progress, Segmented, Space, Spin, Tag, Typography } from 'antd'
+import { App, Button, Card, FloatButton, Grid, Progress, Space, Spin, Typography } from 'antd'
 import {
     ArrowLeftOutlined,
-    CheckCircleOutlined,
-    FormOutlined,
-    RobotOutlined,
     SendOutlined,
 } from '@ant-design/icons'
 import { doc, getDoc } from 'firebase/firestore'
 import { auth, db } from '@/firebase'
-import ApplicationAIGuidedFlow from '@/components/applications/ApplicationAIGuidedFlow'
-import ApplicationManualFlow from '@/components/applications/ApplicationManualFlow'
+import ApplicationConversationalFlow from '@/components/applications/ApplicationConversationalFlow'
 import ApplicationReviewPanel from '@/components/applications/ApplicationReviewPanel'
-import ApplicationInterventionSelector from '@/components/applications/ApplicationInterventionSelector'
+import { useFullscreenMobilePage } from '@/contexts/SystemLayoutTopbarContext'
 import { getApplicantProfileBundle } from '@/services/applicantService'
 import {
     buildSelectedInterventions,
@@ -32,7 +28,6 @@ import {
 } from '@/services/programApplicationService'
 import type {
     ApplicationFormValues,
-    ApplicationInputMode,
     ProgramDocumentRequirement,
     ProgramInterventionGroup,
     ProgramInterventionPolicy,
@@ -52,12 +47,14 @@ export default function ProgramApplicationPage() {
     const navigate = useNavigate()
     const screens = Grid.useBreakpoint()
     const { programId } = useParams<{ programId: string }>()
-    const [form] = Form.useForm<ApplicationFormValues>()
+
+    // This is a phone-first, one-question-at-a-time flow: it owns its own
+    // header (Back + programme name) instead of the system topbar/bottom bar.
+    useFullscreenMobilePage()
 
     const [programName, setProgramName] = useState('')
     const [companyCode, setCompanyCode] = useState('')
 
-    const [mode, setMode] = useState<ApplicationInputMode>('ai')
     const [reviewOpen, setReviewOpen] = useState(false)
     const [loading, setLoading] = useState(true)
     const [submitting, setSubmitting] = useState(false)
@@ -89,7 +86,7 @@ export default function ProgramApplicationPage() {
     const complianceScore = useMemo(() => calculateComplianceScore(documents), [documents])
     const missingDocuments = useMemo(() => getMissingDocuments(documents), [documents])
 
-    const progressTasks = useMemo(() => {
+    const progressPercent = useMemo(() => {
         const tasks = [
             Boolean(values.motivation?.trim()),
             Boolean(values.challenges?.trim()),
@@ -101,7 +98,7 @@ export default function ProgramApplicationPage() {
             ...(!isForcedInterventionProgram && interventionGroups.length ? [selectedInterventions.length > 0] : []),
         ]
         const complete = tasks.filter(Boolean).length
-        return { complete, total: tasks.length, percent: tasks.length ? Math.round((complete / tasks.length) * 100) : 100 }
+        return tasks.length ? Math.round((complete / tasks.length) * 100) : 100
     }, [documents, interventionGroups.length, isForcedInterventionProgram, programQuestions, selectedInterventions.length, values.challenges, values.motivation, values.profile])
 
     const updateValues = (patch: Partial<ApplicationFormValues>) => {
@@ -111,7 +108,6 @@ export default function ProgramApplicationPage() {
                 ...patch,
                 profile: patch.profile ? { ...(current.profile || {}), ...patch.profile } : current.profile,
             }
-            form.setFieldsValue(next)
             return next
         })
     }
@@ -213,14 +209,12 @@ export default function ProgramApplicationPage() {
                         if (age) seedValues.age = age
 
                         setValues(seedValues)
-                        form.setFieldsValue(seedValues)
                     } else {
                         const seedValues: ApplicationFormValues = {
                             participantName: user.displayName || '',
                             email: user.email || '',
                         }
                         setValues(seedValues)
-                        form.setFieldsValue(seedValues)
                     }
                 }
             } catch (error) {
@@ -232,7 +226,7 @@ export default function ProgramApplicationPage() {
         }
 
         void loadApplicationContext()
-    }, [form, message, programId, resolveProgramContext])
+    }, [message, programId, resolveProgramContext])
 
     const validateBeforeSubmit = () => {
         if (!values.motivation?.trim() || !values.challenges?.trim()) {
@@ -316,7 +310,7 @@ export default function ProgramApplicationPage() {
 
     if (loading) {
         return (
-            <div className="program-application-loading">
+            <div className="program-application-page program-application-loading">
                 <Spin tip="Loading application setup..." />
             </div>
         )
@@ -325,107 +319,67 @@ export default function ProgramApplicationPage() {
     return (
         <div className="program-application-page">
             <Card className="program-application-header" bordered={false}>
-                <div className="program-application-header-main">
-                    <div className="program-application-heading">
-                        <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)}>Back</Button>
-                        <Title level={3} className="program-application-title">
-                            {programName || 'Programme application'}
-                        </Title>
+                <div className="program-application-heading">
+                    <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)} aria-label="Back">Back</Button>
+
+                    <Title level={3} className="program-application-title">
+                        {programName || 'Programme application'}
+                    </Title>
+
+                    <div className="program-application-progress-arc-wrap">
+                        <Progress
+                            type="dashboard"
+                            percent={progressPercent}
+                            gapDegree={180}
+                            gapPosition="bottom"
+                            size={isMobile ? 48 : 72}
+                            strokeWidth={10}
+                            strokeColor="#6d5dfb"
+                            showInfo={false}
+                            className="program-application-progress-arc"
+                            style={{ height: isMobile ? 34 : 46 }}
+                        />
+                        <span className="program-application-progress-label">{progressPercent}%</span>
                     </div>
-
-                    <div className="program-application-header-actions">
-                        {!reviewOpen && (
-                            <Segmented
-                                value={mode}
-                                block={isMobile}
-                                onChange={(value) => setMode(value as ApplicationInputMode)}
-                                options={[
-                                    { label: 'AI guided', value: 'ai', icon: <RobotOutlined /> },
-                                    { label: 'Manual', value: 'manual', icon: <FormOutlined /> },
-                                ]}
-                            />
-                        )}
-
-                        {reviewOpen ? (
-                            <Space.Compact block={isMobile} className="program-application-actions">
-                                <Button onClick={() => setReviewOpen(false)}>Back to application</Button>
-                                <Button
-                                    type="primary"
-                                    icon={<SendOutlined />}
-                                    loading={submitting}
-                                    onClick={handleSubmit}
-                                >
-                                    Submit application
-                                </Button>
-                            </Space.Compact>
-                        ) : (
-                            <Button
-                                type="primary"
-                                icon={<CheckCircleOutlined />}
-                                onClick={() => setReviewOpen(true)}
-                            >
-                                Continue to review
-                            </Button>
-                        )}
-                    </div>
-                </div>
-
-                <div className="program-application-header-progress">
-                    <Space wrap>
-                        <Typography.Text strong>Application progress</Typography.Text>
-                        <Tag color="blue">{progressTasks.complete} of {progressTasks.total} required tasks</Tag>
-                        <Tag color={missingDocuments.length ? 'orange' : 'green'}>{missingDocuments.length} required documents outstanding</Tag>
-                    </Space>
-                    <Progress percent={progressTasks.percent} showInfo={false} />
                 </div>
             </Card>
 
             <div>
                 {reviewOpen ? (
-                    <ApplicationReviewPanel
-                        values={values}
-                        documents={documents}
-                        complianceScore={complianceScore}
-                        selectedInterventions={selectedInterventions}
-                        programQuestions={programQuestions}
-                    />
-                ) : mode === 'ai' ? (
-                    <ApplicationAIGuidedFlow
-                        values={values}
-                        onValuesChange={updateValues}
-                        programQuestions={programQuestions}
-                        documents={documents}
-                        onDocumentsChange={setDocuments}
-                        programId={programId}
-                        programName={programName}
-                        complianceScore={complianceScore}
-                        isForcedInterventionProgram={isForcedInterventionProgram}
-                        forcedInterventions={forcedInterventions}
-                        interventionGroups={interventionGroups}
-                        interventionSelections={interventionSelections}
-                        onInterventionSelectionsChange={setInterventionSelections}
-                    />
+                    <>
+                        <ApplicationReviewPanel
+                            values={values}
+                            documents={documents}
+                            complianceScore={complianceScore}
+                            selectedInterventions={selectedInterventions}
+                            programQuestions={programQuestions}
+                        />
+
+                        <Space.Compact block={isMobile} className="program-application-actions">
+                            <Button onClick={() => setReviewOpen(false)}>Back to application</Button>
+                            <Button
+                                type="primary"
+                                icon={<SendOutlined />}
+                                loading={submitting}
+                                onClick={handleSubmit}
+                            >
+                                Submit application
+                            </Button>
+                        </Space.Compact>
+                    </>
                 ) : (
-                    <ApplicationManualFlow
-                        form={form}
+                    <ApplicationConversationalFlow
                         values={values}
                         onValuesChange={updateValues}
                         programQuestions={programQuestions}
                         documents={documents}
                         onDocumentsChange={setDocuments}
+                        isForcedInterventionProgram={isForcedInterventionProgram}
                         interventionGroups={interventionGroups}
                         interventionSelections={interventionSelections}
                         onInterventionSelectionsChange={setInterventionSelections}
-                        showInterventions={false}
-                    />
-                )}
-                {!reviewOpen && mode === 'manual' && (
-                    <ApplicationInterventionSelector
-                        forced={isForcedInterventionProgram}
-                        forcedInterventions={forcedInterventions}
-                        groups={interventionGroups}
-                        selections={interventionSelections}
-                        onChange={setInterventionSelections}
+                        onComplete={() => setReviewOpen(true)}
+                        programName={programName}
                     />
                 )}
             </div>

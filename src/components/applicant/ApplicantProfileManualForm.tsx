@@ -1,10 +1,36 @@
 import { useEffect, useMemo } from 'react'
 import { Col, DatePicker, Form, Grid, Input, InputNumber, Row, Select, Typography } from 'antd'
+import { ManOutlined, WomanOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import type { ApplicantProfileFormValues } from '@/pages/applicant/ApplicantProfilePage'
 
 const { Title, Text } = Typography
 const { useBreakpoint } = Grid
+
+const genderOptions = [
+  { value: 'Male', label: 'Male', Icon: ManOutlined },
+  { value: 'Female', label: 'Female', Icon: WomanOutlined },
+]
+
+function GenderChoiceGroup({ value, onChange }: { value?: string; onChange?: (value: string) => void }) {
+  return (
+    <div className="applicant-profile-choice-grid" role="radiogroup" aria-label="Gender">
+      {genderOptions.map(({ value: optionValue, label, Icon }) => (
+        <button
+          key={optionValue}
+          type="button"
+          role="radio"
+          aria-checked={value === optionValue}
+          className={`applicant-profile-choice-card${value === optionValue ? ' is-selected' : ''}`}
+          onClick={() => onChange?.(optionValue)}
+        >
+          <Icon />
+          <strong>{label}</strong>
+        </button>
+      ))}
+    </div>
+  )
+}
 
 const sectors = [
   'Agriculture',
@@ -90,26 +116,8 @@ export default function ApplicantProfileManualForm({ activeStep, email }: Applic
             </Form.Item>
           </Col>
           <Col xs={24} md={8}>
-            <Form.Item
-              name="gender"
-              label="Gender"
-              rules={[
-                { required: true },
-                {
-                  validator: (_, value) =>
-                    !value || value === 'Male' || value === 'Female'
-                      ? Promise.resolve()
-                      : Promise.reject(new Error('Gender must be Male or Female')),
-                },
-              ]}
-            >
-              <Select
-                placeholder="Select gender"
-                options={[
-                  { value: 'Male', label: 'Male' },
-                  { value: 'Female', label: 'Female' },
-                ]}
-              />
+            <Form.Item name="gender" label="Gender" rules={[{ required: true }]}>
+              <GenderChoiceGroup />
             </Form.Item>
           </Col>
           <Col xs={24} md={8}>

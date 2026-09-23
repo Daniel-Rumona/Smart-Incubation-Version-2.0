@@ -71,7 +71,7 @@ export const saveApplicantProfile = async (uid: string, email: string, values: A
 
   batch.set(doc(db, 'applicantProfiles', uid), {
     uid,
-    participantName: values.participantName,
+    participantName: values.participantName || null,
     email: normalizedEmail,
     phone: values.phone || null,
     gender: values.gender || null,
@@ -90,8 +90,8 @@ export const saveApplicantProfile = async (uid: string, email: string, values: A
   batch.set(doc(db, 'businessProfiles', uid), {
     ownerUid: uid,
     applicantProfileId: uid,
-    businessName: values.businessName,
-    participantName: values.participantName,
+    businessName: values.businessName || null,
+    participantName: values.participantName || null,
     email: normalizedEmail,
     phone: values.phone || null,
     sector: values.sector || null,

@@ -162,7 +162,7 @@ const QUICK_LINK_PATHS: Partial<Record<UserRole, string[]>> = {
     [USER_ROLES.ADMIN]: ['/admin/users', '/admin/usage', '/admin/email-operations'],
     [USER_ROLES.SYSTEM_ADMIN]: ['/admin/users', '/admin/usage', '/admin/agent-registry'],
 }
-const APPLICANT_QUICK_LINK_PATHS = ['/applicant/programs', '/applicant/application-tracker', '/applicant/roadmap']
+const APPLICANT_QUICK_LINK_PATHS = ['/applicant/profile', '/applicant/programs', '/applicant/application-tracker', '/applicant/roadmap']
 
 const ROLE_LABELS: Partial<Record<UserRole, string>> = {
     [USER_ROLES.INCUBATEE]: 'SME',
@@ -572,6 +572,8 @@ export const SystemLayout = () => {
                                     ) : modeSwitch}
                                 </div>
 
+                                {!isMobile && <div className="app-topbar-center">{shellMode === 'workspace' && quickLinksSwitch}</div>}
+
                                 {isMobile ? (
                                     <Space size={4} className="app-topbar-actions">
                                         <GuideMe
@@ -607,8 +609,6 @@ export const SystemLayout = () => {
                                     </Space>
                                 ) : (
                                     <Space size={8} className="app-topbar-actions">
-                                        {shellMode === 'workspace' && quickLinksSwitch}
-
                                         {shellMode === 'workspace' && <Button icon={<MenuOutlined />} onClick={() => setNavigationOpen(true)} className="app-menu-button">Menu</Button>}
 
                                         {projectSelector}

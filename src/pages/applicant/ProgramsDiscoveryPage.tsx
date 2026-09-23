@@ -73,7 +73,7 @@ export const ProgramsDiscoveryPage = () => {
     })
 
     return (
-        <DashboardPageShell className="applicant-page">
+        <DashboardPageShell className="applicant-page applicant-programs-page">
             <Row gutter={[12, 12]} className="applicant-metrics">
                 <Col xs={12} md={8} className="applicant-metric-col"><DashboardMetricCard loading={loading} icon={<AppstoreOutlined />} label={t('applicant.programs.available')} value={programs.length} hint={t('applicant.programs.open')} /></Col>
                 <Col xs={12} md={8} className="applicant-metric-col"><DashboardMetricCard loading={loading} icon={<StarOutlined />} label={t('applicant.programs.suggested')} value={suggestedPrograms.length} hint={t('applicant.programs.matched')} /></Col>
@@ -81,9 +81,16 @@ export const ProgramsDiscoveryPage = () => {
             </Row>
 
             <FilterBar
-                title={t('applicant.programs.title')}
-                primary={<><Segmented block value={view} onChange={(value) => { setView(value as ProgramView); setPage(1) }} options={[{ label: t('applicant.programs.all'), value: 'all' }, { label: t('applicant.programs.suggested'), value: 'suggested' }]} /><Input prefix={<SearchOutlined />} placeholder={t('applicant.programs.search')} value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} allowClear /></>}
-                advanced={<Select value={type} onChange={(value) => { setType(value); setPage(1) }} options={[{ label: t('applicant.programs.allTypes'), value: 'all' }, ...types.map((value) => ({ label: value, value }))]} />}
+                compact
+                primary={
+                    <>
+                        {suggestedPrograms.length > 0 && (
+                            <Segmented block value={view} onChange={(value) => { setView(value as ProgramView); setPage(1) }} options={[{ label: t('applicant.programs.all'), value: 'all' }, { label: t('applicant.programs.suggested'), value: 'suggested' }]} />
+                        )}
+                        <Input prefix={<SearchOutlined />} placeholder={t('applicant.programs.search')} value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} allowClear />
+                        <Select value={type} onChange={(value) => { setType(value); setPage(1) }} options={[{ label: t('applicant.programs.allTypes'), value: 'all' }, ...types.map((value) => ({ label: value, value }))]} />
+                    </>
+                }
             />
 
             {displayedPrograms.length ? (
@@ -91,7 +98,7 @@ export const ProgramsDiscoveryPage = () => {
                     <Row gutter={[14, 14]}>
                         {displayedPrograms.map((program) => {
                             const applied = appliedProgramIds.has(program.id)
-                            return <Col xs={24} md={12} xl={8} key={program.id}><Card className="applicant-card applicant-program-card motion-card" hoverable><Space orientation="vertical" size={10}><Space wrap><Tag color="purple">{program.type ?? t('applicant.programs.general')}</Tag>{program.cohortYear && <Tag>{program.cohortYear}</Tag>}</Space><Typography.Title level={4}>{program.name ?? t('applicant.programs.untitled')}</Typography.Title><Typography.Paragraph type="secondary" ellipsis={{ rows: 3 }}>{program.description ?? t('applicant.programs.noDetails')}</Typography.Paragraph><Button type={applied ? 'default' : 'primary'} disabled={applied} onClick={() => setActiveProgram(program)}>{applied ? t('applicant.programs.applied') : t('applicant.programs.view')}</Button></Space></Card></Col>
+                            return <Col xs={24} md={12} xl={8} key={program.id}><Card className="applicant-card applicant-program-card motion-card" hoverable><Space orientation="vertical" size={10}><Space wrap><Tag color="purple">{program.type ?? t('applicant.programs.general')}</Tag>{program.cohortYear && <Tag>{program.cohortYear}</Tag>}</Space><Typography.Title level={4}>{program.name ?? t('applicant.programs.untitled')}</Typography.Title><Typography.Paragraph type="secondary" ellipsis={{ rows: 3 }}>{program.description ?? t('applicant.programs.noDetails')}</Typography.Paragraph><Button block type={applied ? 'default' : 'primary'} disabled={applied} onClick={() => setActiveProgram(program)}>{applied ? t('applicant.programs.applied') : t('applicant.programs.view')}</Button></Space></Card></Col>
                         })}
                     </Row>
                     {filteredPrograms.length > PAGE_SIZE && <Pagination className="applicant-pagination" current={page} pageSize={PAGE_SIZE} total={filteredPrograms.length} onChange={setPage} showSizeChanger={false} />}

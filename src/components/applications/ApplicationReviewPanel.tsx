@@ -52,6 +52,15 @@ export default function ApplicationReviewPanel({ values, complianceScore, docume
         </Descriptions>
       </Card>
 
+      <Card title="SWOT analysis" className="program-application-soft-card">
+        <Descriptions bordered size="small" column={{ xs: 1, md: 2 }}>
+          <Descriptions.Item label="Strengths">{valueOrDash(values.swotStrengths)}</Descriptions.Item>
+          <Descriptions.Item label="Weaknesses">{valueOrDash(values.swotWeaknesses)}</Descriptions.Item>
+          <Descriptions.Item label="Opportunities">{valueOrDash(values.swotOpportunities)}</Descriptions.Item>
+          <Descriptions.Item label="Threats">{valueOrDash(values.swotThreats)}</Descriptions.Item>
+        </Descriptions>
+      </Card>
+
       {programQuestions.length ? (
         <Card title="Programme questions" className="program-application-soft-card">
           <Descriptions bordered size="small" column={{ xs: 1, md: 2 }}>
