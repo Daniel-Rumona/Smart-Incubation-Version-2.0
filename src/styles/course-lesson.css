@@ -1,0 +1,112 @@
+/* =========================================================
+   Lesson Content
+   Shared between the builder's preview and the SME's
+   one-lesson-at-a-time viewer (see LessonContent.tsx).
+   ========================================================= */
+
+.lesson-content {
+    display: flex;
+    flex-direction: column;
+
+    gap: 16px;
+}
+
+.lesson-video {
+    position: relative;
+
+    width: 100%;
+    padding-top: 56.25%;
+
+    overflow: hidden;
+
+    border-radius: 14px;
+
+    background: #000;
+}
+
+.lesson-video-frame {
+    position: absolute;
+    inset: 0;
+
+    width: 100%;
+    height: 100%;
+
+    border: 0;
+}
+
+.lesson-body {
+    margin: 0;
+
+    white-space: pre-wrap;
+
+    line-height: 1.6;
+}
+
+.lesson-quiz {
+    display: flex;
+    flex-direction: column;
+
+    gap: 14px;
+
+    padding-top: 14px;
+
+    border-top: 1px dashed rgba(109, 93, 251, .25);
+}
+
+.lesson-quiz-heading {
+    font-size: 13px;
+}
+
+.lesson-quiz-question {
+    display: flex;
+    flex-direction: column;
+
+    gap: 8px;
+}
+
+.lesson-quiz-question-text {
+    font-weight: 500;
+}
+
+html[data-theme='dark'] .lesson-quiz {
+    border-color: rgba(139, 92, 246, .3);
+}
+
+
+/* =========================================================
+   Course Builder
+   Reuses the survey builder's panel/outline chrome; only the
+   quiz editor needs its own block styling.
+   ========================================================= */
+
+.lesson-quiz-editor {
+    margin-top: 18px;
+    padding-top: 16px;
+
+    border-top: 1px solid rgba(109, 93, 251, .12);
+}
+
+.quiz-question-block {
+    padding: 10px 12px;
+
+    border: 1px solid rgba(109, 93, 251, .16);
+    border-radius: 10px;
+
+    background: rgba(109, 93, 251, .03);
+}
+
+.quiz-question-block-head {
+    display: flex;
+    align-items: center;
+
+    gap: 8px;
+}
+
+html[data-theme='dark'] .lesson-quiz-editor {
+    border-color: rgba(139, 92, 246, .2);
+}
+
+html[data-theme='dark'] .quiz-question-block {
+    border-color: rgba(139, 92, 246, .24);
+    background: rgba(139, 92, 246, .06);
+}

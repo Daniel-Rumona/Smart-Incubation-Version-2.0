@@ -20,6 +20,7 @@ import {
     PieChartOutlined,
     ProfileOutlined,
     ProjectOutlined,
+    ReadOutlined,
     RobotOutlined,
     SafetyCertificateOutlined,
     SettingOutlined,
@@ -68,6 +69,10 @@ import SurveysPage from '@/pages/operations/surveys/SurveysPage'
 import IncubateeSurveysPage from '@/pages/incubatee/surveys/IncubateeSurveysPage'
 import SurveyResponsePage from '@/pages/incubatee/surveys/SurveyResponsePage'
 import SurveyBuilderPage from '@/pages/operations/surveys/SurveyBuilderPage'
+import LmsPage from '@/pages/operations/lms/LmsPage'
+import CourseBuilderPage from '@/pages/operations/lms/CourseBuilderPage'
+import IncubateeCoursesPage from '@/pages/incubatee/lms/IncubateeCoursesPage'
+import CourseLessonPage from '@/pages/incubatee/lms/CourseLessonPage'
 import ConsultantConnectionRequestsPage from '@/pages/operations/ConsultantConnectionRequestsPage'
 import { OperationsTasksPage } from '@/pages/operations/OperationsTasksPage'
 import ProjectAdminDashboardPage from '@/pages/projectadmin/ProjectAdminDashboardPage'
@@ -231,6 +236,8 @@ export const appRoutes: AppRoute[] = [
     { path: '/incubatee/tracker', labelKey: 'nav.interventions', icon: <FormOutlined />, element: <IncubateeInterventionsPage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], showInNav: false },
     { path: '/incubatee/surveys', labelKey: 'nav.surveys', icon: <FormOutlined />, element: <IncubateeSurveysPage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], showInNav: true },
     { path: '/incubatee/surveys/:id', labelKey: 'nav.surveys', icon: <FormOutlined />, element: <SurveyResponsePage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], showInNav: false },
+    { path: '/incubatee/lms', labelKey: 'nav.courses', icon: <ReadOutlined />, element: <IncubateeCoursesPage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], showInNav: true },
+    { path: '/incubatee/lms/:id', labelKey: 'nav.courses', icon: <ReadOutlined />, element: <CourseLessonPage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], showInNav: false },
     { path: '/incubatee/compliance', labelKey: 'nav.compliance', icon: <SafetyCertificateOutlined />, element: <IncubateeCompliancePage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], showInNav: true },
     { path: '/consultant', labelKey: 'nav.dashboard', icon: <DashboardOutlined />, element: <ConsultantDashboardPage />, allowedRoles: consultantRoles, audiences: ['operations'], showInNav: true },
     { path: '/consultant/profile', labelKey: 'nav.consultantProfile', icon: <UserOutlined />, element: <ConsultantProfilePage />, allowedRoles: consultantRoles, audiences: ['operations'], showInNav: true },
@@ -357,6 +364,9 @@ export const appRoutes: AppRoute[] = [
     { path: '/operations/surveys', labelKey: 'nav.surveys', icon: <FormOutlined />, element: <SurveysPage />, allowedRoles: operationsRoles, audiences: ['operations'], showInNav: true },
     { path: '/operations/surveys/builder', labelKey: 'nav.surveyBuilder', icon: <FormOutlined />, element: <SurveyBuilderPage />, allowedRoles: operationsRoles, audiences: ['operations'], showInNav: false },
     { path: '/operations/surveys/builder/:id', labelKey: 'nav.surveyBuilder', icon: <FormOutlined />, element: <SurveyBuilderPage />, allowedRoles: operationsRoles, audiences: ['operations'], showInNav: false },
+    { path: '/operations/lms', labelKey: 'nav.courses', icon: <ReadOutlined />, element: <LmsPage />, allowedRoles: operationsRoles, audiences: ['operations'], showInNav: true },
+    { path: '/operations/lms/builder', labelKey: 'nav.courseBuilder', icon: <ReadOutlined />, element: <CourseBuilderPage />, allowedRoles: operationsRoles, audiences: ['operations'], showInNav: false },
+    { path: '/operations/lms/builder/:id', labelKey: 'nav.courseBuilder', icon: <ReadOutlined />, element: <CourseBuilderPage />, allowedRoles: operationsRoles, audiences: ['operations'], showInNav: false },
     { path: '/operations/reports', labelKey: 'nav.reports', icon: <BarChartOutlined />, element: <OperationsReportsPage />, allowedRoles: operationsDashboardRoles, audiences: ['operations'], showInNav: true },
     { path: '/director', labelKey: 'nav.dashboard', icon: <DashboardOutlined />, element: <DirectorDashboardPage />, allowedRoles: directorRoles, audiences: ['platform'], showInNav: true },
     { path: '/director/programs', labelKey: 'nav.programPerformance', icon: <ProjectOutlined />, element: <DirectorProgramsPage />, allowedRoles: directorRoles, audiences: ['platform'], showInNav: true },
