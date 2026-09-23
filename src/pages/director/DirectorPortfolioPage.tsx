@@ -15,10 +15,8 @@ import {
   Row,
   Select,
   Space,
-  Statistic,
   Tag,
   Table,
-  Tooltip,
   App,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
@@ -89,14 +87,14 @@ const makeInitials = (name: string) =>
 
 const syntheticTrend = (sme: DirectorPortfolioSme) => {
   const revenue = sme.metrics.revenue || 0
-  const customers = sme.metrics.customers || 0
+  const employees = sme.metrics.employees || 0
   const months = Array.from({ length: 6 }, (_, index) => dayjs().subtract(5 - index, 'month').format('MMM'))
   return months.map((month, index) => {
     const factor = 0.55 + (index * 0.09)
     return {
       month,
       revenue: Math.round(revenue * factor),
-      customers: Math.round(customers * factor),
+      employees: Math.round(employees * factor),
     }
   })
 }
@@ -199,12 +197,12 @@ export const DirectorPortfolioPage = () => {
       chart: { type: 'column', height: 300 },
       title: { text: 'Growth Trend' },
       xAxis: { categories: trend.map(item => item.month) },
-      yAxis: [{ title: { text: 'Revenue (ZAR)' } }, { title: { text: 'Customers' }, opposite: true }],
+      yAxis: [{ title: { text: 'Revenue (ZAR)' } }, { title: { text: 'Employees' }, opposite: true, allowDecimals: false }],
       tooltip: { shared: true },
       plotOptions: { column: { borderRadius: 6 } },
       series: [
         { name: 'Revenue', type: 'column', data: trend.map(item => item.revenue), yAxis: 0 },
-        { name: 'Customers', type: 'line', data: trend.map(item => item.customers), yAxis: 1 },
+        { name: 'Employees', type: 'line', data: trend.map(item => item.employees), yAxis: 1 },
       ],
     }
   }, [selected])
@@ -229,7 +227,14 @@ export const DirectorPortfolioPage = () => {
           },
         },
       },
-      series: [{ type: 'pie', name: 'Items', data: [{ name: 'Completed', y: completed }, { name: 'Remaining', y: remaining }] }],
+      series: [{
+        type: 'pie',
+        name: 'Items',
+        data: [
+          { name: 'Completed', y: completed, color: '#16a34a' },
+          { name: 'Remaining', y: remaining, color: '#f59e0b' },
+        ].filter(point => point.y > 0),
+      }],
     }
   }, [selected])
 
@@ -308,7 +313,7 @@ export const DirectorPortfolioPage = () => {
 
   return (
     <div className="director-page director-portfolio-page">
-      <Row gutter={[12, 12]} className="director-section-gap">
+      <Row gutter={[12, 12]} className="director-section-gap" style={{ marginBottom: 16 }}>
         <Col xs={12} md={6}>
           <DashboardMetricCard loading={loading} icon={<TeamOutlined />} iconClassName="is-users" label="Portfolio SMEs" value={kpis.total} />
         </Col>
@@ -327,7 +332,6 @@ export const DirectorPortfolioPage = () => {
       </Row>
 
       <FilterBar
-        title="Portfolio filters"
         primary={
           <>
             <RangePicker
@@ -467,24 +471,16 @@ export const DirectorPortfolioPage = () => {
           <>
             <Row gutter={[12, 12]}>
               <Col xs={12} md={6}>
-                <Card style={{ borderRadius: 16 }}>
-                  <Statistic title="Revenue" value={selected.metrics.revenue} formatter={value => formatCurrency(Number(value))} prefix={<DollarOutlined />} />
-                </Card>
+                <DashboardMetricCard icon={<DollarOutlined />} iconClassName="is-participants" label="Revenue" value={formatCurrency(selected.metrics.revenue)} />
               </Col>
               <Col xs={12} md={6}>
-                <Card style={{ borderRadius: 16 }}>
-                  <Statistic title="Customers" value={selected.metrics.customers} prefix={<TeamOutlined />} />
-                </Card>
+                <DashboardMetricCard icon={<TeamOutlined />} iconClassName="is-users" label="Employees" value={selected.metrics.employees} />
               </Col>
               <Col xs={12} md={6}>
-                <Card style={{ borderRadius: 16 }}>
-                  <Statistic title="Growth Rate" value={selected.metrics.growthRate} suffix="%" prefix={<ThunderboltOutlined />} />
-                </Card>
+                <DashboardMetricCard icon={<ThunderboltOutlined />} iconClassName="is-delivery" label="Growth Rate" value={`${selected.metrics.growthRate}%`} />
               </Col>
               <Col xs={12} md={6}>
-                <Card style={{ borderRadius: 16 }}>
-                  <Statistic title="Progress" value={selected.progress} suffix="%" prefix={<CheckCircleOutlined />} />
-                </Card>
+                <DashboardMetricCard icon={<CheckCircleOutlined />} iconClassName="is-participants" label="Progress" value={`${selected.progress}%`} />
               </Col>
             </Row>
 
@@ -501,59 +497,16 @@ export const DirectorPortfolioPage = () => {
                   <Divider style={{ margin: '10px 0' }} />
                   <Row gutter={[10, 10]}>
                     <Col span={12}>
-                      <Tooltip title="Low progress or high-risk execution items">
-                        <Card style={{ borderRadius: 14 }}>
-                          <Space>
-                            <WarningOutlined style={{ color: '#d97706' }} />
-                            <div>
-                              <span className="director-muted director-small-label">Overdue</span>
-                              <div style={{ fontSize: 18, fontWeight: 800 }}>{selected.risk === 'High' ? 1 : 0}</div>
-                            </div>
-                          </Space>
-                        </Card>
-                      </Tooltip>
+                      <DashboardMetricCard icon={<WarningOutlined />} iconClassName="is-attention" label="Overdue" value={selected.risk === 'High' ? 1 : 0} hint="Low progress or high-risk items" />
                     </Col>
-
                     <Col span={12}>
-                      <Tooltip title="SMEs waiting on response/actions">
-                        <Card style={{ borderRadius: 14 }}>
-                          <Space>
-                            <FundOutlined style={{ color: '#1677ff' }} />
-                            <div>
-                              <span className="director-muted director-small-label">Unresponsive</span>
-                              <div style={{ fontSize: 18, fontWeight: 800 }}>{selected.progress < 50 ? 1 : 0}</div>
-                            </div>
-                          </Space>
-                        </Card>
-                      </Tooltip>
+                      <DashboardMetricCard icon={<FundOutlined />} iconClassName="is-users" label="Unresponsive" value={selected.progress < 50 ? 1 : 0} hint="Waiting on response/actions" />
                     </Col>
-
                     <Col span={12}>
-                      <Tooltip title="Upcoming due items">
-                        <Card style={{ borderRadius: 14 }}>
-                          <Space>
-                            <RiseOutlined style={{ color: '#16a34a' }} />
-                            <div>
-                              <span className="director-muted director-small-label">Upcoming</span>
-                              <div style={{ fontSize: 18, fontWeight: 800 }}>{selected.progress < 80 ? 1 : 0}</div>
-                            </div>
-                          </Space>
-                        </Card>
-                      </Tooltip>
+                      <DashboardMetricCard icon={<RiseOutlined />} iconClassName="is-participants" label="Upcoming" value={selected.progress < 80 ? 1 : 0} hint="Upcoming due items" />
                     </Col>
-
                     <Col span={12}>
-                      <Tooltip title="Required interventions total">
-                        <Card style={{ borderRadius: 14 }}>
-                          <Space>
-                            <CheckCircleOutlined style={{ color: '#a855f7' }} />
-                            <div>
-                              <span className="director-muted director-small-label">Required</span>
-                              <div style={{ fontSize: 18, fontWeight: 800 }}>100%</div>
-                            </div>
-                          </Space>
-                        </Card>
-                      </Tooltip>
+                      <DashboardMetricCard icon={<CheckCircleOutlined />} iconClassName="is-delivery" label="Required" value="100%" hint="Required interventions total" />
                     </Col>
                   </Row>
                 </Card>

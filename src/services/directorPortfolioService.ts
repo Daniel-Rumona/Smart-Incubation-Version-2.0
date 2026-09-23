@@ -157,7 +157,7 @@ export const listDirectorPortfolio = async (user: FullIdentity, activeProgramId?
       metrics: {
         revenue: revenueNow,
         customers: toNumber(participant.customers, participant.customerCount, participant.clients, participant.clientCount),
-        employees: toNumber(participant.employees, participant.workers, participant.numberOfWorkers, participant.staffCount),
+        employees: toNumber(participant.employeeCount, participant.employees, participant.workers, participant.numberOfWorkers, participant.staffCount),
         growthRate,
       },
     }
