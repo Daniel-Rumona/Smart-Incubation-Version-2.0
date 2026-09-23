@@ -1,7 +1,11 @@
 /* =========================================================
    Lesson Content
    Shared between the builder's preview and the SME's
-   one-lesson-at-a-time viewer (see LessonContent.tsx).
+   one-thing-at-a-time viewer (see LessonBody.tsx / LessonQuiz.tsx).
+   Content and quiz are separate steps, so neither carries the
+   other's spacing/border by default — .is-standalone strips the
+   divider LessonQuiz would otherwise inherit from being appended
+   under a lesson's body.
    ========================================================= */
 
 .lesson-content {
@@ -51,6 +55,11 @@
     padding-top: 14px;
 
     border-top: 1px dashed rgba(109, 93, 251, .25);
+}
+
+.lesson-quiz.is-standalone {
+    padding-top: 0;
+    border-top: 0;
 }
 
 .lesson-quiz-heading {
@@ -109,4 +118,82 @@ html[data-theme='dark'] .lesson-quiz-editor {
 html[data-theme='dark'] .quiz-question-block {
     border-color: rgba(139, 92, 246, .24);
     background: rgba(139, 92, 246, .06);
+}
+
+.survey-outline-subrow {
+    margin-left: 26px;
+    padding-block: 5px;
+}
+
+.survey-outline-subrow-icon {
+    cursor: default;
+}
+
+.survey-outline-subrow .survey-outline-label {
+    font-size: 12px;
+    font-weight: 400;
+    color: rgba(100, 116, 139, .95);
+}
+
+
+/* =========================================================
+   Lesson AI — help chat trigger and the inline review panel.
+   The trigger and panel reuse agent-fab.css classes for the
+   chat chrome itself, so only their own layout lives here.
+   ========================================================= */
+
+.lesson-help-trigger {
+    display: inline-flex;
+    align-items: center;
+
+    gap: 8px;
+
+    margin-top: 4px;
+    padding: 9px 14px;
+
+    border: 1px dashed rgba(109, 93, 251, .35);
+    border-radius: 999px;
+
+    background: rgba(109, 93, 251, .05);
+    color: #6654e8;
+
+    font-size: 13px;
+    font-weight: 600;
+
+    cursor: pointer;
+
+    transition: background .15s ease;
+}
+
+.lesson-help-trigger:hover {
+    background: rgba(109, 93, 251, .12);
+}
+
+html[data-theme='dark'] .lesson-help-trigger {
+    border-color: rgba(139, 92, 246, .4);
+    background: rgba(139, 92, 246, .1);
+    color: #b8acff;
+}
+
+.lesson-review-panel {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+
+    height: min(420px, 56vh);
+
+    border: 1px solid rgba(109, 93, 251, .18);
+    border-radius: 18px;
+
+    overflow: hidden;
+    background: rgba(255, 255, 255, .98);
+    box-shadow: 0 18px 40px rgba(33, 28, 82, .1);
+}
+
+.lesson-review-panel .agent-panel-body {
+    border-radius: 0;
+}
+
+html[data-theme='dark'] .lesson-review-panel {
+    border-color: rgba(139, 92, 246, .28);
+    background: rgba(23, 25, 35, .96);
 }

@@ -1,8 +1,10 @@
-import { useState } from 'react'
-import { Button, Empty, Modal } from 'antd'
+import { useMemo, useState } from 'react'
+import { Button, Empty, Modal, Tag } from 'antd'
 import { ArrowLeftOutlined, ArrowRightOutlined, CheckOutlined } from '@ant-design/icons'
 import SurveyQuestionFrame from '@/components/surveys/SurveyQuestionFrame'
-import LessonContent from '@/components/lms/LessonContent'
+import LessonBody from '@/components/lms/LessonBody'
+import LessonQuiz from '@/components/lms/LessonQuiz'
+import { buildLessonSteps } from '@/lib/lessonSteps'
 import type { CourseLesson } from '@/services/courseTemplatesService'
 
 type PreviewCourseModalProps = {
@@ -17,9 +19,12 @@ const PreviewCourseBody = ({ open, title, description, lessons, onClose }: Previ
     const [index, setIndex] = useState(0)
     // Remounting on open (see the key below) resets this rather than an effect.
 
-    const current = lessons[index]
+    // The AI review step needs a live conversation, so preview walks through
+    // content and quiz only — exactly what the operations builder controls.
+    const steps = useMemo(() => buildLessonSteps(lessons, { includeReview: false }), [lessons])
+    const current = steps[index]
     const isFirst = index === 0
-    const isLast = index === lessons.length - 1
+    const isLast = index === steps.length - 1
 
     return (
         <Modal
@@ -30,7 +35,7 @@ const PreviewCourseBody = ({ open, title, description, lessons, onClose }: Previ
             title={null}
             className="survey-preview-modal"
         >
-            {lessons.length === 0 || !current ? (
+            {steps.length === 0 || !current ? (
                 <div className="survey-preview-empty">
                     <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="This course has no lessons yet" />
                     <Button onClick={onClose}>Close</Button>
@@ -38,12 +43,13 @@ const PreviewCourseBody = ({ open, title, description, lessons, onClose }: Previ
             ) : (
                 <SurveyQuestionFrame
                     index={index}
-                    total={lessons.length}
-                    field={{ id: current.id, type: 'lesson', label: current.title || 'Untitled lesson' }}
+                    total={steps.length}
+                    field={{ id: current.id, type: current.kind, label: current.kind === 'quiz' ? `${current.lesson.title || 'Lesson'} — Quiz` : current.lesson.title || 'Untitled lesson' }}
                     surveyTitle={title || 'Untitled course'}
                     surveySubtitle={description}
+                    extra={current.kind === 'content' && current.lesson.aiReviewEnabled ? <Tag color="purple">AI review follows this lesson</Tag> : undefined}
                     footer={
-                        <div className={`survey-preview-nav${isFirst || lessons.length === 1 ? ' is-single' : ''}`}>
+                        <div className={`survey-preview-nav${isFirst || steps.length === 1 ? ' is-single' : ''}`}>
                             {!isFirst && (
                                 <Button block size="large" icon={<ArrowLeftOutlined />} onClick={() => setIndex((value) => Math.max(0, value - 1))}>
                                     Previous
@@ -53,14 +59,14 @@ const PreviewCourseBody = ({ open, title, description, lessons, onClose }: Previ
                             {isLast ? (
                                 <Button block size="large" type="primary" icon={<CheckOutlined />} onClick={onClose}>Finish</Button>
                             ) : (
-                                <Button block size="large" type="primary" onClick={() => setIndex((value) => Math.min(lessons.length - 1, value + 1))}>
+                                <Button block size="large" type="primary" onClick={() => setIndex((value) => Math.min(steps.length - 1, value + 1))}>
                                     Next <ArrowRightOutlined />
                                 </Button>
                             )}
                         </div>
                     }
                 >
-                    <LessonContent lesson={current} />
+                    {current.kind === 'quiz' ? <LessonQuiz lesson={current.lesson} /> : <LessonBody lesson={current.lesson} />}
                 </SurveyQuestionFrame>
             )}
         </Modal>

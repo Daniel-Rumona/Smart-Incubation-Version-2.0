@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { App, Button, Empty, Form, Grid, Input, Modal, Select, Skeleton, Space, Tag, Tooltip, Typography } from 'antd'
+import { App, Button, Empty, Form, Grid, Input, Modal, Select, Skeleton, Space, Switch, Tag, Tooltip, Typography } from 'antd'
 import {
     ArrowLeftOutlined,
     CopyOutlined,
@@ -7,6 +7,8 @@ import {
     EyeOutlined,
     PlayCircleOutlined,
     PlusOutlined,
+    QuestionCircleOutlined,
+    RobotOutlined,
     SaveOutlined,
     SendOutlined,
     UnorderedListOutlined,
@@ -16,11 +18,13 @@ import DashboardPage from '@/components/shared/DashboardPage'
 import { MotionCard } from '@/components/shared/MotionCard'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { ALL_PROGRAMS, useActiveProgramId } from '@/hooks/useActiveProgramId'
+import { isAgentApiConfigured } from '@/config/agent'
 import { listWorkspacePrograms, type WorkspaceProgram } from '@/services/workspaceProgramsService'
 import {
     COURSE_CATEGORIES,
     assignCourseToProgramme,
     generateLessonId,
+    generateQuizQuestionId,
     loadCourseTemplate,
     saveCourseTemplate,
     type CourseLesson,
@@ -78,7 +82,8 @@ export default function CourseBuilderPage() {
     }))
     const [baseline, setBaseline] = useState<string | null>(() => (params.id ? null : fingerprint(emptyTemplate())))
     const [programs, setPrograms] = useState<WorkspaceProgram[]>([])
-    const [selectedId, setSelectedId] = useState<string | null>(null)
+    // `${lessonId}:content` or `${lessonId}:quiz` — the quiz is its own selectable section, not folded into the lesson.
+    const [selectedStepId, setSelectedStepId] = useState<string | null>(null)
     const [loading, setLoading] = useState(Boolean(params.id))
     const [saving, setSaving] = useState(false)
     const [settingsOpen, setSettingsOpen] = useState(false)
@@ -101,16 +106,18 @@ export default function CourseBuilderPage() {
                 }
                 setCourse(template)
                 setBaseline(fingerprint(template))
-                setSelectedId(template.lessons[0]?.id ?? null)
+                setSelectedStepId(template.lessons[0] ? `${template.lessons[0].id}:content` : null)
             })
             .catch(() => message.error('The course could not be loaded.'))
             .finally(() => setLoading(false))
     }, [params.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
     const isDirty = baseline !== null && fingerprint(course) !== baseline
-    const selectedLesson = course.lessons.find((lesson) => lesson.id === selectedId)
-    const selectedIndex = course.lessons.findIndex((lesson) => lesson.id === selectedId)
+    const [selectedLessonId, selectedSection] = selectedStepId?.split(':') as [string, 'content' | 'quiz'] || [undefined, undefined]
+    const selectedLesson = course.lessons.find((lesson) => lesson.id === selectedLessonId)
+    const selectedIndex = course.lessons.findIndex((lesson) => lesson.id === selectedLessonId)
     const quizCount = course.lessons.reduce((sum, lesson) => sum + (lesson.quiz?.length || 0), 0)
+    const reviewCount = course.lessons.filter((lesson) => lesson.aiReviewEnabled).length
 
     const patchCourse = (updates: Partial<CourseTemplate>) => setCourse((current) => ({ ...current, ...updates, updatedAt: new Date().toISOString() }))
 
@@ -122,7 +129,17 @@ export default function CourseBuilderPage() {
     const addLesson = () => {
         const lesson = emptyLesson()
         setCourse((current) => ({ ...current, lessons: [...current.lessons, lesson] }))
-        setSelectedId(lesson.id)
+        setSelectedStepId(`${lesson.id}:content`)
+    }
+
+    const addQuiz = (lessonId: string) => {
+        patchLesson(lessonId, { quiz: [{ id: generateQuizQuestionId(), type: 'single', question: '', required: false, options: ['Option 1', 'Option 2'], correctOptions: [] }] })
+        setSelectedStepId(`${lessonId}:quiz`)
+    }
+
+    const removeQuiz = (lessonId: string) => {
+        patchLesson(lessonId, { quiz: undefined })
+        setSelectedStepId(`${lessonId}:content`)
     }
 
     const duplicateLesson = (id: string) => {
@@ -133,12 +150,12 @@ export default function CourseBuilderPage() {
         const lessons = [...course.lessons]
         lessons.splice(index + 1, 0, copy)
         setCourse((current) => ({ ...current, lessons }))
-        setSelectedId(copy.id)
+        setSelectedStepId(`${copy.id}:content`)
     }
 
     const removeLesson = (id: string) => setCourse((current) => {
         const lessons = current.lessons.filter((lesson) => lesson.id !== id)
-        setSelectedId(lessons[0]?.id ?? null)
+        setSelectedStepId(lessons[0] ? `${lessons[0].id}:content` : null)
         return { ...current, lessons }
     })
 
@@ -208,8 +225,8 @@ export default function CourseBuilderPage() {
     const outlinePanel = (
         <LessonOutline
             lessons={course.lessons}
-            selectedId={selectedId}
-            onSelect={(id) => { setSelectedId(id); setOutlineOpen(false) }}
+            selectedId={selectedStepId}
+            onSelect={(stepId) => { setSelectedStepId(stepId); setOutlineOpen(false) }}
             onReorder={reorderLessons}
         />
     )
@@ -286,7 +303,28 @@ export default function CourseBuilderPage() {
                 )}
 
                 <div className="survey-builder-canvas">
-                    {loading ? <MotionCard loading className="survey-builder-panel" /> : selectedLesson ? (
+                    {loading ? <MotionCard loading className="survey-builder-panel" /> : selectedLesson && selectedSection === 'quiz' ? (
+                        <MotionCard className="survey-builder-panel survey-builder-question">
+                            <div className="survey-question-head">
+                                <span className="survey-question-number"><QuestionCircleOutlined /> Quiz</span>
+
+                                <Tooltip title="Remove this quiz">
+                                    <Button shape="circle" danger icon={<DeleteOutlined />} onClick={() => removeQuiz(selectedLesson.id)} />
+                                </Tooltip>
+                            </div>
+
+                            <Typography.Paragraph type="secondary" style={{ marginTop: 4 }}>
+                                Shown to the SME as its own step, right after "{selectedLesson.title || 'this lesson'}".
+                            </Typography.Paragraph>
+
+                            <div style={{ marginTop: 14 }}>
+                                <QuizEditor
+                                    quiz={selectedLesson.quiz || []}
+                                    onChange={(quiz) => patchLesson(selectedLesson.id, { quiz: quiz.length ? quiz : undefined })}
+                                />
+                            </div>
+                        </MotionCard>
+                    ) : selectedLesson ? (
                         <MotionCard className="survey-builder-panel survey-builder-question">
                             <div className="survey-question-head">
                                 <span className="survey-question-number">{String(selectedIndex + 1).padStart(2, '0')}</span>
@@ -328,13 +366,29 @@ export default function CourseBuilderPage() {
                             />
 
                             <div className="lesson-quiz-editor">
-                                <Typography.Text strong>End-of-lesson quiz (optional)</Typography.Text>
-                                <div style={{ marginTop: 10 }}>
-                                    <QuizEditor
-                                        quiz={selectedLesson.quiz || []}
-                                        onChange={(quiz) => patchLesson(selectedLesson.id, { quiz })}
-                                    />
-                                </div>
+                                {selectedLesson.quiz?.length ? (
+                                    <Space direction="vertical" size={4}>
+                                        <Typography.Text strong>
+                                            <QuestionCircleOutlined /> This lesson has a quiz — {selectedLesson.quiz.length} question{selectedLesson.quiz.length === 1 ? '' : 's'}
+                                        </Typography.Text>
+                                        <Button size="small" onClick={() => setSelectedStepId(`${selectedLesson.id}:quiz`)}>Edit quiz</Button>
+                                    </Space>
+                                ) : (
+                                    <Button size="small" icon={<PlusOutlined />} onClick={() => addQuiz(selectedLesson.id)}>
+                                        Add a quiz after this lesson
+                                    </Button>
+                                )}
+
+                                {isAgentApiConfigured && (
+                                    <div className="survey-setting is-row" style={{ marginTop: 14 }}>
+                                        <span><RobotOutlined /> AI review after this lesson</span>
+                                        <Switch
+                                            size="small"
+                                            checked={Boolean(selectedLesson.aiReviewEnabled)}
+                                            onChange={(aiReviewEnabled) => patchLesson(selectedLesson.id, { aiReviewEnabled })}
+                                        />
+                                    </div>
+                                )}
                             </div>
                         </MotionCard>
                     ) : (
@@ -357,6 +411,7 @@ export default function CourseBuilderPage() {
                         <MotionCard loading={loading} className="survey-builder-panel" title="Course at a glance">
                             <div className="survey-snapshot-row"><span>Lessons</span><strong>{course.lessons.length}</strong></div>
                             <div className="survey-snapshot-row"><span>Quiz questions</span><strong>{quizCount}</strong></div>
+                            {isAgentApiConfigured && <div className="survey-snapshot-row"><span>AI reviews</span><strong>{reviewCount}</strong></div>}
                             <div className="survey-snapshot-row"><span>Status</span><Tag color={course.status === 'published' ? 'green' : 'default'}>{course.status === 'published' ? 'Published' : 'Draft'}</Tag></div>
                             <div className="survey-snapshot-row"><span>Changes</span><Tag color={isDirty ? 'orange' : 'green'}>{isDirty ? 'Unsaved' : 'Saved'}</Tag></div>
                         </MotionCard>

@@ -20,6 +20,8 @@ export type CourseLesson = {
     body: string
     videoUrl?: string
     quiz?: QuizQuestion[]
+    /** Adds an AI-led review step after this lesson (and its quiz, if any) — see LessonAiReview. */
+    aiReviewEnabled?: boolean
 }
 
 export type CourseTemplate = {

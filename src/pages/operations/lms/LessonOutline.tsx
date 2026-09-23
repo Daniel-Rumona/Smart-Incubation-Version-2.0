@@ -2,13 +2,14 @@ import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type D
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Empty, Tag, Typography } from 'antd'
-import { HolderOutlined } from '@ant-design/icons'
+import { HolderOutlined, QuestionCircleOutlined, RobotOutlined } from '@ant-design/icons'
 import type { CourseLesson } from '@/services/courseTemplatesService'
 
 type OutlineProps = {
     lessons: CourseLesson[]
+    /** A step id: `${lessonId}:content` or `${lessonId}:quiz` — quiz is its own selectable row, not folded into the lesson. */
     selectedId: string | null
-    onSelect: (id: string) => void
+    onSelect: (stepId: string) => void
     onReorder: (from: number, to: number) => void
 }
 
@@ -31,11 +32,28 @@ const OutlineRow = ({ lesson, index, selected, onSelect }: { lesson: CourseLesso
                 <Typography.Paragraph ellipsis={{ rows: 2, tooltip: lesson.title || 'Untitled lesson' }} className="survey-outline-label">
                     {lesson.title || 'Untitled lesson'}
                 </Typography.Paragraph>
-                <span className="survey-outline-type">{lesson.quiz?.length ? `${lesson.quiz.length} quiz question${lesson.quiz.length === 1 ? '' : 's'}` : 'Lesson'}</span>
+                <span className="survey-outline-type">
+                    Lesson
+                    {lesson.aiReviewEnabled && <RobotOutlined title="AI review follows this lesson" style={{ marginLeft: 6 }} />}
+                </span>
             </span>
         </div>
     )
 }
+
+/** A quiz is its own outline entry, indented under its lesson — not draggable, since it always follows that lesson's content. */
+const QuizRow = ({ lesson, selected, onSelect }: { lesson: CourseLesson, selected: boolean, onSelect: () => void }) => (
+    <div
+        className={`survey-outline-row survey-outline-subrow${selected ? ' is-selected' : ''}`}
+        onClick={onSelect}
+    >
+        <span className="survey-outline-handle survey-outline-subrow-icon"><QuestionCircleOutlined /></span>
+        <span className="survey-outline-copy">
+            <span className="survey-outline-label">Quiz</span>
+            <span className="survey-outline-type">{lesson.quiz?.length} question{lesson.quiz?.length === 1 ? '' : 's'}</span>
+        </span>
+    </div>
+)
 
 export const LessonOutline = ({ lessons, selectedId, onSelect, onReorder }: OutlineProps) => {
     // A small activation distance keeps a plain click selecting rather than starting a drag.
@@ -57,13 +75,21 @@ export const LessonOutline = ({ lessons, selectedId, onSelect, onReorder }: Outl
             <SortableContext items={lessons.map((lesson) => lesson.id)} strategy={verticalListSortingStrategy}>
                 <div className="survey-outline">
                     {lessons.map((lesson, index) => (
-                        <OutlineRow
-                            key={lesson.id}
-                            lesson={lesson}
-                            index={index}
-                            selected={lesson.id === selectedId}
-                            onSelect={() => onSelect(lesson.id)}
-                        />
+                        <div key={lesson.id}>
+                            <OutlineRow
+                                lesson={lesson}
+                                index={index}
+                                selected={selectedId === `${lesson.id}:content`}
+                                onSelect={() => onSelect(`${lesson.id}:content`)}
+                            />
+                            {!!lesson.quiz?.length && (
+                                <QuizRow
+                                    lesson={lesson}
+                                    selected={selectedId === `${lesson.id}:quiz`}
+                                    onSelect={() => onSelect(`${lesson.id}:quiz`)}
+                                />
+                            )}
+                        </div>
                     ))}
                 </div>
             </SortableContext>

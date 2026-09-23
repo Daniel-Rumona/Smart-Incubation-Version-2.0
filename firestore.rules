@@ -1,39 +1,61 @@
 // ============================================================================
-// PARTIAL RULESET - DO NOT DEPLOY ON ITS OWN.
+// COMPREHENSIVE DRAFT - REVIEW AGAINST THE LIVE CONSOLE RULES BEFORE DEPLOYING.
 // ============================================================================
 //
 // This repository has never held the project's full rules under version
 // control, and firebase.json still has no "firestore" key, so the live rules
-// for smart-incubation-71f96 are whatever is in the Firebase Console today.
-// This file only carries the match blocks for the collections added by
-// recent features:
+// for smart-incubation-71f96 are whatever is in the Firebase Console today -
+// this file has never been deployed and this pass does not deploy it either.
 //
-//   - agents, companyAgentSettings, externalAgentProjects
-//       (Firestore Agent Registry + Pitchfy integration)
-//   - consultantProfiles, connectionRequests
-//       (consultant marketplace: SMEs browse published consultants and
-//        request the one they choose; operations reviews the requests)
+// Every collection the CLIENT app (src/, Firebase client SDK) reads or
+// writes is now covered below, built from a systematic audit of every
+// `collection(db, ...)` / `doc(db, ...)` call site and the route/role gate
+// that reaches it (src/config/routes.tsx `allowedRoles`). Collections that
+// only Cloud Functions / the FastAPI backend touch via the Admin SDK (which
+// bypasses these rules entirely) are explicitly denied to the client as
+// defense-in-depth, in their own section below.
 //
-// It has NO rules for the other collections this app uses (users, companies,
-// applications, participants, interventions, assignedInterventions,
-// businessProfiles, ...). Firestore denies anything not explicitly matched,
-// so deploying this file alone would break the rest of the app.
+// Simplifying assumptions worth knowing before trusting this file:
+//   - Access is gated by ROLE (via `hasRole`), matching each route's
+//     `allowedRoles` - not by the finer-grained per-permission table in
+//     src/config/permissions.ts, which also lets a systemadmin grant/revoke
+//     individual permissions per staff member. systemadmin/admin are always
+//     allowed (isPlatformAdmin()); replicating the full override system was
+//     judged not worth the added complexity.
+//   - A few collections (assignedInterventions, appointments) are read by an
+//     already-shipped client query that pulls a whole company and filters
+//     "mine" in the UI rather than in the query (e.g.
+//     AssignedInterventionsContext). Rules can only narrow a `list` to what
+//     the query itself can prove, so those reads stay company-wide here -
+//     narrowing them would break the page, not just tighten the rule. This
+//     is called out inline at each such collection; writes to the same
+//     collections ARE restricted to the true owner.
+//   - `formTemplates`/`courseTemplates` (survey/course content) are read by
+//     an unfiltered collection scan from both the operations builder and the
+//     SME's own list page, so read access there is "any signed-in user",
+//     same reasoning.
 //
 // To roll these out:
-//   1. Copy the live ruleset from the Firebase Console (Firestore > Rules).
+//   1. Copy the live ruleset from the Firebase Console (Firestore > Rules)
+//      and diff it against this file - the console version may already
+//      contain rules for these collections that differ from what's below,
+//      and is the source of truth until this file is actually deployed.
 //      The Firebase CLI cannot download rules; the only programmatic route
 //      is the firebaserules.projects.rulesets.get REST endpoint.
-//   2. Paste the helper functions (once) and the match blocks below into it.
-//   3. Only once the merged file covers every collection, add a "firestore"
-//      block to firebase.json pointing at this file and firestore.indexes.json,
-//      then deploy with `firebase deploy --only firestore:rules`.
+//   2. Reconcile any differences, then add a "firestore" block to
+//      firebase.json pointing at this file and firestore.indexes.json.
+//   3. Deploy with `firebase deploy --only firestore:rules`, and test
+//      against the Firestore emulator or a staging project first given the
+//      size of this change.
 //
-// The queries these rules are written against:
+// Collection-specific query notes:
 //   consultantProfiles - where('status','==','published')      [any SME]
 //                      - full collection scan                   [systemadmin]
 //   connectionRequests - where('smeUid','==',<own uid>)         [SME]
 //                      - orderBy('createdAt','desc')            [reviewer]
-// Neither needs a composite index, so firestore.indexes.json stays empty.
+// None of the collections below need a composite index (all either
+// single-field `where` filters or unfiltered scans), so
+// firestore.indexes.json stays empty.
 //
 // The marketplace belongs to the platform owner (QTX): only SMEs who resolve to that
 // company can create requests, and only its staff (or a platform admin) can review
@@ -109,6 +131,63 @@ service cloud.firestore {
 
     function changedKeys() {
       return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    // ----------------------------------------------------------------------
+    // Role groups
+    //
+    // These mirror the role arrays actually passed as `allowedRoles` in
+    // src/config/routes.tsx (the real gate on which pages - and therefore
+    // which service-layer writes - a role can reach), not the finer-grained
+    // per-permission table in src/config/permissions.ts. That table also
+    // lets a systemadmin grant/revoke individual permissions per staff
+    // member (FullIdentity.permissions overriding the role default), which
+    // these rules do not attempt to replicate - systemadmin/admin are
+    // treated as always-allowed (isPlatformAdmin()), and every other role's
+    // access here matches what its role can already reach in the UI.
+    // ----------------------------------------------------------------------
+
+    // routes.tsx `operationsRoles`: everyone who can see the operations
+    // workspace shell, including surveys/courses and their builders.
+    function operationsRoles() {
+      return ['systemadmin', 'admin', 'director', 'projectadmin', 'projectmanager', 'operations'];
+    }
+
+    // The narrower set actually used to gate day-to-day operational writes
+    // (tasks, programmes, diagnostic plans, participants) - matches
+    // operationsTasksService.assertTaskAccess and ProgramsPage/ParticipantsPage's
+    // `allowedRoles`. Director can view the operations dashboard but does not
+    // operate these records.
+    function operationsStaffRoles() {
+      return ['systemadmin', 'admin', 'projectadmin', 'projectmanager', 'operations'];
+    }
+
+    // routes.tsx `interventionWorkspaceRoles`.
+    function interventionWorkspaceRoles() {
+      return ['projectadmin', 'projectmanager', 'operations'];
+    }
+
+    // routes.tsx `applicationReviewRoles` / `complianceRoles`.
+    function applicationReviewRoles() {
+      return ['projectadmin', 'operations'];
+    }
+
+    function isOperationsStaff() {
+      return isPlatformAdmin() || hasRole(operationsStaffRoles());
+    }
+
+    // Most "participant-scoped" collections store a `participantId` that
+    // came from findParticipant() (src/services/incubateeWorkspaceService.ts):
+    // usually the SME's own uid (a `participants/{uid}` doc), but on legacy
+    // records the participants doc can instead be a differently-id'd
+    // document matched by email. Mirrors that same two-path resolution so
+    // neither case is locked out.
+    function isOwnParticipantId(participantId) {
+      return signedIn() && (
+        participantId == request.auth.uid
+        || (exists(/databases/$(database)/documents/participants/$(participantId))
+            && get(/databases/$(database)/documents/participants/$(participantId)).data.email == request.auth.token.email)
+      );
     }
 
     match /agents/{agentId} {
@@ -190,9 +269,547 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // TODO: merge in rules for every other collection this app uses
-    // (users, companies, applications, participants, interventions,
-    // assignedInterventions, businessProfiles, usageSessions, ...)
-    // before this file is ever deployed.
+    // ========================================================================
+    // Identity
+    // ========================================================================
+
+    // Doc id is the Firebase Auth uid for every normal signup path. One
+    // legacy fallback (usersService.createManagedUser, when no Cloud
+    // Function base URL is configured) auto-generates the id instead; that
+    // path is already admin-only client-side and stays covered by
+    // isPlatformAdmin() below regardless of the id it lands on.
+    match /users/{uid} {
+      // Self, or an email-scoped lookup of one's own account used to
+      // reconcile verification status across duplicate sign-in methods
+      // (see resolveAuthenticatedProfileData in authService.ts) - never an
+      // arbitrary lookup of someone else's profile by email.
+      function isOwnRecord() {
+        return isSelf(uid) || resource.data.email == request.auth.token.email;
+      }
+
+      // Staff list/search the directory scoped to their own company
+      // (DirectorDashboardPage, InterventionsAssignmentsPage,
+      // OperationsTasksPage, ProgramsPage all query
+      // where('companyCode','==', own company)).
+      function isCompanyStaffLookup() {
+        return hasRole(operationsRoles()) && resource.data.companyCode == currentUser().companyCode;
+      }
+
+      allow get, list: if signedIn() && (isOwnRecord() || isPlatformAdmin() || isCompanyStaffLookup());
+
+      // Self-registration (signup/OAuth) creates one's own profile with a
+      // starter role; only systemadmin/admin can create an account for
+      // someone else or hand out any other role.
+      allow create: if isPlatformAdmin()
+        || (isSelf(uid) && request.resource.data.role in ['incubatee', 'consultant']);
+
+      // Nobody may grant themselves a different role by self-editing.
+      allow update: if isPlatformAdmin()
+        || (isSelf(uid) && request.resource.data.role == resource.data.role);
+
+      allow delete: if isPlatformAdmin() && !isSelf(uid);
+    }
+
+    // Password-change / e-signature bookkeeping mirrored alongside the
+    // users doc; always the signed-in user's own record.
+    match /userIdentities/{uid} {
+      allow read, write: if isSelf(uid);
+    }
+
+    // ========================================================================
+    // Companies & Programmes
+    // ========================================================================
+
+    match /companies/{companyCode} {
+      // listCompaniesForOnboarding (SmeOnboardingPage) reads the whole
+      // directory for ANY signed-in user picking a company during
+      // onboarding - company docs hold no secrets (name/status), so this
+      // matches that existing, intentionally open, unfiltered scan.
+      allow get, list: if signedIn();
+
+      // ensureWorkspaceCompany / getOrCreatePlatformOwnerCompany: an admin
+      // creating a managed user's company, or any SME onboarding into the
+      // platform-owner fallback company (QTX).
+      allow create: if isPlatformAdmin() || (signedIn() && companyCode == platformOwnerCode());
+      allow update: if isPlatformAdmin();
+      allow delete: if false;
+    }
+
+    // Platform-wide defaults (SystemSettingsProvider merges this under a
+    // company's own overrides in `companies/{code}`). Only ever approved
+    // and written via the reviewSystemSettingsChangeRequest Cloud
+    // Function - never a direct client write.
+    match /systemSettings/{settingsId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    match /programs/{programId} {
+      // Many pages across every workspace (director, operations,
+      // projectadmin, applicant, consultant) read this collection, several
+      // via an unfiltered scan filtered client-side (workspaceProgramsService,
+      // applicantService.listApplicantPrograms) - programme metadata isn't
+      // sensitive and cross-company discovery is a real feature
+      // (`openToExternalSmes`), so any signed-in user may read it.
+      allow get, list: if signedIn();
+
+      allow create: if isOperationsStaff();
+      allow update, delete: if isOperationsStaff() && resource.data.companyCode == currentUser().companyCode;
+    }
+
+    // ========================================================================
+    // Applications & Participants
+    // ========================================================================
+
+    match /applications/{applicationId} {
+      function isOwnApplication() {
+        return resource.data.participantId == request.auth.uid
+          || resource.data.uid == request.auth.uid
+          || resource.data.userId == request.auth.uid;
+      }
+
+      allow get, list: if signedIn() && (
+        isOwnApplication()
+        || isPlatformAdmin()
+        || (hasRole(operationsRoles()) && resource.data.companyCode == currentUser().companyCode)
+      );
+
+      // ProgramApplicationPage / applicantService.submitApplicantApplication:
+      // an incubatee applies for themselves only.
+      allow create: if hasRole(['incubatee']) && (
+        request.resource.data.participantId == request.auth.uid
+        || request.resource.data.uid == request.auth.uid
+      );
+
+      // Review/status changes (accept/decline/remove) are operations-only;
+      // the applicant never edits their own submitted application.
+      allow update: if isOperationsStaff();
+      allow delete: if false;
+    }
+
+    match /participants/{participantId} {
+      // findParticipant resolves a signed-in SME to this doc either by
+      // uid-as-id or by a where('email','==', own email) query - the doc id
+      // is not reliably the uid, so both paths need covering.
+      function isOwnParticipant() {
+        return participantId == request.auth.uid || resource.data.email == request.auth.token.email;
+      }
+
+      allow get, list: if signedIn() && (isOwnParticipant() || isOperationsStaff());
+
+      // Created only when operations accepts an application
+      // (operationsApplicationsService.updateOperationsApplicationStatus).
+      allow create: if isOperationsStaff();
+      allow update: if isOwnParticipant() || isOperationsStaff();
+      allow delete: if false;
+    }
+
+    // Append-only trail of operations actions on a participant - written
+    // and read only from the operations participants workspace.
+    match /participantAuditTrail/{entryId} {
+      allow get, list: if isOperationsStaff();
+      allow create: if isOperationsStaff();
+      allow update, delete: if false;
+    }
+
+    match /participantProgramRemovals/{entryId} {
+      allow get, list, create: if isOperationsStaff();
+      allow update, delete: if false;
+    }
+
+    match /applicantProfiles/{profileId} {
+      allow get: if signedIn() && (profileId == request.auth.uid || resource.data.uid == request.auth.uid || isOperationsStaff());
+      // getApplicantProfile falls back to a where('uid'|'email','==',...)
+      // query when the doc id isn't the uid; ParticipantsPage also reads a
+      // batch of profiles by explicit id list (`in`, never unfiltered).
+      allow list: if signedIn() && (resource.data.uid == request.auth.uid || isOperationsStaff());
+      // `resource` doesn't exist yet on create; only path/incoming-data
+      // checks are safe there.
+      allow create: if isOperationsStaff() || (profileId == request.auth.uid && request.resource.data.uid == request.auth.uid);
+      allow update: if isOperationsStaff() || profileId == request.auth.uid || resource.data.uid == request.auth.uid;
+      allow delete: if false;
+    }
+
+    match /businessProfiles/{profileId} {
+      allow get: if signedIn() && (profileId == request.auth.uid || resource.data.ownerUid == request.auth.uid || isOperationsStaff());
+      allow list: if signedIn() && (resource.data.ownerUid == request.auth.uid || isOperationsStaff());
+      allow create: if isOperationsStaff() || (profileId == request.auth.uid && request.resource.data.ownerUid == request.auth.uid);
+      allow update: if isOperationsStaff() || profileId == request.auth.uid || resource.data.ownerUid == request.auth.uid;
+      allow delete: if false;
+    }
+
+    match /diagnosticPlans/{planId} {
+      // Doc id is always the owning application's id (diagnosticPlansService.ts).
+      function isOwnPlan() {
+        return resource.data.participantId == request.auth.uid;
+      }
+
+      allow get: if signedIn() && (isOwnPlan() || isOperationsStaff());
+      // operationsParticipantsService / diagnosticPlansService read this
+      // collection unfiltered; no equivalent unfiltered path exists for an
+      // incubatee, who only ever `get`s their own plan by known id.
+      allow list: if isOperationsStaff();
+
+      allow create: if isOperationsStaff();
+
+      // An incubatee may only merge their own confirmation fields into a
+      // plan that is already theirs; everything else is operations-only.
+      allow update: if isOperationsStaff()
+        || (isOwnPlan() && changedKeys().hasOnly(['confirmedBy', 'confirmedMeta']));
+
+      allow delete: if false;
+    }
+
+    // Created only by trusted backend automation; the client only ever
+    // reads its own (participant-scoped) requests.
+    match /formRequests/{requestId} {
+      allow get, list: if isOwnParticipantId(resource.data.participantId);
+      allow write: if false;
+    }
+
+    // ========================================================================
+    // Surveys & Courses (operations builds them, SMEs answer/take them)
+    // ========================================================================
+
+    // Template content itself (survey questions / course lessons) carries
+    // no participant PII, so any signed-in user may read it - both the
+    // operations builder and the SME's own list page read this collection
+    // unfiltered (listSurveyTemplates()/listCourseTemplates() with no
+    // programId, listSurveysForParticipant()/listCoursesForParticipant()
+    // with no programId), so the rule cannot depend on `status` or
+    // `programId` without breaking those real, already-shipped queries.
+    match /formTemplates/{templateId} {
+      allow get, list: if signedIn();
+      allow create, update, delete: if hasRole(operationsRoles());
+    }
+
+    match /courseTemplates/{courseId} {
+      allow get, list: if signedIn();
+      allow create, update, delete: if hasRole(operationsRoles());
+    }
+
+    // One row per (template, participant). Operations fans these out on
+    // publish and reads the whole collection unfiltered for completion
+    // summaries; the SME only ever queries their own participantId, and
+    // only ever flips `status` on their own row.
+    match /formAssignments/{assignmentId} {
+      function isOwnAssignment() {
+        return isOwnParticipantId(resource.data.participantId);
+      }
+
+      allow get, list: if isOwnAssignment() || hasRole(operationsRoles());
+      allow create: if hasRole(operationsRoles());
+      allow update: if hasRole(operationsRoles())
+        || (isOwnAssignment() && changedKeys().hasOnly(['status', 'updatedAt']));
+      allow delete: if false;
+    }
+
+    match /courseAssignments/{assignmentId} {
+      function isOwnAssignment() {
+        return isOwnParticipantId(resource.data.participantId);
+      }
+
+      allow get, list: if isOwnAssignment() || hasRole(operationsRoles());
+      allow create: if hasRole(operationsRoles());
+      allow update: if hasRole(operationsRoles())
+        || (isOwnAssignment() && changedKeys().hasOnly(['status', 'updatedAt']));
+      allow delete: if false;
+    }
+
+    // The SME's own answers; operations reads them per-template
+    // (listResponsesForTemplate) to review submissions.
+    match /formResponses/{responseId} {
+      allow get, list: if isOwnParticipantId(resource.data.participantId) || hasRole(operationsRoles());
+      // `resource` doesn't exist yet on create, so ownership there can only
+      // be checked against the incoming data.
+      allow create: if isOwnParticipantId(request.resource.data.participantId);
+      allow update: if isOwnParticipantId(resource.data.participantId);
+      allow delete: if false;
+    }
+
+    match /courseProgress/{progressId} {
+      allow get, list: if isOwnParticipantId(resource.data.participantId) || hasRole(operationsRoles());
+      allow create: if isOwnParticipantId(request.resource.data.participantId);
+      allow update: if isOwnParticipantId(resource.data.participantId);
+      allow delete: if false;
+    }
+
+    // ========================================================================
+    // Operations & Admin
+    // ========================================================================
+
+    match /operationsTasks/{taskId} {
+      allow get, list: if hasRole(operationsStaffRoles()) && resource.data.companyCode == currentUser().companyCode;
+      allow create: if hasRole(operationsStaffRoles()) && request.resource.data.companyCode == currentUser().companyCode;
+      allow update: if hasRole(operationsStaffRoles()) && resource.data.companyCode == currentUser().companyCode;
+      allow delete: if false;
+    }
+
+    // Parent doc keyed by participantId, plus a `history/{monthKey}`
+    // subcollection - the SME reports their own monthly numbers, staff
+    // read for portfolio/director views.
+    match /monthlyPerformance/{participantId} {
+      function isOwnRecord() {
+        return isOwnParticipantId(participantId);
+      }
+
+      allow get: if isOwnRecord() || isOperationsStaff() || hasRole(['director']);
+      allow list: if isOperationsStaff() || hasRole(['director']);
+      allow create, update: if isOwnRecord();
+      allow delete: if false;
+
+      match /history/{monthKey} {
+        allow get: if isOwnRecord() || isOperationsStaff() || hasRole(['director']);
+        allow list: if isOperationsStaff() || hasRole(['director']);
+        allow create, update: if isOwnRecord();
+        allow delete: if false;
+      }
+    }
+
+    // Scoped by participantId (company/participant level, not per-uid) with
+    // a role-keyed `message`/`readBy` map - see
+    // incubateeWorkspaceService.markIncubateeNotification, which only ever
+    // patches `readBy.incubatee` on a row already scoped to the caller's
+    // own participant.
+    match /notifications/{notificationId} {
+      function isOwnNotification() {
+        return isOwnParticipantId(resource.data.participantId);
+      }
+
+      allow get, list: if isOwnNotification() || isOperationsStaff();
+      allow create: if isOperationsStaff();
+      allow update: if isOperationsStaff()
+        || (isOwnNotification() && changedKeys().hasOnly(['readBy']));
+      allow delete: if false;
+    }
+
+    match /systemSettingsChangeRequests/{requestId} {
+      // Approval only ever happens through a Cloud Function
+      // (reviewSystemSettingsChangeRequest), never a direct client update.
+      allow get, list: if isPlatformAdmin() || resource.data.requestedByUid == request.auth.uid;
+      allow create: if signedIn() && request.resource.data.requestedByUid == request.auth.uid
+        && request.resource.data.companyCode == currentUser().companyCode
+        && request.resource.data.status == 'pending';
+      allow update, delete: if false;
+    }
+
+    // Written only by trusted backend automation (AI intake pipeline); the
+    // client only ever reads submissions tied to its own company or email.
+    match /smeIntakeSubmissions/{submissionId} {
+      allow get, list: if signedIn() && (
+        resource.data.companyCode == currentUser().companyCode
+        || resource.data.contactEmail == request.auth.token.email
+        || resource.data.createdByEmail == request.auth.token.email
+      );
+      allow write: if false;
+    }
+
+    // Written by every signed-in user, for every role, purely as
+    // self-attributed analytics (UsageTrackingProvider mounts globally).
+    // Only systemadmin/admin ever read the collection, and only via a full
+    // unfiltered scan for the admin usage dashboard.
+    match /usageSessions/{sessionId} {
+      allow get, list: if isPlatformAdmin();
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      // Also require the EXISTING doc to already be theirs, so a client
+      // can't merge-write over someone else's session id while claiming
+      // themselves as the (new) owner.
+      allow update: if signedIn() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
+      allow delete: if false;
+    }
+
+    match /usagePageViews/{pageViewId} {
+      allow get, list: if isPlatformAdmin();
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow update: if signedIn() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
+      allow delete: if false;
+    }
+
+    // Written only by trusted backend email delivery; read-only admin log.
+    match /emailDeliveryLogs/{logId} {
+      allow get, list: if isPlatformAdmin();
+      allow write: if false;
+    }
+
+    // ========================================================================
+    // Agents (extends the `agents` / `companyAgentSettings` /
+    // `externalAgentProjects` rules above)
+    // ========================================================================
+
+    // Always self-attributed (userUid/participantId == the caller's own
+    // uid on every client write path); write-once, no update/delete.
+    match /agentConversationRatings/{ratingId} {
+      function isOwnRating() {
+        return resource.data.userUid == request.auth.uid || resource.data.participantId == request.auth.uid;
+      }
+
+      allow get, list: if isOwnRating()
+        || isPlatformAdmin()
+        || (hasRole(['projectadmin', 'operations']) && resource.data.companyCode == currentUser().companyCode);
+
+      allow create: if signedIn() && (
+        request.resource.data.userUid == request.auth.uid
+        || request.resource.data.participantId == request.auth.uid
+      );
+
+      allow update, delete: if false;
+    }
+
+    // 1:1 with an assignedInterventions doc (same id). Only the assigned
+    // SME progresses their own work; review fields are staff/consultant-only.
+    match /agentWorkRuns/{runId} {
+      function isOwnRun() {
+        return isOwnParticipantId(resource.data.participantId);
+      }
+
+      allow get, list: if isOwnRun() || hasRole(interventionWorkspaceRoles()) || hasRole(['consultant']);
+
+      // `resource` doesn't exist yet on create, so ownership there can only
+      // be checked against the incoming data.
+      allow create: if isOwnParticipantId(request.resource.data.participantId)
+        && request.resource.data.updatedByUid == request.auth.uid;
+
+      allow update: if (isOwnRun() && request.resource.data.updatedByUid == request.auth.uid
+          && !changedKeys().hasAny(['reviewStatus', 'reviewedByUid', 'reviewedByEmail']))
+        || (hasRole(interventionWorkspaceRoles()) && changedKeys().hasOnly(['status', 'reviewStatus', 'reviewedAt', 'reviewedByUid', 'reviewedByEmail', 'updatedAt']))
+        || (hasRole(['consultant']) && changedKeys().hasOnly(['status', 'reviewStatus', 'reviewedAt', 'reviewedByUid', 'reviewedByEmail', 'updatedAt']));
+
+      allow delete: if false;
+    }
+
+    // ========================================================================
+    // Backend-only collections
+    //
+    // None of these are ever read or written from src/ (confirmed by
+    // exhaustive grep) - they exist only for Cloud Functions / the FastAPI
+    // backend using the Admin SDK, which bypasses these rules entirely.
+    // Denying them here is defense-in-depth against a future client trying,
+    // not something the Admin SDK needs.
+    // ========================================================================
+
+    match /adminAuditLogs/{entryId} { allow read, write: if false; }
+    match /authEmailCooldowns/{entryId} { allow read, write: if false; }
+    match /deptRequirements/{entryId} { allow read, write: if false; }
+    match /requiredDocs/{entryId} { allow read, write: if false; }
+    match /emailSuppressions/{entryId} { allow read, write: if false; }
+    match /mail/{entryId} { allow read, write: if false; }
+    match /smeIntakeAnalyses/{entryId} { allow read, write: if false; }
+    match /interventionBottleneckReminderLogs/{entryId} { allow read, write: if false; }
+    match /whatsappConversations/{entryId} { allow read, write: if false; }
+    match /whatsappDeliveryAlerts/{entryId} { allow read, write: if false; }
+    match /whatsappDeliveryHealthDaily/{entryId} { allow read, write: if false; }
+    match /whatsappInboundEvents/{entryId} { allow read, write: if false; }
+    match /whatsappMessageIds/{entryId} { allow read, write: if false; }
+    match /whatsappMessageStatusEvents/{entryId} { allow read, write: if false; }
+    match /whatsappOutboundMessages/{entryId} { allow read, write: if false; }
+
+    // ========================================================================
+    // Interventions & Compliance
+    // ========================================================================
+
+    // The intervention catalogue (definitions, not per-participant
+    // records) - shared reference data any signed-in user may read.
+    match /interventions/{interventionId} {
+      allow get, list: if signedIn();
+      allow create, update, delete: if hasRole(interventionWorkspaceRoles());
+    }
+
+    // The central per-(participant, intervention) record. Every member of
+    // a company currently sees the whole company's assignments -
+    // AssignedInterventionsContext (mounted globally for every role) reads
+    // only where('companyCode','==', own company) and filters "mine" in
+    // the UI, not in the query - so narrowing the read to true ownership
+    // here would break that shipped provider. Writes are still restricted
+    // to the actual owner or intervention staff.
+    match /assignedInterventions/{assignmentId} {
+      function isOwnAssignee() {
+        return resource.data.assigneeId == request.auth.uid || resource.data.assigneeEmail == request.auth.token.email;
+      }
+
+      allow get, list: if signedIn() && resource.data.companyCode == currentUser().companyCode;
+      allow create: if hasRole(interventionWorkspaceRoles());
+      allow update: if hasRole(interventionWorkspaceRoles())
+        || isOwnAssignee()
+        || isOwnParticipantId(resource.data.participantId);
+      allow delete: if false;
+    }
+
+    match /interventionRequests/{requestId} {
+      allow get, list: if isOwnParticipantId(resource.data.participantId) || hasRole(operationsRoles());
+      allow create: if isOwnParticipantId(request.resource.data.participantId);
+      // Accept/decline is an operations/projectadmin-only status change
+      // (diagnosticPlansService.acceptDiagnosticInterventionRequest).
+      allow update: if hasRole(operationsRoles());
+      allow delete: if false;
+    }
+
+    // Doc id mirrors the source assignedInterventions id; the SME
+    // self-confirms their own completion, staff read for reporting.
+    match /interventionCompletions/{completionId} {
+      allow get, list: if isOwnParticipantId(resource.data.participantId) || hasRole(operationsRoles());
+      allow create: if isOwnParticipantId(request.resource.data.participantId);
+      allow update: if isOwnParticipantId(resource.data.participantId);
+      allow delete: if false;
+    }
+
+    // Agent-generated documents tied to an assignedIntervention. No update
+    // path exists client-side; only a create at generation time.
+    match /interventionDocuments/{documentId} {
+      allow get, list: if isOwnParticipantId(resource.data.participantId)
+        || (hasRole(operationsRoles()) && resource.data.companyCode == currentUser().companyCode);
+      allow create: if isOwnParticipantId(request.resource.data.participantId)
+        || hasRole(interventionWorkspaceRoles())
+        || hasRole(['consultant']);
+      allow update, delete: if false;
+    }
+
+    // Same broad-company-read shape as assignedInterventions: the
+    // consultant's own appointments page queries only by companyCode and
+    // filters "mine" in the UI (InterventionAppointmentsPage,
+    // UpcomingWeekCard, OperationsReportsPage) - narrowing the read would
+    // break that page for the very role it exists for.
+    match /appointments/{appointmentId} {
+      allow get, list: if signedIn() && resource.data.companyCode == currentUser().companyCode;
+
+      allow create: if hasRole(interventionWorkspaceRoles())
+        || (hasRole(['consultant']) && request.resource.data.assigneeId == request.auth.uid);
+
+      allow update: if hasRole(interventionWorkspaceRoles())
+        || (hasRole(['consultant']) && resource.data.assigneeId == request.auth.uid);
+
+      allow delete: if false;
+    }
+
+    // Read-only lookup table (no client write path found) used to
+    // populate the assignee picker on the intervention-assignment page.
+    match /assignees/{assigneeId} {
+      allow get, list: if hasRole(interventionWorkspaceRoles());
+      allow write: if false;
+    }
+
+    // Two id schemes exist for this collection (operations writes
+    // `participantId__programId__type`; an SME's own self-upload writes
+    // `participantId-type` with no programme segment) - ownership is
+    // checked by field, not by parsing the id, so both are covered.
+    match /complianceDocuments/{documentId} {
+      // Mirrors consultantProfiles' isVerificationUnchanged() convention:
+      // an SME may (re)upload their own document, but only compliance
+      // staff may flip its verification fields.
+      function isVerificationUnchanged() {
+        return request.resource.data.get('verificationStatus', null) == resource.data.get('verificationStatus', null)
+          && request.resource.data.get('verifiedAt', null) == resource.data.get('verifiedAt', null)
+          && request.resource.data.get('verifiedBy', null) == resource.data.get('verifiedBy', null);
+      }
+
+      function isComplianceStaff() {
+        return isPlatformAdmin() || hasRole(applicationReviewRoles());
+      }
+
+      allow get, list: if isComplianceStaff() || isOwnParticipantId(resource.data.participantId);
+      allow create: if isComplianceStaff() || isOwnParticipantId(request.resource.data.participantId);
+      allow update: if isComplianceStaff()
+        || (isOwnParticipantId(resource.data.participantId) && isVerificationUnchanged());
+      allow delete: if isComplianceStaff();
+    }
   }
 }
