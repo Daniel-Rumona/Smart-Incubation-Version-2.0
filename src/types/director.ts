@@ -49,6 +49,7 @@ export type DirectorProgramPerformance = {
   overdueAssignments: number
   avgProgress: number
   totalRevenue: number
+  totalEmployees: number
   highRisk: number
   mediumRisk: number
   lowRisk: number

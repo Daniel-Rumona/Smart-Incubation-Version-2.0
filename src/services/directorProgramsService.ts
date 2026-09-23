@@ -75,6 +75,7 @@ export const listDirectorProgramPerformance = async (
       overdueAssignments: 0,
       avgProgress: 0,
       totalRevenue: 0,
+      totalEmployees: 0,
       highRisk: 0,
       mediumRisk: 0,
       lowRisk: 0,
@@ -115,6 +116,7 @@ export const listDirectorProgramPerformance = async (
     row.smes = smes.length
     row.avgProgress = smes.length ? Math.round(smes.reduce((sum, sme) => sum + sme.progress, 0) / smes.length) : 0
     row.totalRevenue = smes.reduce((sum, sme) => sum + sme.metrics.revenue, 0)
+    row.totalEmployees = smes.reduce((sum, sme) => sum + sme.metrics.employees, 0)
     row.highRisk = smes.filter(sme => sme.risk === 'High').length
     row.mediumRisk = smes.filter(sme => sme.risk === 'Medium').length
     row.lowRisk = smes.filter(sme => sme.risk === 'Low').length
