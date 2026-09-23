@@ -68,6 +68,40 @@ export const sendAgentMessage = async ({
   return response.json() as Promise<AgentResponse>
 }
 
+/**
+ * Turns a reply into speech via the backend's /tts route (ElevenLabs, keyed
+ * server-side — no key ever reaches the client). Throws if voice output
+ * isn't configured or the request fails; callers should fall back to a
+ * silent/text-only experience rather than surface this as a hard error.
+ */
+export const synthesizeSpeech = async (text: string, signal?: AbortSignal): Promise<Blob> => {
+  if (!isAgentApiConfigured) {
+    throw new Error('The workspace assistant endpoint is not configured.')
+  }
+
+  const currentUser = getAuth().currentUser
+  if (!currentUser) {
+    throw new Error('You must be signed in to use voice output.')
+  }
+
+  const response = await fetch(`${agentApiBaseUrl}/tts`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${await currentUser.getIdToken()}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ text }),
+    signal,
+  })
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => null)
+    throw new Error(body?.detail || `Voice output failed (${response.status}).`)
+  }
+
+  return response.blob()
+}
+
 export const submitAgentConversationRating = async (input: {
   user: FullIdentity
   conversationId: string

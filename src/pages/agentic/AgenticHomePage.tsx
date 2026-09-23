@@ -10,6 +10,7 @@ import {
     theme,
 } from 'antd'
 import {
+    AudioOutlined,
     CheckCircleOutlined,
     ClockCircleOutlined,
     FileDoneOutlined,
@@ -46,6 +47,7 @@ import { uploadIncubateeComplianceDocument } from '@/services/incubateeComplianc
 import type { AgentChatMessage, AgentPageContext } from '@/types/agent'
 import type { UserRole } from '@/config/roles'
 import { guideTarget, useRegisterPageGuide, type PageGuideRegistration } from '@/components/guide/PageGuideContext'
+import { ConversationMode } from '@/components/agent/ConversationMode'
 import '@/styles/agentic-home.css'
 
 type Metric = {
@@ -221,6 +223,7 @@ export const AgenticHomePage = () => {
     const [loading, setLoading] = useState(true)
     const [draft, setDraft] = useState('')
     const [messages, setMessages] = useState<AgentChatMessage[]>([])
+    const [voiceMode, setVoiceMode] = useState(false)
     const [selectedMetric, setSelectedMetric] = useState<Metric>()
     const [metricRows, setMetricRows] = useState<MetricDetailRow[]>([])
     const [metricLoading, setMetricLoading] = useState(false)
@@ -740,6 +743,14 @@ export const AgenticHomePage = () => {
                 )}
 
                 <div data-guide-target="agentic-composer" className="agentic-composer" ref={composerRef}>
+                    <Button
+                        type="text"
+                        shape="circle"
+                        className="agentic-composer-mic-button"
+                        icon={<AudioOutlined />}
+                        onClick={() => setVoiceMode(true)}
+                        aria-label="Start voice conversation"
+                    />
                     <Input
                         value={draft}
                         onChange={(event) => setDraft(event.target.value)}
@@ -984,6 +995,14 @@ export const AgenticHomePage = () => {
                 />
             </Modal>
 
+            {voiceMode && (
+                <ConversationMode
+                    messages={messages}
+                    isTyping={Boolean(messages.at(-1)?.role === 'agent' && messages.at(-1)?.content === 'Working on this in the background…')}
+                    onSend={(content) => send(content)}
+                    onClose={() => setVoiceMode(false)}
+                />
+            )}
         </main>
     )
 }

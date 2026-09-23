@@ -1,0 +1,88 @@
+/* ============================================================================
+   Voice orb — the liquid "blob" used by conversation mode
+   ----------------------------------------------------------------------------
+   Three overlapping radial-gradient layers, each animated on its own
+   border-radius keyframe loop, blended with mix-blend-mode: screen so they
+   read as one soft, wobbling liquid mass rather than three stacked circles.
+   VoiceOrb.tsx drives the *pace* (animation-duration) and *amplitude* (scale
+   + glow opacity) every frame from a simulated level — see the comment there.
+   ========================================================================== */
+
+.voice-orb {
+    --voice-orb-accent: #6d5dfb;
+    --voice-orb-accent-strong: #8b7cf6;
+    --voice-orb-accent-deep: #4c3fd1;
+    position: relative;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+}
+
+.voice-orb-scale {
+    width: 68%;
+    height: 68%;
+    position: relative;
+    will-change: transform;
+}
+
+.voice-orb-layer {
+    position: absolute;
+    inset: 0;
+    border-radius: 42% 58% 63% 37% / 41% 42% 58% 59%;
+    filter: blur(2px);
+    mix-blend-mode: screen;
+    will-change: border-radius, animation-duration;
+}
+
+.voice-orb-layer-1 {
+    background: radial-gradient(circle at 35% 30%, var(--voice-orb-accent-strong), transparent 70%);
+    animation: voiceOrbMorph1 7s ease-in-out infinite;
+}
+
+.voice-orb-layer-2 {
+    background: radial-gradient(circle at 65% 70%, var(--voice-orb-accent), transparent 70%);
+    animation: voiceOrbMorph2 9s ease-in-out infinite;
+    opacity: .85;
+}
+
+.voice-orb-layer-3 {
+    background: radial-gradient(circle at 50% 50%, var(--voice-orb-accent-deep), transparent 75%);
+    animation: voiceOrbMorph3 11s ease-in-out infinite;
+    opacity: .7;
+}
+
+.voice-orb-glow {
+    position: absolute;
+    inset: -30%;
+    border-radius: 50%;
+    background: radial-gradient(circle, color-mix(in srgb, var(--voice-orb-accent) 35%, transparent), transparent 70%);
+    filter: blur(18px);
+    opacity: .55;
+    transition: opacity .2s ease;
+}
+
+@keyframes voiceOrbMorph1 {
+    0%, 100% { border-radius: 42% 58% 63% 37% / 41% 42% 58% 59%; }
+    33% { border-radius: 62% 38% 45% 55% / 55% 63% 37% 45%; }
+    66% { border-radius: 48% 52% 38% 62% / 62% 45% 55% 38%; }
+}
+
+@keyframes voiceOrbMorph2 {
+    0%, 100% { border-radius: 55% 45% 40% 60% / 45% 55% 45% 55%; }
+    50% { border-radius: 40% 60% 62% 38% / 60% 40% 60% 40%; }
+}
+
+@keyframes voiceOrbMorph3 {
+    0%, 100% { border-radius: 50% 50% 35% 65% / 55% 45% 55% 45%; }
+    50% { border-radius: 65% 35% 55% 45% / 40% 60% 40% 60%; }
+}
+
+html[data-theme='dark'] .voice-orb {
+    --voice-orb-accent: #8b7cf6;
+    --voice-orb-accent-strong: #a78bfa;
+    --voice-orb-accent-deep: #6d5dfb;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .voice-orb-layer { animation: none !important; }
+}

@@ -292,6 +292,26 @@
     font-size: 17px;
 }
 
+.agentic-composer .agentic-composer-mic-button.ant-btn {
+    color: #8891a3;
+    background: transparent;
+    box-shadow: none;
+}
+
+.agentic-composer .agentic-composer-mic-button.ant-btn:hover {
+    color: #6d5dfb !important;
+    background: rgba(109, 93, 251, .1) !important;
+}
+
+html[data-theme='dark'] .agentic-composer .agentic-composer-mic-button.ant-btn {
+    color: #9aa4b8;
+}
+
+html[data-theme='dark'] .agentic-composer .agentic-composer-mic-button.ant-btn:hover {
+    color: #a78bfa !important;
+    background: rgba(139, 92, 246, .18) !important;
+}
+
 .agentic-suggestions {
     width: 100%;
     margin-top: 9px;

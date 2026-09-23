@@ -12,7 +12,7 @@ from datetime import date, datetime, timezone
 from typing import Any
 
 import firebase_admin
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Request, Response
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -1802,6 +1802,71 @@ async def roadmap_agent_chat(
         "agent": payload.agent,
         "generatedAt": datetime.now(timezone.utc).isoformat(),
     }
+
+
+# -------------------------------------------------------------------------
+# Text-to-speech (ElevenLabs) — agentic home's conversation mode "speaking"
+# audio. Proxied server-side so the ElevenLabs key never reaches the client.
+# -------------------------------------------------------------------------
+
+ELEVENLABS_API_BASE = "https://api.elevenlabs.io/v1"
+# "Rachel" — a stock ElevenLabs preset voice, used only as a default so
+# conversation mode has a voice out of the box; override with the
+# ELEVENLABS_VOICE_ID env var once a preferred voice is picked in ElevenLabs.
+ELEVENLABS_DEFAULT_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")
+# The Turbo model line trades a little quality for much lower latency, which
+# matters more for a live back-and-forth than for a one-off narration.
+ELEVENLABS_MODEL_ID = os.getenv("ELEVENLABS_MODEL_ID", "eleven_turbo_v2_5")
+MAX_TTS_CHARS = 2000
+
+
+class TtsRequest(BaseModel):
+    text: str = Field(default="", max_length=MAX_TTS_CHARS)
+    voiceId: str | None = None
+
+
+@app.post("/tts")
+def synthesize_speech(payload: TtsRequest, authorization: str | None = Header(default=None)) -> Response:
+    _require_auth(authorization)
+
+    api_key = os.getenv("ELEVENLABS_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="Voice output is not configured.")
+
+    text = payload.text.strip()[:MAX_TTS_CHARS]
+    if not text:
+        raise HTTPException(status_code=400, detail="Text is required.")
+
+    voice_id = (payload.voiceId or ELEVENLABS_DEFAULT_VOICE_ID).strip()
+    url = f"{ELEVENLABS_API_BASE}/text-to-speech/{voice_id}"
+    body = json.dumps({
+        "text": text,
+        "model_id": ELEVENLABS_MODEL_ID,
+        "voice_settings": {"stability": 0.5, "similarity_boost": 0.75},
+    }).encode("utf-8")
+
+    request_obj = urllib.request.Request(
+        url,
+        data=body,
+        method="POST",
+        headers={
+            "xi-api-key": api_key,
+            "Content-Type": "application/json",
+            "Accept": "audio/mpeg",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request_obj, timeout=30) as response:
+            audio_bytes = response.read()
+    except urllib.error.HTTPError as error:
+        detail = error.read().decode("utf-8", errors="ignore")[:300]
+        raise HTTPException(
+            status_code=502, detail=f"ElevenLabs request failed: {detail}"
+        ) from error
+    except (urllib.error.URLError, TimeoutError) as error:
+        raise HTTPException(status_code=502, detail="Could not reach ElevenLabs.") from error
+
+    return Response(content=audio_bytes, media_type="audio/mpeg")
 
 
 app.include_router(create_business_plan_router(_call_gemini, _require_auth))

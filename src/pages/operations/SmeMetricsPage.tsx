@@ -260,13 +260,7 @@ const rangeForPresetKey = (key: RangePresetKey): [Dayjs, Dayjs] => {
   return [now.startOf('year'), now]
 }
 
-const matchPresetKey = ([start, end]: [Dayjs, Dayjs]): RangePresetKey | '' => {
-  const match = rangePresetOptions.find(({ value }) => {
-    const [presetStart, presetEnd] = rangeForPresetKey(value)
-    return start.isSame(presetStart, 'day') && end.isSame(presetEnd, 'day')
-  })
-  return match?.value || ''
-}
+type AnalyticsView = 'trend' | 'sectors'
 
 const uniqueOptions = (rows: SmeMetricRow[], key: 'sector' | 'gender' | 'province' | 'beeLevel') =>
   Array.from(new Set(rows.map(row => String(row[key] || '').trim()).filter(Boolean)))
@@ -320,6 +314,7 @@ export const SmeMetricsPage = () => {
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [analyticsOpen, setAnalyticsOpen] = useState(false)
+  const [analyticsView, setAnalyticsView] = useState<AnalyticsView>('trend')
   const [[analyticsStart, analyticsEnd], setAnalyticsRange] = useState<[Dayjs, Dayjs]>([dayjs().startOf('month'), dayjs().endOf('month')])
 
   const datePickerPresets = useMemo(
@@ -551,8 +546,6 @@ export const SmeMetricsPage = () => {
   const topSectors = useMemo(() => analyticsComputed.sectors.slice(0, 8), [analyticsComputed.sectors])
   const maxSectorRevenue = useMemo(() => Math.max(1, ...topSectors.map(([, values]) => values.revenue)), [topSectors])
 
-  const analyticsPresetKey = matchPresetKey([analyticsStart, analyticsEnd])
-
   const selectedImpactOptions = useMemo<Highcharts.Options>(() => ({
     chart: { type: 'column', height: 300 },
     title: { text: selectedSummary ? selectedSummary.businessName : 'SME impact' },
@@ -691,49 +684,48 @@ export const SmeMetricsPage = () => {
         destroyOnClose
       >
         <div style={{ display: 'flex', gap: 10, width: '100%', marginBottom: 16 }}>
-          <Segmented<RangePresetKey | ''>
+          <Segmented<AnalyticsView>
             style={{ flex: 1 }}
-            value={analyticsPresetKey}
-            onChange={(value) => {
-              if (value) setAnalyticsRange(rangeForPresetKey(value))
-            }}
-            options={rangePresetOptions}
+            value={analyticsView}
+            onChange={setAnalyticsView}
+            options={[
+              { label: 'Revenue & Employees', value: 'trend', icon: <LineChartOutlined /> },
+              { label: 'Sector Contribution', value: 'sectors', icon: <BarChartOutlined /> },
+            ]}
           />
           <RangePicker
             style={{ flex: 1 }}
             value={[analyticsStart, analyticsEnd]}
             allowClear={false}
+            presets={datePickerPresets}
             onChange={(value) => {
               if (value?.[0] && value?.[1]) setAnalyticsRange([value[0], value[1]])
             }}
           />
         </div>
-        <Row gutter={[16, 16]}>
-          <Col xs={24} xl={15}>
-            <Card loading={loading} className="dashboard-section-card motion-card">
-              {analyticsComputed.buckets.some(bucket => bucket.revenue > 0 || bucket.employees > 0)
-                ? <ThemedHighcharts options={impactOptions} />
-                : <Empty description="No revenue or employee metrics found for this period" />}
-            </Card>
-          </Col>
-          <Col xs={24} xl={9}>
-            <Card loading={loading} className="dashboard-section-card motion-card" title="Sector Contribution">
-              {topSectors.length ? (
-                <Space direction="vertical" size={14} style={{ width: '100%' }}>
-                  {topSectors.map(([sectorName, values]) => (
-                    <div key={sectorName}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <Text>{sectorName}</Text>
-                        <Text strong>{formatCurrency(values.revenue)}</Text>
-                      </div>
-                      <Progress percent={percent(values.revenue, maxSectorRevenue)} showInfo={false} />
+        {analyticsView === 'trend' ? (
+          <Card loading={loading} className="dashboard-section-card motion-card">
+            {analyticsComputed.buckets.some(bucket => bucket.revenue > 0 || bucket.employees > 0)
+              ? <ThemedHighcharts options={impactOptions} />
+              : <Empty description="No revenue or employee metrics found for this period" />}
+          </Card>
+        ) : (
+          <Card loading={loading} className="dashboard-section-card motion-card" title="Sector Contribution">
+            {topSectors.length ? (
+              <Space direction="vertical" size={14} style={{ width: '100%' }}>
+                {topSectors.map(([sectorName, values]) => (
+                  <div key={sectorName}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <Text>{sectorName}</Text>
+                      <Text strong>{formatCurrency(values.revenue)}</Text>
                     </div>
-                  ))}
-                </Space>
-              ) : <Empty description="No sector metrics found" />}
-            </Card>
-          </Col>
-        </Row>
+                    <Progress percent={percent(values.revenue, maxSectorRevenue)} showInfo={false} />
+                  </div>
+                ))}
+              </Space>
+            ) : <Empty description="No sector metrics found" />}
+          </Card>
+        )}
       </Modal>
 
       <Modal
