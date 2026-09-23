@@ -301,6 +301,17 @@ export const SmeMetricsPage = () => {
   const [beeLevel, setBeeLevel] = useState('All')
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [analyticsOpen, setAnalyticsOpen] = useState(false)
+  const [[analyticsStart, analyticsEnd], setAnalyticsRange] = useState<[Dayjs, Dayjs]>([dayjs().startOf('month'), dayjs().endOf('month')])
+
+  const analyticsRangePresets = useMemo(() => {
+    const now = dayjs()
+    return [
+      { label: 'This month', value: [now.startOf('month'), now.endOf('month')] as [Dayjs, Dayjs] },
+      { label: 'This quarter', value: [now.startOf('quarter'), now.endOf('quarter')] as [Dayjs, Dayjs] },
+      { label: 'Year to date', value: [now.startOf('year'), now] as [Dayjs, Dayjs] },
+    ]
+  }, [])
 
   useEffect(() => {
     let mounted = true
@@ -440,20 +451,6 @@ export const SmeMetricsPage = () => {
     const employees = summaryRows.reduce((sum, row) => sum + row.employees, 0)
     const previousRevenue = filteredRows.reduce((sum, row) => sum + revenueInRange(row, previousRange), 0)
     const previousEmployees = filteredRows.reduce((sum, row) => sum + employeesInRange(row, previousRange), 0)
-    const buckets = bucketRange([start, end]).map(bucket => ({
-      ...bucket,
-      revenue: filteredRows.reduce((sum, row) => sum + revenueInRange(row, bucket.range), 0),
-      employees: filteredRows.reduce((sum, row) => sum + employeesInRange(row, bucket.range), 0),
-    }))
-
-    const sectorMap = new Map<string, { revenue: number; employees: number; smes: number }>()
-    summaryRows.forEach(row => {
-      const current = sectorMap.get(row.sector) || { revenue: 0, employees: 0, smes: 0 }
-      current.revenue += row.revenue
-      current.employees += row.employees
-      current.smes += 1
-      sectorMap.set(row.sector, current)
-    })
 
     return {
       summaryRows,
@@ -461,10 +458,34 @@ export const SmeMetricsPage = () => {
       employees,
       previousRevenue,
       previousEmployees,
+    }
+  }, [end, filteredRows, previousRange, start])
+
+  const analyticsRangeLabel = `${analyticsStart.format('DD MMM YYYY')} to ${analyticsEnd.format('DD MMM YYYY')}`
+  const analyticsComputed = useMemo(() => {
+    const buckets = bucketRange([analyticsStart, analyticsEnd]).map(bucket => ({
+      ...bucket,
+      revenue: filteredRows.reduce((sum, row) => sum + revenueInRange(row, bucket.range), 0),
+      employees: filteredRows.reduce((sum, row) => sum + employeesInRange(row, bucket.range), 0),
+    }))
+
+    const sectorMap = new Map<string, { revenue: number; employees: number; smes: number }>()
+    filteredRows.forEach(row => {
+      const key = row.sector || 'Unspecified'
+      const revenue = revenueInRange(row, [analyticsStart, analyticsEnd])
+      const employees = employeesInRange(row, [analyticsStart, analyticsEnd])
+      const current = sectorMap.get(key) || { revenue: 0, employees: 0, smes: 0 }
+      current.revenue += revenue
+      current.employees += employees
+      current.smes += 1
+      sectorMap.set(key, current)
+    })
+
+    return {
       buckets,
       sectors: Array.from(sectorMap.entries()).sort((a, b) => b[1].revenue - a[1].revenue),
     }
-  }, [end, filteredRows, previousRange, start])
+  }, [analyticsEnd, analyticsStart, filteredRows])
 
   const revenueDelta = delta(computed.revenue, computed.previousRevenue)
   const employeeDelta = delta(computed.employees, computed.previousEmployees)
@@ -500,29 +521,29 @@ export const SmeMetricsPage = () => {
   const impactOptions = useMemo<Highcharts.Options>(() => ({
     chart: { type: 'column', height: 340 },
     title: { text: 'Revenue and Employees' },
-    subtitle: { text: rangeLabel },
-    xAxis: { categories: computed.buckets.map(bucket => bucket.label) },
+    subtitle: { text: analyticsRangeLabel },
+    xAxis: { categories: analyticsComputed.buckets.map(bucket => bucket.label) },
     yAxis: [
       { title: { text: 'Employees' }, min: 0 },
       { title: { text: 'Revenue' }, min: 0, opposite: true },
     ],
     tooltip: { shared: true },
     series: [
-      { type: 'column', name: 'Employees', data: computed.buckets.map(bucket => bucket.employees), yAxis: 0 },
-      { type: 'spline', name: 'Revenue', data: computed.buckets.map(bucket => bucket.revenue), yAxis: 1 },
+      { type: 'column', name: 'Employees', data: analyticsComputed.buckets.map(bucket => bucket.employees), yAxis: 0 },
+      { type: 'spline', name: 'Revenue', data: analyticsComputed.buckets.map(bucket => bucket.revenue), yAxis: 1 },
     ],
-  }), [computed.buckets, rangeLabel])
+  }), [analyticsComputed.buckets, analyticsRangeLabel])
 
   const sectorOptions = useMemo<Highcharts.Options>(() => ({
     chart: { type: 'bar', height: 340 },
     title: { text: 'Sector Contribution' },
-    xAxis: { categories: computed.sectors.slice(0, 8).map(([sector]) => sector) },
+    xAxis: { categories: analyticsComputed.sectors.slice(0, 8).map(([sector]) => sector) },
     yAxis: { title: { text: 'Revenue' }, min: 0 },
     tooltip: { pointFormat: '<b>{point.y:,.0f}</b>' },
     series: [
-      { type: 'bar', name: 'Revenue', data: computed.sectors.slice(0, 8).map(([, values]) => values.revenue) },
+      { type: 'bar', name: 'Revenue', data: analyticsComputed.sectors.slice(0, 8).map(([, values]) => values.revenue) },
     ],
-  }), [computed.sectors])
+  }), [analyticsComputed.sectors])
 
   const selectedImpactOptions = useMemo<Highcharts.Options>(() => ({
     chart: { type: 'column', height: 300 },
@@ -541,33 +562,51 @@ export const SmeMetricsPage = () => {
   }), [rangeLabel, selectedBuckets, selectedSummary])
 
   const columns: ColumnsType<SmeMetricSummaryRow> = [
-    { title: 'SME', dataIndex: 'businessName', key: 'businessName', ellipsis: true },
-    { title: 'Sector', dataIndex: 'sector', key: 'sector', width: 180, ellipsis: true },
-    { title: 'Gender', dataIndex: 'gender', key: 'gender', width: 120, ellipsis: true },
-    { title: 'Province', dataIndex: 'province', key: 'province', width: 150, ellipsis: true },
-    { title: 'B-BBEE', dataIndex: 'beeLevel', key: 'beeLevel', width: 110, ellipsis: true },
-    ...(isAllPrograms ? [{ title: 'Programme', dataIndex: 'programName', key: 'programName', width: 180, ellipsis: true }] as ColumnsType<SmeMetricSummaryRow> : []),
-    { title: 'Revenue', dataIndex: 'revenue', key: 'revenue', width: 140, align: 'right', render: (value: number) => formatCurrency(value) },
-    { title: 'Revenue delta', dataIndex: 'revenueDelta', key: 'revenueDelta', width: 130, align: 'right', render: (value: number) => <Tag color={value >= 0 ? 'green' : 'red'}>{value >= 0 ? '+' : ''}{formatCurrency(value)}</Tag> },
-    { title: 'Employees', dataIndex: 'employees', key: 'employees', width: 110, align: 'right', render: (value: number) => formatNumber(value) },
-    { title: 'Employee delta', dataIndex: 'employeeDelta', key: 'employeeDelta', width: 130, align: 'right', render: (value: number) => <Tag color={value >= 0 ? 'green' : 'red'}>{value >= 0 ? '+' : ''}{formatNumber(value)}</Tag> },
+    {
+      title: 'SME',
+      dataIndex: 'businessName',
+      key: 'businessName',
+      render: (value: string, row) => (
+        <Space direction="vertical" size={0}>
+          <Typography.Text strong>{value}</Typography.Text>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            {[row.sector, row.gender, row.province, `BEE ${row.beeLevel}`, isAllPrograms ? row.programName : null].filter(Boolean).join(' · ')}
+          </Typography.Text>
+        </Space>
+      ),
+    },
+    {
+      title: 'Revenue',
+      dataIndex: 'revenue',
+      key: 'revenue',
+      width: 170,
+      align: 'right',
+      render: (value: number, row) => (
+        <Space direction="vertical" size={0} style={{ alignItems: 'flex-end' }}>
+          <Typography.Text strong>{formatCurrency(value)}</Typography.Text>
+          <Tag color={row.revenueDelta >= 0 ? 'green' : 'red'} style={{ marginInlineEnd: 0 }}>{row.revenueDelta >= 0 ? '+' : ''}{formatCurrency(row.revenueDelta)}</Tag>
+        </Space>
+      ),
+    },
+    {
+      title: 'Employees',
+      dataIndex: 'employees',
+      key: 'employees',
+      width: 140,
+      align: 'right',
+      render: (value: number, row) => (
+        <Space direction="vertical" size={0} style={{ alignItems: 'flex-end' }}>
+          <Typography.Text strong>{formatNumber(value)}</Typography.Text>
+          <Tag color={row.employeeDelta >= 0 ? 'green' : 'red'} style={{ marginInlineEnd: 0 }}>{row.employeeDelta >= 0 ? '+' : ''}{formatNumber(row.employeeDelta)}</Tag>
+        </Space>
+      ),
+    },
     {
       title: '',
       key: 'drilldown',
-      width: 110,
-      fixed: 'right',
-      render: (_, row) => (
-        <Button
-          size="small"
-          icon={<EyeOutlined />}
-          onClick={(event) => {
-            event.stopPropagation()
-            setSelectedKey(row.key)
-          }}
-        >
-          Drilldown
-        </Button>
-      ),
+      width: 48,
+      align: 'center',
+      render: () => <EyeOutlined style={{ color: 'rgba(0, 0, 0, 0.35)' }} />,
     },
   ]
 
@@ -581,7 +620,6 @@ export const SmeMetricsPage = () => {
       </Row>
 
       <FilterBar
-        title="SME metric filters"
         primary={
           <>
             <Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search SME name" allowClear />
@@ -619,24 +657,12 @@ export const SmeMetricsPage = () => {
             <Select value={beeLevel} onChange={setBeeLevel} options={[{ value: 'All', label: 'All B-BBEE levels' }, ...uniqueOptions(rows, 'beeLevel')]} />
           </>
         }
+        actions={
+          <Button icon={<BarChartOutlined />} onClick={() => setAnalyticsOpen(true)}>Analytics</Button>
+        }
       />
 
       <Row gutter={[16, 16]}>
-        <Col xs={24} xl={15}>
-          <Card loading={loading} className="dashboard-section-card motion-card">
-            {computed.buckets.some(bucket => bucket.revenue > 0 || bucket.employees > 0)
-              ? <ThemedHighcharts options={impactOptions} />
-              : <Empty description="No revenue or employee metrics found for this period" />}
-          </Card>
-        </Col>
-        <Col xs={24} xl={9}>
-          <Card loading={loading} className="dashboard-section-card motion-card">
-            {computed.sectors.length ? <ThemedHighcharts options={sectorOptions} /> : <Empty description="No sector metrics found" />}
-          </Card>
-        </Col>
-      </Row>
-
-      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
         <Col span={24}>
           <Card
             className="dashboard-section-card motion-card"
@@ -659,11 +685,44 @@ export const SmeMetricsPage = () => {
                 onClick: () => setSelectedKey(row.key),
               })}
               rowClassName="sme-metrics-clickable-row"
-              scroll={{ x: 1370 }}
             />
           </Card>
         </Col>
       </Row>
+
+      <Modal
+        open={analyticsOpen}
+        onCancel={() => setAnalyticsOpen(false)}
+        footer={<Button onClick={() => setAnalyticsOpen(false)}>Close</Button>}
+        title={<Space><BarChartOutlined /> SME Analytics</Space>}
+        width={960}
+        destroyOnClose
+      >
+        <RangePicker
+          value={[analyticsStart, analyticsEnd]}
+          allowClear={false}
+          presets={analyticsRangePresets}
+          onChange={(value) => {
+            if (value?.[0] && value?.[1]) setAnalyticsRange([value[0], value[1]])
+          }}
+          style={{ marginBottom: 16 }}
+        />
+        <Row gutter={[16, 16]}>
+          <Col xs={24} xl={15}>
+            <Card loading={loading} className="dashboard-section-card motion-card">
+              {analyticsComputed.buckets.some(bucket => bucket.revenue > 0 || bucket.employees > 0)
+                ? <ThemedHighcharts options={impactOptions} />
+                : <Empty description="No revenue or employee metrics found for this period" />}
+            </Card>
+          </Col>
+          <Col xs={24} xl={9}>
+            <Card loading={loading} className="dashboard-section-card motion-card">
+              {analyticsComputed.sectors.length ? <ThemedHighcharts options={sectorOptions} /> : <Empty description="No sector metrics found" />}
+            </Card>
+          </Col>
+        </Row>
+      </Modal>
+
       <Modal
         open={!!selectedSummary}
         title={selectedSummary?.businessName || 'SME metrics'}

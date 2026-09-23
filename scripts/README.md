@@ -78,6 +78,46 @@ node scripts/seed-applications.cjs --service-account ./scripts/new-service-accou
 node scripts/seed-applications.cjs --service-account ./scripts/new-service-account.json --undo ./scripts/seed-output-applications-<timestamp>.json --apply
 ```
 
+## Demo revenue/employee trends for those dummy SMEs
+
+Use `seed-sme-metrics.cjs` to backfill `revenue`/`employeeCount` plus 21 months (Jan 2025 -
+current month) of `revenueHistory.monthly` / `headcountHistory.monthly` on the same dummy SMEs, so
+the Operations "SME Impact" card and the SME Metrics page have real current-vs-previous-period
+deltas and trend charts instead of zeros. Alternates each participant between a growing and a
+declining trend (with natural month-to-month noise, not a straight line) so roughly half the SMEs
+show impact growth and half show decline. This updates the existing `participants` documents in
+place - it does not create any new documents. Dry run by default; undo clears just the fields this
+script set.
+
+```bash
+node scripts/seed-sme-metrics.cjs --service-account ./scripts/new-service-account.json --seed-tag demo-assigned-<timestamp> --apply
+
+# undo
+node scripts/seed-sme-metrics.cjs --service-account ./scripts/new-service-account.json --undo ./scripts/seed-output-sme-metrics-<timestamp>.json --apply
+```
+
+## Linking dummy participants to their application (gender/demographics fix)
+
+`seed-assigned-interventions.cjs` created the dummy participants with `applicationId: null`
+(there was no application yet at that point), and `seed-applications.cjs` later created a
+matching application for each one but never linked it back. Every page that shows an SME's gender
+or other demographics falls back from the participant doc to its linked application doc via
+`participant.applicationId` (`ParticipantsPage`, `SmeMetricsPage`'s merge, etc.) - with that link
+null, the fallback never resolves, so gender reads blank everywhere even though the application
+has it.
+
+Use `link-participant-applications.cjs` to fix this: sets each participant's `applicationId` to
+its matching application's id, and also copies `gender` directly onto the participant. Updates
+existing `participants` documents in place - creates nothing new. Dry run by default; undo
+restores each participant's previous `applicationId`/`gender`.
+
+```bash
+node scripts/link-participant-applications.cjs --service-account ./scripts/new-service-account.json --seed-tag demo-assigned-<timestamp> --apply
+
+# undo
+node scripts/link-participant-applications.cjs --service-account ./scripts/new-service-account.json --undo ./scripts/seed-output-participant-links-<timestamp>.json --apply
+```
+
 ## `assignedInterventions.businessName` backfill
 
 Use `migrate-assigned-interventions-business-name.cjs` to backfill `businessName` on

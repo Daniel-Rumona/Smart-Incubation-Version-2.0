@@ -1,8 +1,8 @@
-import { App, Button, Card, Col, Divider, Form, Input, InputNumber, Modal, Popconfirm, Row, Select, Space, Tag, Typography, type TableProps } from 'antd'
-import { CheckCircleOutlined, DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, RobotOutlined, SearchOutlined, SettingOutlined, SyncOutlined, ToolOutlined } from '@ant-design/icons'
+import { App, Button, Card, Col, Divider, Form, Input, InputNumber, Modal, Popconfirm, Row, Select, Space, Tag, theme, Typography, type TableProps } from 'antd'
+import { CheckCircleOutlined, CloseCircleOutlined, DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, RobotOutlined, SearchOutlined, SettingOutlined, StopOutlined, SyncOutlined, ToolOutlined } from '@ant-design/icons'
 import { addDoc, collection, deleteDoc, doc, getDocs, query, updateDoc, where } from 'firebase/firestore'
 import dayjs from 'dayjs'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
@@ -102,6 +102,45 @@ const endRuleLabel = (row: InterventionRow) => {
     if (row.endRule === 'by_date') return row.endDate ? `Ends by ${dayjs(row.endDate).format('YYYY-MM-DD')}` : 'Ends by date'
     return 'Ongoing'
 }
+
+/** A selectable card used for binary (yes/no) choices. */
+const OptionCard = ({ icon, label, selected, onClick }: { icon: ReactNode, label: string, selected?: boolean, onClick: () => void }) => {
+    const { token } = theme.useToken()
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            style={{
+                width: '100%',
+                display: 'flex',
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                padding: '8px 12px',
+                borderRadius: 10,
+                border: `1px solid ${selected ? token.colorPrimary : token.colorBorder}`,
+                background: selected ? token.colorPrimaryBg : token.colorBgContainer,
+                cursor: 'pointer',
+            }}
+        >
+            <span style={{ fontSize: 16, color: selected ? token.colorPrimary : token.colorTextSecondary }}>{icon}</span>
+            <strong>{label}</strong>
+        </button>
+    )
+}
+
+const YesNoField = ({ value, onChange, yesIcon, noIcon }: {
+    value?: 'yes' | 'no'
+    onChange?: (value: 'yes' | 'no') => void
+    yesIcon: ReactNode
+    noIcon: ReactNode
+}) => (
+    <Row gutter={8}>
+        <Col span={12}><OptionCard icon={yesIcon} label="Yes" selected={value === 'yes'} onClick={() => onChange?.('yes')} /></Col>
+        <Col span={12}><OptionCard icon={noIcon} label="No" selected={value === 'no'} onClick={() => onChange?.('no')} /></Col>
+    </Row>
+)
 
 const defaultInterventionValues = {
     isCompulsory: 'no',
@@ -504,7 +543,6 @@ export const InterventionsSetupPage = () => {
             </Row>
 
             <FilterBar
-                title="Intervention setup"
                 primary={(
                     <>
                         <Input prefix={<SearchOutlined />} value={filters.title} onChange={(event) => setFilters((prev) => ({ ...prev, title: event.target.value }))} placeholder="Search interventions" allowClear />
@@ -613,12 +651,12 @@ export const InterventionsSetupPage = () => {
                         </Col>
                         <Col xs={24} md={12}>
                             <Form.Item name="isCompulsory" label="Compulsory?" rules={[{ required: true }]}>
-                                <Select options={[{ value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }]} />
+                                <YesNoField yesIcon={<CheckCircleOutlined />} noIcon={<CloseCircleOutlined />} />
                             </Form.Item>
                         </Col>
                         <Col xs={24} md={12}>
                             <Form.Item name="isRecurring" label="Recurring?" rules={[{ required: true }]}>
-                                <Select options={[{ value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }]} />
+                                <YesNoField yesIcon={<SyncOutlined />} noIcon={<StopOutlined />} />
                             </Form.Item>
                         </Col>
                     </Row>
@@ -656,19 +694,28 @@ export const InterventionsSetupPage = () => {
                             if (getFieldValue('isRecurring') !== 'yes') return null
                             return (
                                 <Card size="small" title="Recurrence" style={{ marginBottom: 16 }}>
-                                    <Form.Item name={['recurrence', 'preset']} label="Recurrence pattern" rules={[{ required: true, message: 'Select a recurrence pattern.' }]}>
-                                        <Select
-                                            options={RECURRENCE_PRESETS.map(({ value, label }) => ({ value, label }))}
-                                            onChange={(preset: RecurrencePreset) => {
-                                                if (preset === 'custom') {
-                                                    setFieldsValue({ recurrence: { preset, every: 3, unit: 'week' } })
-                                                    return
-                                                }
-                                                const presetConfig = RECURRENCE_PRESETS.find((item) => item.value === preset)
-                                                setFieldsValue({ recurrence: { preset, every: presetConfig?.every ?? 1, unit: presetConfig?.unit ?? 'week' } })
-                                            }}
-                                        />
-                                    </Form.Item>
+                                    <Row gutter={12}>
+                                        <Col xs={24} md={12}>
+                                            <Form.Item name={['recurrence', 'preset']} label="Recurrence pattern" rules={[{ required: true, message: 'Select a recurrence pattern.' }]}>
+                                                <Select
+                                                    options={RECURRENCE_PRESETS.map(({ value, label }) => ({ value, label }))}
+                                                    onChange={(preset: RecurrencePreset) => {
+                                                        if (preset === 'custom') {
+                                                            setFieldsValue({ recurrence: { preset, every: 3, unit: 'week' } })
+                                                            return
+                                                        }
+                                                        const presetConfig = RECURRENCE_PRESETS.find((item) => item.value === preset)
+                                                        setFieldsValue({ recurrence: { preset, every: presetConfig?.every ?? 1, unit: presetConfig?.unit ?? 'week' } })
+                                                    }}
+                                                />
+                                            </Form.Item>
+                                        </Col>
+                                        <Col xs={24} md={12}>
+                                            <Form.Item name="endRule" label="Series end rule">
+                                                <Select options={[{ value: 'none', label: 'Ongoing' }, { value: 'after_n_cycles', label: 'End after N cycles' }, { value: 'by_date', label: 'End by date' }]} />
+                                            </Form.Item>
+                                        </Col>
+                                    </Row>
                                     <Form.Item noStyle shouldUpdate={(previous, current) => previous?.recurrence?.preset !== current?.recurrence?.preset}>
                                         {({ getFieldValue }) => getFieldValue(['recurrence', 'preset']) === 'custom' ? (
                                             <Row gutter={12}>
@@ -684,9 +731,6 @@ export const InterventionsSetupPage = () => {
                                                 </Col>
                                             </Row>
                                         ) : null}
-                                    </Form.Item>
-                                    <Form.Item name="endRule" label="Series end rule">
-                                        <Select options={[{ value: 'none', label: 'Ongoing' }, { value: 'after_n_cycles', label: 'End after N cycles' }, { value: 'by_date', label: 'End by date' }]} />
                                     </Form.Item>
                                     <Form.Item noStyle shouldUpdate={(previous, current) => previous.endRule !== current.endRule}>
                                         {({ getFieldValue }) => {
@@ -706,8 +750,10 @@ export const InterventionsSetupPage = () => {
                     </Form.Item>
 
                     <Form.Item noStyle shouldUpdate={(previous, current) => previous.executionMode !== current.executionMode}>
-                        {({ getFieldValue }) => (
-                            <Card size="small" title={getFieldValue('executionMode') === 'multi_step' ? 'Steps required' : 'Steps'} style={{ marginBottom: 16 }}>
+                        {({ getFieldValue }) => {
+                            if (getFieldValue('executionMode') !== 'multi_step') return null
+                            return (
+                            <Card size="small" title="Steps required" style={{ marginBottom: 16 }}>
                                 <Form.List name="steps">
                                     {(fields, { add, remove }) => (
                                         <Space direction="vertical" size={12} style={{ width: '100%' }}>
@@ -737,7 +783,8 @@ export const InterventionsSetupPage = () => {
                                     )}
                                 </Form.List>
                             </Card>
-                        )}
+                            )
+                        }}
                     </Form.Item>
 
                     <Space style={{ justifyContent: 'flex-end', width: '100%' }}>
