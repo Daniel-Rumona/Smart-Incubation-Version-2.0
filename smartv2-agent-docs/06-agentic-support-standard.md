@@ -131,3 +131,27 @@ useRegisterAgentPageContext({
 ```
 
 The hook should register context when relevant values change.
+
+## Agentic operations (appointments and interventions)
+
+Implemented in `ai-backend/agent_actions.py`. Applies to staff whose permissions allow it (`assign_interventions` / `track_interventions`); everyone else keeps the plain conversational path.
+
+Flow: `POST /api/agent` -> model picks read tools (results fed back to it) or proposes one write tool -> the backend validates it, stores it in `agentActionProposals` and returns `proposal` -> the UI shows a confirmation card -> `POST /api/agent/actions/{id}/confirm` (or `/cancel`).
+
+Rules:
+
+- The model never writes. Only the confirm endpoint writes, and it re-validates against fresh data and current permissions.
+- Identity and company come from the verified token, never from page context or the request body.
+- A proposal belongs to one user, is single-use, and expires after 15 minutes.
+- Writes produce the same documents as the operations UI (`assignedInterventions`, `appointments`, `notifications`), tagged `createdVia: "assistant"`.
+- Consultants can only touch appointments and assignments where they are the delivery owner.
+- Tools: `find_participants`, `list_assignments`, `list_delivery_owners`, `list_appointments` (read); `assign_intervention`, `schedule_appointment`, `reschedule_appointment`, `cancel_appointment`, `log_appointment_outcome` (write).
+
+Response shape when a write is proposed:
+
+```json
+{ "reply": "...", "actionKey": null,
+  "proposal": { "id": "...", "tool": "schedule_appointment", "title": "Schedule appointment",
+                "summary": [{ "label": "When", "value": "..." }], "warnings": ["..."],
+                "expiresAt": "ISO", "requiresConfirmation": true } }
+```
