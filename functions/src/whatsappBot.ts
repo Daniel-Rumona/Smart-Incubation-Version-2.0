@@ -257,15 +257,54 @@ const sendText = async (to: string, body: string) => {
   await sendPayload(to, { type: 'text', text: { body, preview_url: false } })
 }
 
-const sendButtons = async (to: string, body: string, choices: Choice[]) => {
+const sendButtons = async (to: string, body: string, choices: Choice[], extras: { header?: string, footer?: string } = {}) => {
   await sendPayload(to, {
     type: 'interactive',
     interactive: {
-      type: 'button', body: { text: short(body, 1024) },
+      type: 'button',
+      ...(extras.header ? { header: { type: 'text', text: short(extras.header, 60) } } : {}),
+      body: { text: short(body, 1024) },
+      ...(extras.footer ? { footer: { text: short(extras.footer, 60) } } : {}),
       action: { buttons: choices.slice(0, 3).map(choice => ({ type: 'reply', reply: { id: choice.id, title: short(choice.title, 20) } })) },
     },
   })
 }
+
+/** A list message with titled sections (WhatsApp allows up to 10 rows in total). */
+const sendMenuList = async (to: string, options: {
+  header?: string, body: string, footer?: string, button: string, sections: Array<{ title: string, rows: Choice[] }>,
+}) => {
+  await sendPayload(to, {
+    type: 'interactive',
+    interactive: {
+      type: 'list',
+      ...(options.header ? { header: { type: 'text', text: short(options.header, 60) } } : {}),
+      body: { text: short(options.body, 1024) },
+      ...(options.footer ? { footer: { text: short(options.footer, 60) } } : {}),
+      action: {
+        button: short(options.button, 20),
+        sections: options.sections.map(section => ({
+          title: short(section.title, 24),
+          rows: section.rows.map(row => ({ id: row.id, title: short(row.title, 24), description: short(row.description, 72) })),
+        })),
+      },
+    },
+  })
+}
+
+const HOME_CHOICE: Choice = { id: 'action:menu', title: '🏠 Main menu' }
+const NEXT_APPOINTMENTS: Choice = { id: 'action:appointments', title: '📅 Next appointments' }
+const PAST_APPOINTMENTS: Choice = { id: 'action:appointments_past', title: '🕘 Past appointments' }
+const MY_INTERVENTIONS: Choice = { id: 'action:interventions', title: '🛠 My interventions' }
+
+const firstNameOf = (identity: UserRecord) => {
+  const full = String(identity.displayName || identity.name || identity.fullName || '').trim()
+  if (full) return full.split(/\s+/)[0]
+  const local = String(identity.email || '').split('@')[0].split(/[._-]/)[0]
+  return local ? local.charAt(0).toUpperCase() + local.slice(1) : ''
+}
+
+const greetingOrMenu = /^(hi+|hie+|hey+|hello+|howzit|sawubona|molo|hola|yo|wagwa+n|start|menu|cancel|good\s+(morning|afternoon|evening|day))([\s!.,]+(there|q|thuso|team|everyone))?[\s!.,]*$/i
 
 const sendList = async (to: string, body: string, button: string, choices: Choice[]) => {
   await sendPayload(to, {
@@ -414,13 +453,13 @@ async function showDiagnosticPlan(to: string, identity: UserRecord) {
   }
   const plan = [...plans.values()][0]
   if (!plan) {
-    await sendText(to, 'I could not find a diagnostic plan linked to your account yet. Your programme team may still be preparing it.')
+    await sendButtons(to, 'I could not find a diagnostic plan linked to your account yet. Your programme team may still be preparing it.', [MY_INTERVENTIONS, HOME_CHOICE])
     return
   }
   const interventions = Array.isArray(plan.interventions) ? plan.interventions as Array<Record<string, unknown>> : []
   const titles = interventions.slice(0, 6).map((item, index) => `${index + 1}. ${item.title || item.interventionTitle || 'Intervention'}`)
   const status = String(plan.status || (plan.confirmed ? 'Confirmed' : 'In preparation'))
-  await sendText(to, `Your diagnostic plan\n\nStatus: ${status}\nInterventions: ${interventions.length}\n${titles.join('\n') || 'No interventions listed yet.'}`)
+  await sendButtons(to, `📋 *Your diagnostic plan*\n\nStatus: ${status}\nInterventions: ${interventions.length}\n${titles.join('\n') || 'No interventions listed yet.'}`, [MY_INTERVENTIONS, HOME_CHOICE])
 }
 
 async function scopedInterventions(identity: UserRecord) {
@@ -440,7 +479,7 @@ async function scopedInterventions(identity: UserRecord) {
 async function showRoleInterventions(to: string, identity: UserRecord) {
   const rows = await scopedInterventions(identity)
   if (!rows.length) {
-    await sendText(to, roleGroup(identity) === 'incubatee' ? 'You do not have any assigned interventions yet.' : 'No intervention assignments match your workspace scope.')
+    await sendButtons(to, roleGroup(identity) === 'incubatee' ? 'You do not have any assigned interventions yet.' : 'No intervention assignments match your workspace scope.', [NEXT_APPOINTMENTS, HOME_CHOICE])
     return
   }
   const active = rows.filter(row => !['completed', 'confirmed', 'done'].includes(normalize(row.data().status || row.data().completionStatus))).length
@@ -449,7 +488,7 @@ async function showRoleInterventions(to: string, identity: UserRecord) {
     const who = roleGroup(identity) === 'incubatee' ? data.assigneeName || 'Unassigned' : data.beneficiaryName || 'SME'
     return `${index + 1}. ${data.interventionTitle || 'Intervention'} — ${who} (${data.status || 'assigned'}, ${Number(data.progress || 0)}%)`
   })
-  await sendText(to, `Interventions: ${rows.length} total, ${active} active\n\n${lines.join('\n')}`)
+  await sendButtons(to, `🛠 *Interventions*: ${rows.length} total, ${active} active\n\n${lines.join('\n')}`, [NEXT_APPOINTMENTS, HOME_CHOICE])
 }
 
 const pastRequest = /\b(past|previous|earlier|history|old(er)?)\b/
@@ -475,10 +514,11 @@ async function showRoleAppointments(to: string, identity: UserRecord, scope: 'up
   await saveState(normalizePhone(to), { lastTopic: 'appointments' })
 
   const chosen = scope === 'past' ? past : upcoming
+  const nextSteps = scope === 'past' ? [NEXT_APPOINTMENTS, HOME_CHOICE] : [PAST_APPOINTMENTS, HOME_CHOICE]
   if (!chosen.length) {
-    await sendText(to, scope === 'past'
+    await sendButtons(to, scope === 'past'
       ? 'I could not find any past appointments in your workspace scope.'
-      : `There are no upcoming appointments in your workspace scope.${past.length ? ' Reply “past appointments” to see earlier ones.' : ''}`)
+      : 'There are no upcoming appointments in your workspace scope.', nextSteps)
     return
   }
   chosen.sort((a, b) => scope === 'past' ? startMillis(b) - startMillis(a) : startMillis(a) - startMillis(b))
@@ -486,7 +526,7 @@ async function showRoleAppointments(to: string, identity: UserRecord, scope: 'up
     const data = row.data()
     return `${index + 1}. ${data.interventionTitle || 'Appointment'} — ${firestoreDate(data.startTime)} (${data.status || 'scheduled'})${group === 'incubatee' ? '' : ` · ${data.participantName || 'SME'}`}`
   })
-  await sendText(to, `${scope === 'past' ? 'Past appointments' : 'Upcoming appointments'}\n\n${lines.join('\n')}${scope === 'upcoming' && past.length ? '\n\nReply “past appointments” to see earlier ones.' : ''}`)
+  await sendButtons(to, `${scope === 'past' ? '🕘 *Past appointments*' : '📅 *Upcoming appointments*'}\n\n${lines.join('\n')}`, nextSteps)
 }
 
 async function showPlatformOverview(to: string) {
@@ -502,14 +542,54 @@ async function showPlatformOverview(to: string) {
 
 async function menu(to: string, identity: UserRecord) {
   const group = roleGroup(identity)
-  const choices: Record<string, Choice[]> = {
-    incubatee: [{ id: 'action:diagnostic', title: 'My diagnostic plan' }, { id: 'action:interventions', title: 'My interventions' }, { id: 'action:appointments', title: 'My appointments' }],
-    consultant: [{ id: 'action:interventions', title: 'My interventions' }, { id: 'action:appointments', title: 'My appointments' }, { id: 'action:help', title: 'Help' }],
-    operations: [{ id: 'action:assign', title: 'Assign intervention' }, { id: 'action:interventions', title: 'Intervention status' }, { id: 'action:appointments', title: 'Appointments' }],
-    admin: [{ id: 'action:platform', title: 'Platform overview' }, { id: 'action:interventions', title: 'Intervention status' }, { id: 'action:help', title: 'Help' }],
-    general: [{ id: 'action:help', title: 'Help' }],
+  const askRow: Choice = group === 'incubatee'
+    ? { id: 'action:ask', title: '💬 Ask me anything', description: 'Type it in your own words' }
+    : { id: 'action:ask', title: '💬 Book or log a session', description: 'Just tell me what you need' }
+  const helpRow: Choice = { id: 'action:help', title: '❓ What can you do?', description: 'A quick guide' }
+  const appointments: Choice[] = [
+    { ...NEXT_APPOINTMENTS, title: '📅 Next appointments', description: 'What is coming up' },
+    { ...PAST_APPOINTMENTS, description: 'Sessions already held' },
+  ]
+  const sections: Record<string, Array<{ title: string, rows: Choice[] }>> = {
+    incubatee: [
+      { title: 'My programme', rows: [
+        { id: 'action:diagnostic', title: '📋 Diagnostic plan', description: 'Your growth plan and what is required' },
+        { ...MY_INTERVENTIONS, description: 'Status, progress and who is delivering' },
+      ] },
+      { title: 'Appointments', rows: appointments },
+      { title: 'Something else?', rows: [askRow, helpRow] },
+    ],
+    consultant: [
+      { title: 'My work', rows: [{ ...MY_INTERVENTIONS, description: 'Sessions and progress you deliver' }] },
+      { title: 'Appointments', rows: appointments },
+      { title: 'Let me help', rows: [askRow, helpRow] },
+    ],
+    operations: [
+      { title: 'Interventions', rows: [
+        { id: 'action:assign', title: '➕ Assign intervention', description: 'Give an SME an intervention and an owner' },
+        { id: 'action:interventions', title: '📊 Intervention status', description: 'Progress across your SMEs' },
+      ] },
+      { title: 'Appointments', rows: appointments },
+      { title: 'Let me help', rows: [askRow, helpRow] },
+    ],
+    admin: [
+      { title: 'Overview', rows: [
+        { id: 'action:platform', title: '📊 Platform overview', description: 'Accounts, ratings and health' },
+        { id: 'action:interventions', title: '🛠 Intervention status', description: 'Progress across the platform' },
+      ] },
+      { title: 'Appointments', rows: appointments },
+      { title: 'Let me help', rows: [askRow, helpRow] },
+    ],
+    general: [{ title: 'Options', rows: [helpRow] }],
   }
-  await sendButtons(to, 'Hi! What would you like to do today?', choices[group])
+  const name = firstNameOf(identity)
+  await sendMenuList(to, {
+    header: 'Smart Incubation',
+    body: `Hey there${name ? ` ${name}` : ''} 👋\nWhat can I help you with today?`,
+    footer: 'Send “menu” any time to come back here',
+    button: 'See options',
+    sections: sections[group] || sections.general,
+  })
 }
 
 async function listParticipants(to: string, identity: UserRecord) {
@@ -1500,7 +1580,7 @@ async function processQtxMessage(to: string, input: string, sourceMessageId: str
       return
     }
   }
-  if (['menu', 'cancel', 'start', 'hi', 'hie', 'hey', 'hello'].includes(command)) {
+  if (greetingOrMenu.test(command) || input === 'action:menu') {
     await clearFlow(phone, identity)
     await menu(to, identity)
     return
@@ -1514,7 +1594,7 @@ async function processQtxMessage(to: string, input: string, sourceMessageId: str
       admin: 'I can show platform account health, agent ratings, and intervention status.',
       general: 'I can show the workspace actions available to your role.',
     }
-    await sendText(to, `${help[roleGroup(identity)]} Send “menu” at any time to return to your options.`)
+    await sendButtons(to, `${help[roleGroup(identity)]} Send “menu” at any time to return to your options.`, [HOME_CHOICE])
     await maybeRequestRating(to, phone)
     return
   }
@@ -1532,9 +1612,16 @@ async function processQtxMessage(to: string, input: string, sourceMessageId: str
     await maybeRequestRating(to, phone)
     return
   }
-  if (input === 'action:appointments' || /\b(my\s+)?appointments?\b/.test(command) || /\bmeetings?\b/.test(command)
+  if (input === 'action:ask') {
+    const examples = roleGroup(identity) === 'incubatee'
+      ? '• “When is my next appointment?”\n• “Send me my meeting link”\n• “I cannot make it on Thursday”'
+      : '• “Book Acme Bakery tomorrow at 10:00 on Google Meet”\n• “Move Thursday’s session to Friday 14:00”\n• “Log yesterday’s meeting: they attended, 2 hours”\n• “Which sessions still need an outcome?”'
+    await sendButtons(to, `Just tell me what you need in your own words${roleGroup(identity) === 'incubatee' ? '' : ' and I will show you a summary to confirm before anything changes'}. For example:\n\n${examples}`, [HOME_CHOICE])
+    return
+  }
+  if (input === 'action:appointments' || input === 'action:appointments_past' || /\b(my\s+)?appointments?\b/.test(command) || /\bmeetings?\b/.test(command)
     || (state.lastTopic === 'appointments' && pastRequest.test(command))) {
-    await showRoleAppointments(to, identity, pastRequest.test(command) ? 'past' : 'upcoming')
+    await showRoleAppointments(to, identity, input === 'action:appointments_past' || pastRequest.test(command) ? 'past' : 'upcoming')
     await maybeRequestRating(to, phone)
     return
   }
