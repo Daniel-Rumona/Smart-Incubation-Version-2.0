@@ -25,6 +25,9 @@ from strategic_plan_agent import create_strategic_plan_router
 from pitchfy_agent import create_pitchfy_router
 from pitchfy_client import PitchfyClient
 from document_provenance import create_document_provenance_router
+from whatsapp_agent import authorize_router_user, create_whatsapp_agent_router
+from appointment_responses import create_appointment_responses_router
+from agent_actions import actions_enabled, build_actor, create_agent_actions_router, run_agent_turn, tools_for
 from survey_import_agent import create_survey_import_router
 from request_auth import create_request_authenticator
 from whatsapp import (
@@ -1115,37 +1118,52 @@ def channel_chat(payload: WhatsAppChatRequest, request: Request):
         )
 
 
+AGENT_PERSONA = (
+    "Your name is Q. You are the Smart Incubation assistant. Greet the viewer by first name when it feels "
+    "natural, especially at the start of a conversation. Answer as a concise, warm operational assistant. "
+    "Use the page context, recent conversation, and sanitized Firestore snapshots to explain what is "
+    "happening and suggest useful next steps. Do not expose implementation details, collection names, raw "
+    "record fields, internal action keys, secrets, service-account details, user IDs, emails, phone numbers, "
+    "or document IDs. If a user says yes, sure, ok, or similar, continue the previous assistant offer instead "
+    "of treating it as a new request. Mention user-facing action labels only when helpful."
+)
+
+
 @app.post("/api/agent")
 async def page_agent(payload: AgentRequest, authorization: str | None = Header(default=None)) -> dict[str, Any]:
-    _require_auth(authorization)
+    identity = _require_auth(authorization)
 
     firestore_context = _firestore_context_for_page(payload.page)
     actions = [action.model_dump() for action in payload.page.allowedActions or []]
     user_message = _resolve_followup_message(payload.message, payload.history, payload.page)
-    system_prompt = (
-        "Your name is Q. You are the Smart Incubation assistant. Greet the viewer by first name when it feels "
-        "natural, especially at the start of a conversation. Answer as a concise, warm operational assistant. "
-        "Use the page context, recent conversation, and sanitized Firestore snapshots to explain what is "
-        "happening and suggest useful next steps. Do not expose implementation details, collection names, raw "
-        "record fields, internal action keys, secrets, service-account details, user IDs, emails, phone numbers, "
-        "or document IDs. If a user says yes, sure, ok, or similar, continue the previous assistant offer instead "
-        "of treating it as a new request. Mention user-facing action labels only when helpful."
-    )
-    reply = _call_gemini(
-        system_prompt,
-        {
-            "userMessage": user_message,
-            "viewerName": (payload.page.viewer or {}).get("name") if payload.page.viewer else None,
-            "botName": "Q",
-            "page": _public_page_context(payload.page),
-            "availableUserActions": [
-                {"label": action.get("label"), "description": action.get("description")}
-                for action in actions
-            ],
-            "recentConversation": [turn.model_dump() for turn in payload.history[-8:]],
-            "firestore": firestore_context,
-        },
-    )
+    model_payload = {
+        "userMessage": user_message,
+        "viewerName": (payload.page.viewer or {}).get("name") if payload.page.viewer else None,
+        "botName": "Q",
+        "page": _public_page_context(payload.page),
+        "availableUserActions": [
+            {"label": action.get("label"), "description": action.get("description")}
+            for action in actions
+        ],
+        "recentConversation": [turn.model_dump() for turn in payload.history[-8:]],
+        "firestore": firestore_context,
+    }
+
+    # Staff who may manage appointments/interventions get the tool-using path. The model can only
+    # propose writes; the user confirms them via /api/agent/actions/{id}/confirm.
+    if actions_enabled():
+        actor = build_actor(db, identity)
+        if tools_for(actor):
+            turn = run_agent_turn(
+                db, actor,
+                persona=AGENT_PERSONA,
+                base_payload=model_payload,
+                call_model=_call_gemini,
+                extract_json=_extract_json_object,
+            )
+            return {"reply": turn["reply"], "actionKey": None, "proposal": turn["proposal"]}
+
+    reply = _call_gemini(AGENT_PERSONA, model_payload)
 
     action_key = None
     lowered = payload.message.lower()
@@ -1155,6 +1173,7 @@ async def page_agent(payload: AgentRequest, authorization: str | None = Header(d
             break
 
     return {"reply": reply, "actionKey": action_key}
+
 
 @app.post('/api/applications/guided-dump')
 async def guided_application_dump(payload: ApplicationGuidedRequest, authorization: str | None = Header(default=None)) -> dict[str, Any]:
@@ -1869,6 +1888,11 @@ def synthesize_speech(payload: TtsRequest, authorization: str | None = Header(de
     return Response(content=audio_bytes, media_type="audio/mpeg")
 
 
+app.include_router(create_agent_actions_router(db, _require_auth))
+app.include_router(create_whatsapp_agent_router(db, _call_gemini, _extract_json_object, AGENT_PERSONA))
+app.include_router(create_appointment_responses_router(
+    db, _require_auth, lambda request, user_id, phone: authorize_router_user(db, request, user_id, phone),
+))
 app.include_router(create_business_plan_router(_call_gemini, _require_auth))
 app.include_router(create_strategic_plan_router(_call_gemini, _require_auth))
 app.include_router(create_document_provenance_router(_require_auth))

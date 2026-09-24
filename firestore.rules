@@ -695,6 +695,8 @@ service cloud.firestore {
     match /mail/{entryId} { allow read, write: if false; }
     match /smeIntakeAnalyses/{entryId} { allow read, write: if false; }
     match /interventionBottleneckReminderLogs/{entryId} { allow read, write: if false; }
+    match /agentActionProposals/{entryId} { allow read, write: if false; }
+    match /agentChannelSessions/{entryId} { allow read, write: if false; }
     match /whatsappConversations/{entryId} { allow read, write: if false; }
     match /whatsappDeliveryAlerts/{entryId} { allow read, write: if false; }
     match /whatsappDeliveryHealthDaily/{entryId} { allow read, write: if false; }
