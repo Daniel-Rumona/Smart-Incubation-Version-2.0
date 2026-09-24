@@ -20,6 +20,8 @@ type BotState = {
   engine?: Engine
   participantId?: string
   contextType?: string
+  /** Last thing the user asked to see, so a short follow-up ("what about past ones?") has context. */
+  lastTopic?: string | null
   appointmentId?: string
   conversation?: AiConversationState
   userId?: string
@@ -337,7 +339,7 @@ async function saveState(phone: string, state: Partial<BotState>) {
 
 async function clearFlow(phone: string, identity: UserRecord) {
   await stateRef(phone).set({
-    userId: identity.id, companyCode: String(identity.companyCode || ''), step: 'menu', draft: {},
+    userId: identity.id, companyCode: String(identity.companyCode || ''), step: 'menu', draft: {}, lastTopic: null,
     updatedAt: FieldValue.serverTimestamp(),
   }, { merge: true })
 }
@@ -450,12 +452,14 @@ async function showRoleInterventions(to: string, identity: UserRecord) {
   await sendText(to, `Interventions: ${rows.length} total, ${active} active\n\n${lines.join('\n')}`)
 }
 
-async function showRoleAppointments(to: string, identity: UserRecord) {
+const pastRequest = /\b(past|previous|earlier|history|old(er)?)\b/
+
+async function showRoleAppointments(to: string, identity: UserRecord, scope: 'upcoming' | 'past' = 'upcoming') {
   const group = roleGroup(identity)
   const companyCode = String(identity.companyCode || '')
   const snapshot = companyCode
-    ? await db().collection('appointments').where('companyCode', '==', companyCode).limit(150).get()
-    : await db().collection('appointments').limit(150).get()
+    ? await db().collection('appointments').where('companyCode', '==', companyCode).limit(300).get()
+    : await db().collection('appointments').limit(300).get()
   let rows = snapshot.docs
   if (group === 'incubatee') {
     const context = await participantContext(identity)
@@ -463,17 +467,26 @@ async function showRoleAppointments(to: string, identity: UserRecord) {
   } else if (group === 'consultant') {
     rows = rows.filter(row => String(row.data().assigneeId || '') === identity.id || normalize(row.data().assigneeEmail) === normalize(identity.email))
   }
-  rows = rows.filter(row => !['cancelled', 'completed'].includes(normalize(row.data().status)))
-  if (!rows.length) {
-    await sendText(to, 'There are no upcoming appointments in your workspace scope.')
+  const startMillis = (row: { data: () => Record<string, unknown> }) => (row.data().startTime as Timestamp | undefined)?.toMillis?.() || 0
+  const isClosed = (row: { data: () => Record<string, unknown> }) => ['cancelled', 'completed'].includes(normalize(row.data().status))
+  const now = Date.now()
+  const upcoming = rows.filter(row => !isClosed(row) && startMillis(row) >= now)
+  const past = rows.filter(row => isClosed(row) || startMillis(row) < now)
+  await saveState(normalizePhone(to), { lastTopic: 'appointments' })
+
+  const chosen = scope === 'past' ? past : upcoming
+  if (!chosen.length) {
+    await sendText(to, scope === 'past'
+      ? 'I could not find any past appointments in your workspace scope.'
+      : `There are no upcoming appointments in your workspace scope.${past.length ? ' Reply “past appointments” to see earlier ones.' : ''}`)
     return
   }
-  rows.sort((a, b) => ((a.data().startTime as Timestamp | undefined)?.toMillis?.() || 0) - ((b.data().startTime as Timestamp | undefined)?.toMillis?.() || 0))
-  const lines = rows.slice(0, 8).map((row, index) => {
+  chosen.sort((a, b) => scope === 'past' ? startMillis(b) - startMillis(a) : startMillis(a) - startMillis(b))
+  const lines = chosen.slice(0, 8).map((row, index) => {
     const data = row.data()
     return `${index + 1}. ${data.interventionTitle || 'Appointment'} — ${firestoreDate(data.startTime)} (${data.status || 'scheduled'})${group === 'incubatee' ? '' : ` · ${data.participantName || 'SME'}`}`
   })
-  await sendText(to, `Upcoming appointments\n\n${lines.join('\n')}`)
+  await sendText(to, `${scope === 'past' ? 'Past appointments' : 'Upcoming appointments'}\n\n${lines.join('\n')}${scope === 'upcoming' && past.length ? '\n\nReply “past appointments” to see earlier ones.' : ''}`)
 }
 
 async function showPlatformOverview(to: string) {
@@ -1519,8 +1532,9 @@ async function processQtxMessage(to: string, input: string, sourceMessageId: str
     await maybeRequestRating(to, phone)
     return
   }
-  if (input === 'action:appointments' || /\b(my\s+)?appointments?\b/.test(command) || /\bmeetings?\b/.test(command)) {
-    await showRoleAppointments(to, identity)
+  if (input === 'action:appointments' || /\b(my\s+)?appointments?\b/.test(command) || /\bmeetings?\b/.test(command)
+    || (state.lastTopic === 'appointments' && pastRequest.test(command))) {
+    await showRoleAppointments(to, identity, pastRequest.test(command) ? 'past' : 'upcoming')
     await maybeRequestRating(to, phone)
     return
   }
@@ -1675,7 +1689,13 @@ async function processQtxMessage(to: string, input: string, sourceMessageId: str
     }
     return
   }
-  await processAiMessage('QTX', to, phone, input, state, identity)
+  try {
+    await processAiMessage('QTX', to, phone, input, state, identity)
+  } catch (error) {
+    // Retrying a free-text question rarely helps and used to end in silence after 8 attempts.
+    console.error('WhatsApp AI message failed', { userId: identity.id, error: String(error) })
+    await sendText(to, 'I could not process that right now. Send “menu” to see what I can do, or try again in a moment.')
+  }
 }
 
 async function processMessage(to: string, input: string, sourceMessageId: string) {
