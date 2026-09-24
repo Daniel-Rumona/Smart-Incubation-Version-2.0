@@ -1,4 +1,4 @@
-import { App, Button, Card, Col, DatePicker, Form, Input, Modal, Progress, Row, Select, Space, Tag, theme, TimePicker, Typography, type TableProps } from 'antd'
+import { Alert, App, Button, Card, Col, DatePicker, Form, Input, Modal, Progress, Row, Select, Space, Tag, theme, TimePicker, Typography, type TableProps } from 'antd'
 import {
     CalendarOutlined,
     CheckCircleOutlined,
@@ -15,7 +15,7 @@ import {
     UserSwitchOutlined,
     VideoCameraOutlined,
 } from '@ant-design/icons'
-import { addDoc, collection, getDocs, query, serverTimestamp, Timestamp, where } from 'firebase/firestore'
+import { addDoc, collection, doc, getDocs, query, serverTimestamp, Timestamp, where, writeBatch } from 'firebase/firestore'
 import type { Dayjs } from 'dayjs'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -48,6 +48,21 @@ type RequiredIntervention = {
     reviewerType?: 'operations' | 'consultant'
 }
 
+/** Put on the diagnostic plan when operations confirms an SME's decline, so it is never reassigned. */
+type DeclinedTag = {
+    title?: string
+    reason?: string
+    reasonCode?: string
+    workRetained?: boolean
+}
+
+type DeclineRequest = {
+    status?: string
+    reasonCode?: string
+    reasonText?: string
+    appointmentId?: string
+}
+
 type ParticipantRow = {
     id: string
     applicationId: string
@@ -56,6 +71,7 @@ type ParticipantRow = {
     programName?: string
     programId?: string
     sector?: string
+    declinedInterventions?: Record<string, DeclinedTag>
     requiredInterventions: RequiredIntervention[]
 }
 
@@ -98,9 +114,24 @@ type ManageInterventionRow = {
     matchingAssignments?: AssignedIntervention[]
     nextStep?: { id?: string, title?: string, description?: string, weight?: number }
     activeStep?: AssignedIntervention
+    declinedTag?: DeclinedTag
+    /** An assignment whose SME asked to drop the intervention and is waiting for operations to confirm. */
+    declineRequestAssignment?: AssignedIntervention
 }
 
 const normalize = (value: unknown) => String(value ?? '').trim().toLowerCase()
+/** Key of an intervention in diagnosticPlans.declinedInterventions (same rule as the ai-backend and WhatsApp router). */
+const declinedKey = (id: unknown) => String(id ?? '').trim().replace(/[./]/g, '_')
+const declinedTagsOf = (plan: unknown): Record<string, DeclinedTag> => {
+    const tags = (plan as { declinedInterventions?: unknown } | undefined)?.declinedInterventions
+    return tags && typeof tags === 'object' ? tags as Record<string, DeclinedTag> : {}
+}
+const declineRequestOf = (assignment?: AssignedIntervention) => (assignment as (AssignedIntervention & { declineRequest?: DeclineRequest }) | undefined)?.declineRequest
+const hasRecordedWork = (assignment: AssignedIntervention) => {
+    const raw = assignment as AssignedIntervention & { timeSpent?: number, progressSteps?: unknown[] }
+    return Number(raw.progress || 0) > 0 || Number(raw.timeSpent || 0) > 0 || (raw.progressSteps?.length || 0) > 0
+        || ['completed', 'awaiting_confirmation'].includes(normalize(raw.status))
+}
 const interventionTitle = (item: RequiredIntervention) => String(item.title || 'Intervention')
 const interventionArea = (item: RequiredIntervention) => String(item.areaOfSupport || item.area || '').trim()
 const slug = (value: unknown) => normalize(value).replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
@@ -223,7 +254,7 @@ const isAcceptedGrowthPlan = (application: Record<string, any>, diagnosticPlan: 
 }
 
 export const InterventionsAssignemnts = () => {
-    const { message } = App.useApp()
+    const { message, modal } = App.useApp()
     const { user } = useFullIdentity()
     const { assignments, loading: assignmentsLoading, refresh } = useAssignedInterventions()
     const { consultantLabel, getSetting } = useSystemSettings()
@@ -331,6 +362,7 @@ export const InterventionsAssignemnts = () => {
                         programName: String(application.programName || ''),
                         programId: String(application.programId || ''),
                         sector: String(profile.sector || application.sector || ''),
+                        declinedInterventions: declinedTagsOf(diagnosticPlan),
                         requiredInterventions,
                     }
                 }))
@@ -440,6 +472,12 @@ export const InterventionsAssignemnts = () => {
                 ? (item.steps || []).find((step, index) => !assignedStepIds.has(step.id) && index >= activeAssignments.filter(assignment => !assignment.assignedStepId).length)
                 : undefined
             const activeStep = activeAssignments.find(assignment => !assignmentStepComplete(assignment))
+            const tags = selected.declinedInterventions || {}
+            const declinedTag = tags[declinedKey(id)]
+                || Object.values(tags).find((tag) => slug(tag?.title) && slug(tag?.title) === slug(interventionTitle(item)))
+            const declineRequestAssignment = declinedTag
+                ? undefined
+                : matchingAssignments.find((assignment) => normalize(declineRequestOf(assignment)?.status) === 'requested')
             return {
                 id,
                 title: interventionTitle(item),
@@ -454,6 +492,8 @@ export const InterventionsAssignemnts = () => {
                 matchingAssignments: item.executionMode === 'multi_step' ? activeAssignments : matchingAssignments,
                 nextStep,
                 activeStep,
+                declinedTag,
+                declineRequestAssignment,
             }
         })
     }, [assignmentsByParticipant, selected])
@@ -495,6 +535,112 @@ export const InterventionsAssignemnts = () => {
         form.resetFields()
     }
 
+    /**
+     * Operations confirms an SME's "no longer need this intervention". The assignment is closed as declined
+     * (never deleted), its open appointments are cancelled, and the diagnostic plan is tagged so it cannot be
+     * assigned again. Anything already done (progress, hours, completed sessions) stays on the record.
+     */
+    const confirmSmeDecline = async (row: ManageInterventionRow) => {
+        const assignment = row.declineRequestAssignment
+        const participant = selected
+        if (!assignment || !participant || !user) return
+        const request = declineRequestOf(assignment)
+        try {
+            const appointmentSnapshot = await getDocs(query(
+                collection(db, 'appointments'),
+                where('assignedInterventionId', '==', assignment.id),
+                where('companyCode', '==', user.companyCode),
+            ))
+            const sessionHeld = appointmentSnapshot.docs.some((row) => normalize(row.data().status) === 'completed')
+            const siblingWork = (assignmentsByParticipant.get(participant.id) || []).some((other) => assignmentMatches(other, { interventionId: row.id, title: row.title } as RequiredIntervention) && hasRecordedWork(other))
+            const workDone = sessionHeld || siblingWork || hasRecordedWork(assignment)
+            const openAppointments = appointmentSnapshot.docs.filter((item) => ['pending', 'accepted'].includes(normalize(item.data().status)))
+
+            modal.confirm({
+                title: `Confirm decline of ${row.title}?`,
+                width: 520,
+                okText: 'Confirm decline',
+                okButtonProps: { danger: true },
+                content: (
+                    <Space direction="vertical" size={8}>
+                        <Typography.Text>{participant.beneficiaryName} no longer needs this intervention{request?.reasonText ? ` (“${request.reasonText}”)` : ''}.</Typography.Text>
+                        <Typography.Text type="secondary">
+                            It will be closed and can&apos;t be assigned again to this SME.
+                            {openAppointments.length ? ` ${openAppointments.length} open appointment${openAppointments.length === 1 ? '' : 's'} will be cancelled.` : ''}
+                        </Typography.Text>
+                        {workDone && <Alert type="warning" showIcon message="Work is already recorded for this intervention. It is kept in history and reports; only further work is stopped." />}
+                    </Space>
+                ),
+                onOk: async () => {
+                    const batch = writeBatch(db)
+                    batch.update(doc(db, 'assignedInterventions', assignment.id), {
+                        status: 'declined',
+                        participantStatus: 'declined',
+                        declinedBySme: true,
+                        closedReason: 'declined_by_sme',
+                        workRetained: workDone,
+                        declineRequest: { ...request, status: 'confirmed', confirmedByUid: user.uid, confirmedByEmail: user.email, confirmedAt: serverTimestamp() },
+                        updatedAt: serverTimestamp(),
+                    })
+                    appointmentSnapshot.docs.forEach((item) => {
+                        const status = normalize(item.data().status)
+                        if (['pending', 'accepted'].includes(status)) {
+                            batch.update(item.ref, {
+                                status: 'cancelled',
+                                cancellationReason: 'Intervention declined by the SME',
+                                cancelledByUid: user.uid,
+                                cancelledAt: serverTimestamp(),
+                                declineNeedsReview: false,
+                                updatedAt: serverTimestamp(),
+                            })
+                        } else if (item.id === request?.appointmentId) {
+                            batch.update(item.ref, { declineNeedsReview: false, updatedAt: serverTimestamp() })
+                        }
+                    })
+                    batch.set(doc(db, 'diagnosticPlans', participant.applicationId), {
+                        companyCode: user.companyCode || null,
+                        participantId: participant.id,
+                        applicationId: participant.applicationId,
+                        declinedInterventions: {
+                            [declinedKey(row.id)]: {
+                                interventionId: row.id,
+                                title: row.title,
+                                reason: request?.reasonText || 'No longer needed',
+                                reasonCode: request?.reasonCode || 'no_longer_needed',
+                                assignmentId: assignment.id,
+                                workRetained: workDone,
+                                declinedAt: serverTimestamp(),
+                                confirmedByUid: user.uid,
+                            },
+                        },
+                        updatedAt: serverTimestamp(),
+                    }, { merge: true })
+                    batch.set(doc(collection(db, 'notifications')), {
+                        companyCode: user.companyCode || null,
+                        participantId: participant.id,
+                        interventionId: row.id,
+                        interventionTitle: row.title,
+                        type: 'intervention_decline_confirmed',
+                        recipientRoles: ['incubatee', 'consultant', 'operations'],
+                        message: `${row.title} was closed at ${participant.beneficiaryName}'s request${workDone ? '; work already recorded has been kept' : ''}.`,
+                        createdAt: serverTimestamp(),
+                        readBy: {},
+                    })
+                    try {
+                        await batch.commit()
+                    } catch (error) {
+                        message.error('The decline could not be confirmed. Please try again.')
+                        throw error
+                    }
+                    message.success(`${row.title} has been closed and cannot be reassigned.`)
+                    await Promise.all([refresh(), loadParticipants()])
+                },
+            })
+        } catch {
+            message.error('The decline details could not be loaded. Please try again.')
+        }
+    }
+
     const saveAssignment = async (values: AssignmentForm) => {
         const targetParticipant = selected || participants.find((participant) => participant.id === values.participantId)
         const targetIntervention = assignmentTarget || targetParticipant?.requiredInterventions
@@ -502,6 +648,10 @@ export const InterventionsAssignemnts = () => {
             .find((item) => item.id === values.interventionId)
 
         if (!user || !targetParticipant || !targetIntervention) return
+        if ((targetParticipant.declinedInterventions || {})[declinedKey(targetIntervention.id)]) {
+            message.error('The SME declined this intervention, so it cannot be assigned again.')
+            return
+        }
         const existingAssignment = (assignmentsByParticipant.get(targetParticipant.id) || []).find((assignment) => assignmentMatches(assignment, {
             interventionId: targetIntervention.id,
             title: targetIntervention.title,
@@ -793,6 +943,17 @@ export const InterventionsAssignemnts = () => {
                                 </Col>
                             )}
                         </Row>
+                        {managedRows.some((row) => row.declineRequestAssignment) && (
+                            <Alert
+                                type="warning"
+                                showIcon
+                                message="The SME asked to drop an intervention"
+                                description={managedRows
+                                    .filter((row) => row.declineRequestAssignment)
+                                    .map((row) => `${row.title}${declineRequestOf(row.declineRequestAssignment)?.reasonText ? `: ${declineRequestOf(row.declineRequestAssignment)?.reasonText}` : ''}`)
+                                    .join(' · ')}
+                            />
+                        )}
                         <ResponsiveDataView
                             rowKey="id"
                             rows={filteredManagedRows}
@@ -805,6 +966,14 @@ export const InterventionsAssignemnts = () => {
                                 {
                                     title: 'Status',
                                     render: (_, row) => {
+                                        if (row.declinedTag) {
+                                            return (
+                                                <Space direction="vertical" size={0}>
+                                                    <Tag color="red">Declined by SME</Tag>
+                                                    {row.declinedTag.workRetained && <Typography.Text type="secondary">Work kept</Typography.Text>}
+                                                </Space>
+                                            )
+                                        }
                                         const label = rowIsCompleted(row) ? 'Completed' : rowIsInProgress(row) ? 'In progress' : 'Unassigned'
                                         const color = rowIsCompleted(row) ? 'green' : rowIsInProgress(row) ? 'blue' : 'default'
                                         const detail = row.executionMode === 'multi_step'
@@ -816,7 +985,10 @@ export const InterventionsAssignemnts = () => {
                                             : undefined
                                         return (
                                             <Space direction="vertical" size={0}>
-                                                <Tag color={color}>{label}</Tag>
+                                                <Space size={4} wrap>
+                                                    <Tag color={color}>{label}</Tag>
+                                                    {row.declineRequestAssignment && <Tag color="orange">Decline requested</Tag>}
+                                                </Space>
                                                 {detail && <Typography.Text type="secondary">{detail}</Typography.Text>}
                                             </Space>
                                         )
@@ -830,7 +1002,7 @@ export const InterventionsAssignemnts = () => {
                                         return <Space size={4}><Tag color={current.deliveryActorType === 'agent' ? 'purple' : 'blue'} style={{ marginInlineEnd: 0 }}>{current.deliveryActorType === 'agent' ? 'Agent' : 'Human'}</Tag>{current.assigneeName || 'Unnamed'}</Space>
                                     },
                                 },
-                                { title: 'Actions', render: (_, row) => row.assigned && row.executionMode !== 'multi_step' ? <Tag color="green">Assigned</Tag> : <Button disabled={!canAssign || !!row.activeStep || (row.executionMode === 'multi_step' && !row.nextStep)} icon={<PlusOutlined />} onClick={() => startAssign(row)}>{row.executionMode === 'multi_step' ? row.matchingAssignments?.length ? 'Assign next step' : 'Assign first step' : 'Assign'}</Button> },
+                                { title: 'Actions', render: (_, row) => row.declinedTag ? <Tag color="red">Declined</Tag> : row.declineRequestAssignment ? <Button danger disabled={!canAssign} onClick={() => void confirmSmeDecline(row)}>Confirm decline</Button> : row.assigned && row.executionMode !== 'multi_step' ? <Tag color="green">Assigned</Tag> : <Button disabled={!canAssign || !!row.activeStep || (row.executionMode === 'multi_step' && !row.nextStep)} icon={<PlusOutlined />} onClick={() => startAssign(row)}>{row.executionMode === 'multi_step' ? row.matchingAssignments?.length ? 'Assign next step' : 'Assign first step' : 'Assign'}</Button> },
                             ]}
                             renderCard={(row) => {
                                 const current = row.executionMode === 'multi_step' ? row.activeStep : row.assigned
@@ -845,14 +1017,19 @@ export const InterventionsAssignemnts = () => {
                                         <Space wrap>
                                             <Tag>{row.area || 'General support'}</Tag>
                                             <Tag>{row.executionMode === 'multi_step' ? `Multi-step (${row.steps?.length || 0})` : 'Single session'}</Tag>
-                                            <Tag color={statusColor}>{statusLabel}</Tag>
+                                            {row.declinedTag ? <Tag color="red">Declined by SME</Tag> : <Tag color={statusColor}>{statusLabel}</Tag>}
+                                            {row.declineRequestAssignment && <Tag color="orange">Decline requested</Tag>}
                                         </Space>
                                         {row.executionMode === 'multi_step' && (
                                             <Typography.Text type="secondary">
                                                 {row.activeStep ? `Step ${Number(row.activeStep.stepIndex || 0) + 1}: ${row.activeStep.assignedStepTitle}` : row.nextStep ? `Next: ${row.nextStep.title}` : `${row.matchingAssignments?.length || 0}/${row.steps?.length || 0} steps assigned`}
                                             </Typography.Text>
                                         )}
-                                        {current ? (
+                                        {row.declinedTag ? (
+                                            <Tag color="red" style={{ width: 'fit-content' }}>Cannot be reassigned</Tag>
+                                        ) : row.declineRequestAssignment ? (
+                                            <Button danger disabled={!canAssign} onClick={() => void confirmSmeDecline(row)}>Confirm decline</Button>
+                                        ) : current ? (
                                             <Space size={4}>
                                                 <Tag color={current.deliveryActorType === 'agent' ? 'purple' : 'blue'} style={{ marginInlineEnd: 0 }}>{current.deliveryActorType === 'agent' ? 'Agent' : 'Human'}</Tag>
                                                 <Typography.Text type="secondary">{current.assigneeName}</Typography.Text>
