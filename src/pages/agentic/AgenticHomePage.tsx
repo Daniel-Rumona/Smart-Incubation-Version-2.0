@@ -44,7 +44,8 @@ import {
     loadProjectAdminWorkspace,
 } from '@/services/projectAdminWorkspaceService'
 import { uploadIncubateeComplianceDocument } from '@/services/incubateeComplianceUploadService'
-import type { AgentChatMessage, AgentPageContext } from '@/types/agent'
+import type { AgentChatMessage, AgentPageContext, AgentProposalStatus } from '@/types/agent'
+import { AgentProposalCard } from '@/components/agent/AgentProposalCard'
 import type { UserRole } from '@/config/roles'
 import { guideTarget, useRegisterPageGuide, type PageGuideRegistration } from '@/components/guide/PageGuideContext'
 import { ConversationMode } from '@/components/agent/ConversationMode'
@@ -430,9 +431,9 @@ export const AgenticHomePage = () => {
             prompt: nextContent,
             page: pageContext,
             history,
-            onCompleted: (result) => {
+            onCompleted: (result, proposal) => {
                 setMessages((current) => current.map((item) => item.id === pendingMessage.id
-                    ? { ...item, content: result }
+                    ? { ...item, content: result, ...(proposal ? { proposal, proposalStatus: 'pending' as const } : {}) }
                     : item))
                 if (action) setMessageActions((current) => ({ ...current, [pendingMessage.id]: action }))
             },
@@ -440,6 +441,12 @@ export const AgenticHomePage = () => {
                 ? { ...item, content: error }
                 : item)),
         })
+    }
+
+    const updateProposal = (messageId: string, proposalStatus: AgentProposalStatus, proposalNote?: string) => {
+        setMessages((current) => current.map((item) => item.id === messageId
+            ? { ...item, proposalStatus, proposalNote }
+            : item))
     }
 
     const loadMetricDetails = async (metric: Metric) => {
@@ -706,6 +713,14 @@ export const AgenticHomePage = () => {
                                         {item.content === 'Working on this in the background…'
                                             ? <span className="agentic-pending-copy"><LoadingOutlined spin />{item.content}</span>
                                             : renderAgentContent(item.content)}
+                                        {item.proposal && (
+                                            <AgentProposalCard
+                                                proposal={item.proposal}
+                                                status={item.proposalStatus ?? 'pending'}
+                                                note={item.proposalNote}
+                                                onChange={(status, note) => updateProposal(item.id, status, note)}
+                                            />
+                                        )}
                                     </div>
                                     : <p>{item.content}</p>}
                                 {item.role === 'agent' && messageActions[item.id] && <div className="agentic-message-action">

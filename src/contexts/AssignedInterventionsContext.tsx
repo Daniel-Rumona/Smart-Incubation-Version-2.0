@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react'
 import { collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '@/firebase'
+import { AGENT_ACTION_EXECUTED_EVENT } from '@/services/agentService'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import type { AssignedIntervention as BaseAssignedIntervention } from '@/types/interventions'
 
@@ -52,6 +53,13 @@ export const AssignedInterventionsProvider = ({ children }: PropsWithChildren) =
 
   useEffect(() => {
     void load()
+  }, [load])
+
+  // The assistant can create assignments on the user's behalf; reload when it does.
+  useEffect(() => {
+    const reload = () => { void load() }
+    window.addEventListener(AGENT_ACTION_EXECUTED_EVENT, reload)
+    return () => window.removeEventListener(AGENT_ACTION_EXECUTED_EVENT, reload)
   }, [load])
 
   const isMine = useCallback((assignment: AssignedIntervention) => {

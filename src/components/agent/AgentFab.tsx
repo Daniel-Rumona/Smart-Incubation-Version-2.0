@@ -13,9 +13,10 @@ import { useBackgroundTasks } from '@/providers/BackgroundTasksProvider'
 import { useLanguage } from '@/providers/LanguageProvider'
 import { submitAgentConversationRating } from '@/services/agentService'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
-import type { AgentChatMessage, AgentPageContext } from '@/types/agent'
+import type { AgentChatMessage, AgentPageContext, AgentProposalStatus } from '@/types/agent'
 import { AgentTaskPanel } from '@/components/agent/AgentTaskPet'
 import { AgentRichText } from '@/components/agent/AgentRichText'
+import { AgentProposalCard } from '@/components/agent/AgentProposalCard'
 import '@/styles/agent-fab.css'
 
 type AgentView = 'assistant' | 'tasks'
@@ -115,8 +116,8 @@ export const AgentFab = ({ placement = 'floating' }: { placement?: 'floating' | 
             prompt: nextContent,
             page: context,
             history,
-            onCompleted: (result) => setMessages((current) => current.map((item) => item.id === pendingMessage.id
-                ? { ...item, content: result }
+            onCompleted: (result, proposal) => setMessages((current) => current.map((item) => item.id === pendingMessage.id
+                ? { ...item, content: result, ...(proposal ? { proposal, proposalStatus: 'pending' as const } : {}) }
                 : item)),
             onFailed: (error) => {
                 setMessages((current) => current.map((item) => item.id === pendingMessage.id
@@ -125,6 +126,12 @@ export const AgentFab = ({ placement = 'floating' }: { placement?: 'floating' | 
                 message.error(error)
             },
         })
+    }
+
+    const updateProposal = (messageId: string, proposalStatus: AgentProposalStatus, proposalNote?: string) => {
+        setMessages((current) => current.map((item) => item.id === messageId
+            ? { ...item, proposalStatus, proposalNote }
+            : item))
     }
 
     const rateAgentMessage = async (
@@ -309,6 +316,14 @@ export const AgentFab = ({ placement = 'floating' }: { placement?: 'floating' | 
                                             {chatMessage.content === 'Working on this in the background…'
                                                 ? <span className="agent-pending-copy"><LoadingOutlined spin />{chatMessage.content}</span>
                                                 : <AgentRichText content={chatMessage.content} />}
+                                            {chatMessage.proposal && (
+                                                <AgentProposalCard
+                                                    proposal={chatMessage.proposal}
+                                                    status={chatMessage.proposalStatus ?? 'pending'}
+                                                    note={chatMessage.proposalNote}
+                                                    onChange={(status, note) => updateProposal(chatMessage.id, status, note)}
+                                                />
+                                            )}
                                         </div>
                                         : <p>{chatMessage.content}</p>}
 

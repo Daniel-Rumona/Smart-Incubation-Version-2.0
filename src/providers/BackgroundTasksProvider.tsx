@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react'
 import { sendAgentMessage } from '@/services/agentService'
-import type { AgentChatMessage, AgentPageContext } from '@/types/agent'
+import type { AgentChatMessage, AgentPageContext, AgentProposal } from '@/types/agent'
 
 export type BackgroundTaskStatus = 'queued' | 'running' | 'completed' | 'failed'
 
@@ -22,7 +22,7 @@ type QueueTaskInput = {
   prompt: string
   page: AgentPageContext
   history: AgentChatMessage[]
-  onCompleted?: (result: string) => void
+  onCompleted?: (result: string, proposal?: AgentProposal | null) => void
   onFailed?: (error: string) => void
 }
 
@@ -104,7 +104,7 @@ export const BackgroundTasksProvider = ({ children }: PropsWithChildren) => {
             statusMessage: 'Completed',
             result: response.reply,
           })
-          input.onCompleted?.(response.reply)
+          input.onCompleted?.(response.reply, response.proposal)
         })
         .catch((error) => {
           const detail = error instanceof Error ? error.message : 'The background task failed.'

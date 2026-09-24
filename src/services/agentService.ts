@@ -1,6 +1,6 @@
 import { agentApiBaseUrl, isAgentApiConfigured } from '@/config/agent'
 import { getAuth } from 'firebase/auth'
-import type { AgentChatMessage, AgentPageContext } from '@/types/agent'
+import type { AgentChatMessage, AgentPageContext, AgentProposal } from '@/types/agent'
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore'
 import { getFirebaseDb } from '@/config/firebase'
 import type { FullIdentity } from '@/types/identity'
@@ -11,10 +11,63 @@ type SendAgentMessageOptions = {
   history: AgentChatMessage[]
 }
 
-type AgentResponse = {
+export type AgentResponse = {
   reply: string
   actionKey?: string | null
+  proposal?: AgentProposal | null
 }
+
+/** Set on errors that came back as an HTTP response (vs. the request never completing). */
+export class AgentRequestError extends Error {
+  status?: number
+
+  constructor(message: string, status?: number) {
+    super(message)
+    this.name = 'AgentRequestError'
+    this.status = status
+  }
+}
+
+const authorizedRequest = async (path: string, init: { method?: 'GET' | 'POST', body?: unknown } = {}): Promise<Record<string, unknown>> => {
+  if (!isAgentApiConfigured) {
+    throw new Error('The workspace assistant endpoint is not configured.')
+  }
+
+  const currentUser = getAuth().currentUser
+  if (!currentUser) {
+    throw new Error('You must be signed in to use the workspace assistant.')
+  }
+
+  const response = await fetch(`${agentApiBaseUrl}${path}`, {
+    method: init.method ?? 'POST',
+    headers: {
+      Authorization: `Bearer ${await currentUser.getIdToken()}`,
+      ...(init.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+    },
+    ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+  })
+  const body = await response.json().catch(() => null)
+
+  if (!response.ok) {
+    const detail = body?.detail
+    throw new AgentRequestError(
+      typeof detail === 'string' ? detail : detail?.message || 'That action could not be completed.',
+      response.status,
+    )
+  }
+
+  return body ?? {}
+}
+
+/** Executes a pending proposal. The server re-validates everything; the client sends only the id. */
+export const confirmAgentProposal = (proposalId: string) =>
+  authorizedRequest(`/api/agent/actions/${encodeURIComponent(proposalId)}/confirm`) as Promise<{ ok: boolean; reply: string }>
+
+export const cancelAgentProposal = (proposalId: string) =>
+  authorizedRequest(`/api/agent/actions/${encodeURIComponent(proposalId)}/cancel`) as Promise<{ ok: boolean; reply: string }>
+
+/** Fired after a confirmed action so data views can reload. */
+export const AGENT_ACTION_EXECUTED_EVENT = 'agent-action-executed'
 
 export const sendAgentMessage = async ({
   message,

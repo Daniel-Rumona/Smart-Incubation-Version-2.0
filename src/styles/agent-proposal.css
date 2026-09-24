@@ -1,0 +1,84 @@
+.agent-proposal {
+    width: 100%;
+    margin-top: 10px;
+    padding: 14px 16px;
+    border: 1px solid rgba(109, 93, 251, .22);
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(34, 42, 70, .05);
+    color: #38445a;
+}
+
+.agent-proposal-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.agent-proposal-head > .anticon { color: #6d5dfb; }
+.agent-proposal.is-executed .agent-proposal-head > .anticon { color: #2f9e6b; }
+.agent-proposal.is-failed .agent-proposal-head > .anticon,
+.agent-proposal.is-cancelled .agent-proposal-head > .anticon,
+.agent-proposal.is-expired .agent-proposal-head > .anticon { color: #98a1b3; }
+
+.agent-proposal-tag {
+    margin-left: auto;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #5d55b9;
+    background: rgba(109, 93, 251, .1);
+}
+
+.agent-proposal.is-executed .agent-proposal-tag { color: #1f7a52; background: rgba(47, 158, 107, .12); }
+.agent-proposal.is-failed .agent-proposal-tag { color: #b4433b; background: rgba(214, 69, 60, .1); }
+.agent-proposal.is-cancelled .agent-proposal-tag,
+.agent-proposal.is-expired .agent-proposal-tag { color: #6b7488; background: rgba(152, 161, 179, .16); }
+
+.agent-proposal.is-cancelled .agent-proposal-rows,
+.agent-proposal.is-expired .agent-proposal-rows { opacity: .6; }
+
+.agent-proposal-rows {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+}
+
+.agent-proposal-rows > div {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 10px;
+    font-size: 13px;
+}
+
+.agent-proposal-rows > div.is-section { grid-template-columns: 1fr; padding-top: 4px; }
+.agent-proposal-rows > div.is-section dt { font-weight: 600; color: #38445a; }
+.agent-proposal-rows dt { color: #7a8497; }
+.agent-proposal-rows dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+
+.agent-proposal-warnings {
+    margin: 10px 0 0;
+    padding-left: 18px;
+    font-size: 12px;
+    color: #7a8497;
+}
+
+.agent-proposal-note {
+    margin: 10px 0 0;
+    font-size: 12.5px;
+    color: #5d6577;
+}
+
+.agent-proposal-note.is-error { color: #b4433b; }
+
+.agent-proposal-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+@media (max-width: 480px) {
+    .agent-proposal-rows > div { grid-template-columns: 1fr; gap: 0; }
+}
