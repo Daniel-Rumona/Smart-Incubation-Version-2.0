@@ -305,6 +305,12 @@ class WhatsAppAgentTests(unittest.TestCase):
         self.assertEqual(result.intent, "unclear")
         self.assertEqual(result.confidence, 0.0)
 
+    def test_smart_incubation_engine_reaches_the_model(self):
+        model = StubModel(decision(reply="Here is what I found."))
+        result = self.send("What's next on my calendar?", model, context={"engine": "QTX"})
+        self.assertEqual(len(model.calls), 1)
+        self.assertNotIn("Lepharo", result.reply)
+
     def test_untrusted_engine_is_rejected_before_model_call(self):
         model = StubModel()
         result = self.send("Show my appointments", model, context={"engine": "another-tenant"})

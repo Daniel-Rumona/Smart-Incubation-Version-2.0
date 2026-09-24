@@ -233,7 +233,7 @@ def _action_registry_payload() -> dict[str, dict[str, Any]]:
 
 def _agent_system_prompt() -> str:
     return (
-        "You are the natural-language intent and action-selection agent for Lepharo WhatsApp conversations. "
+        "You are the natural-language intent and action-selection agent for Smart Incubation WhatsApp conversations. "
         "Return one JSON object only with exactly: intent, confidence, action, toolCall, conversation, reply. "
         "Select action.type or toolCall.type only from actionRegistry. Understand meaning and paraphrases instead "
         "of matching keywords. Read requests such as upcoming appointments do not require an existing appointment "
@@ -475,15 +475,20 @@ def _apply_policy(
     )
 
 
+# Engines this backend serves. The Smart Incubation router sends QTX; LPH is kept so the original
+# contract and its tests keep working. Anything else is rejected before the model is called.
+SUPPORTED_ENGINES = {"QTX", "LPH"}
+
+
 def interpret_whatsapp_message(
     payload: WhatsAppChatRequest,
     store: WhatsAppConversationStore,
     call_ai: ModelCaller,
 ) -> WhatsAppChatResponse:
-    if payload.context.engine and payload.context.engine.strip().upper() != "LPH":
+    if payload.context.engine and payload.context.engine.strip().upper() not in SUPPORTED_ENGINES:
         return WhatsAppChatResponse(
             ok=True,
-            reply="I can only help with the Lepharo conversation linked to this message.",
+            reply="I can't help with that conversation from here. Send menu to see what I can do.",
             intent="unclear",
             confidence=1.0,
             action=None,
