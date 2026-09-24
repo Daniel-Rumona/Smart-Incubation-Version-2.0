@@ -17,6 +17,38 @@ export type CalendarAppointment = {
     status: AppointmentStatus
     startTime?: unknown
     endTime?: unknown
+    /** Reason the SME gave when declining (web or WhatsApp). */
+    declineReason?: string | null
+    /** not_available | other_engagement | no_longer_needed | other */
+    declineReasonCode?: string | null
+    /** True while the SME's "no longer need this intervention" is waiting for operations to confirm. */
+    declineNeedsReview?: boolean | null
+    /** An SME's ask to move the meeting; `status: 'requested'` means it still needs an answer. */
+    rescheduleRequest?: RescheduleRequest | null
+}
+
+export type RescheduleRequest = {
+    status?: string
+    reasonText?: string | null
+    requestedDate?: string | null
+    requestedTime?: string | null
+    /** Structured suggestion (Firestore Timestamp) when the SME picked a time on the web. */
+    requestedStart?: unknown
+    requestedEnd?: unknown
+    requestedDateText?: string | null
+    requestedTimeText?: string | null
+    requestedVia?: string | null
+}
+
+/** The SME dropped the intervention (before its first session) and operations has not yet confirmed it. */
+export const isInterventionDropRequest = (appointment?: Pick<CalendarAppointment, 'status' | 'declineReasonCode' | 'declineNeedsReview'> | null) =>
+    Boolean(appointment && appointment.status === 'declined' && (appointment.declineNeedsReview || appointment.declineReasonCode === 'no_longer_needed'))
+
+/** Plain-language summary of an open reschedule request, or null when there isn't one. */
+export const openRescheduleRequestSummary = (request?: RescheduleRequest | null): string | null => {
+    if (!request || String(request.status || '').toLowerCase() !== 'requested') return null
+    const when = [request.requestedDateText || request.requestedDate, request.requestedTimeText || request.requestedTime].filter(Boolean).join(' ')
+    return [when && `Preferred time: ${when}`, request.reasonText && `Reason: ${request.reasonText}`].filter(Boolean).join(' · ') || 'The SME asked to reschedule.'
 }
 
 export const CALENDAR_VIEWS: Array<{ value: CalendarView; label: string }> = [

@@ -1,10 +1,10 @@
-import { App, Button, Card, Col, DatePicker, Form, Input, Modal, Progress, Row, Segmented, Select, Space, Tooltip, Typography, Upload } from 'antd'
+import { Alert, App, Button, Card, Col, DatePicker, Form, Input, Modal, Progress, Row, Segmented, Select, Space, Tooltip, Typography, Upload } from 'antd'
 import { CheckCircleOutlined, EditOutlined, LeftOutlined, PlusOutlined, RightOutlined, SaveOutlined, SearchOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import type { Dayjs } from 'dayjs'
 import { addDoc, arrayUnion, collection, doc, getDocs, query, serverTimestamp, Timestamp, updateDoc, where } from 'firebase/firestore'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { LoadingOverlay } from '@/components/shared/LoadingOverlay'
 import { AppointmentCalendar } from '@/components/interventions/AppointmentCalendar'
@@ -14,17 +14,21 @@ import {
     CALENDAR_VIEWS,
     MEETING_TYPE_OPTIONS,
     dayKey,
+    isInterventionDropRequest,
     navigationUnit,
+    openRescheduleRequestSummary,
     rangeLabel,
     toDate,
     toDayjs,
     type AppointmentStatus,
     type CalendarView,
     type MeetingType,
+    type RescheduleRequest,
 } from '@/components/interventions/appointmentSchedule'
 import { db } from '@/firebase'
 import { useAssignedInterventions, type AssignedIntervention } from '@/contexts/AssignedInterventionsContext'
 import { useActiveProgramId } from '@/hooks/useActiveProgramId'
+import { hasRolePermission } from '@/config/permissions'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
 import { sendAdminEmail } from '@/services/emailOperationsService'
@@ -51,6 +55,10 @@ type AppointmentRow = {
     attendance?: Record<string, 'present' | 'absent'>
     discussionSummary?: string
     progressUpdated?: boolean
+    declineReason?: string | null
+    declineReasonCode?: string | null
+    declineNeedsReview?: boolean | null
+    rescheduleRequest?: RescheduleRequest | null
     [key: string]: unknown
 }
 
@@ -60,6 +68,13 @@ type AppointmentForm = {
     meetingLink?: string
     location?: string
     timeRange: [Dayjs, Dayjs]
+}
+
+type RescheduleForm = {
+    timeRange: [Dayjs, Dayjs]
+    meetingType: MeetingType
+    meetingLink?: string
+    location?: string
 }
 
 type OutcomeForm = {
@@ -138,7 +153,11 @@ export const InterventionAppointmentsPage = () => {
     const { activeProgramId } = useActiveProgramId()
     const { assignments, loading: assignmentsLoading, refresh: refreshAssignments, isMine } = useAssignedInterventions()
     const [searchParams, setSearchParams] = useSearchParams()
+    const navigate = useNavigate()
     const [form] = Form.useForm<AppointmentForm>()
+    const [rescheduleForm] = Form.useForm<RescheduleForm>()
+    const rescheduleMeetingType = Form.useWatch('meetingType', rescheduleForm)
+    const [rescheduleTarget, setRescheduleTarget] = useState<AppointmentRow>()
     const [outcomeForm] = Form.useForm<OutcomeForm>()
     const [appointments, setAppointments] = useState<AppointmentRow[]>([])
     const [loading, setLoading] = useState(false)
@@ -359,6 +378,88 @@ export const InterventionAppointmentsPage = () => {
         }
     }
 
+    const canReviewInterventions = !!user && hasRolePermission(user.role, 'assign_interventions', user.permissions)
+
+    const openReschedule = (appointment: AppointmentRow) => {
+        setDetailOpen(false)
+        const requestedStart = toDayjs(appointment.rescheduleRequest?.requestedStart)
+        const requestedEnd = toDayjs(appointment.rescheduleRequest?.requestedEnd)
+        rescheduleForm.setFieldsValue({
+            // The SME's own suggestion when they picked one; otherwise the organiser chooses.
+            timeRange: requestedStart && requestedStart.isAfter(dayjs()) ? [requestedStart, requestedEnd && requestedEnd.isAfter(requestedStart) ? requestedEnd : requestedStart.add(1, 'hour')] : undefined,
+            meetingType: appointment.meetingType,
+            meetingLink: appointment.meetingLink || undefined,
+            location: appointment.location || undefined,
+        })
+        setRescheduleTarget(appointment)
+    }
+
+    const reviewIntervention = (appointment: AppointmentRow) => {
+        setDetailOpen(false)
+        // The assignments page opens its Manage modal for this SME (see focusParticipantId there).
+        navigate('/operations/interventions/assign', { state: { focusParticipantId: appointment.participantId } })
+    }
+
+    const saveReschedule = async (values: RescheduleForm) => {
+        if (!rescheduleTarget || !user) return
+        const [start, end] = values.timeRange
+        if (!start.isAfter(dayjs())) {
+            message.error('Choose a time in the future.')
+            return
+        }
+        const clash = appointments.find((other) => other.id !== rescheduleTarget.id
+            && !['cancelled', 'declined'].includes(other.status)
+            && (other.assigneeId === rescheduleTarget.assigneeId || other.participantId === rescheduleTarget.participantId)
+            && toDayjs(other.startTime)?.isBefore(end)
+            && toDayjs(other.endTime)?.isAfter(start))
+        if (clash) {
+            message.error(`That time clashes with ${clash.interventionTitle} (${toDayjs(clash.startTime)?.format('ddd DD MMM HH:mm')}).`)
+            return
+        }
+        try {
+            setSaving(true)
+            const request = rescheduleTarget.rescheduleRequest
+            await updateDoc(doc(db, 'appointments', rescheduleTarget.id), {
+                startTime: Timestamp.fromDate(start.toDate()),
+                endTime: Timestamp.fromDate(end.toDate()),
+                status: 'pending',
+                requiresSmeAcceptance: true,
+                // The SME's earlier answer applied to the old time; they respond again.
+                beneficiaryConfirmation: null,
+                userConfirmation: null,
+                meetingType: values.meetingType,
+                meetingLink: values.meetingLink || null,
+                location: values.location || null,
+                rescheduledFrom: rescheduleTarget.startTime ?? null,
+                rescheduledByUid: user.uid,
+                ...(String(request?.status || '').toLowerCase() === 'requested'
+                    ? { rescheduleRequest: { ...request, status: 'resolved', resolvedAt: serverTimestamp(), resolvedByUid: user.uid } }
+                    : {}),
+                updatedAt: serverTimestamp(),
+            })
+            await addDoc(collection(db, 'notifications'), {
+                companyCode: user.companyCode || null,
+                type: 'appointment_rescheduled',
+                appointmentId: rescheduleTarget.id,
+                assignedInterventionId: rescheduleTarget.assignedInterventionId,
+                participantId: rescheduleTarget.participantId || null,
+                recipientRoles: ['incubatee', 'operations', 'consultant'],
+                message: `${rescheduleTarget.interventionTitle} appointment was moved and is awaiting SME acceptance.`,
+                createdAt: serverTimestamp(),
+                readBy: {},
+            })
+            message.success('Appointment rescheduled. The SME will be asked to accept the new time.')
+            setRescheduleTarget(undefined)
+            setSelectedDate(start)
+            setAnchorDate(start)
+            await loadAppointments()
+        } catch {
+            message.error('The appointment could not be rescheduled.')
+        } finally {
+            setSaving(false)
+        }
+    }
+
     const openDetail = (appointment: AppointmentRow) => {
         setSelected(appointment)
         setDetailOpen(true)
@@ -548,7 +649,40 @@ export const InterventionAppointmentsPage = () => {
                 appointment={selected}
                 onClose={() => setDetailOpen(false)}
                 onComplete={openOutcome}
+                onReschedule={openReschedule}
+                onReviewIntervention={canReviewInterventions ? reviewIntervention : undefined}
             />
+
+            <Modal open={Boolean(rescheduleTarget)} title="Reschedule appointment" onCancel={() => setRescheduleTarget(undefined)} footer={null} width={640} destroyOnHidden>
+                {rescheduleTarget && (
+                    <Form form={rescheduleForm} layout="vertical" onFinish={saveReschedule}>
+                        <div className="appointment-outcome-context">
+                            <Typography.Text strong>{rescheduleTarget.interventionTitle}</Typography.Text>
+                            <Typography.Text type="secondary">{rescheduleTarget.participantName || rescheduleTarget.participantEmail || 'SME'}</Typography.Text>
+                        </div>
+                        {(rescheduleTarget.declineReason || openRescheduleRequestSummary(rescheduleTarget.rescheduleRequest)) && (
+                            <Alert
+                                type="info"
+                                showIcon
+                                style={{ marginBottom: 12 }}
+                                message={rescheduleTarget.status === 'declined' ? `Declined: ${rescheduleTarget.declineReason || 'no reason given'}` : 'The SME asked to reschedule'}
+                                description={openRescheduleRequestSummary(rescheduleTarget.rescheduleRequest) || undefined}
+                            />
+                        )}
+                        {isInterventionDropRequest(rescheduleTarget) && <Alert type="warning" showIcon style={{ marginBottom: 12 }} message="The SME asked to drop this intervention. Review it on the interventions page instead." />}
+                        <Row gutter={12}>
+                            <Col xs={24} md={12}><Form.Item name="meetingType" label="Meeting type" rules={[{ required: true }]}><Select options={MEETING_TYPE_OPTIONS} /></Form.Item></Col>
+                            <Col xs={24} md={12}><Form.Item name="timeRange" label="New date and time" rules={[{ required: true, message: 'Choose the new time.' }]}><RangePicker showTime format="DD MMM YYYY HH:mm" style={{ width: '100%' }} /></Form.Item></Col>
+                        </Row>
+                        {rescheduleMeetingType === 'online' && <Form.Item name="meetingLink" label="Meeting link" rules={[{ required: true, message: 'Add the meeting link.' }]}><Input placeholder="Paste Zoom, Google Meet, Teams, or any online meeting link" /></Form.Item>}
+                        {rescheduleMeetingType === 'in_person' && <Form.Item name="location" label="Location" rules={[{ required: true, message: 'Add the location.' }]}><Input.TextArea rows={3} /></Form.Item>}
+                        <Space style={{ justifyContent: 'flex-end', width: '100%' }}>
+                            <Button onClick={() => setRescheduleTarget(undefined)}>Cancel</Button>
+                            <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={saving}>Reschedule</Button>
+                        </Space>
+                    </Form>
+                )}
+            </Modal>
 
             <Modal open={createOpen} title="New appointment" onCancel={() => setCreateOpen(false)} footer={null} width={820} destroyOnHidden>
                 <AppointmentGuide text="Let’s schedule a useful conversation. Choose the intervention, how you’ll meet, and a time that works for everyone." onComplete={() => setCreateGuideComplete(true)} />
