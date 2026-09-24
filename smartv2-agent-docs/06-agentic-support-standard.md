@@ -155,3 +155,12 @@ Response shape when a write is proposed:
                 "summary": [{ "label": "When", "value": "..." }], "warnings": ["..."],
                 "expiresAt": "ISO", "requiresConfirmation": true } }
 ```
+
+### WhatsApp channel
+
+Staff (operations, consultant, admin roles) can use the same tools over WhatsApp. `functions/src/whatsappBot.ts` routes unmatched staff text to `POST /api/whatsapp/agent` (ai-backend `whatsapp_agent.py`) and renders a proposal as Confirm / Discard buttons.
+
+- Auth: `X-WhatsApp-Router-Secret` (constant-time compare, fails closed). The router sends the resolved `userId` and `phone`; the backend re-checks the phone belongs to that user's WhatsApp numbers and takes role and company from the user document.
+- Confirm goes through the existing action PIN (`WHATSAPP_ACTION_PIN`) before `POST /api/whatsapp/agent/confirm`; a PIN authorises writes for 10 minutes, as in the assignment flow.
+- Short-term memory (30 min, 8 turns) lives in `agentChannelSessions`, server-only.
+- Proposals are user-bound and single-use, so a proposal made on the web can only be confirmed by the same user, and vice versa.
