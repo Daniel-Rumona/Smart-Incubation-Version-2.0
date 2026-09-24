@@ -685,13 +685,20 @@ async function commitAssignment(phone: string, identity: UserRecord, state: BotS
   const applicationRef = database.collection('applications').doc(applicationId)
   const interventionRef = database.collection('interventions').doc(interventionId)
   const assigneeRef = database.collection('users').doc(assigneeId)
+  const planRef = database.collection('diagnosticPlans').doc(applicationId)
 
   return database.runTransaction(async transaction => {
-    const [applicationSnapshot, interventionSnapshot, assigneeSnapshot] = await transaction.getAll(
+    const [applicationSnapshot, interventionSnapshot, assigneeSnapshot, planSnapshot] = await transaction.getAll(
       applicationRef,
       interventionRef,
       assigneeRef,
+      planRef,
     )
+    // Operations tags an intervention on the diagnostic plan once the SME's decline is confirmed.
+    const declined = (planSnapshot.data() || {}).declinedInterventions as Record<string, unknown> | undefined
+    if (declined && declined[interventionId.trim().replace(/[./]/g, '_')]) {
+      throw new Error('The SME declined this intervention, so it cannot be assigned again.')
+    }
     const application = applicationSnapshot.data() || {}
     const intervention = interventionSnapshot.data() || {}
     const assignee = assigneeSnapshot.data() || {}
@@ -1043,6 +1050,109 @@ async function runQtxReadTool(
   throw new Error(`Unsupported QTX read tool: ${type}`)
 }
 
+type RsvpContext = {
+  ok?: boolean
+  reply?: string
+  appointment?: { title?: string, when?: string | null, status?: string }
+  canDeclineIntervention?: boolean
+  declineOptions?: Array<{ code: string, label: string, proposeTime: boolean }>
+}
+type RsvpResult = { ok?: boolean, reply?: string, changed?: boolean, needsReview?: boolean, title?: string, status?: string }
+
+const rsvpSteps = ['rsvp_reason', 'rsvp_other', 'rsvp_time']
+const declineTitles: Record<string, string> = {
+  not_available: 'Not available', other_engagement: 'Other engagement', no_longer_needed: 'No longer need it', other: 'Something else',
+}
+
+const submitRsvp = (identity: UserRecord, phone: string, body: Record<string, unknown>) =>
+  callAgentBackend<RsvpResult>('/api/whatsapp/appointments/respond', phone, identity.id, body)
+
+/** Offers the reasons for declining. "No longer need it" only appears before the first session (backend decides). */
+async function startDeclineFlow(to: string, phone: string, identity: UserRecord, appointmentId: string) {
+  const context = await callAgentBackend<RsvpContext>('/api/whatsapp/appointments/context', phone, identity.id, { appointmentId })
+  if (context.ok === false || !context.appointment) {
+    await sendText(to, String(context.reply || 'I could not find that appointment for your account.'))
+    return
+  }
+  if (['cancelled', 'completed'].includes(String(context.appointment.status || ''))) {
+    await sendText(to, `That appointment is already ${context.appointment.status}, so it can no longer be changed here.`)
+    return
+  }
+  await saveState(phone, {
+    engine: 'QTX', userId: identity.id, companyCode: String(identity.companyCode || ''),
+    contextType: 'appointment_rsvp', appointmentId, conversation: { awaiting: null, appointmentId },
+    step: 'rsvp_reason', draft: { appointmentId },
+  })
+  const choices: Choice[] = [
+    ...(context.declineOptions || []).map(option => ({ id: `declinereason:${option.code}`, title: declineTitles[option.code] || option.label, description: option.label })),
+    { id: 'declinereason:other', title: declineTitles.other, description: 'Tell me the reason' },
+  ]
+  const what = context.appointment.title ? `the ${context.appointment.title} appointment` : 'this appointment'
+  await sendList(to, `I'm sorry you can't make ${what}${context.appointment.when ? ` on ${context.appointment.when}` : ''}. What is the reason?`, 'Choose reason', choices)
+}
+
+async function finishDecline(to: string, phone: string, identity: UserRecord, appointmentId: string, fields: Record<string, unknown>) {
+  try {
+    const result = await submitRsvp(identity, phone, { appointmentId, response: 'decline', ...fields })
+    await clearFlow(phone, identity)
+    if (result.ok === false) return sendText(to, String(result.reply))
+    if (result.changed === false) return sendText(to, 'I already have your response for this appointment.')
+    if (result.needsReview) {
+      return sendText(to, `Thank you. I've told the programme team that you no longer need ${result.title || 'this intervention'}. They will confirm with you.`)
+    }
+    return sendText(to, fields.proposedText
+      ? "I've recorded that you can't make it and passed on your suggested time. The programme team will confirm a new time with you."
+      : "I've recorded that you can't make it. The programme team will be in touch about a new time.")
+  } catch (error) {
+    console.error('WhatsApp RSVP decline failed', { userId: identity.id, error: String(error) })
+    return sendText(to, 'I could not record that just now. Please try again in a moment.')
+  }
+}
+
+/** Handles the guided decline conversation. Returns true when the message was consumed. */
+async function handleRsvpStep(to: string, phone: string, identity: UserRecord, state: BotState, input: string): Promise<boolean> {
+  const step = String(state.step || '')
+  if (!rsvpSteps.includes(step)) return false
+  const appointmentId = String(state.draft?.appointmentId || '')
+  if (roleGroup(identity) !== 'incubatee' || !appointmentId) {
+    await clearFlow(phone, identity)
+    return false
+  }
+  const draft = state.draft || {}
+  if (step === 'rsvp_reason') {
+    const code = input.startsWith('declinereason:') ? input.slice('declinereason:'.length) : ''
+    if (code === 'no_longer_needed') {
+      await finishDecline(to, phone, identity, appointmentId, { reasonCode: code })
+    } else if (code === 'not_available' || code === 'other_engagement') {
+      await saveState(phone, { step: 'rsvp_time', draft: { appointmentId, reasonCode: code } })
+      await sendText(to, 'Would you like to suggest another time? Reply with a day and time, for example “Thursday 2pm”, or send “skip”.')
+    } else if (code === 'other') {
+      await saveState(phone, { step: 'rsvp_other', draft: { appointmentId } })
+      await sendText(to, 'Please tell me briefly why you cannot make it.')
+    } else {
+      await sendText(to, 'Please choose one of the reasons from the list, or send “menu” to leave this.')
+    }
+    return true
+  }
+  if (step === 'rsvp_other') {
+    const detail = input.trim().slice(0, 300)
+    if (!detail) {
+      await sendText(to, 'Please tell me briefly why you cannot make it.')
+      return true
+    }
+    await saveState(phone, { step: 'rsvp_time', draft: { appointmentId, reasonCode: 'other', detail } })
+    await sendText(to, 'Would you like to suggest another time? Reply with a day and time, for example “Thursday 2pm”, or send “skip”.')
+    return true
+  }
+  const skip = /^(skip|no|none|n\/a)$/i.test(input.trim())
+  await finishDecline(to, phone, identity, appointmentId, {
+    reasonCode: String(draft.reasonCode || 'other'),
+    ...(draft.detail ? { detail: String(draft.detail) } : {}),
+    ...(skip || !input.trim() ? {} : { proposedText: input.trim().slice(0, 200) }),
+  })
+  return true
+}
+
 async function runQtxMutation(
   to: string,
   phone: string,
@@ -1050,40 +1160,38 @@ async function runQtxMutation(
   action: AiAction,
 ) {
   const type = String(action.type || '')
+  if (roleGroup(identity) !== 'incubatee') {
+    await sendText(to, 'Only the SME can respond to an appointment invitation. Staff can manage appointments from the workspace or by asking me to reschedule or cancel.')
+    return
+  }
   const appointmentId = String(action.appointmentId || '')
   const appointment = await qtxAppointmentForIdentity(appointmentId, identity)
   if (!appointment) throw new Error('That appointment could not be found for your account.')
 
+  // All RSVP rules (status, reasons, "no longer needed" review, notifications) live in the ai-backend
+  // (appointment_responses.py) so web and WhatsApp behave identically.
   if (type === 'appointment_accept') {
-    await appointment.ref.set({
-      beneficiaryConfirmation: 'confirmed', userConfirmation: 'confirmed', confirmationSource: 'whatsapp',
-      confirmationPhone: phone, beneficiaryConfirmedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true })
-    await sendText(to, 'Your appointment has been confirmed.')
+    const result = await submitRsvp(identity, phone, { appointmentId, response: 'accept' })
+    await sendText(to, result.ok === false ? String(result.reply) : result.changed === false ? 'Your appointment is already confirmed.' : 'Your appointment has been confirmed.')
     return
   }
   if (type === 'appointment_decline') {
     const reason = String(action.reason || '').trim()
-    if (!reason) throw new Error('Please provide a reason for declining the appointment.')
-    await appointment.ref.set({
-      beneficiaryConfirmation: 'declined', userConfirmation: 'declined', declineReason: reason,
-      confirmationSource: 'whatsapp', confirmationPhone: phone,
-      beneficiaryDeclinedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true })
-    await sendText(to, 'Your appointment has been declined and the reason was recorded.')
+    if (!reason) {
+      await startDeclineFlow(to, phone, identity, appointmentId)
+      return
+    }
+    // A reason given in free text: record it as-is; the guided list is for when no reason was given.
+    await finishDecline(to, phone, identity, appointmentId, { reasonCode: 'other', detail: reason.slice(0, 300) })
     return
   }
   if (type === 'appointment_reschedule_request') {
-    await appointment.ref.set({
-      rescheduleRequest: {
-        status: 'requested', reasonText: action.reason || null,
-        requestedDate: action.requestedDate || null, requestedTime: action.requestedTime || null,
-        requestedDateText: action.requestedDateText || null, requestedTimeText: action.requestedTimeText || null,
-        requestedVia: 'whatsapp', requestedAt: FieldValue.serverTimestamp(),
-      },
-      updatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true })
-    await sendText(to, 'Your request to reschedule has been recorded for the programme team to review.')
+    const wanted = [action.requestedDateText || action.requestedDate, action.requestedTimeText || action.requestedTime].filter(Boolean).join(' ')
+    const result = await submitRsvp(identity, phone, {
+      appointmentId, response: 'reschedule_request',
+      ...(wanted ? { proposedText: wanted.slice(0, 200) } : {}), ...(action.reason ? { detail: String(action.reason).slice(0, 300) } : {}),
+    })
+    await sendText(to, result.ok === false ? String(result.reply) : 'Your request to reschedule has been recorded for the programme team to review.')
     return
   }
 
@@ -1234,6 +1342,11 @@ async function processAiMessage(
     return
   }
 
+  if (engine === 'QTX' && identity && nextAppointmentId && nextConversation.awaiting === 'appointment_decline_reason' && roleGroup(identity) === 'incubatee') {
+    await startDeclineFlow(to, phone, identity, nextAppointmentId)
+    return
+  }
+
   await sendText(to, String(response.reply || 'I could not determine what you need. Please try rephrasing your message.'))
 }
 
@@ -1245,6 +1358,17 @@ async function processStructuredRsvp(to: string, phone: string, parsed: ReturnTy
     appointmentId: parsed.appointmentId,
     conversation: { awaiting: null, appointmentId: parsed.appointmentId },
   })
+
+  if (parsed.response === 'DECLINE' && parsed.engine === 'QTX') {
+    const sme = await findUserByPhone(phone)
+    if (!sme) throw new Error('This WhatsApp number is not linked to a Smart Incubation account.')
+    if (roleGroup(sme) !== 'incubatee') {
+      await sendText(to, 'Only the SME can respond to an appointment invitation.')
+      return true
+    }
+    await startDeclineFlow(to, phone, sme, parsed.appointmentId)
+    return true
+  }
 
   if (parsed.response === 'DECLINE') {
     await saveState(phone, { conversation: { awaiting: 'appointment_decline_reason', appointmentId: parsed.appointmentId } })
@@ -1368,6 +1492,7 @@ async function processQtxMessage(to: string, input: string, sourceMessageId: str
     await menu(to, identity)
     return
   }
+  if (await handleRsvpStep(to, phone, identity, state, input)) return
   if (input === 'action:help') {
     const help: Record<string, string> = {
       incubatee: 'I can show your diagnostic plan, assigned interventions, and upcoming appointments.',
