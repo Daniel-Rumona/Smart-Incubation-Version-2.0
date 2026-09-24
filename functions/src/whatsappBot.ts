@@ -855,6 +855,62 @@ async function callAiBackend(
   return body
 }
 
+type AgentProposal = { id: string, title: string, text: string }
+type AgentBackendResponse = { ok?: boolean, reply?: string, proposal?: AgentProposal | null, error?: { code?: string } }
+
+/**
+ * Staff-facing agentic operations (schedule/assign/log outcomes). The ai-backend resolves the intent,
+ * validates and stores a proposal; nothing is written until the user confirms with a button AND passes
+ * the action PIN below. Unlike callAiBackend, rejected actions come back as ok:false with a user-safe
+ * reply, so that reply is returned instead of thrown.
+ */
+async function callAgentBackend<T = AgentBackendResponse>(path: string, phone: string, userId: string, body: Record<string, unknown>): Promise<T> {
+  const secret = aiRouterSecret('QTX')
+  if (!secret) throw new Error('WhatsApp router secret is not configured for QTX.')
+  const response = await fetch(`${qtxAiBackendUrl().replace(/\/$/, '')}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-WhatsApp-Router-Secret': secret },
+    body: JSON.stringify({ userId, phone: `+${phone}`, ...body }),
+    signal: AbortSignal.timeout(50000),
+  })
+  const text = await response.text()
+  let parsed: AgentBackendResponse
+  try {
+    parsed = JSON.parse(text) as AgentBackendResponse
+  } catch {
+    throw new Error(`The QTX ai-backend returned an invalid agent response (${response.status}).`)
+  }
+  // Only user-facing rejections (409 action rejected) carry a reply we may show; other failures are generic.
+  if (!response.ok && parsed.error?.code !== 'ACTION_REJECTED') {
+    throw new Error(`The QTX ai-backend agent call failed (${parsed.error?.code || response.status}).`)
+  }
+  return parsed as unknown as T
+}
+
+const agentEligible = (identity: UserRecord) => ['operations', 'consultant', 'admin'].includes(roleGroup(identity))
+
+async function sendAgentTurn(to: string, response: AgentBackendResponse) {
+  if (response.proposal) {
+    await sendButtons(to, response.proposal.text, [
+      { id: `agent:confirm:${response.proposal.id}`, title: 'Confirm' },
+      { id: `agent:cancel:${response.proposal.id}`, title: 'Discard' },
+    ])
+    return
+  }
+  await sendText(to, String(response.reply || 'I could not work out what you need. Could you rephrase?'))
+}
+
+async function executeAgentConfirmation(to: string, phone: string, identity: UserRecord, proposalId: string) {
+  try {
+    const result = await callAgentBackend('/api/whatsapp/agent/confirm', phone, identity.id, { proposalId })
+    await sendText(to, String(result.reply || 'Done.'))
+    await maybeRequestRating(to, phone)
+  } catch (error) {
+    console.error('WhatsApp agent confirmation failed', { userId: identity.id, error: String(error) })
+    await sendText(to, 'I could not complete that. Please check the workspace before trying again.')
+  }
+}
+
 async function callLphGateway(payload: Record<string, unknown>): Promise<LphGatewayResponse> {
   const url = lphGatewayUrl()
   const secret = String(process.env.LPH_WHATSAPP_GATEWAY_SECRET || '')
@@ -1446,6 +1502,51 @@ async function processQtxMessage(to: string, input: string, sourceMessageId: str
       await maybeRequestRating(to, phone)
     } catch (error) {
       await sendText(to, `${error instanceof Error ? error.message : 'The assignment could not be completed.'} Send “menu” to restart.`)
+    }
+    return
+  }
+  if (input.startsWith('agent:confirm:') || input.startsWith('agent:cancel:')) {
+    if (!agentEligible(identity)) return sendText(to, 'That action is not available for your role.')
+    const confirming = input.startsWith('agent:confirm:')
+    const proposalId = input.slice(confirming ? 'agent:confirm:'.length : 'agent:cancel:'.length)
+    if (!confirming) {
+      try {
+        const result = await callAgentBackend('/api/whatsapp/agent/cancel', phone, identity.id, { proposalId })
+        await sendText(to, String(result.reply || 'Discarded.'))
+      } catch (error) {
+        console.error('WhatsApp agent cancel failed', { userId: identity.id, error: String(error) })
+        await sendText(to, 'I could not discard that. It will expire on its own shortly.')
+      }
+      return
+    }
+    // Same control as the assignment flow: a recent PIN authorises writes; otherwise ask for it first.
+    if ((state.authenticatedUntil?.toMillis?.() || 0) > Date.now()) {
+      await executeAgentConfirmation(to, phone, identity, proposalId)
+      return
+    }
+    await saveState(phone, { step: 'agent_pin', draft: { proposalId } })
+    await sendText(to, 'Authorisation required. Reply with your bot action PIN to confirm. Send “menu” to cancel. This PIN is separate from your Smart Incubation password.')
+    return
+  }
+  if (state.step === 'agent_pin') {
+    if (!verifyActionPin(input)) {
+      await sendText(to, 'That PIN is incorrect or the bot PIN has not been configured. Send “menu” to cancel, or try again.')
+      return
+    }
+    const proposalId = String(state.draft?.proposalId || '')
+    await stateRef(phone).set({ authenticatedUntil: Timestamp.fromMillis(Date.now() + authorizationTtlMs) }, { merge: true })
+    await clearFlow(phone, identity)
+    if (!proposalId) return sendText(to, 'I lost track of that request. Please ask me again.')
+    await executeAgentConfirmation(to, phone, identity, proposalId)
+    return
+  }
+  if (agentEligible(identity) && !state.conversation?.awaiting) {
+    try {
+      const result = await callAgentBackend('/api/whatsapp/agent', phone, identity.id, { channel: 'whatsapp', message: input.slice(0, 1000) })
+      await sendAgentTurn(to, result)
+    } catch (error) {
+      console.error('WhatsApp agent turn failed', { userId: identity.id, error: String(error) })
+      await sendText(to, 'I could not process that right now. Please try again, or send “menu” for your options.')
     }
     return
   }
