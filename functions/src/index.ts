@@ -26,6 +26,9 @@ export const processWhatsAppInbound = onDocumentCreated(
     secrets: [
       'LPH_WHATSAPP_GATEWAY_SECRET',
       'LPH_WHATSAPP_ROUTER_SECRET',
+      // Shared with the Smart Incubation ai-backend (its WHATSAPP_ROUTER_SECRET). Without it every
+      // QTX message that needs the AI backend fails.
+      'QTX_WHATSAPP_ROUTER_SECRET',
     ],
   },
   async event => {
