@@ -4,7 +4,6 @@ import {
   Button,
   Card,
   Col,
-  DatePicker,
   Divider,
   Empty,
   Grid,
@@ -20,10 +19,8 @@ import {
   App,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import dayjs, { type Dayjs } from 'dayjs'
 import type Highcharts from 'highcharts'
 import {
-  AppstoreOutlined,
   CheckCircleOutlined,
   DollarOutlined,
   EyeOutlined,
@@ -44,10 +41,11 @@ import { useRegisterAgentPageContext } from '@/shared/hooks/useRegisterAgentPage
 import type { DirectorPortfolioSme, DirectorRisk, DirectorStage } from '@/types/director'
 import '@/styles/director.css'
 
-const { RangePicker } = DatePicker
 const { useBreakpoint } = Grid
 const DESKTOP_PAGE_SIZE = 8
 const MOBILE_PAGE_SIZE = 5
+
+const percent = (numerator: number, denominator: number) => (denominator > 0 ? Math.round((numerator / denominator) * 100) : 0)
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('en-ZA', {
@@ -85,19 +83,11 @@ const makeInitials = (name: string) =>
     .map(part => part[0]?.toUpperCase())
     .join('')
 
-const syntheticTrend = (sme: DirectorPortfolioSme) => {
-  const revenue = sme.metrics.revenue || 0
-  const employees = sme.metrics.employees || 0
-  const months = Array.from({ length: 6 }, (_, index) => dayjs().subtract(5 - index, 'month').format('MMM'))
-  return months.map((month, index) => {
-    const factor = 0.55 + (index * 0.09)
-    return {
-      month,
-      revenue: Math.round(revenue * factor),
-      employees: Math.round(employees * factor),
-    }
-  })
-}
+const SmeAvatar = ({ sme, size }: { sme: DirectorPortfolioSme, size?: number }) => (
+  <Avatar shape="circle" size={size} src={sme.photoUrl || undefined} style={{ flexShrink: 0 }}>
+    {makeInitials(sme.name)}
+  </Avatar>
+)
 
 export const DirectorPortfolioPage = () => {
   const { message } = App.useApp()
@@ -106,10 +96,6 @@ export const DirectorPortfolioPage = () => {
   const { user } = useFullIdentity()
   const { activeProgramId } = useActiveProgramId()
 
-  const [range, setRange] = useState<[Dayjs, Dayjs]>(() => [
-    dayjs().subtract(6, 'month').startOf('month'),
-    dayjs().endOf('day'),
-  ])
   const [queryText, setQueryText] = useState('')
   const [sector, setSector] = useState<string | undefined>(undefined)
   const [risk, setRisk] = useState<DirectorRisk | undefined>(undefined)
@@ -145,7 +131,6 @@ export const DirectorPortfolioPage = () => {
   const sectors = useMemo(() => Array.from(new Set(rows.map(item => item.sector))).sort(), [rows])
 
   const filtered = useMemo(() => {
-    const [from, to] = range
     const text = queryText.trim().toLowerCase()
     return rows.filter(sme => {
       const matchText =
@@ -154,33 +139,26 @@ export const DirectorPortfolioPage = () => {
         sme.sector.toLowerCase().includes(text) ||
         String(sme.programName || '').toLowerCase().includes(text)
 
-      const d = dayjs(sme.lastUpdate)
-      const matchRange =
-        d.isValid() &&
-        (d.isAfter(from.startOf('day')) || d.isSame(from.startOf('day'))) &&
-        (d.isBefore(to.endOf('day')) || d.isSame(to.endOf('day')))
-
-      return matchText && (!sector || sme.sector === sector) && (!risk || sme.risk === risk) && (!stage || sme.stage === stage) && matchRange
+      return matchText && (!sector || sme.sector === sector) && (!risk || sme.risk === risk) && (!stage || sme.stage === stage)
     })
-  }, [range, queryText, rows, sector, risk, stage])
+  }, [queryText, rows, sector, risk, stage])
 
   const kpis = useMemo(() => {
     const total = filtered.length
     const highRisk = filtered.filter(item => item.risk === 'High').length
     const avgProgress = total === 0 ? 0 : Math.round(filtered.reduce((sum, item) => sum + item.progress, 0) / total)
-    const totalValue = filtered.reduce((sum, item) => sum + item.valuation, 0)
-    const totalRequired = filtered.reduce((sum, item) => sum + Math.max(1, Math.round(item.progress > 0 ? 100 / Math.max(item.progress, 1) : 1)), 0)
-    const totalCompleted = filtered.reduce((sum, item) => sum + Math.round(item.progress / 10), 0)
-    const completionRate = total ? Math.round(filtered.reduce((sum, item) => sum + item.progress, 0) / total) : 0
+    const totalValue = filtered.reduce((sum, item) => sum + item.metrics.revenue, 0)
+    const totalRequired = filtered.reduce((sum, item) => sum + item.execution.required, 0)
+    const totalCompleted = filtered.reduce((sum, item) => sum + item.execution.completed, 0)
 
-    return { total, highRisk, avgProgress, totalValue, totalRequired, totalCompleted, completionRate }
+    return { total, highRisk, avgProgress, totalValue, totalRequired, totalCompleted }
   }, [filtered])
 
   useRegisterAgentPageContext({
     pageKey: 'director-portfolio',
     pageName: 'Director Portfolio',
     purpose: 'Track SME performance, risk and progress with director-level drilldowns.',
-    currentFilters: { queryText, sector, risk, stage, from: range[0].format('YYYY-MM-DD'), to: range[1].format('YYYY-MM-DD') },
+    currentFilters: { queryText, sector, risk, stage },
     metrics: kpis,
     dataSummary: { visibleSmes: filtered.length },
   })
@@ -190,9 +168,9 @@ export const DirectorPortfolioPage = () => {
     setOpen(true)
   }
 
-  const revenueCustomersChart = useMemo<Highcharts.Options | null>(() => {
-    if (!selected) return null
-    const trend = syntheticTrend(selected)
+  const revenueEmployeesChart = useMemo<Highcharts.Options | null>(() => {
+    if (!selected?.trend.length) return null
+    const trend = selected.trend
     return {
       chart: { type: 'column', height: 300 },
       title: { text: 'Growth Trend' },
@@ -216,7 +194,7 @@ export const DirectorPortfolioPage = () => {
       key: 'name',
       render: (_, row) => (
         <Space>
-          <Avatar style={{ borderRadius: 10 }}>{makeInitials(row.name)}</Avatar>
+          <SmeAvatar sme={row} />
           <div className="director-sme-cell">
             <strong>{row.name}</strong>
             <div className="director-sme-subtext">{row.sector}</div>
@@ -237,7 +215,8 @@ export const DirectorPortfolioPage = () => {
       ),
       sorter: (a, b) => a.progress - b.progress,
     },
-    { title: 'Valuation', dataIndex: 'valuation', key: 'valuation', width: 160, render: value => <span>{formatCurrency(value)}</span>, sorter: (a, b) => a.valuation - b.valuation },
+    { title: 'Revenue', key: 'revenue', width: 160, render: (_, row) => <span>{formatCurrency(row.metrics.revenue)}</span>, sorter: (a, b) => a.metrics.revenue - b.metrics.revenue },
+    { title: 'Employees', key: 'employees', width: 120, align: 'right', render: (_, row) => row.metrics.employees, sorter: (a, b) => a.metrics.employees - b.metrics.employees },
     { title: 'Status', dataIndex: 'status', key: 'status', width: 130, render: value => <Tag color={statusColor(value)}>{value}</Tag> },
     {
       title: '',
@@ -256,7 +235,7 @@ export const DirectorPortfolioPage = () => {
     <Space direction="vertical" size="middle" style={{ width: '100%' }}>
       <Space align="start" style={{ width: '100%', justifyContent: 'space-between' }}>
         <Space align="start">
-          <Avatar style={{ borderRadius: 10 }}>{makeInitials(row.name)}</Avatar>
+          <SmeAvatar sme={row} />
           <div>
             <strong>{row.name}</strong>
             <div style={{ fontSize: 12, opacity: 0.75 }}>{row.sector}</div>
@@ -271,8 +250,8 @@ export const DirectorPortfolioPage = () => {
       </Space>
       <Progress percent={row.progress} size="small" status={row.risk === 'High' ? 'exception' : row.progress >= 80 ? 'success' : 'active'} />
       <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-        <span className="director-muted">Valuation</span>
-        <strong>{formatCurrency(row.valuation)}</strong>
+        <span className="director-muted">Revenue</span>
+        <strong>{formatCurrency(row.metrics.revenue)}</strong>
       </Space>
       <Button block icon={<EyeOutlined />} type="primary" onClick={() => openPerformance(row)}>
         View Performance
@@ -282,7 +261,7 @@ export const DirectorPortfolioPage = () => {
 
   return (
     <div className="director-page director-portfolio-page">
-      <Row gutter={[12, 12]} className="director-section-gap" style={{ marginBottom: 16 }}>
+      <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
         <Col xs={12} md={6}>
           <DashboardMetricCard loading={loading} icon={<TeamOutlined />} iconClassName="is-users" label="Portfolio SMEs" value={kpis.total} />
         </Col>
@@ -296,22 +275,13 @@ export const DirectorPortfolioPage = () => {
         </Col>
 
         <Col xs={12} md={6}>
-          <DashboardMetricCard loading={loading} icon={<DollarOutlined />} iconClassName="is-participants" label="Portfolio Value" value={formatCurrency(kpis.totalValue)} />
+          <DashboardMetricCard loading={loading} icon={<DollarOutlined />} iconClassName="is-participants" label="Portfolio Revenue" value={formatCurrency(kpis.totalValue)} />
         </Col>
       </Row>
 
       <FilterBar
         primary={
           <>
-            <RangePicker
-              value={range}
-              onChange={value => {
-                if (!value?.[0] || !value?.[1]) return
-                setRange([value[0], value[1]])
-                setPage(1)
-              }}
-              allowClear={false}
-            />
             <Input
               allowClear
               prefix={<SearchOutlined />}
@@ -367,18 +337,6 @@ export const DirectorPortfolioPage = () => {
       />
 
       <Card className="director-card-lg director-section-gap">
-        <div className="director-table-heading">
-          <div>
-            <h4 className="director-section-title">SMEs</h4>
-            <span className="director-muted">Click View Performance for a focused drill-down.</span>
-          </div>
-          <Tag icon={<AppstoreOutlined />} color="blue" style={{ borderRadius: 999, paddingInline: 12 }}>
-            Portfolio View
-          </Tag>
-        </div>
-
-        <Divider style={{ margin: '12px 0' }} />
-
         {filtered.length ? (
           <>
             {isMobile ? (
@@ -422,25 +380,14 @@ export const DirectorPortfolioPage = () => {
         footer={null}
         width={isMobile ? '100%' : 980}
         style={isMobile ? { top: 0, paddingBottom: 0 } : undefined}
-        title={
-          selected ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, paddingRight: 24 }}>
-              <Avatar size={52} style={{ borderRadius: 14, fontSize: 18, fontWeight: 700, background: 'linear-gradient(135deg, #6d5dfb, #2563eb)', flexShrink: 0 }}>
-                {makeInitials(selected.name)}
-              </Avatar>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.25 }}>{selected.name}</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 6 }}>
-                  <Tag bordered={false} style={{ margin: 0 }}>{selected.sector}</Tag>
-                  <Tag color={stageColor(selected.stage)} style={{ margin: 0 }}>{selected.stage}</Tag>
-                  <Tag color={riskColor(selected.risk)} style={{ margin: 0 }}>{selected.risk} Risk</Tag>
-                  <Tag color={statusColor(selected.status)} style={{ margin: 0 }}>{selected.status}</Tag>
-                  {selected.programName && <Tag bordered={false} style={{ margin: 0 }}>{selected.programName}</Tag>}
-                </div>
-              </div>
+        title={selected ? (
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.25 }}>{selected.name}</div>
+            <div style={{ fontSize: 12, fontWeight: 400, opacity: 0.7, marginTop: 2 }}>
+              {[selected.sector, selected.programName].filter(Boolean).join(' · ')}
             </div>
-          ) : 'SME Performance'
-        }
+          </div>
+        ) : 'SME Performance'}
       >
         {selected && (
           <>
@@ -462,7 +409,7 @@ export const DirectorPortfolioPage = () => {
             <Row gutter={[12, 12]} style={{ marginTop: 12 }}>
               <Col xs={24} md={14}>
                 <Card style={{ borderRadius: 16 }}>
-                  {revenueCustomersChart && <ThemedHighcharts options={revenueCustomersChart} />}
+                  {revenueEmployeesChart ? <ThemedHighcharts options={revenueEmployeesChart} /> : <Empty description="No revenue history recorded for this SME yet." />}
                 </Card>
               </Col>
 
@@ -471,8 +418,8 @@ export const DirectorPortfolioPage = () => {
                   <div style={{ fontWeight: 600, marginBottom: 12 }}>Execution (Required vs Completed)</div>
                   <Space direction="vertical" size={14} style={{ width: '100%' }}>
                     {[
-                      { name: 'Completed', value: Math.round(selected.progress), color: '#16a34a' },
-                      { name: 'Remaining', value: Math.max(100 - Math.round(selected.progress), 0), color: '#f59e0b' },
+                      { name: `Completed (${selected.execution.completed}/${selected.execution.required})`, value: percent(selected.execution.completed, selected.execution.required), color: '#16a34a' },
+                      { name: `Remaining (${Math.max(selected.execution.required - selected.execution.completed, 0)})`, value: percent(Math.max(selected.execution.required - selected.execution.completed, 0), selected.execution.required), color: '#f59e0b' },
                     ].filter(item => item.value > 0).map(item => (
                       <div key={item.name}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
@@ -486,16 +433,16 @@ export const DirectorPortfolioPage = () => {
                   <Divider style={{ margin: '10px 0' }} />
                   <Row gutter={[10, 10]}>
                     <Col span={12}>
-                      <DashboardMetricCard icon={<WarningOutlined />} iconClassName="is-attention" label="Overdue" value={selected.risk === 'High' ? 1 : 0} hint="Low progress or high-risk items" />
+                      <DashboardMetricCard icon={<WarningOutlined />} iconClassName="is-attention" label="Overdue" value={selected.execution.overdue} hint="Past due, not completed" />
                     </Col>
                     <Col span={12}>
-                      <DashboardMetricCard icon={<FundOutlined />} iconClassName="is-users" label="Unresponsive" value={selected.progress < 50 ? 1 : 0} hint="Waiting on response/actions" />
+                      <DashboardMetricCard icon={<FundOutlined />} iconClassName="is-users" label="Unresponsive" value={selected.execution.unresponsive} hint="Pending SME acceptance 7+ days" />
                     </Col>
                     <Col span={12}>
-                      <DashboardMetricCard icon={<RiseOutlined />} iconClassName="is-participants" label="Upcoming" value={selected.progress < 80 ? 1 : 0} hint="Upcoming due items" />
+                      <DashboardMetricCard icon={<RiseOutlined />} iconClassName="is-participants" label="Upcoming" value={selected.execution.upcoming} hint="Due within 14 days" />
                     </Col>
                     <Col span={12}>
-                      <DashboardMetricCard icon={<CheckCircleOutlined />} iconClassName="is-delivery" label="Required" value="100%" hint="Required interventions total" />
+                      <DashboardMetricCard icon={<CheckCircleOutlined />} iconClassName="is-delivery" label="Required" value={selected.execution.required} hint={`${selected.execution.completed} completed`} />
                     </Col>
                   </Row>
                 </Card>

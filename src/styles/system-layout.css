@@ -58,7 +58,7 @@
 .workspace-navigation-modal .ant-modal-body { padding-top: 4px; }
 .workspace-navigation-intro { margin: 0 auto 18px; text-align: center; }
 .workspace-navigation-sections { margin-bottom: 18px; }
-.workspace-navigation-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+.workspace-navigation-grid { display: grid; grid-template-columns: repeat(var(--nav-tracks, 6), minmax(0, 1fr)); gap: 12px; }
 .workspace-navigation-card { display: flex; grid-column: span 2; min-height: 88px; padding: 11px 14px; border: 1px solid rgba(109, 93, 251, .16); border-radius: 16px; color: inherit; background: var(--ant-color-bg-container); text-align: left; cursor: pointer; transition: border-color .18s ease, background .18s ease, transform .18s ease; }
 .workspace-navigation-card.is-compact { min-height: 68px; padding-block: 9px; }
 .workspace-navigation-card:hover, .workspace-navigation-card.is-current { border-color: #6d5dfb; background: rgba(109, 93, 251, .08); transform: translateY(-2px); }
@@ -603,7 +603,7 @@ html[data-theme='dark'] .workspace-navigation-card:hover, html[data-theme='dark'
 
     margin-top: 82px;
 
-    padding: 18px 24px 24px;
+    padding: 12px 16px 16px;
 
     overflow-y: auto;
     overflow-x: hidden;

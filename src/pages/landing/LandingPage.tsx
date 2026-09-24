@@ -25,6 +25,7 @@ import { LANGUAGES, type LanguageCode } from '@/config/languages'
 import { useLanguage } from '@/providers/LanguageProvider'
 import { useThemeMode } from '@/providers/ThemeProvider'
 import { useAgent } from '@/providers/AgentProvider'
+import { HolidayBanner } from '@/components/shared/HolidayBanner'
 import '@/styles/landing/LandingPage.css'
 
 type EcosystemItem = {
@@ -195,6 +196,8 @@ const LandingPage: React.FC = () => {
                 <div className="landing-glow landing-glow-right" />
                 <div className="landing-grid-texture" />
             </div>
+
+            <HolidayBanner />
 
             <header className="landing-topbar">
                 <span className="landing-brand-mark">

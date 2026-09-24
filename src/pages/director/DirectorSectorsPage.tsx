@@ -1,18 +1,33 @@
-import { useEffect, useMemo, useState } from 'react'
-import { App, Avatar, Card, Col, Empty, Input, Progress, Row, Select, Space, Tag, Typography } from 'antd'
-import type { ColumnsType } from 'antd/es/table'
-import { ApartmentOutlined, DollarOutlined, SearchOutlined, TeamOutlined, WarningOutlined } from '@ant-design/icons'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { App, Avatar, Button, Card, Col, Empty, Input, Modal, Progress, Row, Segmented, Select, Space, Tag, Typography } from 'antd'
+import {
+  AreaChartOutlined,
+  CheckSquareOutlined,
+  ArrowLeftOutlined,
+  CheckCircleOutlined,
+  ClockCircleOutlined,
+  DollarOutlined,
+  ExclamationCircleOutlined,
+  FallOutlined,
+  LineChartOutlined,
+  SearchOutlined,
+  TeamOutlined,
+  WarningOutlined,
+} from '@ant-design/icons'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
-import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
 import { ThemedHighcharts } from '@/components/shared/ThemedHighcharts'
-import { CHART_COLORS } from '@/config/chartPalette'
+import { CHART_COLORS, CHART_PALETTE } from '@/config/chartPalette'
+import dayjs from 'dayjs'
+import { collection, getDocs, query, where } from 'firebase/firestore'
+import { getFirebaseDb } from '@/config/firebase'
+import type Highcharts from 'highcharts'
 import { useActiveProgramId } from '@/hooks/useActiveProgramId'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { buildSectorRollups, listDirectorPortfolio } from '@/services/directorPortfolioService'
 import { useRegisterAgentPageContext } from '@/shared/hooks/useRegisterAgentPageContext'
-import type { DirectorPortfolioSme, SectorRollup } from '@/types/director'
+import type { DirectorPortfolioSme } from '@/types/director'
 import '@/styles/dashboard.css'
 import '@/styles/director.css'
 
@@ -21,8 +36,94 @@ const { Text } = Typography
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0, notation: Math.abs(value) >= 1000000 ? 'compact' : 'standard' }).format(value || 0)
 
+const norm = (value: unknown) => String(value ?? '').trim().toLowerCase()
+
+const compactCurrency = (value: number) => {
+  const abs = Math.abs(value)
+  if (abs >= 1_000_000) return `R${(value / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
+  if (abs >= 1_000) return `R${Math.round(value / 1_000)}K`
+  return `R${Math.round(value)}`
+}
+
+type AreaMetric = 'revenue' | 'employees' | 'completions'
+
+const toMonthKey = (value: unknown) => {
+  const date = value && typeof value === 'object' && 'toDate' in value && typeof (value as { toDate: unknown }).toDate === 'function'
+    ? (value as { toDate: () => Date }).toDate()
+    : null
+  return date ? dayjs(date).format('YYYY-MM') : null
+}
+
 const riskColor = (risk: string) => risk === 'High' ? 'red' : risk === 'Medium' ? 'orange' : 'green'
 const initials = (name: string) => name.split(' ').filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase()).join('')
+
+type RiskReason = {
+  key: string
+  severity: 'High' | 'Medium'
+  icon: ReactNode
+  title: string
+  detail: string
+  short: string
+  gauge?: { value: number; max: number; mediumAt: number; highAt: number }
+}
+
+/** Mirrors deriveRisk in directorPortfolioService: progress < 45 / growth < 20 is High, < 65 / < 40 is Medium. */
+const buildRiskReasons = (sme: DirectorPortfolioSme): RiskReason[] => {
+  const reasons: RiskReason[] = []
+  const { progress, execution, metrics } = sme
+
+  if (progress < 65) {
+    reasons.push({
+      key: 'progress',
+      severity: progress < 45 ? 'High' : 'Medium',
+      icon: <CheckCircleOutlined />,
+      title: 'Delivery progress is behind',
+      detail: `Average intervention progress is ${progress}%${progress < 45 ? ', under the 45% high-risk line' : ', under the 65% healthy line'}.${execution.required ? ` ${execution.completed} of ${execution.required} required interventions are complete.` : ''}`,
+      short: `${progress}% progress`,
+      gauge: { value: progress, max: 100, mediumAt: 65, highAt: 45 },
+    })
+  }
+
+  if (metrics.growthRate < 40) {
+    reasons.push({
+      key: 'growth',
+      severity: metrics.growthRate < 20 ? 'High' : 'Medium',
+      icon: <FallOutlined />,
+      title: metrics.growthRate < 0 ? 'Revenue is declining' : 'Revenue growth is weak',
+      detail: metrics.growthRate < 0
+        ? `Revenue has fallen ${Math.abs(metrics.growthRate)}% over the last six months of recorded history.`
+        : `Revenue grew only ${metrics.growthRate}% over the last six months, under the ${metrics.growthRate < 20 ? '20% high-risk' : '40% healthy'} line.`,
+      short: metrics.growthRate < 0 ? `Revenue ${metrics.growthRate}%` : `Growth ${metrics.growthRate}%`,
+      gauge: { value: Math.max(metrics.growthRate, 0), max: 100, mediumAt: 40, highAt: 20 },
+    })
+  }
+
+  if (execution.overdue > 0) {
+    reasons.push({
+      key: 'overdue',
+      severity: execution.overdue >= 2 ? 'High' : 'Medium',
+      icon: <ClockCircleOutlined />,
+      title: `${execution.overdue} overdue intervention${execution.overdue === 1 ? '' : 's'}`,
+      detail: 'These were due before today and are not yet completed.',
+      short: `${execution.overdue} overdue`,
+    })
+  }
+
+  if (execution.unresponsive > 0) {
+    reasons.push({
+      key: 'unresponsive',
+      severity: 'Medium',
+      icon: <ExclamationCircleOutlined />,
+      title: `Slow to respond (${execution.unresponsive})`,
+      detail: 'The consultant accepted these interventions but the SME has not responded for 7 or more days.',
+      short: `${execution.unresponsive} unresponsive`,
+    })
+  }
+
+  return reasons.sort((left, right) => (left.severity === right.severity ? 0 : left.severity === 'High' ? -1 : 1))
+}
+
+const severityColor = (severity: 'High' | 'Medium') => (severity === 'High' ? CHART_COLORS.danger : CHART_COLORS.amber)
 
 export const DirectorSectorsPage = () => {
   const { message } = App.useApp()
@@ -32,6 +133,10 @@ export const DirectorSectorsPage = () => {
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [sector, setSector] = useState('All')
+  const [drilldownSector, setDrilldownSector] = useState<string | null>(null)
+  const [riskSme, setRiskSme] = useState<DirectorPortfolioSme | null>(null)
+  const [areaMetric, setAreaMetric] = useState<AreaMetric>('completions')
+  const [completions, setCompletions] = useState<Array<{ participantId: string; month: string }>>([])
 
   useEffect(() => {
     let mounted = true
@@ -40,7 +145,18 @@ export const DirectorSectorsPage = () => {
       setLoading(true)
       try {
         const data = await listDirectorPortfolio(user, activeProgramId)
-        if (mounted) setRows(data)
+        const assignmentDocs = await getDocs(query(collection(getFirebaseDb(), 'assignedInterventions'), ...(user.companyCode ? [where('companyCode', '==', user.companyCode)] : [])))
+          .then(snapshot => snapshot.docs.map(row => row.data()))
+          .catch(() => [])
+        if (mounted) {
+          setRows(data)
+          setCompletions(assignmentDocs.flatMap(item => {
+            const finished = norm(item.status) === 'completed' || norm(item.completionStatus) === 'completed'
+              || (norm(item.assigneeCompletionStatus) === 'done' && norm(item.participantCompletionStatus) === 'confirmed')
+            const month = toMonthKey(item.completedAt) || toMonthKey(item.completionConfirmedAt)
+            return finished && month ? [{ participantId: String(item.participantId || ''), month }] : []
+          }))
+        }
       } catch (error) {
         console.error(error)
         message.error('Sector data could not be loaded.')
@@ -60,6 +176,11 @@ export const DirectorSectorsPage = () => {
     return rows.filter(row => (!term || [row.name, row.sector].some(value => value.toLowerCase().includes(term))) && (sector === 'All' || row.sector === sector))
   }, [rows, search, sector])
 
+  const watchlist = useMemo(
+    () => filteredRows.filter(row => row.risk !== 'Low').sort((a, b) => (a.risk === b.risk ? a.progress - b.progress : a.risk === 'High' ? -1 : 1)),
+    [filteredRows],
+  )
+
   const rollups = useMemo(() => buildSectorRollups(filteredRows), [filteredRows])
   const metrics = useMemo(() => ({
     sectors: rollups.length,
@@ -77,48 +198,77 @@ export const DirectorSectorsPage = () => {
     dataSummary: { sectors: rollups.length, visibleSmes: filteredRows.length },
   })
 
-  const revenueOptions = useMemo(() => ({
-    colors: [CHART_COLORS.primary, CHART_COLORS.success, CHART_COLORS.violet, CHART_COLORS.teal, CHART_COLORS.amber, CHART_COLORS.danger, CHART_COLORS.pink, CHART_COLORS.cyan],
-    chart: { type: 'bar', height: 340 },
-    title: { text: 'Sector Revenue' },
-    xAxis: { categories: rollups.map(row => row.sector) },
-    yAxis: { title: { text: 'Revenue' }, min: 0 },
-    plotOptions: { series: { colorByPoint: true, dataLabels: { enabled: true } } },
-    series: [{ type: 'bar' as const, name: 'Revenue', data: rollups.map(row => row.totalRevenue) }],
-  }), [rollups])
+  const maxSectorRevenue = useMemo(() => Math.max(1, ...rollups.map(row => row.totalRevenue)), [rollups])
 
-  const progressOptions = useMemo(() => ({
-    colors: [CHART_COLORS.success, CHART_COLORS.danger],
-    chart: { type: 'column', height: 340 },
-    title: { text: 'Progress and Risk' },
-    xAxis: { categories: rollups.map(row => row.sector) },
-    yAxis: { title: { text: 'Count / Percent' }, min: 0 },
-    tooltip: { shared: true },
-    series: [
-      { type: 'column' as const, name: 'Avg progress', data: rollups.map(row => row.avgProgress) },
-      { type: 'spline' as const, name: 'High risk SMEs', data: rollups.map(row => row.highRisk) },
-    ],
-  }), [rollups])
+  const drilldownRollup = useMemo(() => rollups.find(row => row.sector === drilldownSector) || null, [drilldownSector, rollups])
 
-  const columns: ColumnsType<SectorRollup> = [
-    { title: 'Sector', dataIndex: 'sector', render: value => <Text strong>{value}</Text> },
-    { title: 'SMEs', dataIndex: 'companies', align: 'right' },
-    { title: 'Avg progress', dataIndex: 'avgProgress', render: value => <Progress percent={Number(value)} size="small" /> },
-    { title: 'Revenue', dataIndex: 'totalRevenue', align: 'right', render: value => formatCurrency(Number(value)) },
-    { title: 'Risk', key: 'risk', render: (_, row) => <Space wrap><Tag color="red">High {row.highRisk}</Tag><Tag color="orange">Medium {row.mediumRisk}</Tag><Tag color="green">Low {row.lowRisk}</Tag></Space> },
-  ]
+  const monthlyRevenueOptions = useMemo<Highcharts.Options>(() => {
+    const byMonth = new Map<string, number>()
+    drilldownRollup?.smes.forEach(sme => sme.trend.forEach(point => byMonth.set(point.key, (byMonth.get(point.key) || 0) + point.revenue)))
+    const months = Array.from(byMonth.entries()).sort((left, right) => left[0].localeCompare(right[0]))
+    return {
+      chart: { type: 'spline', height: 320 },
+      title: { text: undefined },
+      xAxis: { categories: months.map(([key]) => dayjs(`${key}-01`).format('MMM YY')) },
+      yAxis: { min: 0, title: { text: undefined }, labels: { formatter() { return compactCurrency(Number(this.value)) } } },
+      tooltip: { pointFormatter() { return `<b>${formatCurrency(Number(this.y))}</b>` } },
+      legend: { enabled: false },
+      plotOptions: { spline: { lineWidth: 3, marker: { enabled: true, radius: 5 }, dataLabels: { enabled: true, formatter() { return compactCurrency(Number(this.y)) } } } },
+      series: [{ type: 'spline' as const, name: 'Revenue', color: CHART_COLORS.violet, data: months.map(([, revenue]) => revenue) }],
+    }
+  }, [drilldownRollup])
+
+  const areaSeries = useMemo(() => {
+    if (areaMetric === 'completions') {
+      const keys = Array.from({ length: 12 }, (_, index) => dayjs().subtract(11 - index, 'month').format('YYYY-MM'))
+      const sectorByParticipant = new Map<string, string>()
+      rollups.forEach(row => row.smes.forEach(sme => sectorByParticipant.set(sme.id, row.sector)))
+      const counts = new Map<string, Map<string, number>>()
+      completions.forEach(item => {
+        const sectorName = sectorByParticipant.get(item.participantId)
+        if (!sectorName) return
+        const bySector = counts.get(sectorName) || new Map<string, number>()
+        bySector.set(item.month, (bySector.get(item.month) || 0) + 1)
+        counts.set(sectorName, bySector)
+      })
+      return {
+        keys,
+        series: rollups.map(row => ({ name: row.sector, data: keys.map(key => counts.get(row.sector)?.get(key) || 0) })).filter(item => item.data.some(value => value > 0)),
+      }
+    }
+    const months = new Set<string>()
+    rollups.forEach(row => row.smes.forEach(sme => sme.trend.forEach(point => months.add(point.key))))
+    const keys = Array.from(months).sort()
+    return {
+      keys,
+      series: rollups.map(row => ({
+        name: row.sector,
+        data: keys.map(key => row.smes.reduce((sum, sme) => {
+          const point = sme.trend.find(item => item.key === key)
+          return sum + (point ? (areaMetric === 'revenue' ? point.revenue : point.employees) : 0)
+        }, 0)),
+      })).filter(item => item.data.some(value => value > 0)),
+    }
+  }, [areaMetric, completions, rollups])
+
+  const areaOptions = useMemo<Highcharts.Options>(() => ({
+    chart: { type: 'areaspline', height: 320 },
+    title: { text: undefined },
+    xAxis: { categories: areaSeries.keys.map(key => dayjs(`${key}-01`).format('MMM YY')), tickmarkPlacement: 'on' },
+    yAxis: {
+      min: 0,
+      title: { text: undefined },
+      allowDecimals: false,
+      labels: { formatter() { return areaMetric === 'revenue' ? compactCurrency(Number(this.value)) : String(this.value) } },
+    },
+    tooltip: { shared: true, valuePrefix: areaMetric === 'revenue' ? 'R ' : undefined },
+    plotOptions: { areaspline: { stacking: 'normal', fillOpacity: 0.35, lineWidth: 2, marker: { enabled: false } } },
+    series: areaSeries.series.map((item, index) => ({ type: 'areaspline' as const, name: item.name, data: item.data, color: CHART_PALETTE[index % CHART_PALETTE.length] })),
+  }), [areaMetric, areaSeries])
 
   return (
     <DashboardPage>
-      <Row gutter={[12, 12]} className="dashboard-metrics-row">
-        <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<ApartmentOutlined />} label="Sectors" value={metrics.sectors} /></Col>
-        <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<TeamOutlined />} label="SMEs" value={metrics.smes} /></Col>
-        <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<DollarOutlined />} label="Revenue" value={formatCurrency(metrics.revenue)} /></Col>
-        <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<WarningOutlined />} label="High Risk" value={metrics.highRisk} /></Col>
-      </Row>
-
       <FilterBar
-        title="Sector filters"
         primary={
           <>
             <Input prefix={<SearchOutlined />} value={search} onChange={event => setSearch(event.target.value)} placeholder="Search sector or SME" allowClear />
@@ -128,51 +278,135 @@ export const DirectorSectorsPage = () => {
       />
 
       <Row gutter={[16, 16]}>
-        <Col xs={24} xl={14}><Card loading={loading} className="dashboard-section-card motion-card">{rollups.length ? <ThemedHighcharts options={revenueOptions} /> : <Empty description="No sector revenue found." />}</Card></Col>
-        <Col xs={24} xl={10}><Card loading={loading} className="dashboard-section-card motion-card">{rollups.length ? <ThemedHighcharts options={progressOptions} /> : <Empty description="No sector risk found." />}</Card></Col>
+        <Col xs={24} xl={14}>
+          <Card
+            loading={loading}
+            className="dashboard-section-card motion-card"
+            style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
+            styles={{ body: { flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 } }}
+            title={<Space>{drilldownRollup ? <LineChartOutlined /> : <DollarOutlined />}{drilldownRollup ? `${drilldownRollup.sector} · monthly revenue` : 'Sector Revenue'}</Space>}
+            extra={drilldownRollup
+              ? <Button size="small" icon={<ArrowLeftOutlined />} onClick={() => setDrilldownSector(null)}>Back</Button>
+              : <Text type="secondary">Click a bar for month-on-month</Text>}
+          >
+            {!rollups.length ? <Empty description="No sector revenue found." /> : drilldownRollup ? (
+              drilldownRollup.smes.some(sme => sme.trend.length) ? <ThemedHighcharts options={monthlyRevenueOptions} /> : <Empty description="No monthly revenue history recorded for this sector." />
+            ) : (
+              <div style={{ flex: 1, maxHeight: 420, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, paddingRight: 4 }}>
+                {rollups.map((row, index) => (
+                  <button key={row.sector} type="button" className="director-click-row" style={{ flex: '1 0 auto', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'center', gap: 2 }} onClick={() => setDrilldownSector(row.sector)}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Text strong>{row.sector}</Text>
+                      <Space size={6}>
+                        <Text type="secondary" style={{ fontSize: 12 }}>{row.companies} SME{row.companies === 1 ? '' : 's'} · {row.avgProgress}% progress</Text>
+                        {row.highRisk > 0 && <Tag color="red" bordered={false} style={{ margin: 0 }}>{row.highRisk} high</Tag>}
+                        {row.mediumRisk > 0 && <Tag color="orange" bordered={false} style={{ margin: 0 }}>{row.mediumRisk} medium</Tag>}
+                      </Space>
+                    </div>
+                    <Progress
+                      percent={Math.round((row.totalRevenue / maxSectorRevenue) * 100)}
+                      strokeColor={[CHART_COLORS.primary, CHART_COLORS.success, CHART_COLORS.violet, CHART_COLORS.teal, CHART_COLORS.amber, CHART_COLORS.pink, CHART_COLORS.cyan, CHART_COLORS.danger][index % 8]}
+                      format={() => <strong>{compactCurrency(row.totalRevenue)}</strong>}
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
+          </Card>
+        </Col>
+        <Col xs={24} xl={10}>
+          <Card loading={loading} className="dashboard-section-card motion-card" title={<Space><WarningOutlined /> Risk Watchlist</Space>} extra={<Text type="secondary">Click an SME to see why</Text>} style={{ height: '100%' }}>
+            {watchlist.length ? (
+              <div style={{ maxHeight: 420, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, paddingRight: 4 }}>
+                {watchlist.map(row => (
+                  <button key={row.id} type="button" className="director-click-row" onClick={() => setRiskSme(row)}>
+                    <Avatar shape="circle" src={row.photoUrl || undefined} style={{ flexShrink: 0 }}>{initials(row.name)}</Avatar>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                        <Text strong ellipsis>{row.name}</Text>
+                        <Tag color={riskColor(row.risk)} style={{ marginInlineEnd: 0 }}>{row.risk}</Tag>
+                      </div>
+                      <Text type="secondary" style={{ fontSize: 12 }}>{row.sector}</Text>
+                      <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {buildRiskReasons(row).slice(0, 3).map(reason => <Tag key={reason.key} bordered={false} color={reason.severity === 'High' ? 'red' : 'orange'} style={{ margin: 0 }}>{reason.short}</Tag>)}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : <Empty description="No high or medium risk SMEs found." />}
+          </Card>
+        </Col>
+        <Col span={24}>
+          <Card
+            loading={loading}
+            className="dashboard-section-card motion-card"
+            title={<Space><AreaChartOutlined /> {areaMetric === 'completions' ? 'Interventions Completed · Month on Month' : 'Month on Month'}</Space>}
+            extra={(
+              <Segmented<AreaMetric>
+                value={areaMetric}
+                onChange={setAreaMetric}
+                options={[
+                  { label: 'Revenue', value: 'revenue', icon: <DollarOutlined /> },
+                  { label: 'Employees', value: 'employees', icon: <TeamOutlined /> },
+                  { label: 'Completions', value: 'completions', icon: <CheckSquareOutlined /> },
+                ]}
+              />
+            )}
+          >
+            {areaSeries.series.length ? <ThemedHighcharts options={areaOptions} /> : <Empty description="No monthly history recorded yet." />}
+          </Card>
+        </Col>
       </Row>
 
-      <Card loading={loading} className="dashboard-section-card motion-card" title={<Space><ApartmentOutlined /> Sector Summary</Space>} style={{ marginTop: 16 }}>
-        <ResponsiveDataView
-          rowKey="sector"
-          columns={columns}
-          rows={rollups}
-          emptyText="No sectors match the current filters."
-          renderCard={row => (
-            <Space direction="vertical" className="dashboard-mobile-record">
-              <Text strong>{row.sector}</Text>
-              <Text>{row.companies} SMEs</Text>
-              <Progress percent={row.avgProgress} size="small" />
-              <Text>{formatCurrency(row.totalRevenue)}</Text>
-              <Space wrap><Tag color="red">High {row.highRisk}</Tag><Tag color="orange">Medium {row.mediumRisk}</Tag><Tag color="green">Low {row.lowRisk}</Tag></Space>
-            </Space>
-          )}
-        />
-      </Card>
+      <Modal
+        open={!!riskSme}
+        onCancel={() => setRiskSme(null)}
+        footer={null}
+        width={760}
+        destroyOnClose
+        title={riskSme ? (
+          <div>
+            <div style={{ fontSize: 17, fontWeight: 700, lineHeight: 1.2 }}>{riskSme.name}</div>
+            <div style={{ fontSize: 12, fontWeight: 400, opacity: 0.7 }}>{[riskSme.sector, riskSme.programName].filter(Boolean).join(' · ')}</div>
+          </div>
+        ) : ''}
+      >
+        {riskSme && (
+          <Space direction="vertical" size={16} style={{ width: '100%' }}>
+            <Row gutter={[12, 12]}>
+              <Col xs={12} md={6}><DashboardMetricCard icon={<WarningOutlined />} iconClassName="is-attention" label="Risk level" value={riskSme.risk} /></Col>
+              <Col xs={12} md={6}><DashboardMetricCard icon={<CheckCircleOutlined />} label="Progress" value={`${riskSme.progress}%`} hint={`${riskSme.execution.completed}/${riskSme.execution.required} completed`} /></Col>
+              <Col xs={12} md={6}><DashboardMetricCard icon={<FallOutlined />} label="Revenue growth" value={`${riskSme.metrics.growthRate > 0 ? '+' : ''}${riskSme.metrics.growthRate}%`} hint="Last 6 months" /></Col>
+              <Col xs={12} md={6}><DashboardMetricCard icon={<ClockCircleOutlined />} label="Overdue" value={riskSme.execution.overdue} hint={`${riskSme.execution.unresponsive} unresponsive`} /></Col>
+            </Row>
 
-      <Card loading={loading} className="dashboard-section-card motion-card" title="Risk Watchlist" style={{ marginTop: 16 }}>
-        {filteredRows.filter(row => row.risk !== 'Low').length ? (
-          <ResponsiveDataView
-            rowKey="id"
-            rows={filteredRows.filter(row => row.risk !== 'Low').sort((a, b) => a.risk === b.risk ? a.name.localeCompare(b.name) : a.risk === 'High' ? -1 : 1)}
-            emptyText="No high or medium risk SMEs found."
-            columns={[
-              { title: 'SME', dataIndex: 'name' },
-              { title: 'Sector', dataIndex: 'sector' },
-              { title: 'Risk', dataIndex: 'risk', render: value => <Tag color={riskColor(String(value))}>{String(value)}</Tag> },
-              { title: 'Progress', dataIndex: 'progress', render: value => <Progress percent={Number(value)} size="small" /> },
-            ]}
-            renderCard={row => (
-              <Space direction="vertical" className="dashboard-mobile-record">
-                <Space><Avatar>{initials(row.name)}</Avatar><Text strong>{row.name}</Text></Space>
-                <Text type="secondary">{row.sector}</Text>
-                <Tag color={riskColor(row.risk)}>{row.risk}</Tag>
-                <Progress percent={row.progress} size="small" />
+            <div>
+              <Text strong style={{ display: 'block', marginBottom: 10 }}>Why this SME is {riskSme.risk.toLowerCase()} risk</Text>
+              <Space direction="vertical" size={10} style={{ width: '100%' }}>
+                {buildRiskReasons(riskSme).map(reason => (
+                  <div key={reason.key} style={{ display: 'flex', gap: 14, padding: '12px 14px', borderRadius: 14, background: `${severityColor(reason.severity)}12` }}>
+                    <span style={{ width: 40, height: 40, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, color: severityColor(reason.severity), background: `${severityColor(reason.severity)}22`, flexShrink: 0 }}>{reason.icon}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                        <Text strong>{reason.title}</Text>
+                        <Tag color={reason.severity === 'High' ? 'red' : 'orange'} style={{ marginInlineEnd: 0 }}>{reason.severity}</Tag>
+                      </div>
+                      <Text type="secondary" style={{ fontSize: 13 }}>{reason.detail}</Text>
+                      {reason.gauge && (
+                        <div style={{ marginTop: 6 }}>
+                          <Progress percent={Math.min(100, Math.round((reason.gauge.value / reason.gauge.max) * 100))} strokeColor={severityColor(reason.severity)} size="small" format={() => `${reason.gauge!.value}%`} />
+                          <Text type="secondary" style={{ fontSize: 11 }}>High risk below {reason.gauge.highAt}% · healthy from {reason.gauge.mediumAt}%</Text>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </Space>
-            )}
-          />
-        ) : <Empty description="No high or medium risk SMEs found." />}
-      </Card>
+            </div>
+          </Space>
+        )}
+      </Modal>
     </DashboardPage>
   )
 }

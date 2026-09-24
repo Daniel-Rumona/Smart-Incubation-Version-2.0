@@ -1,5 +1,6 @@
 import type { AgentPageContext } from '@/types/agent'
 import type { CourseLesson, CourseTemplate, QuizQuestion } from '@/services/courseTemplatesService'
+import type { SmeBusiness } from '@/services/courseProgressService'
 
 const quizSummary = (quiz?: QuizQuestion[]) => (quiz || []).map((question) => ({
     question: question.question,
@@ -17,11 +18,15 @@ export const lessonPageContext = (
     course: CourseTemplate,
     lesson: CourseLesson,
     purpose: string,
+    business?: SmeBusiness,
 ): AgentPageContext => ({
     pageKey: 'lms-lesson',
     pageName: `${course.title || 'Course'} — ${lesson.title || 'Lesson'}`,
-    purpose,
+    purpose: business
+        ? `${purpose} The learner runs their own small business (see learnerBusiness). Whenever you give an example, analogy or scenario, set it in that business and sector — use their kind of products, customers and costs — instead of a generic example, and refer to the business naturally.`
+        : purpose,
     dataSummary: {
+        learnerBusiness: business,
         courseTitle: course.title,
         courseDescription: course.description,
         lessonTitle: lesson.title,

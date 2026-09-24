@@ -14,6 +14,15 @@ export type DirectorPortfolioSme = {
   lastUpdate: string
   programId?: string
   programName?: string
+  photoUrl?: string
+  execution: {
+    required: number
+    completed: number
+    overdue: number
+    unresponsive: number
+    upcoming: number
+  }
+  trend: Array<{ key: string; month: string; revenue: number; employees: number }>
   metrics: {
     revenue: number
     customers: number

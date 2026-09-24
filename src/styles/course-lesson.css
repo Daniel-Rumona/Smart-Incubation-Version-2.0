@@ -197,3 +197,33 @@ html[data-theme='dark'] .lesson-review-panel {
     border-color: rgba(139, 92, 246, .28);
     background: rgba(23, 25, 35, .96);
 }
+
+
+/* =========================================================
+   Operations LMS list — every filter control shares the row
+   equally, and row actions are compact round icon buttons.
+   ========================================================= */
+
+.operations-lms-page {
+    gap: 8px;
+}
+
+.operations-lms-page .filter-bar-controls > *,
+.operations-lms-page .filter-bar-controls > .ant-segmented,
+.operations-lms-page .filter-bar-controls > .ant-btn {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.operations-lms-page .filter-bar-controls .ant-segmented-group {
+    width: 100%;
+}
+
+.operations-lms-page .filter-bar-controls .ant-segmented-item {
+    flex: 1 1 0;
+}
+
+.lms-row-actions {
+    display: flex;
+    gap: 6px;
+}

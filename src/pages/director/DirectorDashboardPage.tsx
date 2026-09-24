@@ -1,26 +1,20 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
     Card,
     Col,
-    DatePicker,
+    Progress,
     Row,
     Space,
     Tag,
     Typography,
     message,
-    Grid,
     Empty,
     Button,
     Modal,
     List
 } from 'antd'
 import dayjs, { Dayjs } from 'dayjs'
-import Highcharts from 'highcharts'
-
-import HighchartsMore from 'highcharts/highcharts-more'
-import VariablePie from 'highcharts/modules/variable-pie'
-import Drilldown from 'highcharts/modules/drilldown'
 
 import { db } from '@/firebase'
 import {
@@ -33,18 +27,15 @@ import {
     Timestamp
 } from 'firebase/firestore'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
-import DashboardHeader from '@/components/shared/DashboardHeader'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
-import { FilterBar } from '@/components/shared/FilterBar'
-import { ThemedHighcharts } from '@/components/shared/ThemedHighcharts'
+import { UpcomingWeekCard, type InterventionDueItem } from '@/pages/dashboards/operations/UpcomingWeekCard'
 import { useNavigate } from 'react-router-dom'
 import {
-    TeamOutlined,
     ShopOutlined,
     SolutionOutlined,
     CheckCircleOutlined,
-    ReloadOutlined,
+    FileProtectOutlined,
     WarningOutlined,
     ClockCircleOutlined,
     ExclamationCircleOutlined,
@@ -52,25 +43,7 @@ import {
 } from '@ant-design/icons'
 import '@/styles/director.css'
 
-const registerHighchartsModule = (module: unknown) => {
-    const fn = typeof module === 'function'
-        ? module
-        : typeof (module as { default?: unknown })?.default === 'function'
-            ? (module as { default: unknown }).default
-            : null
-
-    if (fn) {
-        ;(fn as (highcharts: typeof Highcharts) => void)(Highcharts)
-    }
-}
-
-registerHighchartsModule(HighchartsMore)
-registerHighchartsModule(VariablePie)
-registerHighchartsModule(Drilldown)
-
 const { Text } = Typography
-const { RangePicker } = DatePicker
-const { useBreakpoint } = Grid
 
 type AssignmentModel = 'ops_assign_consultant' | 'consultant_self_assign'
 type SmeDivisionModel =
@@ -90,15 +63,6 @@ type SystemSettingsDoc = {
     createdAt: Timestamp
     createdByUid: string
     createdByEmail?: string
-}
-
-type ProgramDoc = {
-    companyCode?: string
-    startDate?: any
-    createdAt?: any
-    status?: string
-    isActive?: boolean
-    [k: string]: any
 }
 
 type InterventionMeta = {
@@ -167,20 +131,8 @@ const tsToDayjs = (v: any): Dayjs | null => {
     return null
 }
 
-const getDocDate = (docData: any, field: 'dueDate' | 'createdAt' | 'startDate' | 'createdAtOrAccepted') => {
-    if (field === 'createdAtOrAccepted') {
-        return (
-            tsToDayjs(docData?.dateAccepted) ||
-            tsToDayjs(docData?.acceptedAt) ||
-            tsToDayjs(docData?.createdAt) ||
-            tsToDayjs(docData?.submittedAt) ||
-            null
-        )
-    }
-    return tsToDayjs(docData?.[field])
-}
-
 const getSmeLabel = (x: AnyAssignedIntervention) =>
+    x.businessName ||
     x.enterpriseName ||
     x.beneficiaryName ||
     x.participantName ||
@@ -222,8 +174,6 @@ const prettyBottleneck = (k: BottleneckKey) => {
 const percent = (num: number, den: number) => (den <= 0 ? 0 : Math.round((num / den) * 100))
 
 const DirectorDashboard: React.FC = () => {
-    const screens = useBreakpoint()
-    const isMobile = !screens.md
     const navigate = useNavigate()
 
     const { user } = useFullIdentity()
@@ -231,18 +181,16 @@ const DirectorDashboard: React.FC = () => {
 
     const [systemSettings, setSystemSettings] = useState<SystemSettingsDoc | null>(null)
 
-    // Program-driven default range
-    const [defaultRange, setDefaultRange] = useState<[Dayjs, Dayjs] | null>(null)
-    const [range, setRange] = useState<[Dayjs, Dayjs]>(() => [dayjs().startOf('month'), dayjs().endOf('day')])
-    const defaultRangeRef = useRef<[Dayjs, Dayjs] | null>(null)
+    // The dashboard always reports on the current month.
+    const [range] = useState<[Dayjs, Dayjs]>(() => [dayjs().startOf('month'), dayjs().endOf('month')])
 
     // Counts
-    const [usersCount, setUsersCount] = useState(0)
     const [smesCount, setSmesCount] = useState(0)
+    const [compliance, setCompliance] = useState({ total: 0, attention: 0 })
+    const [dueItems, setDueItems] = useState<InterventionDueItem[]>([])
 
     // Intervention meta map
     const [interventionMetaById, setInterventionMetaById] = useState<Record<string, InterventionMeta>>({})
-    const [totalRequiredFromAcceptedApps, setTotalRequiredFromAcceptedApps] = useState(0)
 
     // Accepted SME filters
     const [acceptedParticipantIds, setAcceptedParticipantIds] = useState<Set<string>>(new Set())
@@ -251,14 +199,6 @@ const DirectorDashboard: React.FC = () => {
     // Required vs Completed per scope
     const [requiredByScope, setRequiredByScope] = useState<Record<string, number>>({})
     const [completedByScope, setCompletedByScope] = useState<Record<string, number>>({})
-
-    // Bottlenecks
-    const [bottlenecks, setBottlenecks] = useState<Record<BottleneckKey, number>>({
-        pending_consultant: 0,
-        pending_sme_acceptance: 0,
-        pending: 0,
-        awaiting_sme_completion: 0
-    })
 
     // Risk signals (instead of overdue table)
     const [riskCounts, setRiskCounts] = useState({
@@ -295,50 +235,6 @@ const DirectorDashboard: React.FC = () => {
         return modeHasDepartments
             ? String(meta?.department || fallback?.department || 'Unassigned Department')
             : String(meta?.areaOfSupport || fallback?.areaOfSupport || 'Unassigned Area')
-    }
-
-    // ----------- Default date range from programs -----------
-    useEffect(() => {
-        if (!companyCode) return
-
-        const qPrograms = query(collection(db, 'programs'), where('companyCode', '==', companyCode))
-        const unsub = onSnapshot(
-            qPrograms,
-            snap => {
-                let earliest: Dayjs | null = null
-
-                snap.forEach(d => {
-                    const data = d.data() as ProgramDoc
-                    const s = getDocDate(data, 'startDate') || getDocDate(data, 'createdAt')
-                    if (!s) return
-                    if (!earliest || s.isBefore(earliest)) earliest = s
-                })
-
-                const from = (earliest || dayjs().startOf('month')).startOf('day')
-                const to = dayjs().endOf('day')
-                const nextDefault: [Dayjs, Dayjs] = [from, to]
-
-                setDefaultRange(nextDefault)
-                defaultRangeRef.current = nextDefault
-
-                setRange(prev => {
-                    const looksLikeInitial =
-                        prev?.[0]?.isSame(dayjs().startOf('month'), 'day') &&
-                        prev?.[1]?.isSame(dayjs().endOf('day'), 'day')
-                    return looksLikeInitial ? nextDefault : prev
-                })
-            },
-            err => message.error(err?.message || 'Failed to load programs')
-        )
-
-        return () => unsub()
-    }, [companyCode])
-
-    const resetToDefault = () => {
-        const def = defaultRangeRef.current
-        if (!def) return
-        setRange([def[0], def[1]])
-        message.success('Range reset to program start → today')
     }
 
     const inRange = (d: Dayjs | null) => {
@@ -386,27 +282,15 @@ const DirectorDashboard: React.FC = () => {
                 const pidSet = new Set<string>()
                 const emailSet = new Set<string>()
 
-                // 3) Total required (no date filter)
-                let totalRequired = 0
-
                 snap.forEach(d => {
                     const app: any = d.data()
 
                     if (app?.participantId) pidSet.add(String(app.participantId))
                     if (app?.email) emailSet.add(String(app.email).trim().toLowerCase())
-
-                    const required =
-                        app?.interventions?.required ||
-                        app?.interventionsRequired ||
-                        app?.requiredInterventions ||
-                        []
-
-                    if (Array.isArray(required)) totalRequired += required.length
                 })
 
                 setAcceptedParticipantIds(pidSet)
                 setAcceptedEmails(emailSet)
-                setTotalRequiredFromAcceptedApps(totalRequired)
             },
             err => message.error(err?.message || 'Failed to read accepted applications')
         )
@@ -417,14 +301,23 @@ const DirectorDashboard: React.FC = () => {
 
 
 
-    // ----------- Users count -----------
+    // ----------- Compliance (share of documents not needing attention) -----------
     useEffect(() => {
         if (!companyCode) return
-        const unsubUsers = onSnapshot(
-            query(collection(db, 'users'), where('companyCode', '==', companyCode)),
-            snap => setUsersCount(snap.size)
+        const attentionStatuses = ['missing', 'pending', 'rejected', 'invalid', 'expired', 'queried']
+        const unsub = onSnapshot(
+            query(collection(db, 'complianceDocuments'), where('companyCode', '==', companyCode)),
+            snap => {
+                let attention = 0
+                snap.forEach(d => {
+                    const data: any = d.data()
+                    if (attentionStatuses.includes(norm(data.verificationStatus || data.currentStatus || data.status || 'pending'))) attention++
+                })
+                setCompliance({ total: snap.size, attention })
+            },
+            err => message.error(err?.message || 'Failed to load compliance documents')
         )
-        return () => unsubUsers()
+        return () => unsub()
     }, [companyCode])
 
     // ----------- REQUIRED BY SCOPE (ONLY accepted apps, and in range) -----------
@@ -475,12 +368,7 @@ const DirectorDashboard: React.FC = () => {
             qAssigned,
             snap => {
                 const completed: Record<string, number> = {}
-                const counts: Record<BottleneckKey, number> = {
-                    pending_consultant: 0,
-                    pending_sme_acceptance: 0,
-                    pending: 0,
-                    awaiting_sme_completion: 0
-                }
+                const dueList: InterventionDueItem[] = []
 
                 // Risk derivations
                 const now = dayjs()
@@ -502,10 +390,6 @@ const DirectorDashboard: React.FC = () => {
                     const isAcceptedSme = (pid && acceptedParticipantIds.has(pid)) || (em && acceptedEmails.has(em))
                     if (!isAcceptedSme) return
 
-                    // Date-range filter: use createdAt (best), otherwise dueDate
-                    const aiDate = tsToDayjs(ai.createdAt) || tsToDayjs(ai.dueDate) || null
-                    if (!inRange(aiDate)) return
-
                     const iid = String(ai.interventionId || '').trim()
                     const scope = scopeOf(iid, { areaOfSupport: ai.areaOfSupport, department: ai.department })
                     const meta = iid ? interventionMetaById[iid] : undefined
@@ -516,19 +400,19 @@ const DirectorDashboard: React.FC = () => {
                     const smeCompleted = norm(ai.participantCompletionStatus) === 'confirmed'
                     const isCompleted = consultantCompleted && smeCompleted
 
-                    if (isCompleted) {
-                        completed[scope] = (completed[scope] || 0) + 1
-                    } else {
-                        const b = classifyBottleneck(ai)
-                        counts[b] = (counts[b] || 0) + 1
-                    }
+                    // Efficiency compares against ALL required interventions, so completions are all-time too
+                    if (isCompleted) completed[scope] = (completed[scope] || 0) + 1
+
+                    // Month filter: use createdAt (best), otherwise dueDate
+                    const aiDate = tsToDayjs(ai.createdAt) || tsToDayjs(ai.dueDate) || null
+                    if (!inRange(aiDate)) return
 
                     // Risk signals
                     const due = tsToDayjs(ai.dueDate)
                     const created = tsToDayjs(ai.createdAt)
 
                     // Overdue
-                    if (due && (due.isBefore(now, 'day') || due.isSame(now, 'day')) && !isCompleted) {
+                    if (due && due.isBefore(now, 'day') && !isCompleted) {
                         overdueCount++
                         overdue.push({
                             id: ai.id,
@@ -538,6 +422,16 @@ const DirectorDashboard: React.FC = () => {
                             dept: String(meta?.department || ai.department || '—'),
                             dueDate: due.format('YYYY-MM-DD'),
                             reason: prettyBottleneck(classifyBottleneck(ai))
+                        })
+                    }
+
+                    if (due && !isCompleted) {
+                        dueList.push({
+                            id: ai.id,
+                            title: String(ai.interventionTitle || meta?.title || meta?.name || 'Intervention'),
+                            participantName: getSmeLabel(ai),
+                            owner: String(ai.assigneeName || ai.consultantName || 'Unassigned'),
+                            dueDate: due
                         })
                     }
 
@@ -578,7 +472,7 @@ const DirectorDashboard: React.FC = () => {
                 unresponsive.sort((a, b) => (b.ageDays || 0) - (a.ageDays || 0))
 
                 setCompletedByScope(completed)
-                setBottlenecks(counts)
+                setDueItems(dueList)
                 setRiskCounts({
                     overdue: overdueCount,
                     upcoming7,
@@ -605,226 +499,48 @@ const DirectorDashboard: React.FC = () => {
         return { totalRequiredInRange, totalCompletedInRange, completionRateInRange }
     }, [requiredByScope, completedByScope])
 
-    // ----------- Donut (variable radius) with drilldown -----------
-    const areaDonut = useMemo(() => {
-        const rows = Object.keys({ ...requiredByScope, ...completedByScope }).map(name => {
-            const required = requiredByScope[name] || 0
-            const completed = completedByScope[name] || 0
-            const remaining = Math.max(required - completed, 0)
-            const rate = percent(completed, required) // 0..100
-            return { name, required, completed, remaining, rate }
-        })
-
-        // Sort by efficiency (since angle is efficiency)
-        rows.sort((a, b) => b.rate - a.rate)
-
-        const TOP = 10
-        const top = rows.slice(0, TOP)
-        const rest = rows.slice(TOP)
-
-        // Aggregate "Other" using WEIGHTED efficiency (by required), otherwise it lies.
-        const other = rest.reduce(
-            (acc, r) => {
-                acc.required += r.required
-                acc.completed += r.completed
-                acc.remaining += r.remaining
-                return acc
-            },
-            { required: 0, completed: 0, remaining: 0 }
-        )
-        const otherRate = percent(other.completed, other.required)
-
-        const data: any[] = []
-        const drill: any[] = []
-
-        const pushPoint = (name: string, required: number, completed: number, remaining: number, rate: number) => {
-            data.push({
-                name,
-                // ✅ slice angle = efficiency
-                y: rate,
-                // ✅ radius = workload size (pick required; or use completed if you prefer)
-                z: Math.max(required, 1),
-                drilldown: name,
-                custom: { required, completed, remaining, rate }
+    // ----------- Area / department efficiency (completed vs required) -----------
+    const efficiencyRows = useMemo(() => {
+        return Object.keys({ ...requiredByScope, ...completedByScope })
+            .map(name => {
+                const required = requiredByScope[name] || 0
+                const completed = completedByScope[name] || 0
+                return { name, required, completed, rate: Math.min(percent(completed, required), 100) }
             })
+            .filter(row => row.required > 0)
+            .sort((a, b) => b.required - a.required || b.rate - a.rate)
+    }, [requiredByScope, completedByScope])
 
-            drill.push({
-                id: name,
-                name,
-                type: 'pie',
-                data: [
-                    ['Completed', completed],
-                    ['Remaining', remaining]
-                ]
-            })
-        }
-
-        top.forEach(r => pushPoint(r.name, r.required, r.completed, r.remaining, r.rate))
-        if (other.required > 0) pushPoint('Other', other.required, other.completed, other.remaining, otherRate)
-
-        const title = modeHasDepartments ? 'Department Efficiency' : 'Area Efficiency'
-
-        return {
-            chart: { type: 'variablepie', height: 380 },
-            title: { text: title },
-            subtitle: { text: 'Angle = efficiency (%). Radius = workload size. Click to drill down.' },
-
-            tooltip: {
-                formatter: function () {
-                    const p: any = (this as any).point
-                    const c = p?.custom || {}
-                    return `
-                <b>${p.name}</b><br/>
-                Efficiency: <b>${c.rate ?? p.y}%</b><br/>
-                Required: <b>${c.required ?? 0}</b><br/>
-                Completed: <b>${c.completed ?? 0}</b><br/>
-                Remaining: <b>${c.remaining ?? 0}</b>
-              `
-                }
-            },
-
-            plotOptions: {
-                variablepie: {
-                    innerSize: '55%',
-                    dataLabels: {
-                        enabled: true,
-                        formatter: function () {
-                            const p: any = (this as any).point
-                            const rate = p?.custom?.rate ?? p.y ?? 0
-                            return `${p.name}: ${rate}%`
-                        }
-                    }
-                }
-            },
-
-            series: [{ name: 'Efficiency', data }],
-            drilldown: { series: drill }
-        } as unknown as Highcharts.Options
-    }, [requiredByScope, completedByScope, modeHasDepartments])
-
-
-    // ----------- Bottlenecks polar chart -----------
-    const bottleneckChart = useMemo(() => {
-        const order: BottleneckKey[] = ['pending_consultant', 'pending_sme_acceptance', 'pending', 'awaiting_sme_completion']
-        const categories = order.map(prettyBottleneck)
-        const data = order.map(k => Number(bottlenecks[k] || 0))
-        const maxVal = Math.max(...data, 0)
-        const yMax = maxVal === 0 ? 1 : maxVal < 5 ? 5 : Math.ceil(maxVal * 1.2)
-
-        return {
-            chart: { polar: true, type: 'area', height: 360, spacing: [10, 10, 10, 10] },
-            title: { text: 'Intervention Bottlenecks' },
-            pane: { size: '80%' },
-            xAxis: {
-                categories,
-                tickmarkPlacement: 'on',
-                lineWidth: 0,
-                labels: { distance: 18, style: { fontSize: '12px' } }
-            },
-            yAxis: {
-                min: 0,
-                max: yMax,
-                tickAmount: 4,
-                gridLineInterpolation: 'polygon',
-                lineWidth: 0,
-                labels: { enabled: false },
-                title: { text: null }
-            },
-            tooltip: { pointFormat: '<b>{point.y}</b> interventions' },
-            plotOptions: {
-                area: {
-                    pointPlacement: 'on',
-                    fillOpacity: 0.2,
-                    lineWidth: 3,
-                    marker: {
-                        enabled: true,
-                        radius: 4
-                    }
-                },
-                series: {
-                    dataLabels: {
-                        enabled: true,
-                        formatter(this: { y?: number }) {
-                            return (this.y ?? 0) > 0 ? String(this.y) : ''
-                        }
-                    }
-                }
-            },
-            series: [{ name: 'Bottlenecks', type: 'area', data: data as any, pointPlacement: 'on' }]
-        } as unknown as Highcharts.Options
-    }, [bottlenecks])
+    const rateColor = (rate: number) => (rate >= 75 ? '#16a34a' : rate >= 40 ? '#f59e0b' : '#ef4444')
 
     const openRiskModal = (title: string, items: any[]) => setRiskModal({ open: true, title, items })
 
     return (
         <DashboardPage className="director-dashboard-page">
-            <div className={isMobile ? 'director-dashboard-inner director-dashboard-inner-mobile' : 'director-dashboard-inner'}>
-                {isMobile ? (
-                    <FilterBar
-                        title='Director dashboard filters'
-                        primary={
-                            <Space style={{ width: '100%', justifyContent: 'center' }} wrap size='middle'>
-                                <RangePicker
-                                    value={range}
-                                    onChange={v => {
-                                        if (!v?.[0] || !v?.[1]) return
-                                        setRange([v[0], v[1]])
-                                    }}
-                                    allowClear={false}
-                                />
-
-                                <Button icon={<ReloadOutlined />} onClick={resetToDefault} disabled={!defaultRange}>
-                                    Reset
-                                </Button>
-                            </Space>
-                        }
-                    />
-                ) : (
-                    <DashboardHeader
-                        title='Director Dashboard'
-                        subtitle='Required vs completed, bottlenecks, and risk signals without digging.'
-                        actions={
-                            <Space style={{ width: '100%', justifyContent: 'center' }} wrap size='middle'>
-                                <RangePicker
-                                    value={range}
-                                    onChange={v => {
-                                        if (!v?.[0] || !v?.[1]) return
-                                        setRange([v[0], v[1]])
-                                    }}
-                                    allowClear={false}
-                                />
-
-                                <Button icon={<ReloadOutlined />} onClick={resetToDefault} disabled={!defaultRange}>
-                                    Reset
-                                </Button>
-                            </Space>
-                        }
-                    />
-                )}
-
+            <div className="director-dashboard-inner">
                 {/* Metrics */}
-                <Row gutter={[12, 12]} className="dashboard-metrics-row director-dashboard-metrics" style={{ marginTop: 12 }}>
-                    <Col xs={12} md={6}>
-                        <DashboardMetricCard icon={<TeamOutlined />} iconClassName="is-users" label="Users" value={usersCount} hint="Total users" />
-                    </Col>
-
+                <Row gutter={[12, 12]} className="dashboard-metrics-row director-dashboard-metrics">
                     <Col xs={12} md={6}>
                         <DashboardMetricCard icon={<ShopOutlined />} iconClassName="is-participants" label="SMEs" value={smesCount} hint="Accepted SMEs" />
                     </Col>
 
                     <Col xs={12} md={6}>
-                        <DashboardMetricCard icon={<SolutionOutlined />} iconClassName="is-delivery" label="Required" value={totalRequiredFromAcceptedApps} hint="All accepted SMEs" />
+                        <DashboardMetricCard icon={<SolutionOutlined />} iconClassName="is-delivery" label="Required Interventions" mobileTitle="Required" value={totals.totalRequiredInRange} hint="All accepted SMEs" />
                     </Col>
 
                     <Col xs={12} md={6}>
-                        <DashboardMetricCard icon={<CheckCircleOutlined />} iconClassName="is-attention" label="Completion" value={`${totals.completionRateInRange}%`} hint="In range" />
+                        <DashboardMetricCard icon={<CheckCircleOutlined />} iconClassName="is-users" label="Completion" value={`${totals.completionRateInRange}%`} hint={`${totals.totalCompletedInRange} of ${totals.totalRequiredInRange} completed`} />
+                    </Col>
+
+                    <Col xs={12} md={6}>
+                        <DashboardMetricCard icon={<FileProtectOutlined />} iconClassName="is-attention" label="Compliance" value={`${percent(compliance.total - compliance.attention, compliance.total)}%`} hint={`${compliance.attention} of ${compliance.total} need attention`} />
                     </Col>
                 </Row>
 
                 {/* Risk Assessment (replaces overdue table) */}
                 <Row gutter={[12, 12]} style={{ marginTop: 12 }}>
                     <Col xs={24} lg={10}>
-                        <Card style={{ borderRadius: 16 }}>
+                        <Card style={{ borderRadius: 16, height: '100%' }}>
                             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
                                 <div>
                                     <Text strong style={{ fontSize: 16 }}>Risk Assessment</Text>
@@ -921,22 +637,39 @@ const DirectorDashboard: React.FC = () => {
                     </Col>
 
                     <Col xs={24} lg={14}>
-                        <Card style={{ borderRadius: 16 }}>
-                            {Object.keys(requiredByScope).length || Object.keys(completedByScope).length ? (
-                                <ThemedHighcharts options={areaDonut} />
+                        <Card
+                            style={{ borderRadius: 16, height: '100%' }}
+                            title={modeHasDepartments ? 'Department Efficiency' : 'Area Efficiency'}
+                            extra={<Text type='secondary'>Completed vs required</Text>}
+                        >
+                            {efficiencyRows.length ? (
+                                <div style={{ maxHeight: 330, overflowY: 'auto', paddingRight: 6 }}>
+                                    <Space direction='vertical' size={14} style={{ width: '100%' }}>
+                                        {efficiencyRows.map(row => (
+                                            <div key={row.name}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 2 }}>
+                                                    <Text ellipsis style={{ maxWidth: '70%' }}>{row.name}</Text>
+                                                    <Text type='secondary' style={{ fontSize: 12 }}>{row.completed}/{row.required}</Text>
+                                                </div>
+                                                <Progress
+                                                    percent={row.rate}
+                                                    strokeColor={rateColor(row.rate)}
+                                                    format={value => <span style={{ fontWeight: 600 }}>{value}%</span>}
+                                                />
+                                            </div>
+                                        ))}
+                                    </Space>
+                                </div>
                             ) : (
-                                <Empty description='No required/completed data found in this date range' />
+                                <Empty description='No required interventions found yet' />
                             )}
                         </Card>
                     </Col>
                 </Row>
 
-                {/* Bottlenecks */}
                 <Row gutter={[12, 12]} style={{ marginTop: 12 }}>
                     <Col xs={24}>
-                        <Card style={{ borderRadius: 16 }}>
-                            <ThemedHighcharts options={bottleneckChart} />
-                        </Card>
+                        <UpcomingWeekCard interventionDueItems={dueItems} />
                     </Col>
                 </Row>
 
@@ -944,11 +677,7 @@ const DirectorDashboard: React.FC = () => {
                     open={riskModal.open}
                     title={riskModal.title}
                     onCancel={() => setRiskModal(s => ({ ...s, open: false }))}
-                    footer={[
-                        <Button danger shape='round' key="close" onClick={() => setRiskModal(s => ({ ...s, open: false }))}>
-                            Close
-                        </Button>
-                    ]}
+                    footer={null}
                 >
                     <List
                         dataSource={riskModal.items}

@@ -118,6 +118,46 @@ node scripts/link-participant-applications.cjs --service-account ./scripts/new-s
 node scripts/link-participant-applications.cjs --service-account ./scripts/new-service-account.json --undo ./scripts/seed-output-participant-links-<timestamp>.json --apply
 ```
 
+## Required interventions for those dummy SMEs
+
+`seed-applications.cjs` wrote `requiredInterventions: []`, so "required interventions" read 0
+(Director dashboard, Operations reports) even though each SME has assignments. Use
+`seed-required-interventions.cjs` to write `interventions.required` / `interventions.completed` on
+each seeded application from that SME's `assignedInterventions`. Updates in place; dry-run by default.
+
+```bash
+node scripts/seed-required-interventions.cjs --service-account ./scripts/new-service-account.json --seed-tag demo-assigned-<timestamp> --apply
+```
+
+Undo with `--undo ./scripts/seed-output-required-interventions-<timestamp>.json --apply`.
+
+## Two extra programmes with their own SMEs
+
+`seed-programs.cjs` creates "Women in Agri Accelerator 2026" (9 healthy SMEs) and "Township Tech
+Launchpad 2026" (6 struggling SMEs), each SME with a participant (revenue/headcount history), an
+accepted application (with required/completed interventions) and 3-5 assigned interventions, so
+programme switching and Program Performance have something to compare. If the target user is
+restricted via `assignedProgramIds`, the new ids are appended (and restored on undo).
+
+```bash
+node scripts/seed-programs.cjs --service-account ./scripts/new-service-account.json --email <user email> --apply
+```
+
+Undo with `--undo ./scripts/seed-output-programs-<timestamp>.json --apply`.
+
+## Completion dates for seeded completed interventions
+
+Seeded completed assignments had no completion timestamp, so delivery-over-time charts and the
+Director Reports' on-time/turnaround factors had nothing to read. `seed-completion-dates.cjs` sets
+`completedAt` (createdAt + 4-40 days, ~75% on or before the due date) on every seeded completed
+assignment that lacks one. Updates in place; dry-run by default.
+
+```bash
+node scripts/seed-completion-dates.cjs --service-account ./scripts/new-service-account.json --apply
+```
+
+Undo with `--undo ./scripts/seed-output-completion-dates-<timestamp>.json --apply`.
+
 ## `assignedInterventions.businessName` backfill
 
 Use `migrate-assigned-interventions-business-name.cjs` to backfill `businessName` on

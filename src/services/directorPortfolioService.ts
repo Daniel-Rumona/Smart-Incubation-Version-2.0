@@ -68,6 +68,42 @@ const deriveStatus = (value: unknown, risk: DirectorRisk): DirectorPortfolioSme[
   return 'Active'
 }
 
+const toDayjsValue = (value: unknown) => {
+  const iso = toIsoDate(value)
+  return iso ? dayjs(iso) : null
+}
+
+/** Reads a { "YYYY-MM": number } map (or the legacy array shape) into a month-sorted series. */
+const monthlySeries = (history: unknown): Array<{ key: string; value: number }> => {
+  const source = history && typeof history === 'object' && !Array.isArray(history) && 'monthly' in history
+    ? (history as { monthly?: Record<string, unknown> }).monthly || {}
+    : null
+  if (source) {
+    return Object.entries(source)
+      .map(([key, value]) => ({ key, value: toNumber(value) }))
+      .filter(entry => /^\d{4}-\d{2}$/.test(entry.key) && entry.value > 0)
+      .sort((a, b) => a.key.localeCompare(b.key))
+  }
+  if (Array.isArray(history)) {
+    return (history as AnyDoc[])
+      .map(item => ({ key: String(item.month || item.period || ''), value: toNumber(item.revenue, item.amount, item.value) }))
+      .filter(entry => entry.value > 0)
+  }
+  return []
+}
+
+const isAssignmentCompleted = (row: AnyDoc) =>
+  String(row.status || '').toLowerCase() === 'completed'
+  || String(row.completionStatus || '').toLowerCase() === 'completed'
+  || (String(row.assigneeCompletionStatus || '').toLowerCase() === 'done' && String(row.participantCompletionStatus || '').toLowerCase() === 'confirmed')
+  || toNumber(row.progress) >= 100
+
+const requiredCount = (application: AnyDoc) => {
+  const interventions = application.interventions as { required?: unknown } | undefined
+  const required = interventions?.required || application.interventionsRequired || application.requiredInterventions
+  return Array.isArray(required) ? required.length : 0
+}
+
 const getParticipantIdFromApplication = (id: string, data: AnyDoc) =>
   String(pick(data.participantId, data.participantID, data.smeId, data.smeID, id) || id)
 
@@ -99,13 +135,14 @@ export const listDirectorPortfolio = async (user: FullIdentity, activeProgramId?
     where('applicationStatus', '==', 'accepted'),
   ]
 
-  const [applicationsSnap, participantsSnap, programsSnap] = await Promise.all([
+  const [applicationsSnap, participantsSnap, programsSnap, assignmentsSnap] = await Promise.all([
     getDocs(query(collection(db, 'applications'), ...applicationConstraints)),
     getDocs(user.companyCode ? query(collection(db, 'participants'), where('companyCode', '==', user.companyCode)) : collection(db, 'participants')),
     getDocs(collection(db, 'programs')),
+    getDocs(user.companyCode ? query(collection(db, 'assignedInterventions'), where('companyCode', '==', user.companyCode)) : collection(db, 'assignedInterventions')),
   ])
 
-  const accepted = new Map<string, { acceptedAt?: string | null; programId?: string; programName?: string }>()
+  const accepted = new Map<string, { acceptedAt?: string | null; programId?: string; programName?: string; required: number }>()
   applicationsSnap.docs.forEach(record => {
     const data = record.data() as AnyDoc
     const participantId = getParticipantIdFromApplication(record.id, data)
@@ -115,6 +152,7 @@ export const listDirectorPortfolio = async (user: FullIdentity, activeProgramId?
       acceptedAt: toIsoDate(pick(data.acceptedAt, data.approvedAt, data.updatedAt, data.createdAt)),
       programId,
       programName: String(data.programName || ''),
+      required: requiredCount(data),
     })
   })
 
@@ -127,19 +165,65 @@ export const listDirectorPortfolio = async (user: FullIdentity, activeProgramId?
     .filter(record => accepted.has(record.id))
     .map(record => ({ id: record.id, ...(record.data() as AnyDoc) }))
 
+  const assignmentsByParticipant = new Map<string, AnyDoc[]>()
+  assignmentsSnap.docs.forEach(record => {
+    const data = record.data() as AnyDoc
+    const participantId = String(pick(data.participantId, data.smeId, data.smmeId) || '')
+    if (!participantId) return
+    assignmentsByParticipant.set(participantId, [...(assignmentsByParticipant.get(participantId) || []), data])
+  })
+
   const performance = await Promise.all(participants.map(row => getLatestPerformance(String(row.id))))
+
+  const today = dayjs().startOf('day')
 
   return participants.map((participant, index) => {
     const acceptedInfo = accepted.get(String(participant.id))
     const perf = performance[index] || {}
-    const revenueHistory = Array.isArray(participant.revenueHistory) ? participant.revenueHistory as AnyDoc[] : []
-    const revenueValues = revenueHistory.map(item => toNumber(item.revenue, item.amount, item.value)).filter(value => value > 0)
-    const revenueNow = toNumber(perf.revenueNow, participant.totalRevenue, participant.revenue, revenueValues.at(-1))
-    const revenuePrev = toNumber(perf.revenuePrev, revenueValues.at(-2))
-    const growthRate = toNumber(perf.growthRate, participant.growthRate, participant.revenueGrowthRate) || deriveGrowthRate(revenueNow, revenuePrev)
-    const progress = Math.max(0, Math.min(100, toNumber(perf.progress, participant.progress, participant.overallProgress, participant.kpiProgress, participant.score, participant.overallScore)))
+    const assignments = assignmentsByParticipant.get(String(participant.id)) || []
+
+    const revenueSeries = monthlySeries(participant.revenueHistory)
+    const headcountSeries = monthlySeries(participant.headcountHistory)
+    const revenueNow = toNumber(perf.revenueNow, participant.totalRevenue, participant.revenue, revenueSeries.at(-1)?.value)
+
+    // Growth: latest month vs the earliest month within the trailing six months of history.
+    const recent = revenueSeries.slice(-7)
+    const derivedGrowth = recent.length >= 2 ? deriveGrowthRate(recent[recent.length - 1].value, recent[0].value) : 0
+    const growthRate = toNumber(perf.growthRate, participant.growthRate, participant.revenueGrowthRate) || derivedGrowth
+
+    const completedCount = assignments.filter(isAssignmentCompleted).length
+    const derivedProgress = assignments.length
+      ? Math.round(assignments.reduce((sum, row) => sum + (isAssignmentCompleted(row) ? 100 : Math.min(toNumber(row.progress), 100)), 0) / assignments.length)
+      : 0
+    const progress = Math.max(0, Math.min(100, toNumber(perf.progress, participant.progress, participant.overallProgress, participant.kpiProgress, participant.score, participant.overallScore) || derivedProgress))
+
+    let overdue = 0
+    let upcoming = 0
+    let unresponsive = 0
+    assignments.forEach(row => {
+      if (isAssignmentCompleted(row)) return
+      const due = toDayjsValue(row.dueDate)
+      if (due) {
+        const days = due.startOf('day').diff(today, 'day')
+        if (days < 0) overdue += 1
+        else if (days <= 14) upcoming += 1
+      }
+      const created = toDayjsValue(row.createdAt)
+      const consultantAccepted = String(row.assigneeStatus || '').toLowerCase() === 'accepted'
+      const smeAccepted = String(row.participantStatus || '').toLowerCase() === 'accepted'
+      if (consultantAccepted && !smeAccepted && created && today.diff(created, 'day') >= 7) unresponsive += 1
+    })
+
     const risk = deriveRisk(progress, growthRate)
     const programId = String(participant.programId || acceptedInfo?.programId || '').trim()
+
+    const headcountByMonth = new Map(headcountSeries.map(entry => [entry.key, entry.value]))
+    const trend = revenueSeries.slice(-12).map(entry => ({
+      key: entry.key,
+      month: dayjs(`${entry.key}-01`).format('MMM'),
+      revenue: entry.value,
+      employees: headcountByMonth.get(entry.key) || 0,
+    }))
 
     return {
       id: String(participant.id),
@@ -154,6 +238,15 @@ export const listDirectorPortfolio = async (user: FullIdentity, activeProgramId?
       lastUpdate: String(perf.lastUpdate || toIsoDate(participant.updatedAt) || toIsoDate(participant.createdAt) || acceptedInfo?.acceptedAt || dayjs().format('YYYY-MM-DD')),
       programId,
       programName: String(acceptedInfo?.programName || programNames.get(programId) || participant.programName || 'Unassigned'),
+      photoUrl: String(pick(participant.profileImageUrl, participant.photoURL, participant.photoUrl, participant.logoUrl, participant.logo, participant.avatarUrl) || '') || undefined,
+      execution: {
+        required: Math.max(acceptedInfo?.required || 0, assignments.length),
+        completed: completedCount,
+        overdue,
+        unresponsive,
+        upcoming,
+      },
+      trend,
       metrics: {
         revenue: revenueNow,
         customers: toNumber(participant.customers, participant.customerCount, participant.clients, participant.clientCount),

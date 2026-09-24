@@ -1,10 +1,14 @@
 import { addDoc, collection, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore'
 import { getFirebaseDb } from '@/config/firebase'
 import { findParticipant } from '@/services/incubateeWorkspaceService'
+import { getBusinessProfile } from '@/services/applicantService'
 import { toLessonsArray, type CourseLesson, type CourseTemplate } from '@/services/courseTemplatesService'
 import type { FullIdentity } from '@/types/identity'
 
 export type LessonAnswers = Record<string, unknown>
+
+/** Time spent on one step, and whether the learner did more than read it (answered, chatted with the AI). */
+export type StepStat = { seconds: number; interactive: boolean }
 
 export type CourseProgressStatus = 'not started' | 'in progress' | 'completed'
 
@@ -35,6 +39,8 @@ export type CourseProgress = {
     answers: Record<string, LessonAnswers>
     /** Quiz correctness, kept for operations visibility — not shown to the SME as a pass/fail gate. */
     score?: { correct: number; total: number }
+    /** Keyed by step id (`${lessonId}:content|quiz|review`). */
+    stepStats?: Record<string, StepStat>
     status: 'in progress' | 'completed'
     updatedAt: string
     completedAt?: string
@@ -133,12 +139,39 @@ export const listCoursesForParticipant = async (user: FullIdentity, programId?: 
     })
 }
 
+/** What the learner's own business is, so examples and explanations can be about it rather than generic. */
+export type SmeBusiness = {
+    name?: string
+    sector?: string
+    nature?: string
+    yearsTrading?: number
+    location?: string
+}
+
 export type CourseProgressContext = {
     template: CourseTemplate
     lessons: CourseLesson[]
     participantId: string
     progress: CourseProgress | null
     assignmentId?: string
+    business?: SmeBusiness
+}
+
+const pickText = (...values: unknown[]) => values.map((value) => asString(value)).find(Boolean) || undefined
+
+const loadSmeBusiness = async (user: FullIdentity, participant: Record<string, unknown> | null): Promise<SmeBusiness | undefined> => {
+    // A missing or unreadable profile just means generic examples, never a failed course load.
+    const profile = await getBusinessProfile(user.uid).catch(() => null)
+
+    const business: SmeBusiness = {
+        name: pickText(profile?.businessName, participant?.businessName, participant?.companyName),
+        sector: pickText(profile?.sector, participant?.sector, participant?.industry),
+        nature: pickText(profile?.natureOfBusiness, participant?.natureOfBusiness),
+        yearsTrading: typeof profile?.yearsOfTrading === 'number' ? profile.yearsOfTrading : undefined,
+        location: pickText([profile?.city, profile?.province].filter(Boolean).join(', ')),
+    }
+
+    return Object.values(business).some((value) => value !== undefined) ? business : undefined
 }
 
 /** Everything the lesson viewer needs: the course, and any saved progress to resume from. */
@@ -167,6 +200,7 @@ export const loadCourseForLesson = async (user: FullIdentity, courseId: string):
         participantId,
         progress: existing ? { ...(existing.data() as CourseProgress), id: existing.id } : null,
         assignmentId: assignment?.id,
+        business: await loadSmeBusiness(user, (participant as Record<string, unknown> | null) ?? null),
     }
 }
 
@@ -176,11 +210,12 @@ export const saveCourseProgress = async (params: {
     completedLessonIds: string[]
     answers: Record<string, LessonAnswers>
     score?: { correct: number; total: number }
+    stepStats?: Record<string, StepStat>
     status: 'in progress' | 'completed'
     user: FullIdentity
 }): Promise<string> => {
     const db = getFirebaseDb()
-    const { context, currentLessonIndex, completedLessonIds, answers, score, status, user } = params
+    const { context, currentLessonIndex, completedLessonIds, answers, score, stepStats, status, user } = params
     const now = new Date().toISOString()
 
     const payload: CourseProgress = {
@@ -192,6 +227,7 @@ export const saveCourseProgress = async (params: {
         completedLessonIds,
         answers,
         score,
+        stepStats,
         status,
         updatedAt: now,
         ...(status === 'completed' ? { completedAt: now } : {}),

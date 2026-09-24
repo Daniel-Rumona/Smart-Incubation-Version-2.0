@@ -135,7 +135,13 @@ export const UpcomingWeekCard = ({ interventionDueItems, loading: interventionsL
     useEffect(() => {
         if (!user?.companyCode) { setTasks([]); setTasksLoading(false); return }
         setTasksLoading(true)
-        return subscribeOperationsTasks(user, (rows) => { setTasks(rows); setTasksLoading(false) }, () => setTasksLoading(false))
+        // Roles without task access (e.g. director) just see the agenda without tasks.
+        try {
+            return subscribeOperationsTasks(user, (rows) => { setTasks(rows); setTasksLoading(false) }, () => { setTasks([]); setTasksLoading(false) })
+        } catch {
+            setTasks([])
+            setTasksLoading(false)
+        }
     }, [user])
 
     const loading = interventionsLoading || appointmentsLoading || tasksLoading

@@ -413,14 +413,18 @@ export const SystemLayout = () => {
         const meetsSettingRule = (route: AppRoute) => !route.showInNavWhenAnySetting?.length
             || route.showInNavWhenAnySetting.some((settingKey) => !!settings[settingKey])
 
-        const navRoutes = visibleRoutes.filter((route) => route.showInNav && meetsSettingRule(route))
-        const standalone = navRoutes.filter((route) => !route.children?.length)
+        // The quick-link segmented only exists on desktop, so phones keep every page in the Menu.
+        const pinned = new Set(isMobile ? [] : quickLinkRoutes.map((link) => link.path))
+        const isListed = (route: AppRoute) => route.showInNav && meetsSettingRule(route) && !pinned.has(route.path)
+
+        const navRoutes = visibleRoutes.filter((route) => isListed(route) || (route.children?.length && route.showInNav && meetsSettingRule(route)))
+        const standalone = navRoutes.filter((route) => !route.children?.length && isListed(route))
         const groups = navRoutes
             .filter((route) => route.children?.length)
             .map((route) => ({
                 key: route.path,
                 label: t(route.labelKey),
-                items: (route.children ?? []).filter((child) => child.showInNav && meetsSettingRule(child)),
+                items: (route.children ?? []).filter(isListed),
             }))
             .filter((section) => section.items.length > 0)
 
@@ -428,7 +432,7 @@ export const SystemLayout = () => {
             ...(standalone.length ? [{ key: OVERVIEW_SECTION_KEY, label: t('nav.overview', 'Overview'), items: standalone }] : []),
             ...groups,
         ]
-    }, [settings, t, visibleRoutes])
+    }, [isMobile, quickLinkRoutes, settings, t, visibleRoutes])
 
     const showTopbarBackButton = shellMode === 'workspace' && pageChrome.showBackButton
     const isChromelessMobile = isMobile && pageChrome.hideChrome
@@ -532,8 +536,14 @@ export const SystemLayout = () => {
     const navigationCards = navigationIsGrouped
         ? activeNavigationSection?.items || []
         : navigationSections.flatMap((section) => section.items)
+    // Size the modal to the widest tab so it doesn't resize while switching sections.
+    const navigationMaxCards = navigationIsGrouped
+        ? Math.max(...navigationSections.map((section) => section.items.length))
+        : navigationCards.length
+    const navigationColumns = Math.max(1, Math.min(3, navigationMaxCards))
+    const navigationWidth = Math.max(480, navigationColumns * 340 + (navigationColumns - 1) * 12 + 48)
     // Centre a short final row rather than leaving it hanging on the left.
-    const navigationOrphans = navigationCards.length % 3
+    const navigationOrphans = navigationColumns === 3 ? navigationCards.length % 3 : 0
     // Agentic mode has no page to name, so the brand stays primary there.
     const showLocationCrumb = shellMode === 'workspace' && Boolean(currentLocationLabel)
 
@@ -738,7 +748,7 @@ export const SystemLayout = () => {
                         centered
                         title="Explore your workspace"
                         footer={null}
-                        width={1120}
+                        width={navigationWidth}
                         destroyOnHidden
                         onCancel={() => setNavigationOpen(false)}
                         className="workspace-navigation-modal"
@@ -753,7 +763,10 @@ export const SystemLayout = () => {
                             onChange={(value) => setNavigationSection(String(value))}
                             options={navigationSections.map((section) => ({ value: section.key, label: section.label }))}
                         />}
-                        <div className={`workspace-navigation-grid${navigationOrphans ? ` has-orphans-${navigationOrphans}` : ''}`}>
+                        <div
+                            className={`workspace-navigation-grid${navigationOrphans ? ` has-orphans-${navigationOrphans}` : ''}`}
+                            style={{ '--nav-tracks': navigationColumns * 2 } as React.CSSProperties}
+                        >
                             {navigationCards.map((route) => {
                                 const label = t(route.labelKey)
                                 const description = navigationDescription(route, label)

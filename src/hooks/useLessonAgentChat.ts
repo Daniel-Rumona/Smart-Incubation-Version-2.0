@@ -20,8 +20,8 @@ export const useLessonAgentChat = (page: AgentPageContext, titlePrefix?: string)
     const { queueTask } = useBackgroundTasks()
     const [messages, setMessages] = useState<AgentChatMessage[]>([])
 
-    /** A normal turn: the learner's own message, shown in the transcript. */
-    const send = (content: string) => {
+    /** A normal turn: the learner's own message, shown in the transcript. `prompt` lets the assistant receive fuller instructions than the short text the learner sees. */
+    const send = (content: string, prompt?: string) => {
         const trimmed = content.trim()
         if (!trimmed) return
 
@@ -32,7 +32,7 @@ export const useLessonAgentChat = (page: AgentPageContext, titlePrefix?: string)
         setMessages((current) => [...current, userMessage, pendingMessage])
         queueTask({
             title: titlePrefix ? `${titlePrefix}: ${trimmed}` : undefined,
-            prompt: trimmed,
+            prompt: prompt ?? trimmed,
             page,
             history,
             onCompleted: (result) => setMessages((current) => current.map((item) => (item.id === pendingMessage.id ? { ...item, content: result } : item))),
@@ -56,7 +56,12 @@ export const useLessonAgentChat = (page: AgentPageContext, titlePrefix?: string)
         })
     }
 
+    /** An exchange resolved on the client (no assistant call), kept in the transcript so later turns have it as context. */
+    const appendLocal = (userText: string, agentText: string) => {
+        setMessages((current) => [...current, makeMessage('user', userText), makeMessage('agent', agentText)])
+    }
+
     const isTyping = messages.at(-1)?.role === 'agent' && messages.at(-1)?.content === AGENT_PENDING_CONTENT
 
-    return { messages, send, sendSystem, isTyping }
+    return { messages, send, sendSystem, appendLocal, isTyping }
 }

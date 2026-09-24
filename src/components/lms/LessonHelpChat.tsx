@@ -1,41 +1,98 @@
 import { useState } from 'react'
-import { Modal } from 'antd'
-import { BulbOutlined, RobotOutlined } from '@ant-design/icons'
+import { BulbOutlined } from '@ant-design/icons'
+import type { RichTextItemAction } from '@/components/agent/AgentRichText'
 import { useLessonAgentChat } from '@/hooks/useLessonAgentChat'
-import { AgentChatPanel } from '@/components/lms/AgentChatPanel'
 import { ConversationMode } from '@/components/agent/ConversationMode'
+import ChatQuizCard from '@/components/lms/ChatQuizCard'
 import { lessonPageContext } from '@/lib/lessonAgentContext'
+import { NEXT_QUIZ_LABEL, QUIZ_LABEL, QUIZ_PROMPT, matchQuizAnswer, optionLetter, parseChatQuiz, quizSpeech, type ChatQuiz } from '@/lib/lessonQuiz'
 import { isAgentApiConfigured } from '@/config/agent'
 import type { CourseLesson, CourseTemplate } from '@/services/courseTemplatesService'
+import type { SmeBusiness } from '@/services/courseProgressService'
 
 type LessonHelpChatProps = {
     course: CourseTemplate
     lesson: CourseLesson
+    /** The learner's own business, so examples are about it. */
+    business?: SmeBusiness
+    /** Fired when the learner actually asks something, so the step can be recorded as interactive. */
+    onInteract?: () => void
 }
 
+const SUGGESTIONS = [
+    'Explain this lesson in simple terms',
+    'Give me a real-life example',
+    'What are the key points?',
+    QUIZ_LABEL,
+]
+
+const YOUR_BUSINESS_SUGGESTION = 'How does this apply to my business?'
+
+const FOLLOW_UPS = ['Elaborate on that', 'Simplify that', 'Give me an example from my business', 'Summarise it in one sentence']
+
+const ITEM_ACTIONS: RichTextItemAction[] = [
+    { label: 'Elaborate', prompt: (item) => `Elaborate on this point: ${item}` },
+    { label: 'Simplify', prompt: (item) => `Simplify this point: ${item}` },
+    { label: 'Example', prompt: (item) => `Give me an example of this point from my own business: ${item}` },
+]
+
 /**
- * "Don't understand? Ask AI" — available throughout a lesson's content
- * step. A learner-initiated chat scoped to this lesson, in the same visual
- * language as the workspace assistant (AgentFab), including voice.
+ * "Don't understand? Ask AI" — opens the same full-screen conversation
+ * interface as the workspace assistant (typing and voice), scoped to this
+ * lesson. Starts with the mic off; the mic button turns voice on. "Quiz me"
+ * turns the assistant's questions into tappable multiple-choice cards.
  */
-export const LessonHelpChat = ({ course, lesson }: LessonHelpChatProps) => {
+export const LessonHelpChat = ({ course, lesson, business, onInteract }: LessonHelpChatProps) => {
     const [open, setOpen] = useState(false)
-    const [voiceOpen, setVoiceOpen] = useState(false)
-    const [draft, setDraft] = useState('')
+    // Which option was picked for each quiz message, by message id.
+    const [picked, setPicked] = useState<Record<string, number>>({})
 
     const page = lessonPageContext(
         course,
         lesson,
         'The learner is currently on this lesson and has opened a help chat because part of it is unclear. Break the content down further, use a concrete example, and keep answers short and encouraging.',
+        business,
     )
-    const { messages, send, isTyping } = useLessonAgentChat(page, `Lesson help: ${lesson.title}`)
+    const { messages, send: sendMessage, appendLocal, isTyping } = useLessonAgentChat(page, `Lesson help: ${lesson.title}`)
 
     if (!isAgentApiConfigured) return null
 
-    const submit = () => {
-        if (!draft.trim()) return
-        send(draft)
-        setDraft('')
+    // The latest question still waiting on an answer, if any.
+    const lastMessage = messages.at(-1)
+    const lastQuiz = lastMessage?.role === 'agent' ? parseChatQuiz(lastMessage.content) : null
+    const pendingQuiz = lastMessage && lastQuiz && picked[lastMessage.id] === undefined ? { id: lastMessage.id, quiz: lastQuiz } : null
+
+    // Answering (by tap, typing or voice) is resolved here rather than by the
+    // assistant, and recorded in the transcript so follow-ups have it as context.
+    const answer = (messageId: string, quiz: ChatQuiz, index: number) => {
+        onInteract?.()
+        setPicked((current) => ({ ...current, [messageId]: index }))
+        const right = index === quiz.correctIndex
+        const correction = right ? '' : ` The right answer is ${optionLetter(quiz.correctIndex)}: ${quiz.options[quiz.correctIndex]}.`
+        appendLocal(`${optionLetter(index)}. ${quiz.options[index]}`, `**${right ? 'Correct!' : 'Not quite.'}**${correction} ${quiz.explanation}`.trim())
+    }
+
+    const send = (content: string) => {
+        onInteract?.()
+
+        if (pendingQuiz) {
+            const index = matchQuizAnswer(content, pendingQuiz.quiz)
+            if (index !== undefined) {
+                answer(pendingQuiz.id, pendingQuiz.quiz, index)
+                return
+            }
+        }
+
+        if (content === QUIZ_LABEL || content === NEXT_QUIZ_LABEL) {
+            sendMessage(content, QUIZ_PROMPT)
+            return
+        }
+
+        // A reply to an open question that isn't clearly an answer: say what it is replying to.
+        const context = pendingQuiz
+            ? `\n\n(Context: I am replying to your multiple-choice question "${pendingQuiz.quiz.question}" with options ${pendingQuiz.quiz.options.map((option, index) => `${optionLetter(index)}. ${option}`).join('; ')}.)`
+            : ''
+        sendMessage(content, context ? `${content}${context}` : undefined)
     }
 
     return (
@@ -44,43 +101,39 @@ export const LessonHelpChat = ({ course, lesson }: LessonHelpChatProps) => {
                 <BulbOutlined /> Don't understand? Ask AI
             </button>
 
-            <Modal open={open} onCancel={() => setOpen(false)} footer={null} width={480} title={null} className="agent-conversation-modal">
-                <section className="agent-panel agent-modal-panel">
-                    <header className="agent-panel-header agent-modal-header">
-                        <div className="agent-assistant-identity">
-                            <span className="agent-avatar"><RobotOutlined /></span>
-                            <div>
-                                <strong>Ask about this lesson</strong>
-                                <span className="agent-status"><span />{lesson.title || 'This lesson'}</span>
-                            </div>
-                        </div>
-                    </header>
-
-                    <AgentChatPanel
-                        messages={messages}
-                        draft={draft}
-                        onDraftChange={setDraft}
-                        onSend={submit}
-                        onVoice={() => setVoiceOpen(true)}
-                        placeholder="What part don't you understand?"
-                        emptyState={(
-                            <div className="agent-message">
-                                <span className="agent-avatar is-small"><RobotOutlined /></span>
-                                <div className="agent-message-content">
-                                    <p>Ask me anything about "{lesson.title || 'this lesson'}" — I can break it down differently or give an example.</p>
-                                </div>
-                            </div>
-                        )}
-                    />
-                </section>
-            </Modal>
-
-            {voiceOpen && (
+            {open && (
                 <ConversationMode
                     messages={messages}
                     isTyping={isTyping}
-                    onSend={(content) => send(content)}
-                    onClose={() => setVoiceOpen(false)}
+                    onSend={send}
+                    onClose={() => setOpen(false)}
+                    startInVoice={false}
+                    followUps={FOLLOW_UPS}
+                    itemActions={ITEM_ACTIONS}
+                    suggestions={business ? [YOUR_BUSINESS_SUGGESTION, ...SUGGESTIONS] : SUGGESTIONS}
+                    intro={(
+                        <div className="conversation-intro-card">
+                            <span className="conversation-intro-icon"><BulbOutlined /></span>
+                            <strong>Ask about "{lesson.title || 'this lesson'}"</strong>
+                            <p>Stuck on something? I can explain it another way, give an example or quiz you. Pick a suggestion below or type your own question.</p>
+                        </div>
+                    )}
+                    renderAgentMessage={(message) => {
+                        const quiz = parseChatQuiz(message.content)
+                        if (!quiz) return undefined
+                        return (
+                            <ChatQuizCard
+                                quiz={quiz}
+                                picked={picked[message.id]}
+                                onPick={(index) => answer(message.id, quiz, index)}
+                                onNext={() => send(NEXT_QUIZ_LABEL)}
+                            />
+                        )
+                    }}
+                    toSpeech={(message) => {
+                        const quiz = parseChatQuiz(message.content)
+                        return quiz ? quizSpeech(quiz) : undefined
+                    }}
                 />
             )}
         </>

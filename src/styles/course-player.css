@@ -1,0 +1,212 @@
+/* =========================================================
+   Course Player
+   The SME's one-thing-at-a-time course flow. It owns the whole
+   screen on every viewport: the system topbar steps aside for its
+   own top bar (title, details, section timer), and the actions dock
+   to the bottom so content scrolls underneath both.
+   ========================================================= */
+
+.app-main:has(.course-player) .app-topbar-pill {
+    display: none;
+}
+
+.app-main:has(.course-player) .app-content {
+    height: 100dvh;
+    margin-top: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
+.course-player {
+    position: relative;
+
+    display: flex;
+    flex-direction: column;
+
+    height: 100%;
+    width: 100%;
+}
+
+.course-player-top {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 20;
+
+    padding: 10px 20px 0;
+
+    background: rgba(255, 255, 255, .82);
+    border-bottom: 1px solid rgba(109, 93, 251, .14);
+    backdrop-filter: blur(14px);
+}
+
+.course-player-top-row {
+    display: flex;
+    align-items: center;
+
+    gap: 12px;
+
+    padding-bottom: 10px;
+}
+
+.course-player-heading {
+    flex: 1;
+    min-width: 0;
+
+    display: flex;
+    flex-direction: column;
+}
+
+.course-player-heading strong {
+    overflow: hidden;
+
+    white-space: nowrap;
+    text-overflow: ellipsis;
+
+    font-size: 15px;
+    line-height: 1.3;
+}
+
+.course-player-heading span {
+    overflow: hidden;
+
+    color: rgba(100, 116, 139, .95);
+
+    white-space: nowrap;
+    text-overflow: ellipsis;
+
+    font-size: 12px;
+}
+
+.course-player-meta {
+    flex: 0 0 auto;
+
+    display: flex;
+    align-items: center;
+
+    gap: 8px;
+}
+
+.course-player-timer {
+    display: inline-flex;
+    align-items: center;
+
+    gap: 6px;
+
+    padding: 4px 10px;
+
+    border-radius: 999px;
+
+    background: rgba(109, 93, 251, .1);
+    color: #5b4ad6;
+
+    font-size: 13px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.course-player-top .ant-progress {
+    display: block;
+
+    margin: 0 -20px;
+    line-height: 0;
+}
+
+.course-player-top .ant-progress-outer,
+.course-player-top .ant-progress-inner {
+    display: block;
+}
+
+.course-player-scroll {
+    flex: 1;
+
+    overflow-y: auto;
+
+    /* Clears the floating top bar above and the docked actions below, so
+       content can scroll underneath both. */
+    padding: 92px 28px 110px;
+}
+
+.course-player-step {
+    display: flex;
+    flex-direction: column;
+
+    gap: 14px;
+
+    width: 100%;
+}
+
+.course-player-eyebrow {
+    color: #6654e8;
+
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+.course-player-title.ant-typography {
+    margin: 0;
+}
+
+.course-player-dock {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+
+    padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
+
+    background: rgba(255, 255, 255, .82);
+    border-top: 1px solid rgba(109, 93, 251, .14);
+    backdrop-filter: blur(14px);
+}
+
+.course-player-dock .survey-response-nav>.ant-btn {
+    flex: 1 1 0;
+}
+
+.course-player-center {
+    display: grid;
+    place-items: center;
+
+    flex: 1;
+
+    padding: 92px 28px 28px;
+}
+
+.course-player .lesson-review-panel {
+    height: calc(100dvh - 330px);
+    min-height: 340px;
+}
+
+html[data-theme='dark'] .course-player-top,
+html[data-theme='dark'] .course-player-dock {
+    background: rgba(23, 25, 35, .82);
+    border-color: rgba(139, 92, 246, .24);
+}
+
+html[data-theme='dark'] .course-player-timer {
+    background: rgba(139, 92, 246, .18);
+    color: #b8acff;
+}
+
+@media (max-width: 767px) {
+    .course-player-top {
+        padding-inline: 12px;
+    }
+
+    .course-player-top .ant-progress {
+        margin-inline: -12px;
+    }
+
+    .course-player-scroll {
+        padding: 84px 16px 104px;
+    }
+
+    .course-player-dock {
+        padding-inline: 12px;
+    }
+}

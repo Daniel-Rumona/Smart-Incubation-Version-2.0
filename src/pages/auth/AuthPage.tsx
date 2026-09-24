@@ -41,6 +41,7 @@ import {
 import { getAuthFriendlyError } from '@/utils/authErrors'
 import { getRoleHomePath } from '@/utils/roleRouting'
 import { LANGUAGES, type LanguageCode } from '@/config/languages'
+import { HolidayBanner } from '@/components/shared/HolidayBanner'
 import '@/styles/auth/auth.css'
 
 const { Title, Paragraph, Text } = Typography
@@ -242,6 +243,8 @@ export default function AuthPage() {
           </Button>
         </Space>
       </div>
+
+      <HolidayBanner />
 
       <section className="auth-shell">
         <div className="auth-card">

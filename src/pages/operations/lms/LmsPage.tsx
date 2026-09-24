@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { App, Button, Col, Input, Popconfirm, Row, Segmented, Select, Space, Table, Tag } from 'antd'
+import { App, Button, Col, Input, Popconfirm, Row, Segmented, Select, Table, Tag, Tooltip } from 'antd'
 import { AppstoreOutlined, BookOutlined, DeleteOutlined, EditOutlined, PlusOutlined, ReadOutlined, SearchOutlined, SendOutlined, TableOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
@@ -12,6 +12,7 @@ import { deleteCourseTemplate, listCourseTemplates, type CourseTemplate } from '
 import { listCourseProgressSummaries, type CourseProgressSummary } from '@/services/courseProgressService'
 import { listWorkspacePrograms, type WorkspaceProgram } from '@/services/workspaceProgramsService'
 import '@/styles/survey-builder.css'
+import '@/styles/course-lesson.css'
 
 type ViewKey = 'courses' | 'progress'
 
@@ -83,8 +84,8 @@ export default function LmsPage() {
     }
 
     return (
-        <DashboardPage className="operations-surveys-page">
-            <Row gutter={[12, 12]} className="dashboard-metrics-row">
+        <DashboardPage className="operations-surveys-page operations-lms-page">
+            <Row gutter={[8, 8]} className="dashboard-metrics-row">
                 {mainView === 'courses' ? (
                     <>
                         <Col xs={12} lg={8}>
@@ -138,8 +139,9 @@ export default function LmsPage() {
                     </>
                 }
                 actions={
-                    <Space size={8} wrap>
+                    <>
                         <Segmented
+                            block
                             value={mainView}
                             onChange={(value) => setMainView(value as ViewKey)}
                             options={[
@@ -151,7 +153,7 @@ export default function LmsPage() {
                         {mainView === 'courses' && (
                             <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/operations/lms/builder')}>New course</Button>
                         )}
-                    </Space>
+                    </>
                 }
             />
 
@@ -188,14 +190,18 @@ export default function LmsPage() {
                             },
                             {
                                 title: 'Actions',
-                                width: 140,
+                                width: 90,
                                 render: (_, row) => (
-                                    <Space size={4}>
-                                        <Button size="small" icon={<EditOutlined />} onClick={() => navigate(`/operations/lms/builder/${row.id}`)}>Edit</Button>
+                                    <div className="lms-row-actions">
+                                        <Tooltip title="Edit course">
+                                            <Button shape="circle" size="small" icon={<EditOutlined />} aria-label="Edit course" onClick={() => navigate(`/operations/lms/builder/${row.id}`)} />
+                                        </Tooltip>
                                         <Popconfirm title="Delete this course?" okText="Delete" okButtonProps={{ danger: true }} onConfirm={() => void remove(row.id)}>
-                                            <Button size="small" danger icon={<DeleteOutlined />} />
+                                            <Tooltip title="Delete course">
+                                                <Button shape="circle" size="small" danger icon={<DeleteOutlined />} aria-label="Delete course" />
+                                            </Tooltip>
                                         </Popconfirm>
-                                    </Space>
+                                    </div>
                                 ),
                             },
                         ]}

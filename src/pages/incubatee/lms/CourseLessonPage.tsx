@@ -1,11 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
-import { App, Button, Empty, Result, Tag } from 'antd'
-import { ArrowLeftOutlined, CheckOutlined, SaveOutlined } from '@ant-design/icons'
+import { useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from 'react'
+import { App, Button, Empty, Progress, Result, Skeleton, Tag, Tooltip, Typography } from 'antd'
+import { ArrowLeftOutlined, CheckOutlined, ClockCircleOutlined, SaveOutlined } from '@ant-design/icons'
 import { useNavigate, useParams } from 'react-router-dom'
 import dayjs from 'dayjs'
-import DashboardPage from '@/components/shared/DashboardPage'
-import { MotionCard } from '@/components/shared/MotionCard'
-import SurveyQuestionFrame from '@/components/surveys/SurveyQuestionFrame'
 import LessonBody from '@/components/lms/LessonBody'
 import LessonQuiz from '@/components/lms/LessonQuiz'
 import LessonHelpChat from '@/components/lms/LessonHelpChat'
@@ -19,12 +16,20 @@ import {
     loadCourseForLesson,
     saveCourseProgress,
     type CourseProgressContext,
+    type StepStat,
 } from '@/services/courseProgressService'
 import type { CourseLesson } from '@/services/courseTemplatesService'
 import '@/styles/survey-response.css'
 import '@/styles/course-lesson.css'
+import '@/styles/course-player.css'
 
 const LMS_PATH = '/incubatee/lms'
+
+const formatDuration = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60)
+    const rest = seconds % 60
+    return `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`
+}
 
 /** Correct/total across every graded (non-text) quiz question in the course. */
 const scoreCourse = (lessons: CourseLesson[], answers: Record<string, LessonAnswers>) => {
@@ -47,14 +52,43 @@ const scoreCourse = (lessons: CourseLesson[], answers: Record<string, LessonAnsw
     return { correct, total }
 }
 
+/**
+ * Counts seconds on the current step, only while the tab is actually visible.
+ * The running totals live in a ref owned by the page (so saving never waits on
+ * a render) and this component only re-renders itself each second.
+ */
+const StepTimer = ({ stepId, stats }: { stepId: string, stats: MutableRefObject<Record<string, StepStat>> }) => {
+    const [, setTick] = useState(0)
+
+    useEffect(() => {
+        const interval = window.setInterval(() => {
+            if (document.hidden) return
+            const current = stats.current[stepId] || { seconds: 0, interactive: false }
+            stats.current[stepId] = { ...current, seconds: current.seconds + 1 }
+            setTick((value) => value + 1)
+        }, 1000)
+        return () => window.clearInterval(interval)
+    }, [stepId, stats])
+
+    const stat = stats.current[stepId]
+
+    return (
+        <>
+            <Tooltip title={stat?.interactive ? 'Interactive: you answered a question or talked to the AI in this section.' : 'Passive: so far you have only read or watched this section. Answering a question or asking the AI makes it interactive.'}>
+                <Tag color={stat?.interactive ? 'purple' : 'default'} style={{ margin: 0 }}>{stat?.interactive ? 'Interactive' : 'Passive'}</Tag>
+            </Tooltip>
+            <span className="course-player-timer"><ClockCircleOutlined />{formatDuration(stat?.seconds || 0)}</span>
+        </>
+    )
+}
+
 export default function CourseLessonPage() {
     const { message } = App.useApp()
     const { user } = useFullIdentity()
     const navigate = useNavigate()
     const { id } = useParams<{ id: string }>()
 
-    // Taking a course is a phone-first, one-thing-at-a-time flow: it owns its
-    // own header and a bottom-docked action bar instead of the system chrome.
+    // The player renders its own top bar and docked actions on every viewport.
     useFullscreenMobilePage()
 
     const [context, setContext] = useState<CourseProgressContext | null>()
@@ -65,6 +99,7 @@ export default function CourseLessonPage() {
     const [completed, setCompleted] = useState(false)
     const [finalScore, setFinalScore] = useState<{ correct: number; total: number }>()
     const [touched, setTouched] = useState(false)
+    const statsRef = useRef<Record<string, StepStat>>({})
 
     useEffect(() => {
         if (!user || !id) return
@@ -76,6 +111,7 @@ export default function CourseLessonPage() {
                     return
                 }
 
+                statsRef.current = { ...(loaded.progress?.stepStats || {}) }
                 setContext(loaded)
                 setAnswers(loaded.progress?.answers || {})
                 setCompletedStepIds(loaded.progress?.completedLessonIds || [])
@@ -97,12 +133,17 @@ export default function CourseLessonPage() {
     // Reviews only ever appear when the AI backend is actually reachable — a
     // course built with them enabled elsewhere still works fine without one.
     const steps = useMemo(() => buildLessonSteps(lessons, { includeReview: isAgentApiConfigured }), [lessons])
-
     const current = steps[index]
+
+    const markInteractive = (stepId: string) => {
+        const stat = statsRef.current[stepId] || { seconds: 0, interactive: false }
+        if (!stat.interactive) statsRef.current[stepId] = { ...stat, interactive: true }
+    }
 
     const setAnswer = (questionId: string, value: unknown) => {
         if (!current) return
         setTouched(false)
+        if (hasQuizAnswer(value)) markInteractive(current.id)
         setAnswers((previous) => ({ ...previous, [current.lesson.id]: { ...(previous[current.lesson.id] || {}), [questionId]: value } }))
     }
 
@@ -115,16 +156,18 @@ export default function CourseLessonPage() {
         if (!context || !user) return
         setSaving(true)
         try {
+            const stepStats = { ...statsRef.current }
             const progressId = await saveCourseProgress({
                 context,
                 currentLessonIndex: index,
                 completedLessonIds: ids,
                 answers,
                 score,
+                stepStats,
                 status,
                 user,
             })
-            setContext({ ...context, progress: { ...(context.progress ?? {} as never), id: progressId, status, currentLessonIndex: index, completedLessonIds: ids, answers, score } as never })
+            setContext({ ...context, progress: { ...(context.progress ?? {} as never), id: progressId, status, currentLessonIndex: index, completedLessonIds: ids, answers, score, stepStats } as never })
         } catch {
             message.error('Your progress could not be saved.')
         } finally {
@@ -161,112 +204,127 @@ export default function CourseLessonPage() {
         message.success('Progress saved. Pick up where you left off any time.')
     }
 
-    const mobileHeader = (
-        <div className="survey-response-mobile-header">
-            <Button
-                shape="circle"
-                icon={<ArrowLeftOutlined />}
-                className="survey-response-back-btn"
-                onClick={() => navigate(LMS_PATH)}
-                aria-label="Back to courses"
-            />
-            <span className="survey-response-mobile-title">{context?.template.title || 'Course'}</span>
-            <span aria-hidden="true" />
+    // Time spent is only worth keeping if it survives leaving, so save on the way out.
+    const leave = async () => {
+        if (context && !completed && steps.length) await persist('in progress', completedStepIds)
+        navigate(LMS_PATH)
+    }
+
+    const shell = (heading: string, details: string, body: ReactNode, options?: { footer?: ReactNode, meta?: ReactNode, percent?: number }) => (
+        <div className="course-player">
+            <header className="course-player-top">
+                <div className="course-player-top-row">
+                    <Button shape="circle" icon={<ArrowLeftOutlined />} onClick={() => void leave()} aria-label="Back to courses" />
+                    <div className="course-player-heading">
+                        <strong>{heading}</strong>
+                        <span>{details}</span>
+                    </div>
+                    <div className="course-player-meta">{options?.meta}</div>
+                </div>
+                <Progress percent={options?.percent ?? 0} showInfo={false} size="small" />
+            </header>
+
+            {body}
+
+            {options?.footer && <footer className="course-player-dock">{options.footer}</footer>}
         </div>
     )
 
     if (context === undefined) {
-        return <DashboardPage className="incubatee-page survey-response-page">{mobileHeader}<MotionCard loading skeletonRows={6} /></DashboardPage>
+        return shell('Loading course…', ' ', <div className="course-player-center"><Skeleton active paragraph={{ rows: 6 }} style={{ width: '100%' }} /></div>)
     }
 
     if (!context) {
-        return <DashboardPage className="incubatee-page survey-response-page">{mobileHeader}<Empty description="This course is not available." /></DashboardPage>
+        return shell('Course', ' ', <div className="course-player-center"><Empty description="This course is not available." /></div>)
     }
 
     if (completed) {
-        return (
-            <DashboardPage className="incubatee-page survey-response-page">
-                {mobileHeader}
-                <MotionCard className="survey-response-card">
-                    <Result
-                        status="success"
-                        title="Course completed"
-                        subTitle={[
-                            context.template.title,
-                            context.progress?.completedAt ? `completed on ${dayjs(context.progress.completedAt).format('DD MMM YYYY')}` : 'completed',
-                            finalScore?.total ? `— scored ${finalScore.correct}/${finalScore.total} on the quiz questions` : '',
-                        ].filter(Boolean).join(' ')}
-                        extra={<Button type="primary" onClick={() => navigate(LMS_PATH)}>Back to courses</Button>}
-                    />
-                </MotionCard>
-            </DashboardPage>
-        )
+        const stats = Object.values(context.progress?.stepStats || {})
+        const totalSeconds = stats.reduce((sum, stat) => sum + stat.seconds, 0)
+        const interactiveCount = stats.filter((stat) => stat.interactive).length
+
+        return shell(context.template.title || 'Course', 'Completed', (
+            <div className="course-player-center">
+                <Result
+                    status="success"
+                    title="Course completed"
+                    subTitle={[
+                        context.template.title,
+                        context.progress?.completedAt ? `completed on ${dayjs(context.progress.completedAt).format('DD MMM YYYY')}` : 'completed',
+                        finalScore?.total ? `— scored ${finalScore.correct}/${finalScore.total} on the quiz questions` : '',
+                        totalSeconds ? `· ${Math.max(1, Math.round(totalSeconds / 60))} min spent, ${interactiveCount} interactive section${interactiveCount === 1 ? '' : 's'}` : '',
+                    ].filter(Boolean).join(' ')}
+                    extra={<Button type="primary" onClick={() => navigate(LMS_PATH)}>Back to courses</Button>}
+                />
+            </div>
+        ), { percent: 100 })
     }
 
     if (!steps.length) {
-        return (
-            <DashboardPage className="incubatee-page survey-response-page">
-                {mobileHeader}
-                <MotionCard className="survey-response-card">
-                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="This course has no lessons yet." />
-                </MotionCard>
-            </DashboardPage>
-        )
+        return shell(context.template.title || 'Course', ' ', <div className="course-player-center"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="This course has no lessons yet." /></div>)
     }
 
-    const stepLabel = current.kind === 'quiz'
+    const lessonNumber = lessons.findIndex((lesson) => lesson.id === current.lesson.id) + 1
+    const kindLabel = current.kind === 'quiz' ? 'Quiz' : current.kind === 'review' ? 'AI review' : 'Lesson'
+    const stepTitle = current.kind === 'quiz'
         ? `${current.lesson.title || 'Lesson'} — Quiz`
         : current.kind === 'review'
             ? `${current.lesson.title || 'Lesson'} — Quick review`
             : current.lesson.title || 'Untitled lesson'
 
-    return (
-        <DashboardPage className="incubatee-page survey-response-page">
-            {mobileHeader}
-            <MotionCard className="survey-response-card">
-                <SurveyQuestionFrame
-                    index={index}
-                    total={steps.length}
-                    field={{ id: current.id, type: current.kind, label: stepLabel }}
-                    answeredCount={completedStepIds.length}
-                    surveyTitle={context.template.title || 'Course'}
-                    surveySubtitle={context.template.description}
-                    extra={touched && blocked ? <Tag color="red">Answer the required question{current.lesson.quiz && current.lesson.quiz.length > 1 ? 's' : ''} to continue.</Tag> : undefined}
-                    footer={
-                        <div className="survey-response-nav">
-                            <Button
-                                size="large"
-                                icon={<ArrowLeftOutlined />}
-                                disabled={isFirst}
-                                onClick={() => { setTouched(false); setIndex((value) => Math.max(0, value - 1)) }}
-                            >
-                                Previous
-                            </Button>
+    return shell(
+        context.template.title || 'Course',
+        `Lesson ${lessonNumber} of ${lessons.length} · ${kindLabel} · Step ${index + 1} of ${steps.length}`,
+        (
+            <div className="course-player-scroll">
+                <div className="course-player-step" key={current.id}>
+                    <span className="course-player-eyebrow">{kindLabel}</span>
+                    <Typography.Title level={2} className="course-player-title">{stepTitle}</Typography.Title>
+                    {context.template.description && index === 0 && <Typography.Text type="secondary">{context.template.description}</Typography.Text>}
 
-                            <Button size="large" icon={<SaveOutlined />} loading={saving} onClick={() => void saveForLater()}>
-                                Save for later
-                            </Button>
-
-                            <Button size="large" type="primary" icon={isLast ? <CheckOutlined /> : undefined} loading={saving} onClick={() => void goNext()}>
-                                {current.kind === 'review' ? 'Continue' : isLast ? 'Complete course' : 'Next'}
-                            </Button>
-                        </div>
-                    }
-                >
                     {current.kind === 'content' && (
                         <>
                             <LessonBody lesson={current.lesson} />
-                            <LessonHelpChat course={context.template} lesson={current.lesson} />
+                            <div>
+                                <LessonHelpChat course={context.template} lesson={current.lesson} business={context.business} onInteract={() => markInteractive(current.id)} />
+                            </div>
                         </>
                     )}
                     {current.kind === 'quiz' && (
-                        <LessonQuiz lesson={current.lesson} answers={answers[current.lesson.id]} onAnswer={setAnswer} touched={touched} />
+                        <>
+                            {touched && blocked && <Tag color="red" style={{ width: 'fit-content' }}>Answer the required question{current.lesson.quiz && current.lesson.quiz.length > 1 ? 's' : ''} to continue.</Tag>}
+                            <LessonQuiz lesson={current.lesson} answers={answers[current.lesson.id]} onAnswer={setAnswer} touched={touched} />
+                        </>
                     )}
                     {current.kind === 'review' && (
-                        <LessonAiReview course={context.template} lesson={current.lesson} />
+                        <LessonAiReview course={context.template} lesson={current.lesson} business={context.business} onInteract={() => markInteractive(current.id)} />
                     )}
-                </SurveyQuestionFrame>
-            </MotionCard>
-        </DashboardPage>
+                </div>
+            </div>
+        ),
+        {
+            percent: Math.round((completedStepIds.length / steps.length) * 100),
+            meta: <StepTimer key={current.id} stepId={current.id} stats={statsRef} />,
+            footer: (
+                <div className="survey-response-nav">
+                    <Button
+                        size="large"
+                        icon={<ArrowLeftOutlined />}
+                        disabled={isFirst}
+                        onClick={() => { setTouched(false); setIndex((value) => Math.max(0, value - 1)) }}
+                    >
+                        Previous
+                    </Button>
+
+                    <Button size="large" icon={<SaveOutlined />} loading={saving} onClick={() => void saveForLater()}>
+                        Save for later
+                    </Button>
+
+                    <Button size="large" type="primary" icon={isLast ? <CheckOutlined /> : undefined} loading={saving} onClick={() => void goNext()}>
+                        {current.kind === 'review' ? 'Continue' : isLast ? 'Complete course' : 'Next'}
+                    </Button>
+                </div>
+            ),
+        },
     )
 }

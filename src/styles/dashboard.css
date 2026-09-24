@@ -16,10 +16,10 @@
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 16px;
+    gap: 12px;
 
-    margin-bottom: 18px;
-    padding: 20px;
+    margin-bottom: 12px;
+    padding: 14px 16px;
 
     border: 1px solid rgba(109, 93, 251, 0.14);
     border-radius: 18px;
@@ -430,7 +430,7 @@ html[data-theme='dark'] .dashboard-header-card::before {
    ========================================================= */
 
 .dashboard-metrics-row {
-    margin-bottom: 22px;
+    margin-bottom: 12px;
 }
 
 
@@ -563,7 +563,9 @@ html[data-theme='dark'] .dashboard-metric-card.is-active {
     flex: 1;
     min-width: 0;
 
-    gap: 2px;
+    padding-left: 14px;
+
+    gap: 3px;
 }
 
 
@@ -588,7 +590,7 @@ html[data-theme='dark'] .dashboard-metric-card.is-active {
 
     font-size: 12px !important;
     font-weight: 700 !important;
-    line-height: 1.2 !important;
+    line-height: 1.45 !important;
 }
 
 
@@ -615,7 +617,7 @@ html[data-theme='dark'] .dashboard-metric-card.is-active {
 
     font-size: 21px;
     font-weight: 750;
-    line-height: 1.05;
+    line-height: 1.3;
 
     letter-spacing: -0.4px;
 }
@@ -934,7 +936,7 @@ html[data-theme='dark'] .sunken-panel {
    ========================================================= */
 
 .filter-bar {
-    margin-bottom: 16px;
+    margin-bottom: 10px;
 
     border: 1px solid rgba(109, 93, 251, 0.12) !important;
     border-radius: 18px !important;
@@ -1347,6 +1349,8 @@ html[data-theme='dark'] .dashboard-metric-card:hover .dashboard-metric-arrow {
 
     .dashboard-metric-copy {
         gap: 1px;
+
+        padding-left: 6px;
     }
 
     .dashboard-metric-icon {
