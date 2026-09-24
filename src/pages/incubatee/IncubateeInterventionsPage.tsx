@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { LoadingOverlay } from '@/components/shared/LoadingOverlay'
+import { AppointmentInvitations } from '@/components/incubatee/AppointmentInvitations'
 import MetricsGrid from '@/components/shared/MetricsGrid'
 import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
 import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
@@ -480,6 +481,8 @@ export const IncubateeInterventionsPage = () => {
                 }
             />
         )}
+
+        <AppointmentInvitations workspace={workspace} onChanged={() => void load()} />
 
         <div data-guide-target="intervention-metrics">
             <MetricsGrid>

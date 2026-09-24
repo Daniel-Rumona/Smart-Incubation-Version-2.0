@@ -66,6 +66,28 @@ export const confirmAgentProposal = (proposalId: string) =>
 export const cancelAgentProposal = (proposalId: string) =>
   authorizedRequest(`/api/agent/actions/${encodeURIComponent(proposalId)}/cancel`) as Promise<{ ok: boolean; reply: string }>
 
+export type DeclineReasonCode = 'not_available' | 'other_engagement' | 'no_longer_needed' | 'other'
+
+export type AppointmentRsvpContext = {
+  appointment: { id: string, title: string, status: string, when?: string | null }
+  /** True only before any session has been held; controls the "no longer need this intervention" option. */
+  canDeclineIntervention: boolean
+  declineOptions: Array<{ code: DeclineReasonCode, label: string, proposeTime: boolean }>
+}
+
+export type AppointmentResponseInput =
+  | { response: 'accept' }
+  | { response: 'decline', reasonCode: DeclineReasonCode, detail?: string, proposedStart?: string, proposedEnd?: string }
+
+export type AppointmentResponseResult = { ok: boolean, status: string, changed: boolean, needsReview?: boolean, title?: string }
+
+/** SMEs cannot write appointments directly (Firestore rules); the backend applies the response. */
+export const getAppointmentRsvpContext = (appointmentId: string) =>
+  authorizedRequest(`/api/appointments/${encodeURIComponent(appointmentId)}/rsvp-context`, { method: 'GET' }) as unknown as Promise<AppointmentRsvpContext>
+
+export const respondToAppointment = (appointmentId: string, input: AppointmentResponseInput) =>
+  authorizedRequest(`/api/appointments/${encodeURIComponent(appointmentId)}/respond`, { body: input }) as unknown as Promise<AppointmentResponseResult>
+
 /** Fired after a confirmed action so data views can reload. */
 export const AGENT_ACTION_EXECUTED_EVENT = 'agent-action-executed'
 
