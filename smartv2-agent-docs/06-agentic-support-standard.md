@@ -164,3 +164,23 @@ Staff (operations, consultant, admin roles) can use the same tools over WhatsApp
 - Confirm goes through the existing action PIN (`WHATSAPP_ACTION_PIN`) before `POST /api/whatsapp/agent/confirm`; a PIN authorises writes for 10 minutes, as in the assignment flow.
 - Short-term memory (30 min, 8 turns) lives in `agentChannelSessions`, server-only.
 - Proposals are user-bound and single-use, so a proposal made on the web can only be confirmed by the same user, and vice versa.
+
+### Declining an appointment, and dropping an intervention
+
+One backend implementation (`ai-backend/appointment_responses.py`) serves the web workspace (`POST /api/appointments/{id}/respond`, SME's ID token) and the WhatsApp router (`/api/whatsapp/appointments/*`, router secret + phone check). SMEs cannot write `appointments` from the browser.
+
+Accepting sets `appointments.status` to `accepted` (declining sets `declined`; `cancelled`/`completed` are never reopened). The old `beneficiaryConfirmation` / `confirmationSource` fields are kept as an audit trail. An appointment booked together with its intervention (`acceptanceBundle` starting `intervention_`) also accepts the still-pending assignment. Only the SME can respond; staff numbers are refused. Repeating the same answer is a no-op, so webhook retries are safe.
+
+SME side (web card and WhatsApp list): decline asks for a reason.
+
+- `not_available` and `other_engagement` may suggest a new time (stored as `rescheduleRequest`, never applied automatically).
+- `no_longer_needed` is offered only before any session has been held (nothing recorded on the assignment, no completed appointment). It records `assignedInterventions.declineRequest = { status: 'requested', ... }` and sets `appointments.declineNeedsReview`. The assignment is not closed by the SME.
+- `other` is free text (used when a reason arrives in natural-language WhatsApp).
+
+Operations side:
+
+- A declined appointment offers **Reschedule** (pre-filled with the SME's suggestion when they picked one). Rescheduling resolves the request and resets the SME's answer.
+- A `no_longer_needed` decline offers **Review intervention** instead, which opens the Manage modal for that SME (`/operations/interventions/assign`, `focusParticipantId`). There **Confirm decline** closes the assignment (`status: 'declined'`, `declinedBySme`, never deleted), cancels its open appointments, and tags the diagnostic plan: `diagnosticPlans/{applicationId}.declinedInterventions.{interventionId}`.
+- Tagged interventions cannot be reassigned from the web page, the WhatsApp menu flow, or the assistant. Work already recorded (progress, hours, completed sessions) is kept and flagged `workRetained`.
+- If operations instead reschedules through the assistant, the pending request is set to `dismissed`. If the SME changes their answer, it is `withdrawn`.
+
