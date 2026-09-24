@@ -784,3 +784,17 @@ usagePageViews
 - Use `interventionDefinitions` for the catalog and `interventionCompletions` for completed work.
 - Use `complianceDocuments`, not `participantComplianceTimeline`.
 - Use `programs`, not `incubationPrograms`.
+
+## Backfill appointment status from old WhatsApp RSVPs
+
+Before the RSVP fix, a WhatsApp accept/decline only wrote `beneficiaryConfirmation` / `userConfirmation`
+and left `appointments.status` as `pending`. `backfill-rsvp-status.cjs` copies those answers onto `status`
+(confirmed -> accepted, declined -> declined). Dry run by default, tags what it changes, and writes an undo
+manifest. Add `--accept-bundled-assignments` to also accept the pending assignment for appointments that were
+booked together with their intervention.
+
+```bash
+node scripts/backfill-rsvp-status.cjs --service-account ./scripts/new-service-account.json
+node scripts/backfill-rsvp-status.cjs --service-account ./scripts/new-service-account.json --apply
+node scripts/backfill-rsvp-status.cjs --service-account ./scripts/new-service-account.json --undo ./scripts/seed-output-rsvp-backfill-<timestamp>.json --apply
+```
