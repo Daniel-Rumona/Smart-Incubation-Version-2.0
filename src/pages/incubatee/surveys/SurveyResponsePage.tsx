@@ -19,6 +19,7 @@ import {
 } from '@/services/surveyResponsesService'
 import type { SurveyField } from '@/services/surveyTemplatesService'
 import '@/styles/survey-response.css'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 const SURVEYS_PATH = '/incubatee/surveys'
 
@@ -31,6 +32,7 @@ const hasAnswer = (field: SurveyField, value: unknown) => {
 }
 
 export default function SurveyResponsePage() {
+    const { t } = useLanguage()
     const { message } = App.useApp()
     const { user } = useFullIdentity()
     const navigate = useNavigate()
@@ -52,7 +54,7 @@ export default function SurveyResponsePage() {
         void loadSurveyForResponse(user, id)
             .then((loaded) => {
                 if (!loaded) {
-                    message.error('That survey could not be found.')
+                    message.error(t('That survey could not be found.'))
                     navigate(SURVEYS_PATH)
                     return
                 }
@@ -70,7 +72,7 @@ export default function SurveyResponsePage() {
                 setSubmitted(loaded.response?.status === 'submitted')
             })
             .catch(() => {
-                message.error('The survey could not be loaded.')
+                message.error(t('The survey could not be loaded.'))
                 setContext(null)
             })
     }, [user, id]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -135,12 +137,12 @@ export default function SurveyResponsePage() {
 
             if (status === 'submitted') {
                 setSubmitted(true)
-                message.success('Thank you, your answers have been submitted.')
+                message.success(t('Thank you, your answers have been submitted.'))
             } else {
-                message.success('Draft saved. You can finish this later.')
+                message.success(t('Draft saved. You can finish this later.'))
             }
         } catch {
-            message.error('Your answers could not be saved.')
+            message.error(t('Your answers could not be saved.'))
         } finally {
             setSaving(false)
         }
@@ -153,9 +155,9 @@ export default function SurveyResponsePage() {
                 icon={<ArrowLeftOutlined />}
                 className="survey-response-back-btn"
                 onClick={() => navigate(SURVEYS_PATH)}
-                aria-label="Back to surveys"
+                aria-label={t('Back to surveys')}
             />
-            <span className="survey-response-mobile-title">{context?.template.title || 'Survey'}</span>
+            <span className="survey-response-mobile-title">{context?.template.title || t('Survey')}</span>
             <span aria-hidden="true" />
         </div>
     )
@@ -165,7 +167,7 @@ export default function SurveyResponsePage() {
     }
 
     if (!context) {
-        return <DashboardPage className="incubatee-page survey-response-page">{mobileHeader}<Empty description="This survey is not available." /></DashboardPage>
+        return <DashboardPage className="incubatee-page survey-response-page">{mobileHeader}<Empty description={t('This survey is not available.')} /></DashboardPage>
     }
 
     if (submitted) {
@@ -175,9 +177,9 @@ export default function SurveyResponsePage() {
                 <MotionCard className="survey-response-card">
                     <Result
                         status="success"
-                        title="Your answers are in"
+                        title={t('Your answers are in')}
                         subTitle={`${context.template.title} was submitted${context.response?.submittedAt ? ` on ${dayjs(context.response.submittedAt).format('DD MMM YYYY')}` : ''}.`}
-                        extra={<Button type="primary" onClick={() => navigate(SURVEYS_PATH)}>Back to surveys</Button>}
+                        extra={<Button type="primary" onClick={() => navigate(SURVEYS_PATH)}>{t('Back to surveys')}</Button>}
                     />
                 </MotionCard>
             </DashboardPage>
@@ -189,7 +191,7 @@ export default function SurveyResponsePage() {
             <DashboardPage className="incubatee-page survey-response-page">
                 {mobileHeader}
                 <MotionCard className="survey-response-card">
-                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="This survey has no questions yet." />
+                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('This survey has no questions yet.')} />
                 </MotionCard>
             </DashboardPage>
         )
@@ -252,8 +254,8 @@ export default function SurveyResponsePage() {
                         onChange={({ fileList }) => setAnswer(fileList)}
                     >
                         <p className="ant-upload-drag-icon"><InboxOutlined /></p>
-                        <p className="ant-upload-text">Drag and drop a file here</p>
-                        <p className="ant-upload-hint">or click to browse</p>
+                        <p className="ant-upload-text">{t('Drag and drop a file here')}</p>
+                        <p className="ant-upload-hint">{t('or click to browse')}</p>
                     </Upload.Dragger>
                 )
             default:
@@ -280,10 +282,10 @@ export default function SurveyResponsePage() {
                         <>
                             {current.prefill && (
                                 <Tag icon={<LockOutlined />} color="blue">
-                                    Filled in from your profile · correct it here if it has changed
+                                    {t('Filled in from your profile · correct it here if it has changed')}
                                 </Tag>
                             )}
-                            {touched && blocked && <span className="survey-response-error">This question needs an answer before you continue.</span>}
+                            {touched && blocked && <span className="survey-response-error">{t('This question needs an answer before you continue.')}</span>}
                         </>
                     }
                     footer={
@@ -294,19 +296,19 @@ export default function SurveyResponsePage() {
                                 disabled={isFirst}
                                 onClick={() => { setTouched(false); setIndex((value) => Math.max(0, value - 1)) }}
                             >
-                                Previous
+                                {t('Previous')}
                             </Button>
 
                             <Button size="large" icon={<SaveOutlined />} loading={saving} onClick={() => void save('draft')}>
-                                Save for later
+                                {t('Save for later')}
                             </Button>
 
                             {isLast ? (
                                 <Button size="large" type="primary" icon={<CheckOutlined />} loading={saving} onClick={() => void save('submitted')}>
-                                    Submit answers
+                                    {t('Submit answers')}
                                 </Button>
                             ) : (
-                                <Button size="large" type="primary" onClick={goNext}>Next</Button>
+                                <Button size="large" type="primary" onClick={goNext}>{t('Next')}</Button>
                             )}
                         </div>
                     }

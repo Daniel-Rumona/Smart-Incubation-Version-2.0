@@ -1,9 +1,11 @@
 import { Checkbox, DatePicker, Input, Radio, Rate, Select, Typography, Upload } from 'antd'
 import { InboxOutlined } from '@ant-design/icons'
 import type { SurveyField } from '@/services/surveyTemplatesService'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 /** How a question will look to the SME answering it. Inert: nothing here submits. */
 export const SurveyFieldPreview = ({ field }: { field: SurveyField }) => {
+    const { t } = useLanguage()
     switch (field.type) {
         case 'text':
             return <Input placeholder={field.placeholder} />
@@ -25,14 +27,14 @@ export const SurveyFieldPreview = ({ field }: { field: SurveyField }) => {
             return (
                 <Upload.Dragger multiple={false} maxCount={1} beforeUpload={() => false} className="survey-field-dragger">
                     <p className="ant-upload-drag-icon"><InboxOutlined /></p>
-                    <p className="ant-upload-text">Drag and drop a file here</p>
-                    <p className="ant-upload-hint">or click to browse</p>
+                    <p className="ant-upload-text">{t('Drag and drop a file here')}</p>
+                    <p className="ant-upload-hint">{t('or click to browse')}</p>
                 </Upload.Dragger>
             )
         case 'rating':
             return <Rate />
         case 'heading':
-            return <Typography.Title level={5} className="survey-field-heading">{field.label || 'Section'}</Typography.Title>
+            return <Typography.Title level={5} className="survey-field-heading">{field.label || t('Section')}</Typography.Title>
         default:
             return null
     }

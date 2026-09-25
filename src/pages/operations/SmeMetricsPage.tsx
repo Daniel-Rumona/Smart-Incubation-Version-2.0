@@ -46,6 +46,7 @@ import { matchesActiveProgram } from '@/services/workspaceProgramsService'
 import { useRegisterAgentPageContext } from '@/shared/hooks/useRegisterAgentPageContext'
 import '@/styles/dashboard.css'
 import '@/styles/sme-metrics.css'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 dayjs.extend(isoWeek)
 dayjs.extend(quarterOfYear)
@@ -248,9 +249,9 @@ const percent = (numerator: number, denominator: number) => (denominator > 0 ? M
 type RangePresetKey = 'month' | 'quarter' | 'ytd'
 
 const rangePresetOptions: Array<{ label: string; value: RangePresetKey; icon: ReactNode }> = [
-  { label: 'This month', value: 'month', icon: <CalendarOutlined /> },
-  { label: 'This quarter', value: 'quarter', icon: <CalendarOutlined /> },
-  { label: 'Year to date', value: 'ytd', icon: <CalendarOutlined /> },
+  { get label() { return tr('This month') }, value: 'month', icon: <CalendarOutlined /> },
+  { get label() { return tr('This quarter') }, value: 'quarter', icon: <CalendarOutlined /> },
+  { get label() { return tr('Year to date') }, value: 'ytd', icon: <CalendarOutlined /> },
 ]
 
 const rangeForPresetKey = (key: RangePresetKey): [Dayjs, Dayjs] => {
@@ -301,6 +302,7 @@ const bucketRange = (range: [Dayjs, Dayjs]) => {
 }
 
 export const SmeMetricsPage = () => {
+  const { t } = useLanguage()
   const { message } = App.useApp()
   const { user } = useFullIdentity()
   const { activeProgramId, isAllPrograms } = useActiveProgramId()
@@ -397,7 +399,7 @@ export const SmeMetricsPage = () => {
         }))
       } catch (error) {
         console.error(error)
-        message.error('Failed to load SME metrics')
+        message.error(t('Failed to load SME metrics'))
         if (mounted) setRows([])
       } finally {
         if (mounted) setLoading(false)
@@ -408,7 +410,7 @@ export const SmeMetricsPage = () => {
     return () => {
       mounted = false
     }
-  }, [activeProgramId, isAllPrograms, message, user])
+  }, [activeProgramId, isAllPrograms, message, user, t])
 
   const previousRange = useMemo(() => getPreviousRange([start, end]), [end, start])
   const filteredRows = useMemo(() => {
@@ -529,17 +531,17 @@ export const SmeMetricsPage = () => {
 
   const impactOptions = useMemo<Highcharts.Options>(() => ({
     chart: { type: 'column', height: 340 },
-    title: { text: 'Revenue and Employees' },
+    title: { text: tr('Revenue and Employees') },
     subtitle: { text: analyticsRangeLabel },
     xAxis: { categories: analyticsComputed.buckets.map(bucket => bucket.label) },
     yAxis: [
-      { title: { text: 'Employees' }, min: 0 },
-      { title: { text: 'Revenue' }, min: 0, opposite: true },
+      { title: { text: tr('Employees') }, min: 0 },
+      { title: { text: tr('Revenue') }, min: 0, opposite: true },
     ],
     tooltip: { shared: true },
     series: [
-      { type: 'column', name: 'Employees', data: analyticsComputed.buckets.map(bucket => bucket.employees), yAxis: 0 },
-      { type: 'spline', name: 'Revenue', data: analyticsComputed.buckets.map(bucket => bucket.revenue), yAxis: 1 },
+      { type: 'column', name: tr('Employees'), data: analyticsComputed.buckets.map(bucket => bucket.employees), yAxis: 0 },
+      { type: 'spline', name: tr('Revenue'), data: analyticsComputed.buckets.map(bucket => bucket.revenue), yAxis: 1 },
     ],
   }), [analyticsComputed.buckets, analyticsRangeLabel])
 
@@ -552,19 +554,19 @@ export const SmeMetricsPage = () => {
     subtitle: { text: rangeLabel },
     xAxis: { categories: selectedBuckets.map(bucket => bucket.label) },
     yAxis: [
-      { title: { text: 'Employees' }, min: 0 },
-      { title: { text: 'Revenue' }, min: 0, opposite: true },
+      { title: { text: tr('Employees') }, min: 0 },
+      { title: { text: tr('Revenue') }, min: 0, opposite: true },
     ],
     tooltip: { shared: true },
     series: [
-      { type: 'column', name: 'Employees', data: selectedBuckets.map(bucket => bucket.employees), yAxis: 0 },
-      { type: 'spline', name: 'Revenue', data: selectedBuckets.map(bucket => bucket.revenue), yAxis: 1 },
+      { type: 'column', name: tr('Employees'), data: selectedBuckets.map(bucket => bucket.employees), yAxis: 0 },
+      { type: 'spline', name: tr('Revenue'), data: selectedBuckets.map(bucket => bucket.revenue), yAxis: 1 },
     ],
   }), [rangeLabel, selectedBuckets, selectedSummary])
 
   const columns: ColumnsType<SmeMetricSummaryRow> = [
     {
-      title: 'SME',
+      title: t('SME'),
       dataIndex: 'businessName',
       key: 'businessName',
       render: (value: string, row) => (
@@ -577,7 +579,7 @@ export const SmeMetricsPage = () => {
       ),
     },
     {
-      title: 'Revenue',
+      title: t('Revenue'),
       dataIndex: 'revenue',
       key: 'revenue',
       width: 230,
@@ -590,7 +592,7 @@ export const SmeMetricsPage = () => {
       ),
     },
     {
-      title: 'Employees',
+      title: t('Employees'),
       dataIndex: 'employees',
       key: 'employees',
       width: 190,
@@ -614,18 +616,18 @@ export const SmeMetricsPage = () => {
   return (
     <DashboardPage className="sme-metrics-page">
       <Row gutter={[12, 12]} className="dashboard-metrics-row">
-        <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<TeamOutlined />} label="SMEs" value={filteredRows.length} hint={rangeLabel} /></Col>
-        <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<BankOutlined />} label="Revenue" value={formatCurrency(computed.revenue)} hint={`${revenueDelta.label} from previous period`} /></Col>
-        <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<RiseOutlined />} label="Employees" value={formatNumber(computed.employees)} hint={`${employeeDelta.label} from previous period`} /></Col>
-        <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<LineChartOutlined />} label="Revenue / SME" value={formatCurrency(filteredRows.length ? computed.revenue / filteredRows.length : 0)} hint="Average in selected scope" /></Col>
+        <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<TeamOutlined />} label={t('SMEs')} value={filteredRows.length} hint={rangeLabel} /></Col>
+        <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<BankOutlined />} label={t('Revenue')} value={formatCurrency(computed.revenue)} hint={`${revenueDelta.label} from previous period`} /></Col>
+        <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<RiseOutlined />} label={t('Employees')} value={formatNumber(computed.employees)} hint={`${employeeDelta.label} from previous period`} /></Col>
+        <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<LineChartOutlined />} label={t('Revenue / SME')} value={formatCurrency(filteredRows.length ? computed.revenue / filteredRows.length : 0)} hint={t('Average in selected scope')} /></Col>
       </Row>
 
       <FilterBar
         primary={
           <>
-            <Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search SME name" allowClear />
-            <Select value={sector} onChange={setSector} options={[{ value: 'All', label: 'All sectors' }, ...uniqueOptions(rows, 'sector')]} />
-            <Select value={gender} onChange={setGender} options={[{ value: 'All', label: 'All genders' }, ...uniqueOptions(rows, 'gender')]} />
+            <Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('Search SME name')} allowClear />
+            <Select value={sector} onChange={setSector} options={[{ value: 'All', label: t('All sectors') }, ...uniqueOptions(rows, 'sector')]} />
+            <Select value={gender} onChange={setGender} options={[{ value: 'All', label: t('All genders') }, ...uniqueOptions(rows, 'gender')]} />
             <RangePicker
               value={[start, end]}
               allowClear={false}
@@ -638,12 +640,12 @@ export const SmeMetricsPage = () => {
         }
         advanced={
           <>
-            <Select value={province} onChange={setProvince} options={[{ value: 'All', label: 'All provinces' }, ...uniqueOptions(rows, 'province')]} />
-            <Select value={beeLevel} onChange={setBeeLevel} options={[{ value: 'All', label: 'All B-BBEE levels' }, ...uniqueOptions(rows, 'beeLevel')]} />
+            <Select value={province} onChange={setProvince} options={[{ value: 'All', label: t('All provinces') }, ...uniqueOptions(rows, 'province')]} />
+            <Select value={beeLevel} onChange={setBeeLevel} options={[{ value: 'All', label: t('All B-BBEE levels') }, ...uniqueOptions(rows, 'beeLevel')]} />
           </>
         }
         actions={
-          <Button icon={<BarChartOutlined />} onClick={() => setAnalyticsOpen(true)}>Analytics</Button>
+          <Button icon={<BarChartOutlined />} onClick={() => setAnalyticsOpen(true)}>{t('Analytics')}</Button>
         }
       />
 
@@ -651,13 +653,13 @@ export const SmeMetricsPage = () => {
         <Col span={24}>
           <Card
             className="dashboard-section-card motion-card"
-            title={<Space><BarChartOutlined /> SME Metric Breakdown</Space>}
+            title={<Space><BarChartOutlined /> {t('SME Metric Breakdown')}</Space>}
             extra={<Text type="secondary">{rangeLabel}</Text>}
           >
             <Alert
               showIcon
               type={computed.revenue > 0 || computed.employees > 0 ? 'info' : 'warning'}
-              message="Delta compares against the previous equivalent period."
+              message={t('Delta compares against the previous equivalent period.')}
               style={{ marginBottom: 16 }}
             />
             <Table
@@ -665,7 +667,7 @@ export const SmeMetricsPage = () => {
               columns={columns}
               dataSource={computed.summaryRows}
               pagination={{ pageSize: 10, showSizeChanger: false }}
-              locale={{ emptyText: 'No SMEs match this metric scope.' }}
+              locale={{ emptyText: t('No SMEs match this metric scope.') }}
               onRow={(row) => ({
                 onClick: () => setSelectedKey(row.key),
               })}
@@ -679,7 +681,7 @@ export const SmeMetricsPage = () => {
         open={analyticsOpen}
         onCancel={() => setAnalyticsOpen(false)}
         footer={null}
-        title={<Space><BarChartOutlined /> SME Analytics</Space>}
+        title={<Space><BarChartOutlined /> {t('SME Analytics')}</Space>}
         width={960}
         destroyOnClose
       >
@@ -689,8 +691,8 @@ export const SmeMetricsPage = () => {
             value={analyticsView}
             onChange={setAnalyticsView}
             options={[
-              { label: 'Revenue & Employees', value: 'trend', icon: <LineChartOutlined /> },
-              { label: 'Sector Contribution', value: 'sectors', icon: <BarChartOutlined /> },
+              { label: t('Revenue & Employees'), value: 'trend', icon: <LineChartOutlined /> },
+              { label: t('Sector Contribution'), value: 'sectors', icon: <BarChartOutlined /> },
             ]}
           />
           <RangePicker
@@ -707,10 +709,10 @@ export const SmeMetricsPage = () => {
           <Card loading={loading} className="dashboard-section-card motion-card">
             {analyticsComputed.buckets.some(bucket => bucket.revenue > 0 || bucket.employees > 0)
               ? <ThemedHighcharts options={impactOptions} />
-              : <Empty description="No revenue or employee metrics found for this period" />}
+              : <Empty description={t('No revenue or employee metrics found for this period')} />}
           </Card>
         ) : (
-          <Card loading={loading} className="dashboard-section-card motion-card" title="Sector Contribution">
+          <Card loading={loading} className="dashboard-section-card motion-card" title={t('Sector Contribution')}>
             {topSectors.length ? (
               <Space direction="vertical" size={14} style={{ width: '100%' }}>
                 {topSectors.map(([sectorName, values]) => (
@@ -723,14 +725,14 @@ export const SmeMetricsPage = () => {
                   </div>
                 ))}
               </Space>
-            ) : <Empty description="No sector metrics found" />}
+            ) : <Empty description={t('No sector metrics found')} />}
           </Card>
         )}
       </Modal>
 
       <Modal
         open={!!selectedSummary}
-        title={selectedSummary?.businessName || 'SME metrics'}
+        title={selectedSummary?.businessName || t('SME metrics')}
         footer={null}
         onCancel={() => setSelectedKey(null)}
         width={920}
@@ -739,30 +741,30 @@ export const SmeMetricsPage = () => {
           <Space direction="vertical" size={16} className="sme-metrics-drilldown">
             <Row gutter={[12, 12]}>
               <Col xs={12} md={6}>
-                <DashboardMetricCard icon={<BankOutlined />} label="Revenue" value={formatCurrency(selectedSummary.revenue)} hint={`${selectedRevenueDelta?.label} from previous`} />
+                <DashboardMetricCard icon={<BankOutlined />} label={t('Revenue')} value={formatCurrency(selectedSummary.revenue)} hint={`${selectedRevenueDelta?.label} from previous`} />
               </Col>
               <Col xs={12} md={6}>
-                <DashboardMetricCard icon={<BankOutlined />} label="Previous revenue" value={formatCurrency(selectedSummary.previousRevenue)} />
+                <DashboardMetricCard icon={<BankOutlined />} label={t('Previous revenue')} value={formatCurrency(selectedSummary.previousRevenue)} />
               </Col>
               <Col xs={12} md={6}>
-                <DashboardMetricCard icon={<RiseOutlined />} label="Employees" value={formatNumber(selectedSummary.employees)} hint={`${selectedEmployeeDelta?.label} from previous`} />
+                <DashboardMetricCard icon={<RiseOutlined />} label={t('Employees')} value={formatNumber(selectedSummary.employees)} hint={`${selectedEmployeeDelta?.label} from previous`} />
               </Col>
               <Col xs={12} md={6}>
-                <DashboardMetricCard icon={<RiseOutlined />} label="Previous employees" value={formatNumber(selectedSummary.previousEmployees)} />
+                <DashboardMetricCard icon={<RiseOutlined />} label={t('Previous employees')} value={formatNumber(selectedSummary.previousEmployees)} />
               </Col>
             </Row>
             <Descriptions bordered size="small" column={{ xs: 1, md: 2 }}>
-              <Descriptions.Item label="Programme">{selectedSummary.programName}</Descriptions.Item>
-              <Descriptions.Item label="Sector">{selectedSummary.sector}</Descriptions.Item>
-              <Descriptions.Item label="Gender">{selectedSummary.gender}</Descriptions.Item>
-              <Descriptions.Item label="Province">{selectedSummary.province}</Descriptions.Item>
-              <Descriptions.Item label="B-BBEE">{selectedSummary.beeLevel}</Descriptions.Item>
-              <Descriptions.Item label="Period">{rangeLabel}</Descriptions.Item>
+              <Descriptions.Item label={t('Programme')}>{selectedSummary.programName}</Descriptions.Item>
+              <Descriptions.Item label={t('Sector')}>{selectedSummary.sector}</Descriptions.Item>
+              <Descriptions.Item label={t('Gender')}>{selectedSummary.gender}</Descriptions.Item>
+              <Descriptions.Item label={t('Province')}>{selectedSummary.province}</Descriptions.Item>
+              <Descriptions.Item label={t('B-BBEE')}>{selectedSummary.beeLevel}</Descriptions.Item>
+              <Descriptions.Item label={t('Period')}>{rangeLabel}</Descriptions.Item>
             </Descriptions>
             <Card className="dashboard-section-card">
               {selectedBuckets.some(bucket => bucket.revenue > 0 || bucket.employees > 0)
                 ? <ThemedHighcharts options={selectedImpactOptions} />
-                : <Empty description="No individual metric history found for this period" />}
+                : <Empty description={t('No individual metric history found for this period')} />}
             </Card>
           </Space>
         )}

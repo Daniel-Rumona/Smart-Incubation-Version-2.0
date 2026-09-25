@@ -30,6 +30,7 @@ import { useRegisterAgentPageContext } from '@/shared/hooks/useRegisterAgentPage
 import type { DirectorPortfolioSme } from '@/types/director'
 import '@/styles/dashboard.css'
 import '@/styles/director.css'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 const { Text } = Typography
 
@@ -77,7 +78,7 @@ const buildRiskReasons = (sme: DirectorPortfolioSme): RiskReason[] => {
       key: 'progress',
       severity: progress < 45 ? 'High' : 'Medium',
       icon: <CheckCircleOutlined />,
-      title: 'Delivery progress is behind',
+      title: tr('Delivery progress is behind'),
       detail: `Average intervention progress is ${progress}%${progress < 45 ? ', under the 45% high-risk line' : ', under the 65% healthy line'}.${execution.required ? ` ${execution.completed} of ${execution.required} required interventions are complete.` : ''}`,
       short: `${progress}% progress`,
       gauge: { value: progress, max: 100, mediumAt: 65, highAt: 45 },
@@ -104,7 +105,7 @@ const buildRiskReasons = (sme: DirectorPortfolioSme): RiskReason[] => {
       severity: execution.overdue >= 2 ? 'High' : 'Medium',
       icon: <ClockCircleOutlined />,
       title: `${execution.overdue} overdue intervention${execution.overdue === 1 ? '' : 's'}`,
-      detail: 'These were due before today and are not yet completed.',
+      detail: tr('These were due before today and are not yet completed.'),
       short: `${execution.overdue} overdue`,
     })
   }
@@ -115,7 +116,7 @@ const buildRiskReasons = (sme: DirectorPortfolioSme): RiskReason[] => {
       severity: 'Medium',
       icon: <ExclamationCircleOutlined />,
       title: `Slow to respond (${execution.unresponsive})`,
-      detail: 'The consultant accepted these interventions but the SME has not responded for 7 or more days.',
+      detail: tr('The consultant accepted these interventions but the SME has not responded for 7 or more days.'),
       short: `${execution.unresponsive} unresponsive`,
     })
   }
@@ -126,6 +127,7 @@ const buildRiskReasons = (sme: DirectorPortfolioSme): RiskReason[] => {
 const severityColor = (severity: 'High' | 'Medium') => (severity === 'High' ? CHART_COLORS.danger : CHART_COLORS.amber)
 
 export const DirectorSectorsPage = () => {
+  const { t } = useLanguage()
   const { message } = App.useApp()
   const { user } = useFullIdentity()
   const { activeProgramId } = useActiveProgramId()
@@ -159,7 +161,7 @@ export const DirectorSectorsPage = () => {
         }
       } catch (error) {
         console.error(error)
-        message.error('Sector data could not be loaded.')
+        message.error(t('Sector data could not be loaded.'))
         if (mounted) setRows([])
       } finally {
         if (mounted) setLoading(false)
@@ -169,7 +171,7 @@ export const DirectorSectorsPage = () => {
     return () => {
       mounted = false
     }
-  }, [activeProgramId, message, user])
+  }, [activeProgramId, message, user, t])
 
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -214,7 +216,7 @@ export const DirectorSectorsPage = () => {
       tooltip: { pointFormatter() { return `<b>${formatCurrency(Number(this.y))}</b>` } },
       legend: { enabled: false },
       plotOptions: { spline: { lineWidth: 3, marker: { enabled: true, radius: 5 }, dataLabels: { enabled: true, formatter() { return compactCurrency(Number(this.y)) } } } },
-      series: [{ type: 'spline' as const, name: 'Revenue', color: CHART_COLORS.violet, data: months.map(([, revenue]) => revenue) }],
+      series: [{ type: 'spline' as const, name: tr('Revenue'), color: CHART_COLORS.violet, data: months.map(([, revenue]) => revenue) }],
     }
   }, [drilldownRollup])
 
@@ -271,8 +273,8 @@ export const DirectorSectorsPage = () => {
       <FilterBar
         primary={
           <>
-            <Input prefix={<SearchOutlined />} value={search} onChange={event => setSearch(event.target.value)} placeholder="Search sector or SME" allowClear />
-            <Select value={sector} onChange={setSector} options={[{ value: 'All', label: 'All sectors' }, ...Array.from(new Set(rows.map(row => row.sector))).sort().map(value => ({ value, label: value }))]} />
+            <Input prefix={<SearchOutlined />} value={search} onChange={event => setSearch(event.target.value)} placeholder={t('Search sector or SME')} allowClear />
+            <Select value={sector} onChange={setSector} options={[{ value: 'All', label: t('All sectors') }, ...Array.from(new Set(rows.map(row => row.sector))).sort().map(value => ({ value, label: value }))]} />
           </>
         }
       />
@@ -284,13 +286,13 @@ export const DirectorSectorsPage = () => {
             className="dashboard-section-card motion-card"
             style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
             styles={{ body: { flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 } }}
-            title={<Space>{drilldownRollup ? <LineChartOutlined /> : <DollarOutlined />}{drilldownRollup ? `${drilldownRollup.sector} · monthly revenue` : 'Sector Revenue'}</Space>}
+            title={<Space>{drilldownRollup ? <LineChartOutlined /> : <DollarOutlined />}{drilldownRollup ? `${drilldownRollup.sector} · monthly revenue` : t('Sector Revenue')}</Space>}
             extra={drilldownRollup
-              ? <Button size="small" icon={<ArrowLeftOutlined />} onClick={() => setDrilldownSector(null)}>Back</Button>
-              : <Text type="secondary">Click a bar for month-on-month</Text>}
+              ? <Button size="small" icon={<ArrowLeftOutlined />} onClick={() => setDrilldownSector(null)}>{t('Back')}</Button>
+              : <Text type="secondary">{t('Click a bar for month-on-month')}</Text>}
           >
-            {!rollups.length ? <Empty description="No sector revenue found." /> : drilldownRollup ? (
-              drilldownRollup.smes.some(sme => sme.trend.length) ? <ThemedHighcharts options={monthlyRevenueOptions} /> : <Empty description="No monthly revenue history recorded for this sector." />
+            {!rollups.length ? <Empty description={t('No sector revenue found.')} /> : drilldownRollup ? (
+              drilldownRollup.smes.some(sme => sme.trend.length) ? <ThemedHighcharts options={monthlyRevenueOptions} /> : <Empty description={t('No monthly revenue history recorded for this sector.')} />
             ) : (
               <div style={{ flex: 1, maxHeight: 420, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, paddingRight: 4 }}>
                 {rollups.map((row, index) => (
@@ -298,9 +300,9 @@ export const DirectorSectorsPage = () => {
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <Text strong>{row.sector}</Text>
                       <Space size={6}>
-                        <Text type="secondary" style={{ fontSize: 12 }}>{row.companies} SME{row.companies === 1 ? '' : 's'} · {row.avgProgress}% progress</Text>
-                        {row.highRisk > 0 && <Tag color="red" bordered={false} style={{ margin: 0 }}>{row.highRisk} high</Tag>}
-                        {row.mediumRisk > 0 && <Tag color="orange" bordered={false} style={{ margin: 0 }}>{row.mediumRisk} medium</Tag>}
+                        <Text type="secondary" style={{ fontSize: 12 }}>{row.companies} {t('SME')}{row.companies === 1 ? '' : 's'} · {row.avgProgress}{t('% progress')}</Text>
+                        {row.highRisk > 0 && <Tag color="red" bordered={false} style={{ margin: 0 }}>{row.highRisk} {t('high')}</Tag>}
+                        {row.mediumRisk > 0 && <Tag color="orange" bordered={false} style={{ margin: 0 }}>{row.mediumRisk} {t('medium')}</Tag>}
                       </Space>
                     </div>
                     <Progress
@@ -315,7 +317,7 @@ export const DirectorSectorsPage = () => {
           </Card>
         </Col>
         <Col xs={24} xl={10}>
-          <Card loading={loading} className="dashboard-section-card motion-card" title={<Space><WarningOutlined /> Risk Watchlist</Space>} extra={<Text type="secondary">Click an SME to see why</Text>} style={{ height: '100%' }}>
+          <Card loading={loading} className="dashboard-section-card motion-card" title={<Space><WarningOutlined /> {t('Risk Watchlist')}</Space>} extra={<Text type="secondary">{t('Click an SME to see why')}</Text>} style={{ height: '100%' }}>
             {watchlist.length ? (
               <div style={{ maxHeight: 420, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, paddingRight: 4 }}>
                 {watchlist.map(row => (
@@ -334,27 +336,27 @@ export const DirectorSectorsPage = () => {
                   </button>
                 ))}
               </div>
-            ) : <Empty description="No high or medium risk SMEs found." />}
+            ) : <Empty description={t('No high or medium risk SMEs found.')} />}
           </Card>
         </Col>
         <Col span={24}>
           <Card
             loading={loading}
             className="dashboard-section-card motion-card"
-            title={<Space><AreaChartOutlined /> {areaMetric === 'completions' ? 'Interventions Completed · Month on Month' : 'Month on Month'}</Space>}
+            title={<Space><AreaChartOutlined /> {areaMetric === 'completions' ? t('Interventions Completed · Month on Month') : t('Month on Month')}</Space>}
             extra={(
               <Segmented<AreaMetric>
                 value={areaMetric}
                 onChange={setAreaMetric}
                 options={[
-                  { label: 'Revenue', value: 'revenue', icon: <DollarOutlined /> },
-                  { label: 'Employees', value: 'employees', icon: <TeamOutlined /> },
-                  { label: 'Completions', value: 'completions', icon: <CheckSquareOutlined /> },
+                  { label: t('Revenue'), value: 'revenue', icon: <DollarOutlined /> },
+                  { label: t('Employees'), value: 'employees', icon: <TeamOutlined /> },
+                  { label: t('Completions'), value: 'completions', icon: <CheckSquareOutlined /> },
                 ]}
               />
             )}
           >
-            {areaSeries.series.length ? <ThemedHighcharts options={areaOptions} /> : <Empty description="No monthly history recorded yet." />}
+            {areaSeries.series.length ? <ThemedHighcharts options={areaOptions} /> : <Empty description={t('No monthly history recorded yet.')} />}
           </Card>
         </Col>
       </Row>
@@ -375,14 +377,14 @@ export const DirectorSectorsPage = () => {
         {riskSme && (
           <Space direction="vertical" size={16} style={{ width: '100%' }}>
             <Row gutter={[12, 12]}>
-              <Col xs={12} md={6}><DashboardMetricCard icon={<WarningOutlined />} iconClassName="is-attention" label="Risk level" value={riskSme.risk} /></Col>
-              <Col xs={12} md={6}><DashboardMetricCard icon={<CheckCircleOutlined />} label="Progress" value={`${riskSme.progress}%`} hint={`${riskSme.execution.completed}/${riskSme.execution.required} completed`} /></Col>
-              <Col xs={12} md={6}><DashboardMetricCard icon={<FallOutlined />} label="Revenue growth" value={`${riskSme.metrics.growthRate > 0 ? '+' : ''}${riskSme.metrics.growthRate}%`} hint="Last 6 months" /></Col>
-              <Col xs={12} md={6}><DashboardMetricCard icon={<ClockCircleOutlined />} label="Overdue" value={riskSme.execution.overdue} hint={`${riskSme.execution.unresponsive} unresponsive`} /></Col>
+              <Col xs={12} md={6}><DashboardMetricCard icon={<WarningOutlined />} iconClassName="is-attention" label={t('Risk level')} value={riskSme.risk} /></Col>
+              <Col xs={12} md={6}><DashboardMetricCard icon={<CheckCircleOutlined />} label={t('Progress')} value={`${riskSme.progress}%`} hint={`${riskSme.execution.completed}/${riskSme.execution.required} completed`} /></Col>
+              <Col xs={12} md={6}><DashboardMetricCard icon={<FallOutlined />} label={t('Revenue growth')} value={`${riskSme.metrics.growthRate > 0 ? '+' : ''}${riskSme.metrics.growthRate}%`} hint={t('Last 6 months')} /></Col>
+              <Col xs={12} md={6}><DashboardMetricCard icon={<ClockCircleOutlined />} label={t('Overdue')} value={riskSme.execution.overdue} hint={`${riskSme.execution.unresponsive} unresponsive`} /></Col>
             </Row>
 
             <div>
-              <Text strong style={{ display: 'block', marginBottom: 10 }}>Why this SME is {riskSme.risk.toLowerCase()} risk</Text>
+              <Text strong style={{ display: 'block', marginBottom: 10 }}>{t('Why this SME is')} {riskSme.risk.toLowerCase()} {t('risk')}</Text>
               <Space direction="vertical" size={10} style={{ width: '100%' }}>
                 {buildRiskReasons(riskSme).map(reason => (
                   <div key={reason.key} style={{ display: 'flex', gap: 14, padding: '12px 14px', borderRadius: 14, background: `${severityColor(reason.severity)}12` }}>
@@ -396,7 +398,7 @@ export const DirectorSectorsPage = () => {
                       {reason.gauge && (
                         <div style={{ marginTop: 6 }}>
                           <Progress percent={Math.min(100, Math.round((reason.gauge.value / reason.gauge.max) * 100))} strokeColor={severityColor(reason.severity)} size="small" format={() => `${reason.gauge!.value}%`} />
-                          <Text type="secondary" style={{ fontSize: 11 }}>High risk below {reason.gauge.highAt}% · healthy from {reason.gauge.mediumAt}%</Text>
+                          <Text type="secondary" style={{ fontSize: 11 }}>{t('High risk below')} {reason.gauge.highAt}{t('% · healthy from')} {reason.gauge.mediumAt}%</Text>
                         </div>
                       )}
                     </div>

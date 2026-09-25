@@ -28,7 +28,6 @@ import {
   ClockCircleOutlined,
   DashboardOutlined,
   DollarCircleOutlined,
-  DownloadOutlined,
   ExclamationCircleOutlined,
   FallOutlined,
   FileProtectOutlined,
@@ -37,8 +36,6 @@ import {
   TeamOutlined,
 } from '@ant-design/icons'
 import type Highcharts from 'highcharts'
-import Docxtemplater from 'docxtemplater'
-import PizZip from 'pizzip'
 import dayjs, { type Dayjs } from 'dayjs'
 import isoWeek from 'dayjs/plugin/isoWeek'
 import isSameOrAfter from 'dayjs/plugin/isSameOrAfter'
@@ -53,10 +50,8 @@ import { CHART_COLORS, CHART_PALETTE } from '@/config/chartPalette'
 import { db } from '@/firebase/config'
 import { useActiveProgramId } from '@/hooks/useActiveProgramId'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
-import {
-  generateOperationsReportInsights,
-  OPERATIONS_REPORT_TEMPLATE_PATH,
-} from '@/services/operationsReportsService'
+import { ReportExportButton } from '@/components/shared/ReportExportButton'
+import type { ReportExportData } from '@/services/reportExport'
 import {
   bucketRange as performanceBucketRange,
   computeMetricPerformance,
@@ -70,6 +65,7 @@ import {
 import { matchesActiveProgram } from '@/services/workspaceProgramsService'
 import '@/styles/dashboard.css'
 import '@/styles/operations-reports.css'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 dayjs.extend(isoWeek)
 dayjs.extend(isSameOrAfter)
@@ -310,12 +306,6 @@ const bucketGranularityForRange = (rangeStart: Dayjs, rangeEnd: Dayjs): BucketGr
   return 'month'
 }
 
-const shortPeriodLabel = (rangeStart: Dayjs, rangeEnd: Dayjs) => {
-  if (rangeStart.isSame(rangeEnd, 'month')) return rangeStart.format('MMM YYYY')
-  if (rangeStart.isSame(rangeEnd, 'year')) return `${rangeStart.format('MMM')} - ${rangeEnd.format('MMM YYYY')}`
-  return `${rangeStart.format('MMM YYYY')} - ${rangeEnd.format('MMM YYYY')}`
-}
-
 const inRange = (date: Date | null, start: Dayjs, end: Dayjs) => {
   if (!date) return false
   const value = dayjs(date)
@@ -439,48 +429,8 @@ const appointmentStatusLabel = (status: string) => {
   return String(status || 'Scheduled').replace(/[_-]/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
 
-const fileSafe = (value: string) =>
-  value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    || 'operations-report'
-
-const multilineList = (items: string[] = []) =>
-  items.length ? items.map((item) => `- ${item}`).join('\n') : 'No items returned.'
-
-const downloadBlob = (blob: Blob, fileName: string) => {
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = fileName
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-  URL.revokeObjectURL(url)
-}
-
-const renderDocxTemplate = async (data: Record<string, unknown>) => {
-  const response = await fetch(OPERATIONS_REPORT_TEMPLATE_PATH)
-  if (!response.ok) throw new Error('report-template-not-found')
-
-  const templateBuffer = await response.arrayBuffer()
-  const zip = new PizZip(templateBuffer)
-  const doc = new Docxtemplater(zip, {
-    paragraphLoop: true,
-    linebreaks: true,
-    delimiters: { start: '{{', end: '}}' },
-  })
-
-  doc.render(data)
-  return doc.getZip().generate({
-    type: 'blob',
-    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  })
-}
-
 const AreaCard = ({ row, onClick }: { row: AreaDemandRow, onClick: () => void }) => {
+  const { t } = useLanguage()
   const { token } = theme.useToken()
   const coverage = percent(row.assigned, row.requested)
   return (
@@ -512,14 +462,15 @@ const AreaCard = ({ row, onClick }: { row: AreaDemandRow, onClick: () => void })
       </Space>
       <Progress percent={coverage} size="small" showInfo={false} />
       <Space size={10} style={{ width: '100%', justifyContent: 'space-between' }}>
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>{row.requested} requested · {row.assigned} assigned</Typography.Text>
-        {row.gap > 0 && <Tag color="orange" style={{ marginInlineEnd: 0 }}>Gap {row.gap}</Tag>}
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>{row.requested} {t('requested ·')} {row.assigned} {t('assigned')}</Typography.Text>
+        {row.gap > 0 && <Tag color="orange" style={{ marginInlineEnd: 0 }}>{t('Gap')} {row.gap}</Tag>}
       </Space>
     </button>
   )
 }
 
 const InterventionCoverageCard = ({ row }: { row: SupportDemandRow }) => {
+  const { t } = useLanguage()
   const { token } = theme.useToken()
   return (
     <div
@@ -537,8 +488,8 @@ const InterventionCoverageCard = ({ row }: { row: SupportDemandRow }) => {
       <Typography.Text strong ellipsis>{row.title}</Typography.Text>
       <Progress percent={percent(row.assigned, row.requested)} size="small" status={row.gap > 0 ? 'active' : 'success'} />
       <Space size={10} wrap style={{ width: '100%', justifyContent: 'space-between' }}>
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>{row.requested} requested · {row.assigned} assigned · {row.completed} completed</Typography.Text>
-        <Tag color={row.gap > 0 ? 'orange' : 'green'} style={{ marginInlineEnd: 0 }}>{row.gap > 0 ? `Gap ${row.gap}` : 'Covered'}</Tag>
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>{row.requested} {t('requested ·')} {row.assigned} {t('assigned ·')} {row.completed} {t('completed')}</Typography.Text>
+        <Tag color={row.gap > 0 ? 'orange' : 'green'} style={{ marginInlineEnd: 0 }}>{row.gap > 0 ? `Gap ${row.gap}` : t('Covered')}</Tag>
       </Space>
     </div>
   )
@@ -551,16 +502,16 @@ const DeliveryOwnerWorkloadCard = ({ row, onClick }: { row: FacilitatorHealthRow
     <Space direction="vertical" size={8} style={{ width: '100%' }}>
       <Space align="start" style={{ width: '100%', justifyContent: 'space-between' }}>
         <Space size={6}><Tag color={row.actorType === 'Agent' ? 'purple' : 'blue'}>{row.actorType}</Tag><Text strong ellipsis style={{ maxWidth: 160 }}>{row.name}</Text></Space>
-        <Tag color={workloadRiskColor(row.riskScore)} style={{ marginInlineEnd: 0 }}>Risk {row.riskScore}</Tag>
+        <Tag color={workloadRiskColor(row.riskScore)} style={{ marginInlineEnd: 0 }}>{tr('Risk')} {row.riskScore}</Tag>
       </Space>
       <Progress percent={percent(row.completed, row.assigned)} size="small" showInfo={false} status={row.riskScore >= 60 ? 'exception' : 'active'} />
       <div className="operations-workload-counts">
-        <span><strong>{row.assigned}</strong> assigned</span><span><strong>{row.inProgress}</strong> in progress</span><span><strong>{row.completed}</strong> complete</span>
+        <span><strong>{row.assigned}</strong> {tr('assigned')}</span><span><strong>{row.inProgress}</strong> {tr('in progress')}</span><span><strong>{row.completed}</strong> {tr('complete')}</span>
       </div>
       <Space wrap size={[4, 4]}>
-        {row.facilitatorHeld > 0 && <Tag color="red">{row.facilitatorHeld} {row.actorType.toLowerCase()}-held</Tag>}
-        {row.smeHeld > 0 && <Tag color="gold">{row.smeHeld} awaiting SME</Tag>}
-        {!row.facilitatorHeld && !row.smeHeld && <Tag color="green">No hold-ups</Tag>}
+        {row.facilitatorHeld > 0 && <Tag color="red">{row.facilitatorHeld} {row.actorType.toLowerCase()}{tr('-held')}</Tag>}
+        {row.smeHeld > 0 && <Tag color="gold">{row.smeHeld} {tr('awaiting SME')}</Tag>}
+        {!row.facilitatorHeld && !row.smeHeld && <Tag color="green">{tr('No hold-ups')}</Tag>}
       </Space>
     </Space>
   </button>
@@ -576,6 +527,7 @@ const PerformanceStatCard = ({ title, icon, formattedValue, deltaLabel, deltaPos
   caption: string
   loading?: boolean
 }) => {
+  const { t } = useLanguage()
   const { token } = theme.useToken()
   const deltaColor = deltaPositive ? token.colorSuccess : token.colorError
   const DeltaIcon = deltaPositive ? RiseOutlined : FallOutlined
@@ -589,7 +541,7 @@ const PerformanceStatCard = ({ title, icon, formattedValue, deltaLabel, deltaPos
           <Text strong style={{ color: deltaColor }}>{deltaLabel}</Text>
         </Space>
       </div>
-      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 6 }}>vs previous period · {caption}</Text>
+      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 6 }}>{t('vs previous period ·')} {caption}</Text>
       <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 10, borderTop: `1px solid ${token.colorBorderSecondary}` }}>
         <Text type="secondary" style={{ fontSize: 12 }}>{headline.label}</Text>
         <Text strong style={{ color: headlineColor }}>{headline.value}%</Text>
@@ -601,15 +553,16 @@ const PerformanceStatCard = ({ title, icon, formattedValue, deltaLabel, deltaPos
 const FacilitatorHealthCard = ({ row, onClick }: { row: FacilitatorHealthRow, onClick: () => void }) => (
   <button type="button" className={`operations-facilitator-card is-${row.health.toLowerCase().replace(' ', '-')}`} onClick={onClick}>
     <Space direction="vertical" size={7} style={{ width: '100%' }}>
-      <Space wrap style={{ justifyContent: 'space-between', width: '100%' }}><Space size={6}><Tag color={row.actorType === 'Agent' ? 'purple' : 'blue'}>{row.actorType}</Tag><Text strong ellipsis style={{ maxWidth: 135 }}>{row.name}</Text></Space><Space size={4}><Tag color={row.health === 'On track' ? 'green' : row.health === 'Watch' ? 'orange' : 'red'}>Health: {row.health}</Tag><Tag color={workloadRiskColor(row.riskScore)} style={{ marginInlineEnd: 0 }}>Risk {row.riskScore}</Tag></Space></Space>
+      <Space wrap style={{ justifyContent: 'space-between', width: '100%' }}><Space size={6}><Tag color={row.actorType === 'Agent' ? 'purple' : 'blue'}>{row.actorType}</Tag><Text strong ellipsis style={{ maxWidth: 135 }}>{row.name}</Text></Space><Space size={4}><Tag color={row.health === 'On track' ? 'green' : row.health === 'Watch' ? 'orange' : 'red'}>{tr('Health:')} {row.health}</Tag><Tag color={workloadRiskColor(row.riskScore)} style={{ marginInlineEnd: 0 }}>{tr('Risk')} {row.riskScore}</Tag></Space></Space>
       <Progress percent={percent(row.completed, row.assigned)} size="small" showInfo={false} status={row.health === 'At risk' ? 'exception' : row.health === 'Watch' ? 'active' : 'success'} />
-      <Text type="secondary">{row.assigned} assigned · {row.inProgress} active · {row.completed} complete</Text>
-      <Space wrap size={[4, 4]}>{row.facilitatorHeld > 0 && <Tag color="red">{row.facilitatorHeld} held by {row.actorType.toLowerCase()}</Tag>}{row.smeHeld > 0 && <Tag color="gold">{row.smeHeld} awaiting SME</Tag>}{!row.facilitatorHeld && <Tag color="green">No {row.actorType.toLowerCase()} block</Tag>}</Space>
+      <Text type="secondary">{row.assigned} {tr('assigned ·')} {row.inProgress} {tr('active ·')} {row.completed} {tr('complete')}</Text>
+      <Space wrap size={[4, 4]}>{row.facilitatorHeld > 0 && <Tag color="red">{row.facilitatorHeld} {tr('held by')} {row.actorType.toLowerCase()}</Tag>}{row.smeHeld > 0 && <Tag color="gold">{row.smeHeld} {tr('awaiting SME')}</Tag>}{!row.facilitatorHeld && <Tag color="green">{tr('No')} {row.actorType.toLowerCase()} {tr('block')}</Tag>}</Space>
     </Space>
   </button>
 )
 
 export const OperationsReportsPage = () => {
+  const { t } = useLanguage()
   const { message } = App.useApp()
   const { user } = useFullIdentity()
   const { activeProgramId, isAllPrograms } = useActiveProgramId()
@@ -621,7 +574,6 @@ export const OperationsReportsPage = () => {
   const [assignments, setAssignments] = useState<AssignmentDoc[]>([])
   const [appointments, setAppointments] = useState<AppointmentDoc[]>([])
   const [loading, setLoading] = useState(false)
-  const [downloadingReport, setDownloadingReport] = useState(false)
   const [selectedArea, setSelectedArea] = useState<string>()
   const [selectedWorkloadIntervention, setSelectedWorkloadIntervention] = useState<string>()
   const [selectedDeliveryOwner, setSelectedDeliveryOwner] = useState<string>()
@@ -630,11 +582,11 @@ export const OperationsReportsPage = () => {
   const rangePresets = useMemo(() => {
     const now = dayjs()
     return [
-      { label: 'This month', value: [now.startOf('month'), now.endOf('month')] as [Dayjs, Dayjs] },
-      { label: 'This quarter', value: [now.startOf('quarter'), now.endOf('quarter')] as [Dayjs, Dayjs] },
-      { label: 'Year to date', value: [now.startOf('year'), now] as [Dayjs, Dayjs] },
+      { label: t('This month'), value: [now.startOf('month'), now.endOf('month')] as [Dayjs, Dayjs] },
+      { label: t('This quarter'), value: [now.startOf('quarter'), now.endOf('quarter')] as [Dayjs, Dayjs] },
+      { label: t('Year to date'), value: [now.startOf('year'), now] as [Dayjs, Dayjs] },
     ]
-  }, [])
+  }, [t])
 
   useEffect(() => {
     let mounted = true
@@ -659,7 +611,7 @@ export const OperationsReportsPage = () => {
         setAppointments(appointmentsSnap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Omit<AppointmentDoc, 'id'>) })))
       } catch (error) {
         console.error(error)
-        message.error('Failed to load report data')
+        message.error(t('Failed to load report data'))
       } finally {
         if (mounted) setLoading(false)
       }
@@ -669,7 +621,7 @@ export const OperationsReportsPage = () => {
     return () => {
       mounted = false
     }
-  }, [message, user?.companyCode])
+  }, [message, user?.companyCode, t])
 
   useEffect(() => {
     setAreaPage(1)
@@ -991,14 +943,14 @@ export const OperationsReportsPage = () => {
       subtitle: { text: `${start.format('DD MMM YYYY')} to ${end.format('DD MMM YYYY')}` },
       xAxis: { categories },
       yAxis: [
-        { min: 0, title: { text: 'Revenue' }, labels: { formatter() { return formatCurrencyZAR(Number(this.value)) } } },
-        { min: 0, allowDecimals: false, title: { text: 'Employees' }, opposite: true },
+        { min: 0, title: { text: tr('Revenue') }, labels: { formatter() { return formatCurrencyZAR(Number(this.value)) } } },
+        { min: 0, allowDecimals: false, title: { text: tr('Employees') }, opposite: true },
       ],
       tooltip: { shared: true },
       plotOptions: { column: { borderRadius: 4 }, spline: { marker: { enabled: true } } },
       series: [
-        { name: 'Revenue', type: 'column', yAxis: 0, data: performanceData.trend.map((bucket) => bucket.revenue), tooltip: { valuePrefix: 'R ' } },
-        { name: 'Employees', type: 'spline', yAxis: 1, data: performanceData.trend.map((bucket) => bucket.employees) },
+        { name: tr('Revenue'), type: 'column', yAxis: 0, data: performanceData.trend.map((bucket) => bucket.revenue), tooltip: { valuePrefix: 'R ' } },
+        { name: tr('Employees'), type: 'spline', yAxis: 1, data: performanceData.trend.map((bucket) => bucket.employees) },
       ],
     }
   }, [end, performanceData.trend, start])
@@ -1039,72 +991,72 @@ export const OperationsReportsPage = () => {
   const overviewHighlights = useMemo(() => [
     {
       key: 'applications',
-      label: 'Applications',
+      label: t('Applications'),
       value: `${summary.acceptanceRate}%`,
       meta: `${summary.accepted} of ${summary.submitted} accepted`,
       tone: summary.acceptanceRate >= 50 ? 'good' : 'watch',
     },
     {
       key: 'delivery',
-      label: 'Delivery',
+      label: t('Delivery'),
       value: `${summary.completionRate}%`,
       meta: `${summary.completed} of ${summary.assigned} completed`,
       tone: summary.completionRate >= 60 ? 'good' : 'watch',
     },
     {
       key: 'attendance',
-      label: 'Attendance',
+      label: t('Attendance'),
       value: `${summary.attendanceRate}%`,
       meta: `${summary.attended} present, ${summary.absent} absent`,
       tone: summary.attendanceRate >= 75 ? 'good' : 'watch',
     },
     {
       key: 'compliance',
-      label: 'Compliance',
+      label: t('Compliance'),
       value: String(summary.complianceRisk),
       meta: 'items need follow-up',
       tone: summary.complianceRisk > 0 ? 'risk' : 'good',
     },
-  ], [summary])
+  ], [summary, t])
 
   const overviewActions = useMemo(() => [
     {
       key: 'gap',
-      title: 'Demand gap',
+      title: t('Demand gap'),
       body: summary.topGap,
       target: 'interventions' as ReportView,
       tone: summary.topGap === 'Demand is covered' ? 'good' : 'watch',
     },
     {
       key: 'overdue',
-      title: 'Overdue work',
+      title: t('Overdue work'),
       body: summary.overdue ? `${summary.overdue} assignments need intervention.` : 'No overdue assignments in this period.',
       target: 'interventions' as ReportView,
       tone: summary.overdue ? 'risk' : 'good',
     },
     {
       key: 'attendance',
-      title: 'Attendance capture',
+      title: t('Attendance capture'),
       body: summary.notCaptured ? `${summary.notCaptured} appointments still need attendance captured.` : 'Attendance is captured for all period appointments.',
       target: 'appointments' as ReportView,
       tone: summary.notCaptured ? 'watch' : 'good',
     },
-  ], [summary])
+  ], [summary, t])
 
   const intakeOptions = useMemo<Highcharts.Options>(() => {
     const categories = Array.from(reportData.intakeBuckets.keys())
     return {
       colors: [CHART_COLORS.primary, CHART_COLORS.success],
       chart: { type: 'column', height: 310 },
-      title: { text: 'Application Flow' },
+      title: { text: tr('Application Flow') },
       subtitle: { text: `${start.format('DD MMM YYYY')} to ${end.format('DD MMM YYYY')}` },
       xAxis: { categories },
-      yAxis: { min: 0, title: { text: 'Applications' }, allowDecimals: false },
+      yAxis: { min: 0, title: { text: tr('Applications') }, allowDecimals: false },
       tooltip: { shared: true },
       plotOptions: { column: { borderRadius: 4, dataLabels: { enabled: true } } },
       series: [
-        { name: 'Submitted', type: 'column', data: categories.map((key) => reportData.intakeBuckets.get(key)?.submitted || 0) },
-        { name: 'Accepted', type: 'column', data: categories.map((key) => reportData.intakeBuckets.get(key)?.accepted || 0) },
+        { name: tr('Submitted'), type: 'column', data: categories.map((key) => reportData.intakeBuckets.get(key)?.submitted || 0) },
+        { name: tr('Accepted'), type: 'column', data: categories.map((key) => reportData.intakeBuckets.get(key)?.accepted || 0) },
       ],
     }
   }, [end, reportData.intakeBuckets, start])
@@ -1112,7 +1064,7 @@ export const OperationsReportsPage = () => {
   const interventionHealthOptions = useMemo<Highcharts.Options>(() => ({
     colors: [CHART_COLORS.success, CHART_COLORS.primary, CHART_COLORS.danger, CHART_COLORS.amber],
     chart: { type: 'pie', height: 300 },
-    title: { text: 'Intervention Health' },
+    title: { text: tr('Intervention Health') },
     tooltip: { pointFormat: '<b>{point.y}</b> assignments' },
     plotOptions: {
       pie: {
@@ -1122,7 +1074,7 @@ export const OperationsReportsPage = () => {
     },
     series: [{
       type: 'pie',
-      name: 'Assignments',
+      name: tr('Assignments'),
       data: [
         { name: 'Completed', y: reportData.completedAssignments.length },
         { name: 'In progress', y: reportData.inProgressAssignments.length },
@@ -1142,7 +1094,7 @@ export const OperationsReportsPage = () => {
       legend: { enabled: false },
       tooltip: { pointFormat: '<b>{point.y}</b> appointments' },
       plotOptions: { column: { borderRadius: 4, colorByPoint: true, dataLabels: { enabled: true } } },
-      series: [{ type: 'column', name: 'Appointments', data: [summary.appointments, held] }],
+      series: [{ type: 'column', name: tr('Appointments'), data: [summary.appointments, held] }],
     }
   }, [summary.absent, summary.appointments, summary.attended])
 
@@ -1164,7 +1116,7 @@ export const OperationsReportsPage = () => {
     },
     series: [{
       type: 'pie',
-      name: 'Attendance',
+      name: tr('Attendance'),
       data: [
         { name: 'Present', y: summary.attendanceRate, color: CHART_COLORS.success },
         { name: 'Remaining', y: Math.max(0, 100 - summary.attendanceRate), color: token.colorFillSecondary },
@@ -1181,20 +1133,20 @@ export const OperationsReportsPage = () => {
       subtitle: { text: `${start.format('DD MMM YYYY')} to ${end.format('DD MMM YYYY')}` },
       xAxis: { categories },
       yAxis: [
-        { min: 0, allowDecimals: false, title: { text: 'Appointments' } },
-        { min: 0, max: 100, title: { text: 'Attendance rate' }, labels: { format: '{value}%' }, opposite: true },
+        { min: 0, allowDecimals: false, title: { text: tr('Appointments') } },
+        { min: 0, max: 100, title: { text: tr('Attendance rate') }, labels: { format: '{value}%' }, opposite: true },
       ],
       tooltip: { shared: true },
       plotOptions: { column: { borderRadius: 4, opacity: 0.7 }, spline: { marker: { enabled: true } } },
       series: [
         {
-          name: 'Appointments',
+          name: tr('Appointments'),
           type: 'spline',
           yAxis: 0,
           data: categories.map((key) => reportData.appointmentBuckets.get(key)?.total || 0),
         },
         {
-          name: 'Attendance rate',
+          name: tr('Attendance rate'),
           type: 'column',
           yAxis: 1,
           tooltip: { valueSuffix: '%' },
@@ -1219,18 +1171,18 @@ export const OperationsReportsPage = () => {
       title: { text: undefined },
       subtitle: { text: `${start.format('DD MMM YYYY')} to ${end.format('DD MMM YYYY')}` },
       xAxis: { categories },
-      yAxis: { min: 0, allowDecimals: false, title: { text: 'Interventions' } },
+      yAxis: { min: 0, allowDecimals: false, title: { text: tr('Interventions') } },
       tooltip: { shared: true },
       plotOptions: {
         column: { stacking: 'normal', borderRadius: 4, dataLabels: { enabled: true } },
         spline: { dataLabels: { enabled: true, style: { fontWeight: 'bold', textOutline: 'none' } } },
       },
       series: [
-        { name: 'Assigned', type: 'spline', data: assignedPerBucket, zIndex: 5, marker: { enabled: true } },
-        { name: 'Completed', type: 'column', data: categories.map((key) => reportData.interventionStatusBuckets.get(key)?.completed || 0) },
-        { name: 'In progress', type: 'column', data: categories.map((key) => reportData.interventionStatusBuckets.get(key)?.inProgress || 0) },
-        { name: 'Overdue', type: 'column', data: categories.map((key) => reportData.interventionStatusBuckets.get(key)?.overdue || 0) },
-        { name: 'Not started', type: 'column', data: categories.map((key) => reportData.interventionStatusBuckets.get(key)?.notStarted || 0) },
+        { name: tr('Assigned'), type: 'spline', data: assignedPerBucket, zIndex: 5, marker: { enabled: true } },
+        { name: tr('Completed'), type: 'column', data: categories.map((key) => reportData.interventionStatusBuckets.get(key)?.completed || 0) },
+        { name: tr('In progress'), type: 'column', data: categories.map((key) => reportData.interventionStatusBuckets.get(key)?.inProgress || 0) },
+        { name: tr('Overdue'), type: 'column', data: categories.map((key) => reportData.interventionStatusBuckets.get(key)?.overdue || 0) },
+        { name: tr('Not started'), type: 'column', data: categories.map((key) => reportData.interventionStatusBuckets.get(key)?.notStarted || 0) },
       ],
     }
   }, [end, reportData.interventionStatusBuckets, start])
@@ -1245,12 +1197,12 @@ export const OperationsReportsPage = () => {
     return {
       colors: [CHART_COLORS.cyan],
       chart: { type: 'bar', height: 300 },
-      title: { text: 'Participant Spread' },
+      title: { text: tr('Participant Spread') },
       xAxis: { categories: rows.map(([label]) => label) },
-      yAxis: { min: 0, title: { text: 'Participants' }, allowDecimals: false },
+      yAxis: { min: 0, title: { text: tr('Participants') }, allowDecimals: false },
       legend: { enabled: false },
       plotOptions: { series: { dataLabels: { enabled: true } } },
-      series: [{ name: 'Participants', type: 'bar', data: rows.map(([, count]) => count) }],
+      series: [{ name: tr('Participants'), type: 'bar', data: rows.map(([, count]) => count) }],
     }
   }, [reportData.scopedParticipants])
 
@@ -1263,14 +1215,14 @@ export const OperationsReportsPage = () => {
     const rows = topEntries(counts, 8)
     return {
       chart: { type: 'pie', height: 280 },
-      title: { text: 'Gender Distribution' },
+      title: { text: tr('Gender Distribution') },
       plotOptions: {
         pie: {
           innerSize: '55%',
           dataLabels: { enabled: true, format: '{point.name}: {point.y}' },
         },
       },
-      series: [{ name: 'Participants', type: 'pie', data: rows.map(([name, y]) => ({ name, y })) }],
+      series: [{ name: tr('Participants'), type: 'pie', data: rows.map(([name, y]) => ({ name, y })) }],
     }
   }, [reportData.scopedParticipants])
 
@@ -1283,12 +1235,12 @@ export const OperationsReportsPage = () => {
     const rows = topEntries(counts, 8)
     return {
       chart: { type: 'column', height: 280 },
-      title: { text: 'B-BBEE Levels' },
+      title: { text: tr('B-BBEE Levels') },
       xAxis: { categories: rows.map(([label]) => label) },
-      yAxis: { min: 0, title: { text: 'Participants' }, allowDecimals: false },
+      yAxis: { min: 0, title: { text: tr('Participants') }, allowDecimals: false },
       legend: { enabled: false },
       plotOptions: { column: { borderRadius: 4, colorByPoint: true, dataLabels: { enabled: true } } },
-      series: [{ name: 'Participants', type: 'column', data: rows.map(([, count]) => count) }],
+      series: [{ name: tr('Participants'), type: 'column', data: rows.map(([, count]) => count) }],
     }
   }, [reportData.scopedParticipants])
 
@@ -1302,22 +1254,22 @@ export const OperationsReportsPage = () => {
     return {
       colors: [CHART_COLORS.pink, CHART_COLORS.amber, CHART_COLORS.success],
       chart: { type: 'bar', height: 260 },
-      title: { text: 'Ownership Profile' },
+      title: { text: tr('Ownership Profile') },
       xAxis: { categories: ['Female-owned', 'Youth-owned', 'Black-owned'] },
-      yAxis: { min: 0, max: 100, labels: { format: '{value}%' }, title: { text: 'Average ownership' } },
+      yAxis: { min: 0, max: 100, labels: { format: '{value}%' }, title: { text: tr('Average ownership') } },
       legend: { enabled: false },
       tooltip: { pointFormat: '<b>{point.y:.0f}%</b>' },
       plotOptions: { series: { dataLabels: { enabled: true, format: '{point.y:.0f}%' } } },
-      series: [{ name: 'Average', type: 'bar', data: [female, youth, black] }],
+      series: [{ name: tr('Average'), type: 'bar', data: [female, youth, black] }],
     }
   }, [reportData.scopedParticipants])
 
   const attentionColumns: ColumnsType<AttentionRow> = [
-    { title: 'Issue', dataIndex: 'issue', key: 'issue', width: 140, render: (issue: string, row) => <Tag color={row.severity === 'high' ? 'red' : 'orange'}>{issue}</Tag> },
-    { title: 'Intervention', dataIndex: 'intervention', key: 'intervention' },
-    { title: 'Participant', dataIndex: 'participant', key: 'participant' },
-    { title: 'Owner', dataIndex: 'owner', key: 'owner', width: 170 },
-    { title: 'Due', dataIndex: 'dueDate', key: 'dueDate', width: 130 },
+    { title: t('Issue'), dataIndex: 'issue', key: 'issue', width: 140, render: (issue: string, row) => <Tag color={row.severity === 'high' ? 'red' : 'orange'}>{issue}</Tag> },
+    { title: t('Intervention'), dataIndex: 'intervention', key: 'intervention' },
+    { title: t('Participant'), dataIndex: 'participant', key: 'participant' },
+    { title: t('Owner'), dataIndex: 'owner', key: 'owner', width: 170 },
+    { title: t('Due'), dataIndex: 'dueDate', key: 'dueDate', width: 130 },
   ]
 
   const complianceCounts = useMemo(() => {
@@ -1347,135 +1299,64 @@ export const OperationsReportsPage = () => {
     }), [reportData.scopedAssignments, selectedDeliveryOwner, selectedWorkloadIntervention])
 
   const workloadDrilldownColumns: ColumnsType<AssignmentDoc> = [
-    { title: 'Intervention', key: 'intervention', render: (_, row) => String(row.interventionTitle || row.title || 'Unspecified intervention') },
-    { title: 'SME', key: 'participant', render: (_, row) => String(row.beneficiaryName || row.businessName || row.participantName || 'Participant') },
-    { title: 'Delivery owner', key: 'facilitator', render: (_, row) => { const owner = deliveryOwnerFor(row); return <Tag color={owner.actorType === 'Agent' ? 'purple' : 'blue'}>{owner.actorType} · {owner.name}</Tag> } },
-    { title: 'Workflow', key: 'workflow', render: (_, row) => <Space direction="vertical" size={3}><Tag color={isCompletedAssignment(row) ? 'green' : numberValue(row.progress) >= 100 ? 'purple' : isInProgressAssignment(row) ? 'blue' : 'default'}>{isCompletedAssignment(row) ? 'Completed' : numberValue(row.progress) >= 100 ? 'Awaiting SME confirmation' : isInProgressAssignment(row) ? 'In progress' : 'Assigned'}</Tag><Progress percent={Math.min(100, numberValue(row.progress))} size="small" style={{ width: 110 }} /></Space> },
-    { title: 'Hold-up', key: 'holdUp', render: (_, row) => { const holdUp = assignmentHoldUp(row); const owner = deliveryOwnerFor(row); return <Tag color={holdUp === 'facilitator' ? 'red' : holdUp === 'sme' ? 'gold' : holdUp === 'complete' ? 'green' : 'blue'}>{holdUp === 'facilitator' ? `${owner.actorType} action` : holdUp === 'sme' ? 'Awaiting SME' : holdUp === 'complete' ? 'Completed' : 'In delivery'}</Tag> } },
-    { title: 'Due', key: 'due', render: (_, row) => { const dueDate = toDate(row.dueDate); return <Text type={isDeliveryOwnerRisk(row) ? 'danger' : undefined}>{dueDate ? dayjs(dueDate).format('DD MMM YYYY') : 'No due date'}</Text> } },
+    { title: t('Intervention'), key: 'intervention', render: (_, row) => String(row.interventionTitle || row.title || 'Unspecified intervention') },
+    { title: t('SME'), key: 'participant', render: (_, row) => String(row.beneficiaryName || row.businessName || row.participantName || 'Participant') },
+    { title: t('Delivery owner'), key: 'facilitator', render: (_, row) => { const owner = deliveryOwnerFor(row); return <Tag color={owner.actorType === 'Agent' ? 'purple' : 'blue'}>{owner.actorType} · {owner.name}</Tag> } },
+    { title: t('Workflow'), key: 'workflow', render: (_, row) => <Space direction="vertical" size={3}><Tag color={isCompletedAssignment(row) ? 'green' : numberValue(row.progress) >= 100 ? 'purple' : isInProgressAssignment(row) ? 'blue' : 'default'}>{isCompletedAssignment(row) ? t('Completed') : numberValue(row.progress) >= 100 ? t('Awaiting SME confirmation') : isInProgressAssignment(row) ? t('In progress') : t('Assigned')}</Tag><Progress percent={Math.min(100, numberValue(row.progress))} size="small" style={{ width: 110 }} /></Space> },
+    { title: t('Hold-up'), key: 'holdUp', render: (_, row) => { const holdUp = assignmentHoldUp(row); const owner = deliveryOwnerFor(row); return <Tag color={holdUp === 'facilitator' ? 'red' : holdUp === 'sme' ? 'gold' : holdUp === 'complete' ? 'green' : 'blue'}>{holdUp === 'facilitator' ? `${owner.actorType} action` : holdUp === 'sme' ? t('Awaiting SME') : holdUp === 'complete' ? t('Completed') : t('In delivery')}</Tag> } },
+    { title: t('Due'), key: 'due', render: (_, row) => { const dueDate = toDate(row.dueDate); return <Text type={isDeliveryOwnerRisk(row) ? 'danger' : undefined}>{dueDate ? dayjs(dueDate).format('DD MMM YYYY') : t('No due date')}</Text> } },
   ]
 
-  const downloadReport = async () => {
-    const periodLabel = `${start.format('DD MMM YYYY')} to ${end.format('DD MMM YYYY')}`
-    const preparedFor = user?.companyCode || 'Operations'
-    try {
-      setDownloadingReport(true)
-      const response = await generateOperationsReportInsights({
-        reportTitle: 'Operations Report',
-        periodLabel,
-        companyName: preparedFor,
-        audience: 'operations and project administrators',
-        metrics: {
-          submitted: summary.submitted,
-          accepted: summary.accepted,
-          acceptanceRate: summary.acceptanceRate,
-          participants: summary.participants,
-          assigned: summary.assigned,
-          completed: summary.completed,
-          completionRate: summary.completionRate,
-          overdue: summary.overdue,
-          complianceRisk: summary.complianceRisk,
-          appointments: summary.appointments,
-          attendanceRate: summary.attendanceRate,
-          attended: summary.attended,
-          absent: summary.absent,
-          notCaptured: summary.notCaptured,
+  const buildExportData = (): ReportExportData => {
+    const rate = (value: number) => `${value}%`
+    return {
+      role: user?.role || 'operations',
+      title: 'Operations Report',
+      periodLabel: `${start.format('DD MMM YYYY')} to ${end.format('DD MMM YYYY')}`,
+      organisation: user?.companyCode || undefined,
+      preparedBy: user?.name || user?.displayName || user?.email || 'Operations',
+      kpis: [
+        { label: 'Applications submitted', value: summary.submitted, note: `${rate(summary.acceptanceRate)} accepted` },
+        { label: 'Active participants', value: summary.participants },
+        { label: 'Interventions assigned', value: summary.assigned },
+        { label: 'Interventions completed', value: summary.completed, note: `${rate(summary.completionRate)} completion rate`, tone: summary.completionRate >= 70 ? 'good' : summary.completionRate < 40 && summary.assigned ? 'risk' : 'watch' },
+        { label: 'Overdue interventions', value: summary.overdue, tone: summary.overdue ? 'risk' : 'good' },
+        { label: 'Compliance items needing follow-up', value: summary.complianceRisk, tone: summary.complianceRisk ? 'watch' : 'good' },
+        { label: 'Appointments scheduled', value: summary.appointments },
+        { label: 'Attendance rate', value: rate(summary.attendanceRate), note: `${summary.attended} present, ${summary.absent} absent, ${summary.notCaptured} not captured`, tone: summary.attendanceRate >= 80 ? 'good' : summary.attended + summary.absent && summary.attendanceRate < 60 ? 'risk' : 'watch' },
+      ],
+      tables: [
+        {
+          key: 'demand',
+          title: 'Intervention demand and delivery',
+          columns: [{ key: 'title', label: 'Intervention' }, { key: 'area', label: 'Area of support' }, { key: 'requested', label: 'Requested' }, { key: 'assigned', label: 'Assigned' }, { key: 'completed', label: 'Completed' }, { key: 'gap', label: 'Gap' }, { key: 'completionRate', label: 'Completion %' }],
+          rows: reportData.supportRows.map((row) => ({ ...row })),
         },
-        demandCoverage: reportData.supportRows.slice(0, 10),
-        attentionItems: reportData.attentionRows,
-        attendance: {
-          appointments: summary.appointments,
-          attended: summary.attended,
-          absent: summary.absent,
-          notCaptured: summary.notCaptured,
-          attendanceRate: summary.attendanceRate,
-          rows: reportData.attendanceRows.slice(0, 20),
+        {
+          key: 'attention',
+          title: 'Items needing attention',
+          columns: [{ key: 'intervention', label: 'Intervention' }, { key: 'participant', label: 'SME' }, { key: 'owner', label: 'Owner' }, { key: 'issue', label: 'Issue' }, { key: 'dueDate', label: 'Due' }, { key: 'severity', label: 'Severity' }],
+          rows: reportData.attentionRows.map((row) => ({ ...row })),
         },
-        compliance: {
-          documents: reportData.complianceDocuments.length,
-          exceptions: summary.complianceRisk,
-          statusCounts: Object.fromEntries(complianceCounts),
+        {
+          key: 'owners',
+          title: 'Delivery owner health',
+          columns: [{ key: 'name', label: 'Delivery owner' }, { key: 'actorType', label: 'Type' }, { key: 'assigned', label: 'Assigned' }, { key: 'inProgress', label: 'In progress' }, { key: 'completed', label: 'Completed' }, { key: 'facilitatorHeld', label: 'Held by owner' }, { key: 'health', label: 'Health' }],
+          rows: reportData.facilitatorRows.map((row) => ({ ...row })),
         },
-      })
-
-      const reportBlob = await renderDocxTemplate({
-        report_title: 'Operations Report',
-        report_period: periodLabel,
-        report_period_short: shortPeriodLabel(start, end),
-        prepared_for: preparedFor,
-        prepared_by: user?.name || user?.displayName || user?.email || 'Operations',
-        prepared_date: dayjs().format('DD MMM YYYY'),
-        report_contact_line: [user?.email, preparedFor].filter(Boolean).join('    '),
-        submitted_count: summary.submitted,
-        accepted_count: summary.accepted,
-        completed_count: summary.completed,
-        attendance_rate: `${summary.attendanceRate}%`,
-        executive_summary: response.insights.executiveSummary || 'No executive summary returned.',
-        operational_highlights: multilineList(response.insights.operationalHighlights),
-        demand_coverage_summary: summary.topGap,
-        attendance_summary: response.insights.attendanceSummary || 'No attendance summary returned.',
-        risks_and_mitigations: multilineList(response.insights.risks),
-        action_plan: response.insights.actionPlan?.length
-          ? response.insights.actionPlan.map((item) => `- ${item.action}`).join('\n')
-          : 'No action plan items returned.',
-        demandRows: reportData.supportRows.length
-          ? reportData.supportRows.slice(0, 20).map((row) => ({
-              demand_intervention: row.title,
-              demand_requested: row.requested,
-              demand_assigned: row.assigned,
-              demand_completed: row.completed,
-              demand_gap: row.gap,
-            }))
-          : [{
-              demand_intervention: 'No demand coverage records',
-              demand_requested: '-',
-              demand_assigned: '-',
-              demand_completed: '-',
-              demand_gap: '-',
-            }],
-        attendanceRows: reportData.attendanceRows.length
-          ? reportData.attendanceRows.map((row) => ({
-              attendance_appointment: row.appointment,
-              attendance_participant: row.participant,
-              attendance_program: row.program,
-              attendance_date: row.date,
-              attendance_type: row.meetingType.replace(/\b\w/g, (letter) => letter.toUpperCase()),
-              attendance_status: appointmentStatusLabel(row.status),
-              attendance_result: row.attendance,
-            }))
-          : [{
-              attendance_appointment: 'No appointments',
-              attendance_participant: '-',
-              attendance_program: '-',
-              attendance_date: '-',
-              attendance_type: '-',
-              attendance_status: '-',
-              attendance_result: '-',
-            }],
-        actionPlanRows: response.insights.actionPlan?.length
-          ? response.insights.actionPlan.map((row) => ({
-              action_item: row.action,
-              action_owner: row.owner,
-              action_priority: row.priority,
-              action_due: row.due,
-              action_success_measure: row.successMeasure,
-            }))
-          : [{
-              action_item: 'No action plan items returned',
-              action_owner: '-',
-              action_priority: '-',
-              action_due: '-',
-              action_success_measure: '-',
-            }],
-      })
-      downloadBlob(reportBlob, `${fileSafe(`operations-report-${periodLabel}`)}.docx`)
-      message.success('Report downloaded.')
-    } catch (error) {
-      message.error(error instanceof Error && error.message === 'agent-api-not-configured'
-        ? 'AI report endpoint is not configured.'
-        : 'Report could not be generated.')
-    } finally {
-      setDownloadingReport(false)
+        {
+          key: 'attendance',
+          title: 'Appointments and attendance',
+          columns: [{ key: 'appointment', label: 'Appointment' }, { key: 'participant', label: 'SME' }, { key: 'program', label: 'Programme' }, { key: 'date', label: 'Date' }, { key: 'meetingType', label: 'Type' }, { key: 'status', label: 'Status' }, { key: 'attendance', label: 'Attendance' }],
+          rows: reportData.attendanceRows.map((row) => ({ ...row, status: appointmentStatusLabel(row.status) })),
+        },
+        {
+          key: 'compliance',
+          title: 'Compliance documents by status',
+          columns: [{ key: 'status', label: 'Status' }, { key: 'documents', label: 'Documents' }],
+          rows: complianceCounts.map(([status, documents]) => ({ status, documents })),
+        },
+      ],
     }
   }
 
@@ -1484,16 +1365,16 @@ export const OperationsReportsPage = () => {
       {view === 'overview' && (
         <Row gutter={[16, 16]} className="dashboard-metrics-row operations-reports-metrics">
           <Col xs={12} lg={6}>
-            <DashboardMetricCard loading={loading} icon={<AuditOutlined />} iconClassName="is-applications" label="Submitted" value={summary.submitted} hint={`${summary.acceptanceRate}% accepted`} />
+            <DashboardMetricCard loading={loading} icon={<AuditOutlined />} iconClassName="is-applications" label={t('Submitted')} value={summary.submitted} hint={`${summary.acceptanceRate}% accepted`} />
           </Col>
           <Col xs={12} lg={6}>
-            <DashboardMetricCard loading={loading} icon={<TeamOutlined />} iconClassName="is-participants" label="Participants" value={summary.participants} hint="Accepted or active SMEs" />
+            <DashboardMetricCard loading={loading} icon={<TeamOutlined />} iconClassName="is-participants" label={t('Participants')} value={summary.participants} hint={t('Accepted or active SMEs')} />
           </Col>
           <Col xs={12} lg={6}>
-            <DashboardMetricCard loading={loading} icon={<CheckCircleOutlined />} iconClassName="is-delivery" label="Completed" value={summary.completed} hint={`${summary.completionRate}% delivery rate`} />
+            <DashboardMetricCard loading={loading} icon={<CheckCircleOutlined />} iconClassName="is-delivery" label={t('Completed')} value={summary.completed} hint={`${summary.completionRate}% delivery rate`} />
           </Col>
           <Col xs={12} lg={6}>
-            <DashboardMetricCard loading={loading} icon={<ExclamationCircleOutlined />} iconClassName="is-attention" label="Attention" value={summary.overdue + summary.complianceRisk} hint={`${summary.overdue} overdue, ${summary.complianceRisk} compliance`} />
+            <DashboardMetricCard loading={loading} icon={<ExclamationCircleOutlined />} iconClassName="is-attention" label={t('Attention')} value={summary.overdue + summary.complianceRisk} hint={`${summary.overdue} overdue, ${summary.complianceRisk} compliance`} />
           </Col>
         </Row>
       )}
@@ -1505,13 +1386,13 @@ export const OperationsReportsPage = () => {
               value={view}
               onChange={(value) => setView(value)}
               options={[
-                { label: 'Overview', value: 'overview', icon: <DashboardOutlined /> },
-                { label: 'Applications', value: 'applications', icon: <AuditOutlined /> },
-                { label: 'Interventions', value: 'interventions', icon: <RiseOutlined /> },
-                { label: 'Appointments', value: 'appointments', icon: <CalendarOutlined /> },
-                { label: 'Workload', value: 'workload', icon: <BarChartOutlined /> },
-                { label: 'Participants', value: 'participants', icon: <TeamOutlined /> },
-                { label: 'Performance', value: 'performance', icon: <FundOutlined /> },
+                { label: t('Overview'), value: 'overview', icon: <DashboardOutlined /> },
+                { label: t('Applications'), value: 'applications', icon: <AuditOutlined /> },
+                { label: t('Interventions'), value: 'interventions', icon: <RiseOutlined /> },
+                { label: t('Appointments'), value: 'appointments', icon: <CalendarOutlined /> },
+                { label: t('Workload'), value: 'workload', icon: <BarChartOutlined /> },
+                { label: t('Participants'), value: 'participants', icon: <TeamOutlined /> },
+                { label: t('Performance'), value: 'performance', icon: <FundOutlined /> },
               ]}
             />
             <RangePicker
@@ -1524,18 +1405,14 @@ export const OperationsReportsPage = () => {
             />
           </>
         }
-        actions={
-          <Button type="primary" icon={<DownloadOutlined />} loading={downloadingReport} onClick={() => void downloadReport()}>
-            Download report
-          </Button>
-        }
+        actions={<ReportExportButton buildData={buildExportData} disabled={loading} />}
       />
 
       {view === 'overview' && (
         <>
           <Row gutter={[16, 16]} className="operations-overview-grid">
             <Col xs={24} xl={14}>
-              <Card loading={loading} className="dashboard-section-card motion-card" title="Period Health">
+              <Card loading={loading} className="dashboard-section-card motion-card" title={t('Period Health')}>
                 <div className="operations-health-grid">
                   {overviewHighlights.map((item) => (
                     <button
@@ -1553,7 +1430,7 @@ export const OperationsReportsPage = () => {
               </Card>
             </Col>
             <Col xs={24} xl={10}>
-              <Card loading={loading} className="dashboard-section-card motion-card" title="What Needs Attention">
+              <Card loading={loading} className="dashboard-section-card motion-card" title={t('What Needs Attention')}>
                 <Space direction="vertical" size={10} style={{ width: '100%' }}>
                   {overviewActions.map((item) => (
                     <div className={`operations-action-brief is-${item.tone}`} key={item.key}>
@@ -1561,7 +1438,7 @@ export const OperationsReportsPage = () => {
                         <Text strong>{item.title}</Text>
                         <Text type="secondary">{item.body}</Text>
                       </div>
-                      <Button size="small" onClick={() => setView(item.target)}>Open detail</Button>
+                      <Button size="small" onClick={() => setView(item.target)}>{t('Open detail')}</Button>
                     </div>
                   ))}
                 </Space>
@@ -1575,16 +1452,16 @@ export const OperationsReportsPage = () => {
         <Row gutter={[16, 16]}>
           <Col xs={24} xl={15}>
             <Card loading={loading} className="dashboard-section-card motion-card">
-              {reportData.intakeBuckets.size ? <ThemedHighcharts options={intakeOptions} /> : <Empty description="No applications in this period" />}
+              {reportData.intakeBuckets.size ? <ThemedHighcharts options={intakeOptions} /> : <Empty description={t('No applications in this period')} />}
             </Card>
           </Col>
           <Col xs={24} xl={9}>
             <Card className="dashboard-section-card motion-card operations-insight-card">
               <Space direction="vertical" size={14}>
-                <Title level={4}>Intake Signals</Title>
-                <Alert type="info" showIcon message="Top requested support" description={summary.topDemand} />
-                <Alert type={summary.acceptanceRate >= 50 ? 'success' : 'warning'} showIcon message="Conversion" description={`${summary.acceptanceRate}% of submitted applications were accepted in this scope.`} />
-                <Alert type={summary.topGap === 'Demand is covered' ? 'success' : 'warning'} showIcon message="Demand gap" description={summary.topGap} />
+                <Title level={4}>{t('Intake Signals')}</Title>
+                <Alert type="info" showIcon message={t('Top requested support')} description={summary.topDemand} />
+                <Alert type={summary.acceptanceRate >= 50 ? 'success' : 'warning'} showIcon message={t('Conversion')} description={`${summary.acceptanceRate}% of submitted applications were accepted in this scope.`} />
+                <Alert type={summary.topGap === 'Demand is covered' ? 'success' : 'warning'} showIcon message={t('Demand gap')} description={summary.topGap} />
               </Space>
             </Card>
           </Col>
@@ -1596,15 +1473,15 @@ export const OperationsReportsPage = () => {
           <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
             <Col xs={24} lg={8}>
               <Card loading={loading} className="dashboard-section-card motion-card">
-                {reportData.scopedAssignments.length ? <ThemedHighcharts options={interventionHealthOptions} /> : <Empty description="No assigned interventions" />}
+                {reportData.scopedAssignments.length ? <ThemedHighcharts options={interventionHealthOptions} /> : <Empty description={t('No assigned interventions')} />}
               </Card>
             </Col>
             <Col xs={24} lg={16}>
               <Card
                 loading={loading}
                 className="dashboard-section-card motion-card"
-                title={selectedArea ? <Space><RiseOutlined /> {`Demand Coverage — ${selectedArea}`}</Space> : 'Demand vs Delivery by Support Area'}
-                extra={selectedArea && <Button size="small" icon={<ArrowLeftOutlined />} onClick={() => setSelectedArea(undefined)}>Back to areas</Button>}
+                title={selectedArea ? <Space><RiseOutlined /> {`Demand Coverage — ${selectedArea}`}</Space> : t('Demand vs Delivery by Support Area')}
+                extra={selectedArea && <Button size="small" icon={<ArrowLeftOutlined />} onClick={() => setSelectedArea(undefined)}>{t('Back to areas')}</Button>}
               >
                 {selectedArea ? (
                   interventionCoverageRows.length ? (
@@ -1615,7 +1492,7 @@ export const OperationsReportsPage = () => {
                         </Col>
                       ))}
                     </Row>
-                  ) : <Empty description="No intervention demand has been recorded for this area." />
+                  ) : <Empty description={t('No intervention demand has been recorded for this area.')} />
                 ) : reportData.areaRows.length ? (
                   <>
                     <Row gutter={[10, 10]}>
@@ -1631,29 +1508,29 @@ export const OperationsReportsPage = () => {
                       </div>
                     )}
                   </>
-                ) : <Empty description="No support-area data" />}
+                ) : <Empty description={t('No support-area data')} />}
               </Card>
             </Col>
           </Row>
 
           <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
             <Col span={24}>
-              <Card loading={loading} className="dashboard-section-card motion-card" title={<Space><BarChartOutlined /> Intervention Status Over Time</Space>}>
-                {reportData.interventionStatusBuckets.size ? <ThemedHighcharts options={interventionStatusTrendOptions} /> : <Empty description="No assigned interventions in this report period" />}
+              <Card loading={loading} className="dashboard-section-card motion-card" title={<Space><BarChartOutlined /> {t('Intervention Status Over Time')}</Space>}>
+                {reportData.interventionStatusBuckets.size ? <ThemedHighcharts options={interventionStatusTrendOptions} /> : <Empty description={t('No assigned interventions in this report period')} />}
               </Card>
             </Col>
           </Row>
 
           <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
             <Col span={24}>
-              <Card loading={loading} className="dashboard-section-card motion-card" title={<Space><ClockCircleOutlined /> Needs Attention</Space>}>
+              <Card loading={loading} className="dashboard-section-card motion-card" title={<Space><ClockCircleOutlined /> {t('Needs Attention')}</Space>}>
                 <Table
                   size="middle"
                   rowKey="key"
                   columns={attentionColumns}
                   dataSource={reportData.attentionRows}
                   pagination={false}
-                  locale={{ emptyText: 'No overdue or stalled assignments in this period.' }}
+                  locale={{ emptyText: t('No overdue or stalled assignments in this period.') }}
                   scroll={{ x: 760 }}
                 />
               </Card>
@@ -1665,30 +1542,30 @@ export const OperationsReportsPage = () => {
       {view === 'appointments' && (
         <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
           <Col xs={24} lg={14}>
-            <Card className="dashboard-section-card motion-card" title={<Space><ClockCircleOutlined /> Appointment Health</Space>}>
+            <Card className="dashboard-section-card motion-card" title={<Space><ClockCircleOutlined /> {t('Appointment Health')}</Space>}>
               {summary.appointments ? (
                 <>
                   <ThemedHighcharts options={appointmentHealthOptions} />
                   <Text type="secondary">
                     {summary.notCaptured
                       ? `${summary.notCaptured} appointment${summary.notCaptured === 1 ? '' : 's'} still awaiting attendance capture.`
-                      : 'Attendance has been captured for every appointment in this period.'}
+                      : t('Attendance has been captured for every appointment in this period.')}
                   </Text>
                 </>
-              ) : <Empty description="No appointments were scheduled in this report period." />}
+              ) : <Empty description={t('No appointments were scheduled in this report period.')} />}
             </Card>
           </Col>
           <Col xs={24} lg={10}>
-            <Card className="dashboard-section-card motion-card" title={<Space><CheckCircleOutlined /> Attendance Rate</Space>}>
+            <Card className="dashboard-section-card motion-card" title={<Space><CheckCircleOutlined /> {t('Attendance Rate')}</Space>}>
               {summary.attended + summary.absent ? (
                 <div style={{ position: 'relative' }}>
                   <ThemedHighcharts options={attendanceGaugeOptions} />
                   <div style={{ position: 'absolute', left: 0, right: 0, top: '66%', textAlign: 'center', pointerEvents: 'none' }}>
                     <Typography.Text strong style={{ fontSize: 30, display: 'block', lineHeight: 1 }}>{summary.attendanceRate}%</Typography.Text>
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>{summary.attended} present · {summary.absent} absent of {summary.attended + summary.absent} held</Typography.Text>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>{summary.attended} {t('present ·')} {summary.absent} {t('absent of')} {summary.attended + summary.absent} {t('held')}</Typography.Text>
                   </div>
                 </div>
-              ) : <Empty description="No appointments have been held yet in this period." />}
+              ) : <Empty description={t('No appointments have been held yet in this period.')} />}
             </Card>
           </Col>
         </Row>
@@ -1697,8 +1574,8 @@ export const OperationsReportsPage = () => {
       {view === 'appointments' && (
         <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
           <Col span={24}>
-            <Card className="dashboard-section-card motion-card" title={<Space><RiseOutlined /> Appointments Over Time</Space>}>
-              {reportData.appointmentBuckets.size ? <ThemedHighcharts options={appointmentTrendOptions} /> : <Empty description="No appointments were scheduled in this report period." />}
+            <Card className="dashboard-section-card motion-card" title={<Space><RiseOutlined /> {t('Appointments Over Time')}</Space>}>
+              {reportData.appointmentBuckets.size ? <ThemedHighcharts options={appointmentTrendOptions} /> : <Empty description={t('No appointments were scheduled in this report period.')} />}
             </Card>
           </Col>
         </Row>
@@ -1729,7 +1606,7 @@ export const OperationsReportsPage = () => {
           <Col xs={24}>
             <Card className="dashboard-section-card motion-card operations-insight-card">
               <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                <Title level={4}>Compliance Status</Title>
+                <Title level={4}>{t('Compliance Status')}</Title>
                 {complianceCounts.length ? complianceCounts.map(([status, count]) => (
                   <div className="operations-status-row" key={status}>
                     <Space>
@@ -1738,11 +1615,11 @@ export const OperationsReportsPage = () => {
                     </Space>
                     <Tag color={complianceStatusColor(status)}>{count}</Tag>
                   </div>
-                )) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No compliance documents found" />}
+                )) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('No compliance documents found')} />}
                 <Alert
                   type={summary.complianceRisk > 0 ? 'warning' : 'success'}
                   showIcon
-                  message={summary.complianceRisk > 0 ? 'Compliance follow-up required' : 'No compliance exceptions'}
+                  message={summary.complianceRisk > 0 ? t('Compliance follow-up required') : t('No compliance exceptions')}
                   description={`${summary.complianceRisk} document${summary.complianceRisk === 1 ? '' : 's'} need attention in this report scope.`}
                 />
               </Space>
@@ -1754,14 +1631,14 @@ export const OperationsReportsPage = () => {
       {view === 'workload' && (
         <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
           <Col xs={24} xl={15}>
-            <Card loading={loading} className="dashboard-section-card motion-card" title={<Space><BarChartOutlined /> Delivery workload</Space>} extra={<Text type="secondary">Click a facilitator or agent to open assigned interventions</Text>}>
-              {reportData.facilitatorRows.length ? <div className="operations-workload-grid">{reportData.facilitatorRows.map((row) => <DeliveryOwnerWorkloadCard key={row.key} row={row} onClick={() => { setSelectedWorkloadIntervention(undefined); setSelectedDeliveryOwner(row.name) }} />)}</div> : <Empty description="No facilitator or agent workload in this period" />}
+            <Card loading={loading} className="dashboard-section-card motion-card" title={<Space><BarChartOutlined /> {t('Delivery workload')}</Space>} extra={<Text type="secondary">{t('Click a facilitator or agent to open assigned interventions')}</Text>}>
+              {reportData.facilitatorRows.length ? <div className="operations-workload-grid">{reportData.facilitatorRows.map((row) => <DeliveryOwnerWorkloadCard key={row.key} row={row} onClick={() => { setSelectedWorkloadIntervention(undefined); setSelectedDeliveryOwner(row.name) }} />)}</div> : <Empty description={t('No facilitator or agent workload in this period')} />}
             </Card>
           </Col>
           <Col xs={24} xl={9}>
-            <Card loading={loading} className="dashboard-section-card motion-card" title={<Space><TeamOutlined /> Facilitator & agent health</Space>} extra={<Text type="secondary">Only owner-held delays add risk</Text>}>
-              {reportData.facilitatorRows.length ? <div className="operations-facilitator-list">{reportData.facilitatorRows.map((row) => <FacilitatorHealthCard key={row.key} row={row} onClick={() => { setSelectedWorkloadIntervention(undefined); setSelectedDeliveryOwner(row.name) }} />)}</div> : <Empty description="No facilitator or agent workload in this period" />}
-              <Text type="secondary" style={{ display: 'block', marginTop: 12 }}>Awaiting SME acceptance or completion confirmation remains visible, but does not lower the facilitator or agent health score.</Text>
+            <Card loading={loading} className="dashboard-section-card motion-card" title={<Space><TeamOutlined /> {t('Facilitator & agent health')}</Space>} extra={<Text type="secondary">{t('Only owner-held delays add risk')}</Text>}>
+              {reportData.facilitatorRows.length ? <div className="operations-facilitator-list">{reportData.facilitatorRows.map((row) => <FacilitatorHealthCard key={row.key} row={row} onClick={() => { setSelectedWorkloadIntervention(undefined); setSelectedDeliveryOwner(row.name) }} />)}</div> : <Empty description={t('No facilitator or agent workload in this period')} />}
+              <Text type="secondary" style={{ display: 'block', marginTop: 12 }}>{t('Awaiting SME acceptance or completion confirmation remains visible, but does not lower the facilitator or agent health score.')}</Text>
             </Card>
           </Col>
         </Row>
@@ -1771,7 +1648,7 @@ export const OperationsReportsPage = () => {
           <Col xs={24} lg={12}>
             <PerformanceStatCard
               loading={loading}
-              title="Revenue"
+              title={t('Revenue')}
               icon={<DollarCircleOutlined />}
               formattedValue={formatCurrencyZAR(performanceData.revenue.current)}
               deltaLabel={performanceData.revenue.delta.label}
@@ -1783,7 +1660,7 @@ export const OperationsReportsPage = () => {
           <Col xs={24} lg={12}>
             <PerformanceStatCard
               loading={loading}
-              title="Employees"
+              title={t('Employees')}
               icon={<TeamOutlined />}
               formattedValue={formatMetricNumber(performanceData.employees.current)}
               deltaLabel={performanceData.employees.delta.label}
@@ -1793,15 +1670,15 @@ export const OperationsReportsPage = () => {
             />
           </Col>
           <Col span={24}>
-            <Card loading={loading} className="dashboard-section-card motion-card" title={<Space><FundOutlined /> Revenue & Employees Trend</Space>}>
-              {performanceData.smeCount ? <ThemedHighcharts options={performanceTrendOptions} /> : <Empty description="No SME revenue or employee data in this report period." />}
+            <Card loading={loading} className="dashboard-section-card motion-card" title={<Space><FundOutlined /> {t('Revenue & Employees Trend')}</Space>}>
+              {performanceData.smeCount ? <ThemedHighcharts options={performanceTrendOptions} /> : <Empty description={t('No SME revenue or employee data in this report period.')} />}
             </Card>
           </Col>
         </Row>
       )}
 
       <Modal open={!!selectedWorkloadIntervention || !!selectedDeliveryOwner} title={selectedWorkloadIntervention ? `${selectedWorkloadIntervention} — delivery status` : `${selectedDeliveryOwner} — assigned interventions`} onCancel={() => { setSelectedWorkloadIntervention(undefined); setSelectedDeliveryOwner(undefined) }} footer={null} width={1100} destroyOnClose>
-        <Table rowKey="id" dataSource={workloadDrilldownRows} columns={workloadDrilldownColumns} pagination={{ pageSize: 5, showSizeChanger: false, position: ['bottomCenter'] }} locale={{ emptyText: 'No assignments match this workload selection.' }} scroll={{ x: 880 }} />
+        <Table rowKey="id" dataSource={workloadDrilldownRows} columns={workloadDrilldownColumns} pagination={{ pageSize: 5, showSizeChanger: false, position: ['bottomCenter'] }} locale={{ emptyText: t('No assignments match this workload selection.') }} scroll={{ x: 880 }} />
       </Modal>
     </DashboardPage>
   )

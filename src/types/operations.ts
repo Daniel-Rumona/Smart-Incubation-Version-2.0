@@ -36,6 +36,7 @@ export type ManagedUser = {
   status: 'active' | 'inactive'
   companyCode?: string
   permissions?: IdentityPermission[]
+  photoUrl?: string
   phone?: string
   alternativePhone?: string
   phoneIsWhatsApp?: boolean

@@ -19,7 +19,7 @@ import DashboardPageShell from '@/components/shared/DashboardPage'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
-import { useLanguage } from '@/providers/LanguageProvider'
+import { useLanguage, tr, tEnglish } from '@/providers/LanguageProvider'
 import { getApplicantProfileBundle, isApplicantProfileComplete, saveApplicantProfile } from '@/services/applicantService'
 import type { ApplicantProfile, ApplicantProfileBundle, ApplicantProfileInput } from '@/types/applicant'
 import ApplicantProfileAIAssist from '@/components/applicant/ApplicantProfileAIAssist'
@@ -65,12 +65,12 @@ export type ApplicantProfileFormValues = Partial<Omit<ApplicantProfile, 'id' | '
 }
 
 const stepItems = [
-    { title: 'Personal', icon: <UserOutlined /> },
-    { title: 'Contact', icon: <PhoneOutlined /> },
-    { title: 'Business', icon: <ShopOutlined /> },
-    { title: 'Compliance', icon: <FileProtectOutlined /> },
-    { title: 'Location', icon: <EnvironmentOutlined /> },
-    { title: 'Review', icon: <CheckCircleOutlined /> },
+    { get title() { return tr('Personal') }, icon: <UserOutlined /> },
+    { get title() { return tr('Contact') }, icon: <PhoneOutlined /> },
+    { get title() { return tr('Business') }, icon: <ShopOutlined /> },
+    { get title() { return tr('Compliance') }, icon: <FileProtectOutlined /> },
+    { get title() { return tr('Location') }, icon: <EnvironmentOutlined /> },
+    { get title() { return tr('Review') }, icon: <CheckCircleOutlined /> },
 ]
 
 const requiredProfileFields: Array<keyof ApplicantProfileFormValues> = [
@@ -199,8 +199,8 @@ export const ApplicantProfilePage = () => {
 
     useRegisterAgentPageContext({
         pageKey: 'applicant-profile',
-        pageName: t('applicant.profile.title', 'Applicant Profile'),
-        purpose: t('applicant.profile.subtitle', 'Complete personal, business, compliance, and operating details for applications.'),
+        pageName: tEnglish('applicant.profile.title', 'Applicant Profile'),
+        purpose: tEnglish('applicant.profile.subtitle', 'Complete personal, business, compliance, and operating details for applications.'),
         currentFilters: { inputMode: activeMode, activeStep: stepItems[activeStep]?.title || 'Unknown' },
         metrics: {
             profileSaved: hasProfile,
@@ -217,8 +217,8 @@ export const ApplicantProfilePage = () => {
         allowedActions: [
             {
                 key: 'save_applicant_profile',
-                label: 'Save applicant profile',
-                description: 'Save the applicant profile using the applicant service.',
+                label: t('Save applicant profile'),
+                description: t('Save the applicant profile using the applicant service.'),
             },
         ],
         updatedAt: new Date().toISOString(),
@@ -265,7 +265,7 @@ export const ApplicantProfilePage = () => {
             if (values.gender !== 'Male' && values.gender !== 'Female') {
                 form.setFields([{ name: 'gender', errors: ['Gender must be Male or Female'] }])
                 setActiveStep(0)
-                message.error('Gender must be Male or Female')
+                message.error(t('Gender must be Male or Female'))
                 return
             }
 
@@ -330,13 +330,13 @@ export const ApplicantProfilePage = () => {
                             block={isMobile}
                             onChange={(value) => setActiveMode(value as ApplicantInputMode)}
                             options={[
-                                { label: 'Manual', value: 'manual', icon: <FormOutlined /> },
-                                { label: 'AI Assist', value: 'ai', icon: <RobotOutlined /> },
+                                { label: t('Manual'), value: 'manual', icon: <FormOutlined /> },
+                                { label: t('AI Assist'), value: 'ai', icon: <RobotOutlined /> },
                             ]}
                         />
                         <div className="applicant-profile-progress">
                             <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
-                                <Text type="secondary">Profile completion</Text>
+                                <Text type="secondary">{t('Profile completion')}</Text>
                                 <Text strong>{completion}%</Text>
                             </Space>
                             <Progress percent={completion} showInfo={false} size="small" status={completion >= 100 ? 'success' : 'active'} />
@@ -404,13 +404,13 @@ export const ApplicantProfilePage = () => {
 
                             <div className="applicant-profile-actions">
                                 <Button icon={<ArrowLeftOutlined />} disabled={activeStep === 0} onClick={() => goToStep(activeStep - 1)}>
-                                    Previous
+                                    {t('Previous')}
                                 </Button>
 
                                 <Space className="applicant-profile-actions-right">
                                     {activeStep < stepItems.length - 1 ? (
                                         <Button type="primary" icon={<ArrowRightOutlined />} iconPosition="end" onClick={() => goToStep(activeStep + 1)}>
-                                            Next
+                                            {t('Next')}
                                         </Button>
                                     ) : null}
 

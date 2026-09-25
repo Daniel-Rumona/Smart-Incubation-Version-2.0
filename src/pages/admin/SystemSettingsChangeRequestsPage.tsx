@@ -10,6 +10,7 @@ import { listSystemSettingsChangeRequests, reviewSystemSettingsChangeRequest } f
 import { useRegisterAgentPageContext } from '@/shared/hooks/useRegisterAgentPageContext'
 import type { ChangeRequestStatus, InterventionDeliveryRole, SystemSettingsChangeRequest } from '@/types/companySettings'
 import '@/styles/dashboard.css'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 const { Text } = Typography
 
@@ -18,6 +19,7 @@ const formatDate = (value?: Date) => value ? value.toLocaleString('en-ZA') : 'No
 const roleLabel: Record<InterventionDeliveryRole, string> = { consultant: 'Consultants', projectadmin: 'Project Admins', operations: 'Operations' }
 
 export const SystemSettingsChangeRequestsPage = () => {
+  const { t } = useLanguage()
   const { message } = App.useApp()
   const { user } = useFullIdentity()
   const [rows, setRows] = useState<SystemSettingsChangeRequest[]>([])
@@ -35,7 +37,7 @@ export const SystemSettingsChangeRequestsPage = () => {
       setRows(await listSystemSettingsChangeRequests(user))
     } catch (error) {
       console.error(error)
-      message.error('Change requests could not be loaded.')
+      message.error(t('Change requests could not be loaded.'))
       setRows([])
     } finally {
       setLoading(false)
@@ -82,34 +84,34 @@ export const SystemSettingsChangeRequestsPage = () => {
       await load()
     } catch (error) {
       console.error(error)
-      message.error('The review could not be submitted.')
+      message.error(t('The review could not be submitted.'))
     } finally {
       setSubmitting(false)
     }
   }
 
   const columns = [
-    { title: 'Company', dataIndex: 'companyName', render: (_: string, row: SystemSettingsChangeRequest) => <Space direction="vertical" size={0}><Text strong>{row.companyName || row.companyCode}</Text><Text type="secondary">{row.companyCode}</Text></Space> },
-    { title: 'Requested by', dataIndex: 'requestedByEmail' },
-    { title: 'Requested', dataIndex: 'requestedAt', render: (value?: Date) => formatDate(value) },
-    { title: 'Status', dataIndex: 'status', render: (value: ChangeRequestStatus) => <Tag color={statusColor(value)}>{value.toUpperCase()}</Tag> },
-    { title: 'Request', dataIndex: 'reason', render: (value: string) => <Text>{value}</Text> },
+    { title: t('Company'), dataIndex: 'companyName', render: (_: string, row: SystemSettingsChangeRequest) => <Space direction="vertical" size={0}><Text strong>{row.companyName || row.companyCode}</Text><Text type="secondary">{row.companyCode}</Text></Space> },
+    { title: t('Requested by'), dataIndex: 'requestedByEmail' },
+    { title: t('Requested'), dataIndex: 'requestedAt', render: (value?: Date) => formatDate(value) },
+    { title: t('Status'), dataIndex: 'status', render: (value: ChangeRequestStatus) => <Tag color={statusColor(value)}>{value.toUpperCase()}</Tag> },
+    { title: t('Request'), dataIndex: 'reason', render: (value: string) => <Text>{value}</Text> },
     {
       title: '',
       key: 'actions',
       align: 'right' as const,
       render: (_: unknown, row: SystemSettingsChangeRequest) => row.status === 'pending' ? (
         <Space>
-          <Button size="small" type="primary" icon={<CheckOutlined />} onClick={() => openReview(row, 'approved')}>Accept</Button>
-          <Button size="small" danger icon={<CloseOutlined />} onClick={() => openReview(row, 'declined')}>Decline</Button>
+          <Button size="small" type="primary" icon={<CheckOutlined />} onClick={() => openReview(row, 'approved')}>{t('Accept')}</Button>
+          <Button size="small" danger icon={<CloseOutlined />} onClick={() => openReview(row, 'declined')}>{t('Decline')}</Button>
         </Space>
-      ) : <Text type="secondary">Reviewed</Text>,
+      ) : <Text type="secondary">{t('Reviewed')}</Text>,
     },
   ]
 
   return (
     <DashboardPage>
-      {loading && <LoadingOverlay tip="Loading change requests" />}
+      {loading && <LoadingOverlay tip={t('Loading change requests')} />}
 
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         <div className="dashboard-metrics-row">
@@ -129,18 +131,18 @@ export const SystemSettingsChangeRequestsPage = () => {
         </div>
 
         <FilterBar
-          title="Request queue"
-          primary={<Alert type="info" showIcon message="Accepting or declining sends the requester an email and updates their request history." />}
-          actions={<Button icon={<ReloadOutlined />} onClick={() => void load()}>Refresh</Button>}
+          title={t('Request queue')}
+          primary={<Alert type="info" showIcon message={t('Accepting or declining sends the requester an email and updates their request history.')} />}
+          actions={<Button icon={<ReloadOutlined />} onClick={() => void load()}>{t('Refresh')}</Button>}
         />
 
-        <Card className="dashboard-section-card motion-card" title={<Space><SettingOutlined /> Company Setup Requests</Space>}>
+        <Card className="dashboard-section-card motion-card" title={<Space><SettingOutlined /> {t('Company Setup Requests')}</Space>}>
           {filteredRows.length ? (
             <ResponsiveDataView
               rowKey="id"
               rows={filteredRows}
               columns={columns}
-              emptyText="No company setup change requests found."
+              emptyText={t('No company setup change requests found.')}
               renderCard={row => (
                 <Space direction="vertical" className="dashboard-mobile-record">
                   <Space><Tag color={statusColor(row.status)}>{row.status.toUpperCase()}</Tag><Text>{formatDate(row.requestedAt)}</Text></Space>
@@ -149,21 +151,21 @@ export const SystemSettingsChangeRequestsPage = () => {
                   <Text>{row.reason}</Text>
                   {row.status === 'pending' && (
                     <Space>
-                      <Button size="small" type="primary" icon={<CheckOutlined />} onClick={() => openReview(row, 'approved')}>Accept</Button>
-                      <Button size="small" danger icon={<CloseOutlined />} onClick={() => openReview(row, 'declined')}>Decline</Button>
+                      <Button size="small" type="primary" icon={<CheckOutlined />} onClick={() => openReview(row, 'approved')}>{t('Accept')}</Button>
+                      <Button size="small" danger icon={<CloseOutlined />} onClick={() => openReview(row, 'declined')}>{t('Decline')}</Button>
                     </Space>
                   )}
                 </Space>
               )}
             />
-          ) : <Empty description="No company setup change requests found." />}
+          ) : <Empty description={t('No company setup change requests found.')} />}
         </Card>
       </Space>
 
       <Modal
         open={!!selected}
-        title={decision === 'approved' ? 'Accept Change Request' : 'Decline Change Request'}
-        okText={decision === 'approved' ? 'Accept & Email' : 'Decline & Email'}
+        title={decision === 'approved' ? t('Accept Change Request') : t('Decline Change Request')}
+        okText={decision === 'approved' ? t('Accept & Email') : t('Decline & Email')}
         okButtonProps={{ danger: decision === 'declined' }}
         confirmLoading={submitting}
         onOk={submitReview}
@@ -173,16 +175,16 @@ export const SystemSettingsChangeRequestsPage = () => {
         {selected && (
           <Space direction="vertical" size={12} style={{ width: '100%' }}>
             <Descriptions bordered size="small" column={1}>
-              <Descriptions.Item label="Company">{selected.companyName || selected.companyCode}</Descriptions.Item>
-              <Descriptions.Item label="Requester">{selected.requestedByEmail}</Descriptions.Item>
-              <Descriptions.Item label="Request">{selected.reason}</Descriptions.Item>
-              {selected.requestedInterventionDeliveryRoles?.length && <Descriptions.Item label="Intervention delivery roles"><Space wrap>{selected.requestedInterventionDeliveryRoles.map(role => <Tag key={role}>{roleLabel[role]}</Tag>)}</Space></Descriptions.Item>}
+              <Descriptions.Item label={t('Company')}>{selected.companyName || selected.companyCode}</Descriptions.Item>
+              <Descriptions.Item label={t('Requester')}>{selected.requestedByEmail}</Descriptions.Item>
+              <Descriptions.Item label={t('Request')}>{selected.reason}</Descriptions.Item>
+              {selected.requestedInterventionDeliveryRoles?.length && <Descriptions.Item label={t('Intervention delivery roles')}><Space wrap>{selected.requestedInterventionDeliveryRoles.map(role => <Tag key={role}>{roleLabel[role]}</Tag>)}</Space></Descriptions.Item>}
             </Descriptions>
             <Form form={form} layout="vertical">
               <Form.Item
                 name="adminResponse"
-                label="Response to requester"
-                rules={[{ required: true, message: 'Add a response for the requester.' }]}
+                label={t('Response to requester')}
+                rules={[{ required: true, message: tr('Add a response for the requester.') }]}
               >
                 <Input.TextArea rows={4} />
               </Form.Item>

@@ -23,6 +23,7 @@ import {
     type AppointmentStatus,
     type MeetingType,
 } from '@/components/interventions/appointmentSchedule'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 const { Text } = Typography
 const { useBreakpoint } = Grid
@@ -40,6 +41,8 @@ type Props = {
     interventionDueItems: InterventionDueItem[]
     loading?: boolean
     onViewSchedule?: () => void
+    /** Scope appointments to those assigned to this user (consultants see only their own, and need no company code). */
+    assigneeUid?: string
 }
 
 type AppointmentRow = {
@@ -78,10 +81,10 @@ const KIND_LABEL: Record<AgendaKind, string> = {
 }
 
 const TASK_PRIORITY_META: Record<OperationsTaskPriority, { label: string; color: string }> = {
-    low: { label: 'Low priority', color: 'green' },
-    medium: { label: 'Medium priority', color: 'blue' },
-    high: { label: 'High priority', color: 'orange' },
-    urgent: { label: 'Urgent', color: 'red' },
+    low: { get label() { return tr('Low priority') }, color: 'green' },
+    medium: { get label() { return tr('Medium priority') }, color: 'blue' },
+    high: { get label() { return tr('High priority') }, color: 'orange' },
+    urgent: { get label() { return tr('Urgent') }, color: 'red' },
 }
 
 const meetingIcon = (value?: MeetingType) => {
@@ -96,7 +99,8 @@ const meetingIcon = (value?: MeetingType) => {
  * due date falls outside the visible week (including ones overdue from an earlier week) simply
  * don't have a matching day tile, so they drop off the calendar on their own.
  */
-export const UpcomingWeekCard = ({ interventionDueItems, loading: interventionsLoading = false, onViewSchedule }: Props) => {
+export const UpcomingWeekCard = ({ interventionDueItems, loading: interventionsLoading = false, onViewSchedule, assigneeUid }: Props) => {
+    const { t } = useLanguage()
     const { token } = theme.useToken()
     const screens = useBreakpoint()
     const isMobile = !screens.md
@@ -119,10 +123,13 @@ export const UpcomingWeekCard = ({ interventionDueItems, loading: interventionsL
     }, [])
 
     useEffect(() => {
-        if (!user?.companyCode) { setAppointments([]); setAppointmentsLoading(false); return }
+        if (!assigneeUid && !user?.companyCode) { setAppointments([]); setAppointmentsLoading(false); return }
         let active = true
         setAppointmentsLoading(true)
-        void getDocs(query(collection(db, 'appointments'), where('companyCode', '==', user.companyCode)))
+        const appointmentsQuery = assigneeUid
+            ? query(collection(db, 'appointments'), where('assigneeId', '==', assigneeUid))
+            : query(collection(db, 'appointments'), where('companyCode', '==', user?.companyCode))
+        void getDocs(appointmentsQuery)
             .then((snapshot) => {
                 if (!active) return
                 setAppointments(snapshot.docs.map((row) => ({ id: row.id, ...(row.data() as Omit<AppointmentRow, 'id'>) })))
@@ -130,7 +137,7 @@ export const UpcomingWeekCard = ({ interventionDueItems, loading: interventionsL
             .catch(() => { if (active) setAppointments([]) })
             .finally(() => { if (active) setAppointmentsLoading(false) })
         return () => { active = false }
-    }, [user?.companyCode])
+    }, [assigneeUid, user?.companyCode])
 
     useEffect(() => {
         if (!user?.companyCode) { setTasks([]); setTasksLoading(false); return }
@@ -162,8 +169,8 @@ export const UpcomingWeekCard = ({ interventionDueItems, loading: interventionsL
                     kind: 'appointment',
                     day: start.format('YYYY-MM-DD'),
                     sortAt: start.valueOf(),
-                    title: row.interventionTitle || 'Appointment',
-                    subtitle: row.participantName || 'Participant',
+                    title: row.interventionTitle || t('Appointment'),
+                    subtitle: row.participantName || t('Participant'),
                     timeLabel: end?.isValid() && end.isAfter(start) ? `${start.format('HH:mm')} – ${end.format('HH:mm')}` : start.format('HH:mm'),
                     tagLabel: appointmentStatusLabel(status),
                     tagColor: appointmentStatusColor(status),
@@ -187,7 +194,7 @@ export const UpcomingWeekCard = ({ interventionDueItems, loading: interventionsL
                     day: due.format('YYYY-MM-DD'),
                     sortAt: due.valueOf(),
                     title: task.title,
-                    subtitle: task.description || 'Operations task',
+                    subtitle: task.description || t('Operations task'),
                     timeLabel: `Due ${due.format('HH:mm')}`,
                     tagLabel: priorityMeta.label,
                     tagColor: priorityMeta.color,
@@ -225,7 +232,7 @@ export const UpcomingWeekCard = ({ interventionDueItems, loading: interventionsL
         })
 
         return items
-    }, [activeProgramId, appointments, interventionDueItems, navigate, onViewSchedule, tasks, token, user])
+    }, [activeProgramId, appointments, interventionDueItems, navigate, onViewSchedule, tasks, token, user, t])
 
     const itemsByDay = useMemo(() => {
         const map = new Map<string, AgendaItem[]>()
@@ -352,12 +359,12 @@ export const UpcomingWeekCard = ({ interventionDueItems, loading: interventionsL
             title={(
                 <Space size={8}>
                     <CalendarOutlined />
-                    <span>Upcoming Week</span>
+                    <span>{t('Upcoming Week')}</span>
                 </Space>
             )}
             extra={onViewSchedule || navigate ? (
                 <Button size="small" onClick={() => (onViewSchedule ? onViewSchedule() : navigate('/operations/interventions/appointments'))}>
-                    View schedule
+                    {t('View schedule')}
                 </Button>
             ) : null}
         >
@@ -392,7 +399,7 @@ export const UpcomingWeekCard = ({ interventionDueItems, loading: interventionsL
                                 onRow={(row) => ({ onClick: row.onClick, style: { cursor: 'pointer' } })}
                                 columns={[
                                     {
-                                        title: 'Item',
+                                        title: t('Item'),
                                         key: 'item',
                                         render: (_, row) => (
                                             <div style={{ display: 'grid', gridTemplateColumns: '3px minmax(0, 1fr)', gap: 10, alignItems: 'stretch', paddingBlock: 5 }}>
@@ -417,7 +424,7 @@ export const UpcomingWeekCard = ({ interventionDueItems, loading: interventionsL
                                         ),
                                     },
                                     {
-                                        title: 'When',
+                                        title: t('When'),
                                         key: 'time',
                                         width: isMobile ? 92 : 120,
                                         align: 'right' as const,
@@ -428,7 +435,7 @@ export const UpcomingWeekCard = ({ interventionDueItems, loading: interventionsL
                                         ),
                                     },
                                     ...(!isMobile ? [{
-                                        title: 'Status',
+                                        title: t('Status'),
                                         key: 'status',
                                         width: 150,
                                         align: 'right' as const,

@@ -49,6 +49,7 @@ import { matchesActiveProgram } from '@/services/workspaceProgramsService'
 import { UpcomingWeekCard, type InterventionDueItem } from './UpcomingWeekCard'
 import '@/styles/dashboard.css'
 import '@/styles/compliance-tracker.css'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 dayjs.extend(isBetween)
 dayjs.extend(isoWeek)
@@ -556,28 +557,28 @@ const buildRiskRegisterRows = (
 const buildRiskCategoryRows = (registerRows: RiskRegisterRow[]): RiskCategoryRow[] => {
     const metadata: Record<string, Pick<RiskCategoryRow, 'label' | 'description' | 'action'>> = {
         'Compliance readiness': {
-            label: 'Compliance',
-            description: 'SMEs blocked or slowed by required document readiness',
+            label: tr('Compliance'),
+            description: tr('SMEs blocked or slowed by required document readiness'),
             action: 'Clear document blockers',
         },
         'Interventions: non-serviced': {
-            label: 'Non-serviced SMEs',
-            description: 'Active SMEs without an assigned intervention record',
+            label: tr('Non-serviced SMEs'),
+            description: tr('Active SMEs without an assigned intervention record'),
             action: 'Assign support',
         },
         'Interventions: overdue': {
-            label: 'Overdue interventions',
-            description: 'Interventions past due and not completed',
+            label: tr('Overdue interventions'),
+            description: tr('Interventions past due and not completed'),
             action: 'Escalate delivery',
         },
         'SME non-responsive': {
-            label: 'SME non-responsive',
-            description: 'Workflow steps waiting on SME response or confirmation',
+            label: tr('SME non-responsive'),
+            description: tr('Workflow steps waiting on SME response or confirmation'),
             action: 'Contact SME',
         },
         'Consultant follow-up': {
-            label: 'Consultant follow-up',
-            description: 'Delivery owner, consultant, or coordinator action required',
+            label: tr('Consultant follow-up'),
+            description: tr('Delivery owner, consultant, or coordinator action required'),
             action: 'Follow up owner',
         },
     }
@@ -737,6 +738,7 @@ const isCarriedOverIntoBucket = (
 }
 
 export default function OperationsDashboard() {
+    const { t } = useLanguage()
     const navigate = useNavigate()
     const { token } = theme.useToken()
     const { activeProgramId, isAllPrograms } = useActiveProgramId()
@@ -795,7 +797,7 @@ export default function OperationsDashboard() {
             hasLoadedOnce.current = true
         } catch (error) {
             console.error('[OPERATIONS DASHBOARD] Failed loading dashboard data:', error)
-            message.error('Failed to load operations dashboard data.')
+            message.error(t('Failed to load operations dashboard data.'))
             setRows([])
             setInterventions([])
             hasLoadedOnce.current = true
@@ -803,7 +805,7 @@ export default function OperationsDashboard() {
             setInitialLoading(false)
             setCardLoading(false)
         }
-    }, [activeProgramId, departmentId, identityLoading, isAllPrograms, user])
+    }, [activeProgramId, departmentId, identityLoading, isAllPrograms, user, t])
 
     useEffect(() => {
         const timeout = window.setTimeout(() => void fetchDashboardData(), 0)
@@ -1036,27 +1038,27 @@ export default function OperationsDashboard() {
             'Shows onboarding and compliance readiness using the same compliance coverage rules as the Compliance Tracker, plus assigned versus completed intervention progress.',
         metrics: [
             {
-                label: 'Active SMEs',
+                label: t('Active SMEs'),
                 value: computed.activeSMEs,
                 hint: `${smeDelta.label} from previous period`,
             },
             {
-                label: 'Fully onboarded',
+                label: t('Fully onboarded'),
                 value: computed.fullyOnboarded,
                 hint: `${onboardedDelta.label} from previous period`,
             },
             {
-                label: 'Needs action',
+                label: t('Needs action'),
                 value: computed.needsAction,
                 hint: `${needsActionDelta.label} from previous period`,
             },
             {
-                label: 'Employees',
+                label: t('Employees'),
                 value: computed.employees,
                 hint: `${employeesDelta.label} from previous period`,
             },
             {
-                label: 'SME revenue',
+                label: t('SME revenue'),
                 value: formatCompactCurrency(computed.revenue),
                 hint: `${revenueDelta.label} from previous period`,
             },
@@ -1122,7 +1124,7 @@ export default function OperationsDashboard() {
             min: 0,
             allowDecimals: false,
             title: {
-                text: 'Interventions',
+                text: tr('Interventions'),
             },
         },
         legend: {
@@ -1169,7 +1171,7 @@ export default function OperationsDashboard() {
         series: [
             {
                 type: 'column',
-                name: 'Assigned',
+                name: tr('Assigned'),
                 color: 'rgba(245, 158, 11, 0.35)',
                 data: computed.assignedSeries,
                 pointPadding: 0.2,
@@ -1177,7 +1179,7 @@ export default function OperationsDashboard() {
             },
             {
                 type: 'column',
-                name: 'Completed',
+                name: tr('Completed'),
                 color: 'rgba(34, 197, 94, 0.9)',
                 data: computed.completedSeries,
                 pointPadding: 0.38,
@@ -1185,7 +1187,7 @@ export default function OperationsDashboard() {
             },
             {
                 type: 'spline',
-                name: 'Carry-over / Overdue',
+                name: tr('Carry-over / Overdue'),
                 color: '#ef4444',
                 data: computed.carriedOverSeries,
                 zIndex: 5,
@@ -1201,7 +1203,7 @@ export default function OperationsDashboard() {
             categories: computed.riskCategoryRows.map(row => row.label),
             labels: { style: { fontSize: isMobile ? '10px' : '11px' } },
         },
-        yAxis: { min: 0, allowDecimals: false, title: { text: 'Open risks' } },
+        yAxis: { min: 0, allowDecimals: false, title: { text: tr('Open risks') } },
         legend: { enabled: true },
         tooltip: { shared: true },
         plotOptions: {
@@ -1219,25 +1221,25 @@ export default function OperationsDashboard() {
         series: [
             {
                 type: 'bar',
-                name: 'Critical',
+                name: tr('Critical'),
                 color: '#ef4444',
                 data: computed.riskCategoryRows.map(row => row.critical),
             },
             {
                 type: 'bar',
-                name: 'High',
+                name: tr('High'),
                 color: '#f97316',
                 data: computed.riskCategoryRows.map(row => row.high),
             },
             {
                 type: 'bar',
-                name: 'Medium',
+                name: tr('Medium'),
                 color: '#f59e0b',
                 data: computed.riskCategoryRows.map(row => row.medium),
             },
             {
                 type: 'bar',
-                name: 'Low',
+                name: tr('Low'),
                 color: '#60a5fa',
                 data: computed.riskCategoryRows.map(row => row.low),
             },
@@ -1257,7 +1259,7 @@ export default function OperationsDashboard() {
             loading={identityLoading || initialLoading}
             icon={<TeamOutlined />}
             iconClassName="dashboard-icon-blue"
-            label="Active SMEs"
+            label={t('Active SMEs')}
             value={computed.activeSMEs}
             hint={`${smeDelta.label} from previous`}
         />
@@ -1268,7 +1270,7 @@ export default function OperationsDashboard() {
             loading={identityLoading || initialLoading}
             icon={<TeamOutlined />}
             iconClassName="dashboard-icon-green"
-            label="SMEs Health"
+            label={t('SMEs Health')}
             value={`${smesHealthPercent}%`}
             hint={`${computed.needsAction} SMEs need action`}
         />
@@ -1279,7 +1281,7 @@ export default function OperationsDashboard() {
             loading={identityLoading || initialLoading}
             icon={<TeamOutlined />}
             iconClassName="dashboard-icon-orange"
-            label="Revenue & Employees"
+            label={t('Revenue & Employees')}
             value={`${formatCompactCurrency(computed.revenue)} / ${computed.employees}`}
             hint={`${revenueDelta.label} revenue · ${employeesDelta.label} employees`}
         />
@@ -1290,7 +1292,7 @@ export default function OperationsDashboard() {
             loading={identityLoading || initialLoading}
             icon={<SafetyCertificateOutlined />}
             iconClassName="dashboard-icon-red"
-            label="Compliance Health"
+            label={t('Compliance Health')}
             value={`${complianceHealthPercent}%`}
             hint={`${computed.readinessCounts.clear} of ${computed.activeSMEs} SMEs fully compliant`}
             clickable
@@ -1306,19 +1308,19 @@ export default function OperationsDashboard() {
             title={
                 <Space>
                     <FileDoneOutlined />
-                    <span>Intervention Progress</span>
+                    <span>{t('Intervention Progress')}</span>
                 </Space>
             }
             extra={
                 <Text type="secondary">
-                    {computed.currentAssigned} assigned / {computed.currentCompleted} completed /{' '}
-                    {computed.currentCarriedOver} carried over
+                    {computed.currentAssigned} {t('assigned /')} {computed.currentCompleted} {t('completed /')}{' '}
+                    {computed.currentCarriedOver} {t('carried over')}
                 </Text>
             }
         >
             {computed.interventionCategories.length === 0 ||
                 computed.currentAssigned + computed.currentCompleted + computed.currentCarriedOver === 0 ? (
-                <Empty description="No intervention activity found for this selected period." />
+                <Empty description={t('No intervention activity found for this selected period.')} />
             ) : (
                 <ThemedHighcharts options={interventionOptions} />
             )}
@@ -1333,7 +1335,7 @@ export default function OperationsDashboard() {
             title={
                 <Space>
                     <ExclamationCircleOutlined />
-                    <span>Risk Classification</span>
+                    <span>{t('Risk Classification')}</span>
                 </Space>
             }
             extra={
@@ -1343,12 +1345,12 @@ export default function OperationsDashboard() {
                     onClick={() => navigate(RISK_REGISTER_ROUTE)}
                     icon={<ExpandAltOutlined />}
                 >
-                    Open Register
+                    {t('Open Register')}
                 </Button>
             }
         >
             {computed.riskRegisterRows.length === 0 ? (
-                <Empty description="No operational risks found for this program." />
+                <Empty description={t('No operational risks found for this program.')} />
             ) : (
                 <ThemedHighcharts options={riskClassificationOptions} />
             )}
@@ -1364,7 +1366,7 @@ export default function OperationsDashboard() {
             title={
                 <Space>
                     <TeamOutlined />
-                    <span>SME Impact</span>
+                    <span>{t('SME Impact')}</span>
                 </Space>
             }
         >
@@ -1378,10 +1380,10 @@ export default function OperationsDashboard() {
                         format={() => revenueDelta.label}
                     />
                     <div style={{ marginTop: 10 }}>
-                        <Text strong>Impact on revenue</Text>
+                        <Text strong>{t('Impact on revenue')}</Text>
                         <br />
                         <Text type="secondary">
-                            {formatCompactCurrency(computed.revenue)} vs {formatCompactCurrency(computed.previousRevenue)} previous
+                            {formatCompactCurrency(computed.revenue)} {t('vs')} {formatCompactCurrency(computed.previousRevenue)} {t('previous')}
                         </Text>
                     </div>
                 </div>
@@ -1395,10 +1397,10 @@ export default function OperationsDashboard() {
                         format={() => employeesDelta.label}
                     />
                     <div style={{ marginTop: 10 }}>
-                        <Text strong>Impact on employees</Text>
+                        <Text strong>{t('Impact on employees')}</Text>
                         <br />
                         <Text type="secondary">
-                            {computed.employees} vs {computed.previousEmployees} previous
+                            {computed.employees} {t('vs')} {computed.previousEmployees} {t('previous')}
                         </Text>
                     </div>
                 </div>
@@ -1410,7 +1412,7 @@ export default function OperationsDashboard() {
             {cardLoading ? (
                 <Card loading={identityLoading || initialLoading} className="dashboard-section-card" bordered={false}>
                     <div style={{ minHeight: 180, display: 'grid', placeItems: 'center' }}>
-                        <Spin description="Refreshing operations dashboard..." />
+                        <Spin description={t('Refreshing operations dashboard...')} />
                     </div>
                 </Card>
             ) : (

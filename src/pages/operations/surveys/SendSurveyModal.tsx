@@ -4,6 +4,7 @@ import { SearchOutlined } from '@ant-design/icons'
 import { sendSurveyToParticipants, type SurveyTemplate } from '@/services/surveyTemplatesService'
 import { listSendableParticipants, type ParticipantOption } from '@/services/surveyResponsesService'
 import type { WorkspaceProgram } from '@/services/workspaceProgramsService'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 type SendSurveyModalProps = {
     open: boolean
@@ -16,6 +17,7 @@ type SendSurveyModalProps = {
 
 /** Hand-picks an audience for a published survey, alongside the automatic fan-out that runs on publish. */
 export const SendSurveyModal = ({ open, templates, programs, companyCode, onClose, onSent }: SendSurveyModalProps) => {
+    const { t } = useLanguage()
     const { message } = App.useApp()
     const published = useMemo(() => templates.filter((template) => template.status === 'published'), [templates])
 
@@ -45,7 +47,7 @@ export const SendSurveyModal = ({ open, templates, programs, companyCode, onClos
         void listSendableParticipants(companyCode, template.programId)
             .then(setParticipants)
             .catch(() => {
-                message.error('Participants could not be loaded.')
+                message.error(t('Participants could not be loaded.'))
                 setParticipants([])
             })
     }, [template, companyCode]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -55,11 +57,11 @@ export const SendSurveyModal = ({ open, templates, programs, companyCode, onClos
 
     const send = async () => {
         if (!template) {
-            message.error('Choose a survey to send.')
+            message.error(t('Choose a survey to send.'))
             return
         }
         if (!selectedIds.length) {
-            message.error('Select at least one participant.')
+            message.error(t('Select at least one participant.'))
             return
         }
 
@@ -69,12 +71,12 @@ export const SendSurveyModal = ({ open, templates, programs, companyCode, onClos
             if (sent) {
                 message.success(`Sent to ${sent} participant${sent === 1 ? '' : 's'}.`)
             } else {
-                message.info('Everyone selected already has this survey.')
+                message.info(t('Everyone selected already has this survey.'))
             }
             onSent()
             onClose()
         } catch {
-            message.error('The survey could not be sent.')
+            message.error(t('The survey could not be sent.'))
         } finally {
             setSending(false)
         }
@@ -83,21 +85,21 @@ export const SendSurveyModal = ({ open, templates, programs, companyCode, onClos
     return (
         <Modal
             open={open}
-            title="Send survey"
+            title={t('Send survey')}
             width={720}
             onCancel={onClose}
-            okText="Send"
+            okText={t('Send')}
             confirmLoading={sending}
             onOk={() => void send()}
             okButtonProps={{ disabled: !template || !selectedIds.length }}
         >
             <Select
                 className="survey-response-control"
-                placeholder="Choose a published survey"
+                placeholder={t('Choose a published survey')}
                 value={templateId}
                 onChange={setTemplateId}
                 options={published.map((row) => ({ value: row.id, label: `${row.title} · ${programName(row.programId)}` }))}
-                notFoundContent={<Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No published surveys yet" />}
+                notFoundContent={<Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('No published surveys yet')} />}
                 style={{ marginBottom: 14 }}
             />
 
@@ -106,7 +108,7 @@ export const SendSurveyModal = ({ open, templates, programs, companyCode, onClos
                     <Input
                         allowClear
                         prefix={<SearchOutlined />}
-                        placeholder="Search participants"
+                        placeholder={t('Search participants')}
                         value={search}
                         onChange={(event) => setSearch(event.target.value)}
                         style={{ marginBottom: 12, maxWidth: 320 }}
@@ -119,8 +121,8 @@ export const SendSurveyModal = ({ open, templates, programs, companyCode, onClos
                         dataSource={visible}
                         pagination={{ pageSize: 8, size: 'small', hideOnSinglePage: true }}
                         rowSelection={{ selectedRowKeys: selectedIds, onChange: (keys) => setSelectedIds(keys as string[]) }}
-                        columns={[{ title: 'Participant', dataIndex: 'name' }]}
-                        locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No participants in this programme" /> }}
+                        columns={[{ title: t('Participant'), dataIndex: 'name' }]}
+                        locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('No participants in this programme')} /> }}
                     />
                 </>
             )}

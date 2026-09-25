@@ -58,6 +58,7 @@ import {
 import { useRegisterAgentPageContext } from '@/shared/hooks/useRegisterAgentPageContext'
 import '@/styles/dashboard.css'
 import '@/styles/director.css'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 type ProgramStatus = 'Active' | 'Inactive' | 'Upcoming' | 'Completed'
 type AssignmentMode = 'sme_choice' | 'force_all'
@@ -143,11 +144,11 @@ const SECTORS = ['Agriculture', 'Technology', 'Manufacturing', 'Tourism', 'Retai
 const PROVINCES = ['Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape', 'Limpopo', 'Mpumalanga', 'Northern Cape', 'North West', 'Free State']
 const WIZARD_STEPS = ['Program details', 'Eligibility', 'Onboarding', 'Interventions', 'Agent support', 'Compliance']
 const ELIGIBILITY_OPTIONS: Array<{ value: EligibilityCriterion; label: string }> = [
-    { value: 'sectors', label: 'Eligible sectors' },
-    { value: 'provinces', label: 'Eligible provinces' },
-    { value: 'minAge', label: 'Minimum owner age' },
-    { value: 'maxAge', label: 'Maximum owner age' },
-    { value: 'minYearsOfTrading', label: 'Minimum years trading' },
+    { value: 'sectors', get label() { return tr('Eligible sectors') } },
+    { value: 'provinces', get label() { return tr('Eligible provinces') } },
+    { value: 'minAge', get label() { return tr('Minimum owner age') } },
+    { value: 'maxAge', get label() { return tr('Maximum owner age') } },
+    { value: 'minYearsOfTrading', get label() { return tr('Minimum years trading') } },
 ]
 
 const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
@@ -171,30 +172,31 @@ const SUPPORT_OPTIONS: Array<{
         {
             value: 'simultaneous',
             icon: <TeamOutlined />,
-            title: 'Simultaneous agentic support',
+            get title() { return tr('Simultaneous agentic support') },
             short: 'Human + agent',
-            description: 'Consultants and agents deliver interventions together throughout the programme.',
+            get description() { return tr('Consultants and agents deliver interventions together throughout the programme.') },
             access: 'Assign and Assigned to me remain available. Agent activity is also visible.',
         },
         {
             value: 'post_diagnostic',
             icon: <ThunderboltOutlined />,
-            title: 'Post-diagnostic agent support',
+            get title() { return tr('Post-diagnostic agent support') },
             short: 'Agent after DP',
-            description: 'Agents take over intervention delivery after the diagnostic plan has been completed and confirmed.',
+            get description() { return tr('Agents take over intervention delivery after the diagnostic plan has been completed and confirmed.') },
             access: 'Human assignment pages are removed after the diagnostic-plan handoff; monitoring remains available.',
         },
         {
             value: 'fully_agentic',
             icon: <RobotOutlined />,
-            title: 'Fully agentic support',
+            get title() { return tr('Fully agentic support') },
             short: 'Agents only',
-            description: 'Agents deliver the programme without consultants.',
+            get description() { return tr('Agents deliver the programme without consultants.') },
             access: 'Consultant assignment pages are hidden. The workspace exposes agent-work monitoring only.',
         },
     ]
 
 export const ProgramsPage = () => {
+    const { t } = useLanguage()
     const { message } = App.useApp()
     const { user } = useFullIdentity()
     const [detailsForm] = Form.useForm<ProgramDetailsForm>()
@@ -288,11 +290,11 @@ export const ProgramsPage = () => {
             }))
         } catch (error) {
             console.error(error)
-            message.error('Programs could not be loaded.')
+            message.error(t('Programs could not be loaded.'))
         } finally {
             setLoading(false)
         }
-    }, [companyCode, message])
+    }, [companyCode, message, t])
 
     useEffect(() => {
         // Data loading intentionally owns the page-level loading state.
@@ -376,11 +378,11 @@ export const ProgramsPage = () => {
         if (step === 2) {
             const invalidQuestion = questions.find((question) => !question.question.trim())
             const invalidOptions = questions.find((question) => (question.type === 'single_select' || question.type === 'multi_select') && (question.options?.filter((option) => option.trim()).length || 0) < 2)
-            if (invalidQuestion) return message.error('Every onboarding question needs question text.')
-            if (invalidOptions) return message.error('Dropdown questions need at least two answer options.')
+            if (invalidQuestion) return message.error(t('Every onboarding question needs question text.'))
+            if (invalidOptions) return message.error(t('Dropdown questions need at least two answer options.'))
         }
         if (step === 3 && assignmentMode === 'force_all' && !selectedInterventions.length) {
-            return message.error('Select at least one required intervention.')
+            return message.error(t('Select at least one required intervention.'))
         }
         setStep((current) => Math.min(WIZARD_STEPS.length - 1, current + 1))
     }
@@ -396,7 +398,7 @@ export const ProgramsPage = () => {
             const values = detailsDraft
             if (!values?.name || !values.description || !values.status || !values.cohortYear) {
                 setStep(0)
-                message.error('Program details are incomplete. Please review the first step.')
+                message.error(t('Program details are incomplete. Please review the first step.'))
                 return
             }
             const eligibilityValues = eligibilityDraft
@@ -416,7 +418,7 @@ export const ProgramsPage = () => {
             }))
             const invalidRequirement = requirements.find((requirement) => !requirement.name.trim())
             if (invalidRequirement) {
-                message.error('Every compliance requirement needs a document name.')
+                message.error(t('Every compliance requirement needs a document name.'))
                 return
             }
             const savedRequirements = requirements.map((requirement) => ({
@@ -457,10 +459,10 @@ export const ProgramsPage = () => {
             }
             if (editing) {
                 await updateDoc(doc(getFirebaseDb(), 'programs', editing.id), payload)
-                message.success('Program updated.')
+                message.success(t('Program updated.'))
             } else {
                 await addDoc(collection(getFirebaseDb(), 'programs'), { ...payload, createdAt: serverTimestamp() })
-                message.success('Program created.')
+                message.success(t('Program created.'))
             }
             setModalOpen(false)
             resetWizard()
@@ -469,7 +471,7 @@ export const ProgramsPage = () => {
         } catch (error) {
             if (error && typeof error === 'object' && 'errorFields' in error) return
             console.error(error)
-            message.error('The program could not be saved.')
+            message.error(t('The program could not be saved.'))
         } finally {
             setSaving(false)
         }
@@ -481,7 +483,7 @@ export const ProgramsPage = () => {
             setPrograms((current) => current.map((row) => row.id === program.id ? { ...row, status: active ? 'Active' : 'Inactive' } : row))
             window.dispatchEvent(new Event('workspace-programs-changed'))
         } catch {
-            message.error('Program status could not be changed.')
+            message.error(t('Program status could not be changed.'))
         }
     }
 
@@ -490,32 +492,32 @@ export const ProgramsPage = () => {
             await deleteDoc(doc(getFirebaseDb(), 'programs', program.id))
             setPrograms((current) => current.filter((row) => row.id !== program.id))
             window.dispatchEvent(new Event('workspace-programs-changed'))
-            message.success('Program deleted.')
+            message.success(t('Program deleted.'))
         } catch {
-            message.error('Program could not be deleted.')
+            message.error(t('Program could not be deleted.'))
         }
     }
 
     const columns: ColumnsType<ProgramRecord> = [
         {
-            title: 'Program',
+            title: t('Program'),
             key: 'name',
             render: (_, program) => (
                 <Space direction="vertical" size={0}>
                     <Space size={6}>
                         <Typography.Text strong>{program.name}</Typography.Text>
-                        {program.openToExternalSmes && <Tag color="cyan">External SMEs</Tag>}
+                        {program.openToExternalSmes && <Tag color="cyan">{t('External SMEs')}</Tag>}
                     </Space>
-                    <Typography.Text type="secondary">{program.cohortYear || 'No cohort'} · {program.type || 'General'}</Typography.Text>
+                    <Typography.Text type="secondary">{program.cohortYear || t('No cohort')} · {program.type || t('General')}</Typography.Text>
                 </Space>
             ),
         },
-        { title: 'Status', dataIndex: 'status', width: 110, render: (value: ProgramStatus) => <Tag color={statusColor(value)}>{value}</Tag> },
-        { title: 'Dates', width: 180, render: (_, program) => `${program.startDate || '—'} → ${program.endDate || '—'}` },
-        { title: 'Capacity', dataIndex: 'maxCapacity', width: 100, align: 'right' },
-        { title: 'Budget', dataIndex: 'budget', width: 150, align: 'right', render: (value: number) => formatCurrency(value) },
+        { title: t('Status'), dataIndex: 'status', width: 110, render: (value: ProgramStatus) => <Tag color={statusColor(value)}>{value}</Tag> },
+        { title: t('Dates'), width: 180, render: (_, program) => `${program.startDate || '—'} → ${program.endDate || '—'}` },
+        { title: t('Capacity'), dataIndex: 'maxCapacity', width: 100, align: 'right' },
+        { title: t('Budget'), dataIndex: 'budget', width: 150, align: 'right', render: (value: number) => formatCurrency(value) },
         {
-            title: 'Agent support',
+            title: t('Agent support'),
             dataIndex: 'agentSupportMode',
             width: 170,
             render: (value: AgentSupportMode) => {
@@ -523,37 +525,37 @@ export const ProgramsPage = () => {
                 return <Tag icon={option.icon} color={value === 'fully_agentic' ? 'purple' : value === 'post_diagnostic' ? 'blue' : 'cyan'}>{option.short}</Tag>
             },
         },
-        { title: 'Active', width: 80, render: (_, program) => <Switch checked={program.status === 'Active'} onChange={(checked) => void toggleStatus(program, checked)} /> },
+        { title: t('Active'), width: 80, render: (_, program) => <Switch checked={program.status === 'Active'} onChange={(checked) => void toggleStatus(program, checked)} /> },
         {
-            title: 'Actions',
+            title: t('Actions'),
             width: 120,
-            render: (_, program) => <Space><Button type="text" icon={<EditOutlined />} aria-label={`Edit ${program.name}`} onClick={() => openEdit(program)} /><Popconfirm title="Delete this program?" description="This cannot be undone." onConfirm={() => void remove(program)}><Button danger className="program-delete-button" icon={<DeleteOutlined />} aria-label={`Delete ${program.name}`} /></Popconfirm></Space>,
+            render: (_, program) => <Space><Button type="text" icon={<EditOutlined />} aria-label={`Edit ${program.name}`} onClick={() => openEdit(program)} /><Popconfirm title={t('Delete this program?')} description={t('This cannot be undone.')} onConfirm={() => void remove(program)}><Button danger className="program-delete-button" icon={<DeleteOutlined />} aria-label={`Delete ${program.name}`} /></Popconfirm></Space>,
         },
     ]
 
     return (
         <DashboardPage className="director-page director-programs-page program-manager-page">
-            {loading && <LoadingOverlay tip="Loading programs" />}
+            {loading && <LoadingOverlay tip={t('Loading programs')} />}
             <DashboardHeader
-                title="Programs"
-                subtitle="Create the full programme journey and choose when people, agents, or both deliver interventions."
-                actions={<Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>New program</Button>}
+                title={t('Programs')}
+                subtitle={tr('Create the full programme journey and choose when people, agents, or both deliver interventions.')}
+                actions={<Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>{t('New program')}</Button>}
             />
 
             <Row gutter={[12, 12]} className="dashboard-metrics-row">
-                <Col xs={12} lg={6}><DashboardMetricCard icon={<ProjectOutlined />} label="Programs" value={metrics.total} /></Col>
-                <Col xs={12} lg={6}><DashboardMetricCard icon={<TeamOutlined />} label="Active" value={metrics.active} /></Col>
-                <Col xs={12} lg={6}><DashboardMetricCard icon={<TeamOutlined />} label="Total capacity" value={metrics.capacity} /></Col>
-                <Col xs={12} lg={6}><DashboardMetricCard icon={<RobotOutlined />} label="Fully agentic" value={metrics.agentic} /></Col>
+                <Col xs={12} lg={6}><DashboardMetricCard icon={<ProjectOutlined />} label={t('Programs')} value={metrics.total} /></Col>
+                <Col xs={12} lg={6}><DashboardMetricCard icon={<TeamOutlined />} label={t('Active')} value={metrics.active} /></Col>
+                <Col xs={12} lg={6}><DashboardMetricCard icon={<TeamOutlined />} label={t('Total capacity')} value={metrics.capacity} /></Col>
+                <Col xs={12} lg={6}><DashboardMetricCard icon={<RobotOutlined />} label={t('Fully agentic')} value={metrics.agentic} /></Col>
             </Row>
 
             <Card className="dashboard-section-card motion-card">
-                {programs.length ? <Table rowKey="id" columns={columns} dataSource={programs} scroll={{ x: 1080 }} pagination={{ pageSize: 8 }} /> : <Empty description="No programs yet"><Button type="primary" onClick={openCreate}>Create your first program</Button></Empty>}
+                {programs.length ? <Table rowKey="id" columns={columns} dataSource={programs} scroll={{ x: 1080 }} pagination={{ pageSize: 8 }} /> : <Empty description={t('No programs yet')}><Button type="primary" onClick={openCreate}>{t('Create your first program')}</Button></Empty>}
             </Card>
 
             <Modal
                 open={modalOpen}
-                title={editing ? `Edit ${editing.name}` : 'Create program'}
+                title={editing ? `Edit ${editing.name}` : t('Create program')}
                 width={1080}
                 centered
                 footer={null}
@@ -566,22 +568,22 @@ export const ProgramsPage = () => {
                     {step === 0 && (
                         <Form form={detailsForm} layout="vertical">
                             <Row gutter={16}>
-                                <Col xs={24} md={16}><Form.Item name="name" label="Program name" rules={[{ required: true, message: 'Enter a program name.' }]}><Input placeholder="e.g. Growth Accelerator 2026" /></Form.Item></Col>
-                                <Col xs={24} md={8}><Form.Item name="status" label="Status" rules={[{ required: true }]}><Select options={STATUS_OPTIONS.map((value) => ({ value, label: value }))} /></Form.Item></Col>
+                                <Col xs={24} md={16}><Form.Item name="name" label={t('Program name')} rules={[{ required: true, message: tr('Enter a program name.') }]}><Input placeholder={t('e.g. Growth Accelerator 2026')} /></Form.Item></Col>
+                                <Col xs={24} md={8}><Form.Item name="status" label={t('Status')} rules={[{ required: true }]}><Select options={STATUS_OPTIONS.map((value) => ({ value, label: value }))} /></Form.Item></Col>
                             </Row>
-                            <Form.Item name="description" label="Description" rules={[{ required: true, message: 'Describe the program.' }]}><Input.TextArea rows={3} /></Form.Item>
+                            <Form.Item name="description" label={t('Description')} rules={[{ required: true, message: tr('Describe the program.') }]}><Input.TextArea rows={3} /></Form.Item>
                             <Row gutter={16}>
-                                <Col xs={24} md={8}><Form.Item name="type" label="Program type"><Select allowClear showSearch placeholder="Select program type" options={PROGRAM_TYPE_OPTIONS.map((value) => ({ value, label: value }))} /></Form.Item></Col>
-                                <Col xs={24} md={8}><Form.Item name="cohortYear" label="Cohort year" rules={[{ required: true }]}><Input /></Form.Item></Col>
-                                <Col xs={24} md={8}><Form.Item name="assignedAdmin" label="Project admin"><Select allowClear showSearch options={admins} placeholder="Select an admin" /></Form.Item></Col>
+                                <Col xs={24} md={8}><Form.Item name="type" label={t('Program type')}><Select allowClear showSearch placeholder={t('Select program type')} options={PROGRAM_TYPE_OPTIONS.map((value) => ({ value, label: value }))} /></Form.Item></Col>
+                                <Col xs={24} md={8}><Form.Item name="cohortYear" label={t('Cohort year')} rules={[{ required: true }]}><Input /></Form.Item></Col>
+                                <Col xs={24} md={8}><Form.Item name="assignedAdmin" label={t('Project admin')}><Select allowClear showSearch options={admins} placeholder={t('Select an admin')} /></Form.Item></Col>
                             </Row>
                             <Row gutter={16}>
-                                <Col xs={24} md={6}><Form.Item name="startDate" label="Start date"><DatePicker style={{ width: '100%' }} /></Form.Item></Col>
-                                <Col xs={24} md={6}><Form.Item name="endDate" label="End date" dependencies={['startDate']} rules={[({ getFieldValue }) => ({ validator(_, value) { const start = getFieldValue('startDate'); return !value || !start || value.isAfter(start, 'day') || value.isSame(start, 'day') ? Promise.resolve() : Promise.reject(new Error('End date must be after start date.')) } })]}><DatePicker style={{ width: '100%' }} /></Form.Item></Col>
-                                <Col xs={24} md={6}><Form.Item name="budget" label="Budget (ZAR)"><InputNumber min={0} style={{ width: '100%' }} /></Form.Item></Col>
-                                <Col xs={24} md={6}><Form.Item name="maxCapacity" label="Maximum capacity"><InputNumber min={1} style={{ width: '100%' }} /></Form.Item></Col>
+                                <Col xs={24} md={6}><Form.Item name="startDate" label={t('Start date')}><DatePicker style={{ width: '100%' }} /></Form.Item></Col>
+                                <Col xs={24} md={6}><Form.Item name="endDate" label={t('End date')} dependencies={['startDate']} rules={[({ getFieldValue }) => ({ validator(_, value) { const start = getFieldValue('startDate'); return !value || !start || value.isAfter(start, 'day') || value.isSame(start, 'day') ? Promise.resolve() : Promise.reject(new Error('End date must be after start date.')) } })]}><DatePicker style={{ width: '100%' }} /></Form.Item></Col>
+                                <Col xs={24} md={6}><Form.Item name="budget" label={t('Budget (ZAR)')}><InputNumber min={0} style={{ width: '100%' }} /></Form.Item></Col>
+                                <Col xs={24} md={6}><Form.Item name="maxCapacity" label={t('Maximum capacity')}><InputNumber min={1} style={{ width: '100%' }} /></Form.Item></Col>
                             </Row>
-                            <Form.Item name="openToExternalSmes" label="Open to external SMEs" valuePropName="checked" tooltip="Lets SMEs outside this company discover and apply to this program during onboarding.">
+                            <Form.Item name="openToExternalSmes" label={t('Open to external SMEs')} valuePropName="checked" tooltip={t('Lets SMEs outside this company discover and apply to this program during onboarding.')}>
                                 <Switch />
                             </Form.Item>
                         </Form>
@@ -589,13 +591,13 @@ export const ProgramsPage = () => {
 
                     {step === 1 && (
                         <Form form={eligibilityForm} layout="vertical">
-                            <Typography.Title level={4}>Who can join?</Typography.Title>
-                            <Typography.Paragraph type="secondary">Choose only the criteria this programme should use.</Typography.Paragraph>
-                            <Form.Item label="Eligibility criteria">
+                            <Typography.Title level={4}>{t('Who can join?')}</Typography.Title>
+                            <Typography.Paragraph type="secondary">{t('Choose only the criteria this programme should use.')}</Typography.Paragraph>
+                            <Form.Item label={t('Eligibility criteria')}>
                                 <Select
                                     mode="multiple"
                                     value={selectedEligibilityCriteria}
-                                    placeholder="Select criteria"
+                                    placeholder={t('Select criteria')}
                                     options={ELIGIBILITY_OPTIONS}
                                     onChange={(criteria: EligibilityCriterion[]) => {
                                         selectedEligibilityCriteria.filter((key) => !criteria.includes(key)).forEach((key) => eligibilityForm.setFieldValue(key, undefined))
@@ -603,20 +605,20 @@ export const ProgramsPage = () => {
                                     }}
                                 />
                             </Form.Item>
-                            {selectedEligibilityCriteria.includes('sectors') && <Form.Item name="sectors" label="Eligible sectors" rules={[{ required: true, message: 'Select at least one sector.' }]}><Select mode="multiple" options={SECTORS.map((value) => ({ value, label: value }))} /></Form.Item>}
-                            {selectedEligibilityCriteria.includes('provinces') && <Form.Item name="provinces" label="Eligible provinces" rules={[{ required: true, message: 'Select at least one province.' }]}><Select mode="multiple" options={PROVINCES.map((value) => ({ value, label: value }))} /></Form.Item>}
+                            {selectedEligibilityCriteria.includes('sectors') && <Form.Item name="sectors" label={t('Eligible sectors')} rules={[{ required: true, message: tr('Select at least one sector.') }]}><Select mode="multiple" options={SECTORS.map((value) => ({ value, label: value }))} /></Form.Item>}
+                            {selectedEligibilityCriteria.includes('provinces') && <Form.Item name="provinces" label={t('Eligible provinces')} rules={[{ required: true, message: tr('Select at least one province.') }]}><Select mode="multiple" options={PROVINCES.map((value) => ({ value, label: value }))} /></Form.Item>}
                             <Row gutter={16}>
-                                {selectedEligibilityCriteria.includes('minAge') && <Col xs={24} md={8}><Form.Item name="minAge" label="Minimum owner age" rules={[{ required: true }]}><InputNumber min={18} max={100} style={{ width: '100%' }} /></Form.Item></Col>}
-                                {selectedEligibilityCriteria.includes('maxAge') && <Col xs={24} md={8}><Form.Item name="maxAge" label="Maximum owner age" rules={[{ required: true }]}><InputNumber min={18} max={100} style={{ width: '100%' }} /></Form.Item></Col>}
-                                {selectedEligibilityCriteria.includes('minYearsOfTrading') && <Col xs={24} md={8}><Form.Item name="minYearsOfTrading" label="Minimum years trading" rules={[{ required: true }]}><InputNumber min={0} style={{ width: '100%' }} /></Form.Item></Col>}
+                                {selectedEligibilityCriteria.includes('minAge') && <Col xs={24} md={8}><Form.Item name="minAge" label={t('Minimum owner age')} rules={[{ required: true }]}><InputNumber min={18} max={100} style={{ width: '100%' }} /></Form.Item></Col>}
+                                {selectedEligibilityCriteria.includes('maxAge') && <Col xs={24} md={8}><Form.Item name="maxAge" label={t('Maximum owner age')} rules={[{ required: true }]}><InputNumber min={18} max={100} style={{ width: '100%' }} /></Form.Item></Col>}
+                                {selectedEligibilityCriteria.includes('minYearsOfTrading') && <Col xs={24} md={8}><Form.Item name="minYearsOfTrading" label={t('Minimum years trading')} rules={[{ required: true }]}><InputNumber min={0} style={{ width: '100%' }} /></Form.Item></Col>}
                             </Row>
                         </Form>
                     )}
 
                     {step === 2 && (
                         <section>
-                            <div className="program-wizard-heading"><div><Typography.Title level={4}>Onboarding questions</Typography.Title><Typography.Text type="secondary">Collect programme-specific information during onboarding.</Typography.Text></div><Button icon={<PlusOutlined />} onClick={() => setQuestions((current) => [...current, { id: makeId(), question: '', type: 'text', required: false }])}>Add question</Button></div>
-                            {!questions.length && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No custom questions" />}
+                            <div className="program-wizard-heading"><div><Typography.Title level={4}>{t('Onboarding questions')}</Typography.Title><Typography.Text type="secondary">{t('Collect programme-specific information during onboarding.')}</Typography.Text></div><Button icon={<PlusOutlined />} onClick={() => setQuestions((current) => [...current, { id: makeId(), question: '', type: 'text', required: false }])}>{t('Add question')}</Button></div>
+                            {!questions.length && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('No custom questions')} />}
                             <Space direction="vertical" size={12} style={{ width: '100%' }}>
                                 {questions.map((question, index) => (
                                     <Card size="small" key={question.id} className="program-config-card">
@@ -626,20 +628,20 @@ export const ProgramsPage = () => {
                                                 <Select
                                                     value={question.type}
                                                     style={{ width: '100%' }}
-                                                    options={[{ value: 'text', label: 'Short text' }, { value: 'long_text', label: 'Long text' }, { value: 'number', label: 'Number' }, { value: 'yes_no', label: 'Yes / No' }, { value: 'single_select', label: 'Dropdown · one answer' }, { value: 'multi_select', label: 'Dropdown · multiple answers' }]}
+                                                    options={[{ value: 'text', label: t('Short text') }, { value: 'long_text', label: t('Long text') }, { value: 'number', label: t('Number') }, { value: 'yes_no', label: t('Yes / No') }, { value: 'single_select', label: t('Dropdown · one answer') }, { value: 'multi_select', label: t('Dropdown · multiple answers') }]}
                                                     onChange={(type: OnboardingQuestion['type']) => setQuestions((current) => current.map((item) => item.id === question.id ? { ...item, type, options: type === 'single_select' || type === 'multi_select' ? item.options || [] : undefined, maxSelections: type === 'multi_select' ? item.maxSelections : undefined } : item))}
                                                 />
                                             </Col>
-                                            <Col xs={5} md={3}><Checkbox checked={question.required} onChange={(event) => setQuestions((current) => current.map((item) => item.id === question.id ? { ...item, required: event.target.checked } : item))}>Required</Checkbox></Col>
+                                            <Col xs={5} md={3}><Checkbox checked={question.required} onChange={(event) => setQuestions((current) => current.map((item) => item.id === question.id ? { ...item, required: event.target.checked } : item))}>{t('Required')}</Checkbox></Col>
                                             <Col xs={3} md={2}><Button danger className="program-delete-button" icon={<DeleteOutlined />} aria-label={`Delete question ${index + 1}`} onClick={() => setQuestions((current) => current.filter((item) => item.id !== question.id))} /></Col>
                                             {(question.type === 'single_select' || question.type === 'multi_select') && (
                                                 <Col span={24}>
                                                     <Row gutter={12}>
                                                         <Col xs={24} md={question.type === 'multi_select' ? 18 : 24}>
-                                                            <Typography.Text strong>Answer options</Typography.Text>
-                                                            <Select mode="tags" value={question.options || []} tokenSeparators={[',']} placeholder="Type an option and press Enter" style={{ width: '100%', marginTop: 6 }} onChange={(options) => setQuestions((current) => current.map((item) => item.id === question.id ? { ...item, options } : item))} />
+                                                            <Typography.Text strong>{t('Answer options')}</Typography.Text>
+                                                            <Select mode="tags" value={question.options || []} tokenSeparators={[',']} placeholder={t('Type an option and press Enter')} style={{ width: '100%', marginTop: 6 }} onChange={(options) => setQuestions((current) => current.map((item) => item.id === question.id ? { ...item, options } : item))} />
                                                         </Col>
-                                                        {question.type === 'multi_select' && <Col xs={24} md={6}><Typography.Text strong>Maximum answers</Typography.Text><InputNumber min={2} max={Math.max(2, question.options?.length || 2)} value={question.maxSelections} placeholder="No limit" style={{ width: '100%', marginTop: 6 }} onChange={(value) => setQuestions((current) => current.map((item) => item.id === question.id ? { ...item, maxSelections: value || undefined } : item))} /></Col>}
+                                                        {question.type === 'multi_select' && <Col xs={24} md={6}><Typography.Text strong>{t('Maximum answers')}</Typography.Text><InputNumber min={2} max={Math.max(2, question.options?.length || 2)} value={question.maxSelections} placeholder={t('No limit')} style={{ width: '100%', marginTop: 6 }} onChange={(value) => setQuestions((current) => current.map((item) => item.id === question.id ? { ...item, maxSelections: value || undefined } : item))} /></Col>}
                                                     </Row>
                                                 </Col>
                                             )}
@@ -652,24 +654,24 @@ export const ProgramsPage = () => {
 
                     {step === 3 && (
                         <section>
-                            <Typography.Title level={4}>Intervention assignment</Typography.Title>
+                            <Typography.Title level={4}>{t('Intervention assignment')}</Typography.Title>
                             <Radio.Group value={assignmentMode} onChange={(event) => setAssignmentMode(event.target.value)} className="program-choice-grid">
-                                <Radio.Button value="sme_choice"><strong>SME chooses</strong><span>Participants choose relevant interventions from the catalogue.</span></Radio.Button>
-                                <Radio.Button value="force_all"><strong>Program assigns</strong><span>Every selected intervention is included in each diagnostic plan.</span></Radio.Button>
+                                <Radio.Button value="sme_choice"><strong>{t('SME chooses')}</strong><span>{t('Participants choose relevant interventions from the catalogue.')}</span></Radio.Button>
+                                <Radio.Button value="force_all"><strong>{t('Program assigns')}</strong><span>{t('Every selected intervention is included in each diagnostic plan.')}</span></Radio.Button>
                             </Radio.Group>
                             {assignmentMode === 'force_all' && (
                                 <div className="program-field-gap program-intervention-browser">
-                                    <Typography.Title level={5}>Find required interventions</Typography.Title>
+                                    <Typography.Title level={5}>{t('Find required interventions')}</Typography.Title>
                                     <Row gutter={[12, 12]}>
                                         <Col xs={24} md={15}>
-                                            <Input prefix={<SearchOutlined />} value={interventionSearch} onChange={(event) => setInterventionSearch(event.target.value)} allowClear placeholder="Search intervention title or area" />
+                                            <Input prefix={<SearchOutlined />} value={interventionSearch} onChange={(event) => setInterventionSearch(event.target.value)} allowClear placeholder={t('Search intervention title or area')} />
                                         </Col>
                                         <Col xs={24} md={9}>
-                                            <Select allowClear value={interventionArea} onChange={setInterventionArea} style={{ width: '100%' }} placeholder="Filter by Area of Support" options={interventionAreas.map((area) => ({ value: area, label: area }))} />
+                                            <Select allowClear value={interventionArea} onChange={setInterventionArea} style={{ width: '100%' }} placeholder={t('Filter by Area of Support')} options={interventionAreas.map((area) => ({ value: area, label: area }))} />
                                         </Col>
                                     </Row>
-                                    <Typography.Text type="secondary" className="program-intervention-count">Showing {filteredInterventions.length} of {interventions.length} interventions</Typography.Text>
-                                    <Typography.Text strong>Required interventions</Typography.Text>
+                                    <Typography.Text type="secondary" className="program-intervention-count">{t('Showing')} {filteredInterventions.length} {t('of')} {interventions.length} {t('interventions')}</Typography.Text>
+                                    <Typography.Text strong>{t('Required interventions')}</Typography.Text>
                                     <Select
                                         mode="multiple"
                                         showSearch
@@ -678,7 +680,7 @@ export const ProgramsPage = () => {
                                         value={selectedInterventions}
                                         onChange={setSelectedInterventions}
                                         style={{ width: '100%', marginTop: 8 }}
-                                        placeholder={filteredInterventions.length ? 'Select interventions' : 'No interventions match these filters'}
+                                        placeholder={filteredInterventions.length ? t('Select interventions') : t('No interventions match these filters')}
                                         options={visibleInterventionOptions.map((item) => ({ value: item.id, label: item.area ? `${item.title} · ${item.area}` : item.title }))}
                                     />
                                 </div>
@@ -688,8 +690,8 @@ export const ProgramsPage = () => {
 
                     {step === 4 && (
                         <section>
-                            <Typography.Title level={4}>How should agents support this program?</Typography.Title>
-                            <Typography.Paragraph type="secondary">This choice controls who delivers interventions and which intervention pages appear in the workspace.</Typography.Paragraph>
+                            <Typography.Title level={4}>{t('How should agents support this program?')}</Typography.Title>
+                            <Typography.Paragraph type="secondary">{t('This choice controls who delivers interventions and which intervention pages appear in the workspace.')}</Typography.Paragraph>
                             <Radio.Group value={supportMode} onChange={(event) => setSupportMode(event.target.value)} className="agent-support-grid">
                                 {SUPPORT_OPTIONS.map((option) => <Radio.Button value={option.value} key={option.value} className={supportMode === option.value ? 'is-selected' : ''}><span className="agent-support-icon">{option.icon}</span><strong>{option.title}</strong><span>{option.description}</span><small>{option.access}</small></Radio.Button>)}
                             </Radio.Group>
@@ -698,18 +700,18 @@ export const ProgramsPage = () => {
 
                     {step === 5 && (
                         <section>
-                            <div className="program-wizard-heading"><div><Typography.Title level={4}>Compliance requirements</Typography.Title><Typography.Text type="secondary">Documents participants must provide for this programme.</Typography.Text></div><Button icon={<PlusOutlined />} onClick={() => setRequirements((current) => [...current, { id: makeId(), name: '', category: 'other', required: true }])}>Add document</Button></div>
-                            {!requirements.length && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No programme-specific documents" />}
+                            <div className="program-wizard-heading"><div><Typography.Title level={4}>{t('Compliance requirements')}</Typography.Title><Typography.Text type="secondary">{t('Documents participants must provide for this programme.')}</Typography.Text></div><Button icon={<PlusOutlined />} onClick={() => setRequirements((current) => [...current, { id: makeId(), name: '', category: 'other', required: true }])}>{t('Add document')}</Button></div>
+                            {!requirements.length && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('No programme-specific documents')} />}
                             <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                                {requirements.map((requirement) => <Card size="small" key={requirement.id} className="program-config-card"><Row gutter={12} align="middle"><Col xs={24} md={12}><Input value={requirement.name} placeholder="Document name" onChange={(event) => setRequirements((current) => current.map((item) => item.id === requirement.id ? { ...item, name: event.target.value } : item))} /></Col><Col xs={12} md={6}><Select value={requirement.category} style={{ width: '100%' }} options={['identity', 'legal', 'financial', 'operational', 'other'].map((value) => ({ value, label: value[0].toUpperCase() + value.slice(1) }))} onChange={(category) => setRequirements((current) => current.map((item) => item.id === requirement.id ? { ...item, category } : item))} /></Col><Col xs={8} md={4}><Checkbox checked={requirement.required} onChange={(event) => setRequirements((current) => current.map((item) => item.id === requirement.id ? { ...item, required: event.target.checked } : item))}>Required</Checkbox></Col><Col xs={4} md={2}><Button danger className="program-delete-button" icon={<DeleteOutlined />} aria-label={`Delete ${requirement.name || 'document'}`} onClick={() => setRequirements((current) => current.filter((item) => item.id !== requirement.id))} /></Col></Row></Card>)}
+                                {requirements.map((requirement) => <Card size="small" key={requirement.id} className="program-config-card"><Row gutter={12} align="middle"><Col xs={24} md={12}><Input value={requirement.name} placeholder={t('Document name')} onChange={(event) => setRequirements((current) => current.map((item) => item.id === requirement.id ? { ...item, name: event.target.value } : item))} /></Col><Col xs={12} md={6}><Select value={requirement.category} style={{ width: '100%' }} options={['identity', 'legal', 'financial', 'operational', 'other'].map((value) => ({ value, label: value[0].toUpperCase() + value.slice(1) }))} onChange={(category) => setRequirements((current) => current.map((item) => item.id === requirement.id ? { ...item, category } : item))} /></Col><Col xs={8} md={4}><Checkbox checked={requirement.required} onChange={(event) => setRequirements((current) => current.map((item) => item.id === requirement.id ? { ...item, required: event.target.checked } : item))}>{t('Required')}</Checkbox></Col><Col xs={4} md={2}><Button danger className="program-delete-button" icon={<DeleteOutlined />} aria-label={`Delete ${requirement.name || 'document'}`} onClick={() => setRequirements((current) => current.filter((item) => item.id !== requirement.id))} /></Col></Row></Card>)}
                             </Space>
                         </section>
                     )}
                 </div>
 
                 <div className="program-wizard-footer">
-                    <Button disabled={step === 0} onClick={back}>Back</Button>
-                    {step < WIZARD_STEPS.length - 1 ? <Button type="primary" onClick={() => void next()}>Next</Button> : <Button type="primary" loading={saving} onClick={() => void saveProgram()}>{editing ? 'Save changes' : 'Create program'}</Button>}
+                    <Button disabled={step === 0} onClick={back}>{t('Back')}</Button>
+                    {step < WIZARD_STEPS.length - 1 ? <Button type="primary" onClick={() => void next()}>{t('Next')}</Button> : <Button type="primary" loading={saving} onClick={() => void saveProgram()}>{editing ? t('Save changes') : t('Create program')}</Button>}
                 </div>
             </Modal>
         </DashboardPage>

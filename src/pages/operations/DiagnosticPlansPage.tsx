@@ -12,7 +12,7 @@ import { lightTheme } from '@/config/theme'
 import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
 import { useActiveProgramId } from '@/hooks/useActiveProgramId'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
-import { useLanguage } from '@/providers/LanguageProvider'
+import { useLanguage, tEnglish } from '@/providers/LanguageProvider'
 import {
     confirmDiagnosticPlan,
     listDiagnosticInterventionOptions,
@@ -253,7 +253,7 @@ export const DiagnosticPlansPage = () => {
         if (!user || !selected) return
 
         if (confirm && !user.signatureURL) {
-            message.error('Set up your signature before confirming the growth plan.')
+            message.error(t('Set up your signature before confirming the growth plan.'))
             return
         }
 
@@ -307,8 +307,8 @@ export const DiagnosticPlansPage = () => {
 
     useRegisterAgentPageContext({
         pageKey: 'operations-diagnostic-plans',
-        pageName: t('nav.diagnosticPlans'),
-        purpose: t('operations.diagnostics.subtitle'),
+        pageName: tEnglish('nav.diagnosticPlans'),
+        purpose: tEnglish('operations.diagnostics.subtitle'),
         filters: { search, status, activeProgramId, companyCode },
         metrics,
         tables: { visiblePlans: rows.length },
@@ -628,7 +628,7 @@ export const DiagnosticPlansPage = () => {
                         )}
 
                         {selected.plan.status !== 'Confirmed' && !user?.signatureURL && (
-                            <Alert type="warning" showIcon message="Set up your signature before confirming the growth plan." />
+                            <Alert type="warning" showIcon message={t('Set up your signature before confirming the growth plan.')} />
                         )}
 
                         {/* The paper is always a light page, so the antd components rendered inside it (Descriptions,
@@ -639,17 +639,17 @@ export const DiagnosticPlansPage = () => {
                             <header className="diagnostic-document-header">
                                 <div className="diagnostic-document-logo">
                                     {companyLogoUrl
-                                        ? <img src={companyLogoUrl} alt="Company logo" />
-                                        : <Typography.Text strong>Company Logo</Typography.Text>}
+                                        ? <img src={companyLogoUrl} alt={t('Company logo')} />
+                                        : <Typography.Text strong>{t('Company Logo')}</Typography.Text>}
                                 </div>
 
                                 <div className="diagnostic-document-title">
-                                    <Typography.Text>{selected.businessName || 'SME'}</Typography.Text>
-                                    <Typography.Title level={2}>Diagnostic Growth Plan</Typography.Title>
+                                    <Typography.Text>{selected.businessName || t('SME')}</Typography.Text>
+                                    <Typography.Title level={2}>{t('Diagnostic Growth Plan')}</Typography.Title>
                                 </div>
                             </header>
 
-                            <DividerTitle>Business Overview</DividerTitle>
+                            <DividerTitle>{t('Business Overview')}</DividerTitle>
 
                             <Descriptions
                                 bordered
@@ -657,8 +657,8 @@ export const DiagnosticPlansPage = () => {
                                 column={{ xs: 1, md: 2 }}
                                 className="diagnostic-clean-descriptions"
                                 items={[
-                                    { key: 'owner', label: 'Business Owner', children: displayValue(selected.participantName) },
-                                    { key: 'business', label: 'SME Name', children: displayValue(selected.businessName) },
+                                    { key: 'owner', label: t('Business Owner'), children: displayValue(selected.participantName) },
+                                    { key: 'business', label: t('SME Name'), children: displayValue(selected.businessName) },
                                     { key: 'program', label: t('operations.participants.programme'), children: selected.programName || t('common.unassigned') },
                                     { key: 'email', label: t('common.email'), children: selected.email || t('common.noEmail') },
                                     { key: 'sector', label: t('common.sector'), children: displayValue(selected.sector) },
@@ -676,7 +676,7 @@ export const DiagnosticPlansPage = () => {
                                 ]}
                             />
 
-                            <DividerTitle>SWOT Analysis</DividerTitle>
+                            <DividerTitle>{t('SWOT Analysis')}</DividerTitle>
 
                             <div className="diagnostic-table-wrap">
                                 <table className="diagnostic-document-table">
@@ -750,8 +750,8 @@ export const DiagnosticPlansPage = () => {
                                             <th>#</th>
                                             <th>{t('incubatee.tracker.intervention')}</th>
                                             <th>{t('incubatee.tracker.area')}</th>
-                                            <th>Status</th>
-                                            <th>Progress</th>
+                                            <th>{t('Status')}</th>
+                                            <th>{t('Progress')}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -772,15 +772,15 @@ export const DiagnosticPlansPage = () => {
                                 </table>
                             </div>
 
-                            <DividerTitle>Signatures</DividerTitle>
+                            <DividerTitle>{t('Signatures')}</DividerTitle>
 
                             <Row gutter={[12, 12]}>
                                 <Col xs={24} md={12}>
                                     <div className="diagnostic-signature-box">
-                                        <Typography.Text strong>Operations Signature</Typography.Text>
+                                        <Typography.Text strong>{t('Operations Signature')}</Typography.Text>
                                         {operationsSignature(selected)?.signatureURL
-                                            ? <img src={operationsSignature(selected)?.signatureURL} alt="Operations signature" />
-                                            : <div className="diagnostic-signature-empty">Pending signature</div>}
+                                            ? <img src={operationsSignature(selected)?.signatureURL} alt={t('Operations signature')} />
+                                            : <div className="diagnostic-signature-empty">{t('Pending signature')}</div>}
                                         <Typography.Text>{displayValue(operationsSignature(selected)?.name || operationsSignature(selected)?.email)}</Typography.Text>
                                         <Typography.Text type="secondary">
                                             {operationsSignature(selected)?.confirmedAt
@@ -792,10 +792,10 @@ export const DiagnosticPlansPage = () => {
 
                                 <Col xs={24} md={12}>
                                     <div className="diagnostic-signature-box">
-                                        <Typography.Text strong>SME Signature</Typography.Text>
+                                        <Typography.Text strong>{t('SME Signature')}</Typography.Text>
                                         {smeSignature(selected)?.signatureURL
-                                            ? <img src={smeSignature(selected)?.signatureURL} alt="SME signature" />
-                                            : <div className="diagnostic-signature-empty">Pending signature</div>}
+                                            ? <img src={smeSignature(selected)?.signatureURL} alt={t('SME signature')} />
+                                            : <div className="diagnostic-signature-empty">{t('Pending signature')}</div>}
                                         <Typography.Text>{displayValue(smeSignature(selected)?.name || smeSignature(selected)?.email)}</Typography.Text>
                                         <Typography.Text type="secondary">
                                             {smeSignature(selected)?.confirmedAt

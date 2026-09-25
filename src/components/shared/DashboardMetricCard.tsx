@@ -169,7 +169,7 @@ export default function DashboardMetricCard({
                     )}
                 </div>
 
-                {clickable && (
+                {(clickable || Boolean(onClick)) && (
                     <span
                         className="dashboard-metric-arrow"
                         aria-hidden="true"

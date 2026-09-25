@@ -32,7 +32,7 @@ import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
 import { ThemedHighcharts } from '@/components/shared/ThemedHighcharts'
 import { useAssignedInterventions } from '@/contexts/AssignedInterventionsContext'
-import { useLanguage } from '@/providers/LanguageProvider'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 import { assignmentParticipant, assignmentTitle, downloadCsv, getFeedback } from './ConsultantWorkspaceUtils'
 import '@/styles/consultant.css'
 
@@ -253,7 +253,7 @@ export const ConsultantFeedbackPage = () => {
         series: [
             {
                 type: 'line',
-                name: 'Feedback quality profile',
+                name: tr('Feedback quality profile'),
                 data: averageDimensionScores(rated),
                 pointPlacement: 'on',
             },
@@ -286,7 +286,7 @@ export const ConsultantFeedbackPage = () => {
                     <DashboardMetricCard loading={loading} icon={<StarOutlined />} label={t('consultant.feedback.average')} value={average ? average.toFixed(2) : '-'} hint="/5" />
                 </Col>
                 <Col xs={12} lg={6}>
-                    <DashboardMetricCard loading={loading} icon={<RobotOutlined />} label="Positive sentiment" value={`${positiveRate}%`} hint={`${sentimentCounts.positive} positive`} />
+                    <DashboardMetricCard loading={loading} icon={<RobotOutlined />} label={t('Positive sentiment')} value={`${positiveRate}%`} hint={`${sentimentCounts.positive} positive`} />
                 </Col>
                 <Col xs={12} lg={6}>
                     <DashboardMetricCard
@@ -332,7 +332,7 @@ export const ConsultantFeedbackPage = () => {
 
             <Row gutter={[16, 16]}>
                 <Col xs={24} xl={10}>
-                    <Card loading={loading} className="dashboard-section-card motion-card" title="Feedback quality radar">
+                    <Card loading={loading} className="dashboard-section-card motion-card" title={t('Feedback quality radar')}>
                         {rated.length ? <ThemedHighcharts options={chartOptions} /> : <Empty description={t('consultant.feedback.noRated')} />}
                     </Card>
                 </Col>
@@ -340,14 +340,14 @@ export const ConsultantFeedbackPage = () => {
                 <Col xs={24} xl={14}>
                     <Card
                         className="dashboard-section-card motion-card"
-                        title={<Space><RobotOutlined /> AI feedback intelligence</Space>}
+                        title={<Space><RobotOutlined /> {t('AI feedback intelligence')}</Space>}
                         extra={
                             <Segmented
                                 value={aiView}
                                 onChange={(value) => setAiView(value as AiFeedbackView)}
                                 options={[
-                                    { value: 'sentiment', label: 'Sentiment' },
-                                    { value: 'recommendations', label: 'Recommendations' },
+                                    { value: 'sentiment', label: t('Sentiment') },
+                                    { value: 'recommendations', label: t('Recommendations') },
                                 ]}
                             />
                         }
@@ -359,19 +359,19 @@ export const ConsultantFeedbackPage = () => {
                                 <Row gutter={[12, 12]}>
                                     <Col xs={24} md={8}>
                                         <Card size="small">
-                                            <Text type="secondary">Positive</Text>
+                                            <Text type="secondary">{t('Positive')}</Text>
                                             <Title level={4} style={{ margin: '4px 0 0' }}>{sentimentCounts.positive}</Title>
                                         </Card>
                                     </Col>
                                     <Col xs={24} md={8}>
                                         <Card size="small">
-                                            <Text type="secondary">Neutral</Text>
+                                            <Text type="secondary">{t('Neutral')}</Text>
                                             <Title level={4} style={{ margin: '4px 0 0' }}>{sentimentCounts.neutral}</Title>
                                         </Card>
                                     </Col>
                                     <Col xs={24} md={8}>
                                         <Card size="small">
-                                            <Text type="secondary">Needs attention</Text>
+                                            <Text type="secondary">{t('Needs attention')}</Text>
                                             <Title level={4} style={{ margin: '4px 0 0' }}>{sentimentCounts.attention}</Title>
                                         </Card>
                                     </Col>
@@ -386,7 +386,7 @@ export const ConsultantFeedbackPage = () => {
                                                     <Text strong>{item.participant}</Text>
                                                     <Tag>{item.title}</Tag>
                                                     <Tag color={sentimentColor(item.sentiment.label)}>{item.sentiment.label}</Tag>
-                                                    <Text type="secondary">Confidence {item.sentiment.confidence}%</Text>
+                                                    <Text type="secondary">{t('Confidence')} {item.sentiment.confidence}%</Text>
                                                 </Space>
                                                 <Progress percent={item.sentiment.score} showInfo size="small" />
                                                 <Text type="secondary">{item.sentiment.tone}</Text>
@@ -403,8 +403,8 @@ export const ConsultantFeedbackPage = () => {
                                 <Alert
                                     type={sentimentCounts.attention || lowRatings ? 'warning' : 'success'}
                                     showIcon
-                                    message={sentimentCounts.attention || lowRatings ? 'AI detected follow-up opportunities' : 'Feedback trend is healthy'}
-                                    description="Recommendations are generated from rating patterns, sentiment cues, repeated concerns and SME comments in the current filtered view."
+                                    message={sentimentCounts.attention || lowRatings ? t('AI detected follow-up opportunities') : t('Feedback trend is healthy')}
+                                    description={t('Recommendations are generated from rating patterns, sentiment cues, repeated concerns and SME comments in the current filtered view.')}
                                 />
                                 <List
                                     dataSource={recommendations}
@@ -413,7 +413,7 @@ export const ConsultantFeedbackPage = () => {
                                             <Space align="start">
                                                 <BulbOutlined style={{ marginTop: 4 }} />
                                                 <Space direction="vertical" size={2}>
-                                                    <Text strong>Recommendation {index + 1}</Text>
+                                                    <Text strong>{t('Recommendation')} {index + 1}</Text>
                                                     <Text>{recommendation}</Text>
                                                 </Space>
                                             </Space>

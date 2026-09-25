@@ -58,6 +58,21 @@ export const listManagedUsers = async (user: FullIdentity) => {
   const source = collection(getFirebaseDb(), 'users')
   const snapshot = await getDocs(source)
 
+  // Consultant photos saved before they were mirrored onto users/{uid} only exist on consultantProfiles
+  // (a full scan of which is limited to systemadmin).
+  const consultantPhotos = new Map<string, string>()
+  if (user.role === 'systemadmin') {
+    try {
+      const profiles = await getDocs(collection(getFirebaseDb(), 'consultantProfiles'))
+      profiles.docs.forEach((row) => {
+        const url = String(row.data().profileImageUrl || '').trim()
+        if (url) consultantPhotos.set(row.id, url)
+      })
+    } catch (error) {
+      console.warn('[users] consultant photos unavailable', error)
+    }
+  }
+
   return snapshot.docs.map((record) => {
     const data = record.data()
     return {
@@ -68,6 +83,7 @@ export const listManagedUsers = async (user: FullIdentity) => {
       status: data.status === 'active' || data.status === 'Active' ? 'active' : 'inactive',
       companyCode: data.companyCode,
       permissions: Array.isArray(data.permissions) ? data.permissions : undefined,
+      photoUrl: String(data.profileImageUrl || consultantPhotos.get(record.id) || '') || undefined,
       phone: data.phone || '',
       alternativePhone: data.alternativePhone || '',
       phoneIsWhatsApp: data.phoneIsWhatsApp === true,

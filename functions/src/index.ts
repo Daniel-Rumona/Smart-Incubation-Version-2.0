@@ -657,6 +657,23 @@ async function requireAccountManager(request: Request) {
 }
 
 const projectStaffRoles = ['consultant', 'projectadmin']
+/** Creates/refreshes a company record without ever overwriting a display name someone has already set. */
+const ensureCompanyRecord = async (
+  db: FirebaseFirestore.Firestore,
+  companyCode: string,
+  updatedBy: string,
+) => {
+  const ref = db.collection('companies').doc(companyCode)
+  const existing = await ref.get()
+  const hasName = Boolean(existing.exists && (existing.data()?.name || existing.data()?.companyName))
+  await ref.set({
+    companyCode,
+    ...(hasName ? {} : { name: companyCode }),
+    status: 'active',
+    updatedAt: FieldValue.serverTimestamp(),
+    updatedBy,
+  }, { merge: true })
+}
 const projectStaffPermissions = [
   'view_dashboard',
   'view_reports',
@@ -1534,13 +1551,7 @@ export const createPlatformUser = onRequest({ region }, (request, response) => {
           },
           { merge: true },
         ),
-        ...(payload.companyCode ? [db.collection('companies').doc(payload.companyCode).set({
-          companyCode: payload.companyCode,
-          name: payload.companyCode,
-          status: 'active',
-          updatedAt: FieldValue.serverTimestamp(),
-          updatedBy: admin.decoded.uid,
-        }, { merge: true })] : []),
+        ...(payload.companyCode ? [ensureCompanyRecord(db, payload.companyCode, admin.decoded.uid)] : []),
       ])
 
       if (payload.sendEmail && resetLink) {
@@ -1917,13 +1928,7 @@ export const updatePlatformUser = onRequest({ region }, (request, response) => {
       await Promise.all([
         getFirestore().collection('users').doc(uid).set(updates, { merge: true }),
         getFirestore().collection('userIdentities').doc(uid).set(updates, { merge: true }),
-        ...(updates.companyCode ? [getFirestore().collection('companies').doc(updates.companyCode).set({
-          companyCode: updates.companyCode,
-          name: updates.companyCode,
-          status: 'active',
-          updatedAt: FieldValue.serverTimestamp(),
-          updatedBy: admin.decoded.uid,
-        }, { merge: true })] : []),
+        ...(updates.companyCode ? [ensureCompanyRecord(getFirestore(), updates.companyCode, admin.decoded.uid)] : []),
       ])
 
       jsonResponse(response, 200, { ok: true, uid })

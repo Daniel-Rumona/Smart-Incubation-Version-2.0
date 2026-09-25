@@ -20,10 +20,12 @@ import quarterOfYear from 'dayjs/plugin/quarterOfYear'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
+import { ReportExportButton } from '@/components/shared/ReportExportButton'
 import { ThemedHighcharts } from '@/components/shared/ThemedHighcharts'
 import { CHART_COLORS, CHART_PALETTE } from '@/config/chartPalette'
 import { useActiveProgramId } from '@/hooks/useActiveProgramId'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
+import type { ReportExportData } from '@/services/reportExport'
 import {
     filterProjectAdminDataByRange,
     isComplianceAttentionStatus,
@@ -46,6 +48,7 @@ import {
 } from '@/services/smePerformanceMetrics'
 import '@/styles/dashboard.css'
 import '@/styles/operations-reports.css'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 dayjs.extend(quarterOfYear)
 
@@ -154,6 +157,7 @@ const programmeAvatarColor = (programme: string) => {
 }
 
 const ProgrammeCard = ({ row, onClick }: { row: ProgrammeRow, onClick: () => void }) => {
+    const { t } = useLanguage()
     const { token } = theme.useToken()
     const completionRate = percent(row.completed, row.interventions)
     return (
@@ -185,8 +189,8 @@ const ProgrammeCard = ({ row, onClick }: { row: ProgrammeRow, onClick: () => voi
             </Space>
             <Progress percent={completionRate} size="small" showInfo={false} />
             <Space size={10} style={{ width: '100%', justifyContent: 'space-between' }}>
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>{row.applications} applications · {row.participants} participants · {row.interventions} interventions</Typography.Text>
-                {row.overdue > 0 && <Tag color="orange" style={{ marginInlineEnd: 0 }}>{row.overdue} overdue</Tag>}
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>{row.applications} {t('applications ·')} {row.participants} {t('participants ·')} {row.interventions} {t('interventions')}</Typography.Text>
+                {row.overdue > 0 && <Tag color="orange" style={{ marginInlineEnd: 0 }}>{row.overdue} {t('overdue')}</Tag>}
             </Space>
         </button>
     )
@@ -200,6 +204,7 @@ const RateChangeCard = ({ title, icon, value, previousValue, caption, loading }:
     caption: string
     loading?: boolean
 }) => {
+    const { t } = useLanguage()
     const { token } = theme.useToken()
     const delta = value - previousValue
     const deltaColor = delta > 0 ? token.colorSuccess : delta < 0 ? token.colorError : token.colorTextSecondary
@@ -211,10 +216,10 @@ const RateChangeCard = ({ title, icon, value, previousValue, caption, loading }:
                 <Typography.Text strong style={{ fontSize: 34, lineHeight: 1 }}>{value}%</Typography.Text>
                 <Space size={4} style={{ color: deltaColor }}>
                     <DeltaIcon />
-                    <Typography.Text strong style={{ color: deltaColor }}>{Math.abs(delta)}pt{Math.abs(delta) === 1 ? '' : 's'}</Typography.Text>
+                    <Typography.Text strong style={{ color: deltaColor }}>{Math.abs(delta)}{t('pt')}{Math.abs(delta) === 1 ? '' : 's'}</Typography.Text>
                 </Space>
             </div>
-            <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 6 }}>vs {previousValue}% previous period</Typography.Text>
+            <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 6 }}>{t('vs')} {previousValue}{t('% previous period')}</Typography.Text>
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>{caption}</Typography.Text>
         </Card>
     )
@@ -230,6 +235,7 @@ const PerformanceStatCard = ({ title, icon, formattedValue, deltaLabel, deltaPos
     caption: string
     loading?: boolean
 }) => {
+    const { t } = useLanguage()
     const { token } = theme.useToken()
     const deltaColor = deltaPositive ? token.colorSuccess : token.colorError
     const DeltaIcon = deltaPositive ? RiseOutlined : FallOutlined
@@ -243,7 +249,7 @@ const PerformanceStatCard = ({ title, icon, formattedValue, deltaLabel, deltaPos
                     <Typography.Text strong style={{ color: deltaColor }}>{deltaLabel}</Typography.Text>
                 </Space>
             </div>
-            <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 6 }}>vs previous period · {caption}</Typography.Text>
+            <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 6 }}>{t('vs previous period ·')} {caption}</Typography.Text>
             <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 10, borderTop: `1px solid ${token.colorBorderSecondary}` }}>
                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>{headline.label}</Typography.Text>
                 <Typography.Text strong style={{ color: headlineColor }}>{headline.value}%</Typography.Text>
@@ -253,9 +259,10 @@ const PerformanceStatCard = ({ title, icon, formattedValue, deltaLabel, deltaPos
 }
 
 const StatusBreakdownList = ({ counts }: { counts: Record<string, number> }) => {
+    const { t } = useLanguage()
     const entries = Object.entries(counts).sort((left, right) => right[1] - left[1])
     const total = entries.reduce((sum, [, count]) => sum + count, 0)
-    if (!entries.length) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No records" style={{ margin: '20px 0' }} />
+    if (!entries.length) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('No records')} style={{ margin: '20px 0' }} />
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {entries.map(([name, count]) => (
@@ -284,12 +291,12 @@ const distributionChart = (
         chart: { type, height: type === 'bar' ? Math.max(320, data.length * 38) : 320 },
         title: { text: undefined },
         xAxis: isPie ? undefined : { type: 'category' },
-        yAxis: isPie ? undefined : { title: { text: 'Applicants' }, allowDecimals: false },
+        yAxis: isPie ? undefined : { title: { text: tr('Applicants') }, allowDecimals: false },
         legend: { enabled: isPie },
         plotOptions: isPie
             ? { pie: { innerSize: '52%', dataLabels: { enabled: true, format: '{point.name}: {point.y}' } } }
             : { series: { dataLabels: { enabled: true, format: '{point.y}' } } },
-        series: [{ type, name: 'Applicants', data } as Highcharts.SeriesOptionsType],
+        series: [{ type, name: tr('Applicants'), data } as Highcharts.SeriesOptionsType],
     }
 }
 
@@ -321,6 +328,7 @@ const buildTimeBuckets = (dates: Array<Date | null>, range: [Dayjs, Dayjs] | nul
 }
 
 export default function ProjectAdminReportsPage() {
+    const { t } = useLanguage()
     const { message } = App.useApp()
     const { user, loading: identityLoading } = useFullIdentity()
     const { activeProgramId } = useActiveProgramId()
@@ -335,11 +343,11 @@ export default function ProjectAdminReportsPage() {
     const rangePresets = useMemo(() => {
         const now = dayjs()
         return [
-            { label: 'This month', value: [now.startOf('month'), now.endOf('month')] as [Dayjs, Dayjs] },
-            { label: 'This quarter', value: [now.startOf('quarter'), now.endOf('quarter')] as [Dayjs, Dayjs] },
-            { label: 'Year to date', value: [now.startOf('year'), now] as [Dayjs, Dayjs] },
+            { label: t('This month'), value: [now.startOf('month'), now.endOf('month')] as [Dayjs, Dayjs] },
+            { label: t('This quarter'), value: [now.startOf('quarter'), now.endOf('quarter')] as [Dayjs, Dayjs] },
+            { label: t('Year to date'), value: [now.startOf('year'), now] as [Dayjs, Dayjs] },
         ]
-    }, [])
+    }, [t])
 
     useEffect(() => {
         let cancelled = false
@@ -355,7 +363,7 @@ export default function ProjectAdminReportsPage() {
                 console.error('[PROJECT ADMIN REPORTS] Failed loading report data:', error)
                 if (!cancelled) {
                     setData(emptyWorkspace)
-                    message.error('Failed to load project admin reports.')
+                    message.error(t('Failed to load project admin reports.'))
                 }
             } finally {
                 if (!cancelled) setLoading(false)
@@ -367,7 +375,7 @@ export default function ProjectAdminReportsPage() {
         return () => {
             cancelled = true
         }
-    }, [activeProgramId, identityLoading, message, user])
+    }, [activeProgramId, identityLoading, message, user, t])
 
     const periodData = useMemo(() => filterProjectAdminDataByRange(data, dateRange), [data, dateRange])
 
@@ -403,14 +411,14 @@ export default function ProjectAdminReportsPage() {
             subtitle: { text: `${dateRange[0].format('DD MMM YYYY')} to ${dateRange[1].format('DD MMM YYYY')}` },
             xAxis: { categories },
             yAxis: [
-                { min: 0, title: { text: 'Revenue' }, labels: { formatter() { return formatCurrencyZAR(Number(this.value)) } } },
-                { min: 0, allowDecimals: false, title: { text: 'Employees' }, opposite: true },
+                { min: 0, title: { text: tr('Revenue') }, labels: { formatter() { return formatCurrencyZAR(Number(this.value)) } } },
+                { min: 0, allowDecimals: false, title: { text: tr('Employees') }, opposite: true },
             ],
             tooltip: { shared: true },
             plotOptions: { column: { borderRadius: 4 }, spline: { marker: { enabled: true } } },
             series: [
-                { name: 'Revenue', type: 'column', yAxis: 0, data: performanceData.trend.map((bucket) => bucket.revenue), tooltip: { valuePrefix: 'R ' } },
-                { name: 'Employees', type: 'spline', yAxis: 1, data: performanceData.trend.map((bucket) => bucket.employees) },
+                { name: tr('Revenue'), type: 'column', yAxis: 0, data: performanceData.trend.map((bucket) => bucket.revenue), tooltip: { valuePrefix: 'R ' } },
+                { name: tr('Employees'), type: 'spline', yAxis: 1, data: performanceData.trend.map((bucket) => bucket.employees) },
             ],
         }
     }, [dateRange, performanceData.trend])
@@ -512,7 +520,7 @@ export default function ProjectAdminReportsPage() {
             chart: { type: 'spline', height: 360 },
             title: { text: undefined },
             xAxis: { categories: timeline.buckets.map((bucket) => bucket.label) },
-            yAxis: { min: 0, title: { text: 'Applications' }, allowDecimals: false },
+            yAxis: { min: 0, title: { text: tr('Applications') }, allowDecimals: false },
             tooltip: { shared: true },
             plotOptions: {
                 series: {
@@ -559,7 +567,7 @@ export default function ProjectAdminReportsPage() {
             chart: { type: 'spline', height: 360 },
             title: { text: undefined },
             xAxis: { categories: timeline.buckets.map((bucket) => bucket.label) },
-            yAxis: { min: 0, title: { text: 'Interventions' }, allowDecimals: false },
+            yAxis: { min: 0, title: { text: tr('Interventions') }, allowDecimals: false },
             tooltip: { shared: true },
             plotOptions: {
                 series: {
@@ -568,11 +576,11 @@ export default function ProjectAdminReportsPage() {
                 },
             },
             series: [
-                { type: 'spline', name: 'Assigned', color: CHART_COLORS.primary, data: countDates((row) => row.assignedAt) },
-                { type: 'spline', name: 'Completed', color: CHART_COLORS.success, data: countDates((row) => row.completedAt) },
+                { type: 'spline', name: tr('Assigned'), color: CHART_COLORS.primary, data: countDates((row) => row.assignedAt) },
+                { type: 'spline', name: tr('Completed'), color: CHART_COLORS.success, data: countDates((row) => row.completedAt) },
                 {
                     type: 'spline',
-                    name: 'Overdue due dates',
+                    name: tr('Overdue due dates'),
                     color: CHART_COLORS.danger,
                     data: countDates((row) => isOverdueIntervention(row) ? row.dueDate : null),
                 },
@@ -583,19 +591,19 @@ export default function ProjectAdminReportsPage() {
     const applicantDemographicCharts = useMemo(() => {
         const applications = periodData.applications
         const definitions = [
-            { key: 'gender', title: 'Gender', type: 'pie' as const, read: (row: typeof applications[number]) => row.gender },
-            { key: 'age', title: 'Age Group', type: 'column' as const, read: (row: typeof applications[number]) => row.ageGroup },
-            { key: 'province', title: 'Province', type: 'bar' as const, read: (row: typeof applications[number]) => row.province },
-            { key: 'city', title: 'City', type: 'bar' as const, read: (row: typeof applications[number]) => row.city },
-            { key: 'sector', title: 'Business Sector', type: 'bar' as const, read: (row: typeof applications[number]) => row.sector },
-            { key: 'stage', title: 'Business Stage', type: 'column' as const, read: (row: typeof applications[number]) => row.stage },
-            { key: 'bee', title: 'B-BBEE Level', type: 'column' as const, read: (row: typeof applications[number]) => row.beeLevel },
-            { key: 'hub', title: 'Hub', type: 'bar' as const, read: (row: typeof applications[number]) => row.hub },
-            { key: 'location', title: 'Location Type', type: 'pie' as const, read: (row: typeof applications[number]) => row.locationType },
-            { key: 'disability', title: 'Disability Status', type: 'pie' as const, read: (row: typeof applications[number]) => row.disabilityStatus },
-            { key: 'education', title: 'Education Level', type: 'bar' as const, read: (row: typeof applications[number]) => row.educationLevel },
-            { key: 'employment', title: 'Employment Status', type: 'column' as const, read: (row: typeof applications[number]) => row.employmentStatus },
-            { key: 'marital', title: 'Marital Status', type: 'pie' as const, read: (row: typeof applications[number]) => row.maritalStatus },
+            { key: 'gender', title: t('Gender'), type: 'pie' as const, read: (row: typeof applications[number]) => row.gender },
+            { key: 'age', title: t('Age Group'), type: 'column' as const, read: (row: typeof applications[number]) => row.ageGroup },
+            { key: 'province', title: t('Province'), type: 'bar' as const, read: (row: typeof applications[number]) => row.province },
+            { key: 'city', title: t('City'), type: 'bar' as const, read: (row: typeof applications[number]) => row.city },
+            { key: 'sector', title: t('Business Sector'), type: 'bar' as const, read: (row: typeof applications[number]) => row.sector },
+            { key: 'stage', title: t('Business Stage'), type: 'column' as const, read: (row: typeof applications[number]) => row.stage },
+            { key: 'bee', title: t('B-BBEE Level'), type: 'column' as const, read: (row: typeof applications[number]) => row.beeLevel },
+            { key: 'hub', title: t('Hub'), type: 'bar' as const, read: (row: typeof applications[number]) => row.hub },
+            { key: 'location', title: t('Location Type'), type: 'pie' as const, read: (row: typeof applications[number]) => row.locationType },
+            { key: 'disability', title: t('Disability Status'), type: 'pie' as const, read: (row: typeof applications[number]) => row.disabilityStatus },
+            { key: 'education', title: t('Education Level'), type: 'bar' as const, read: (row: typeof applications[number]) => row.educationLevel },
+            { key: 'employment', title: t('Employment Status'), type: 'column' as const, read: (row: typeof applications[number]) => row.employmentStatus },
+            { key: 'marital', title: t('Marital Status'), type: 'pie' as const, read: (row: typeof applications[number]) => row.maritalStatus },
         ]
         return definitions
             .filter((definition) => applications.some((application) => Boolean(definition.read(application).trim())))
@@ -604,7 +612,7 @@ export default function ProjectAdminReportsPage() {
                 title: definition.title,
                 options: distributionChart(countBy(applications, definition.read), definition.type),
             }))
-    }, [periodData.applications])
+    }, [periodData.applications, t])
 
     const ownershipChart = useMemo<Highcharts.Options | null>(() => {
         const averages = [
@@ -617,12 +625,12 @@ export default function ProjectAdminReportsPage() {
             chart: { type: 'bar', height: 320 },
             title: { text: undefined },
             xAxis: { type: 'category' },
-            yAxis: { min: 0, max: 100, title: { text: 'Average ownership (%)' } },
+            yAxis: { min: 0, max: 100, title: { text: tr('Average ownership (%)') } },
             legend: { enabled: false },
             plotOptions: { series: { dataLabels: { enabled: true, format: '{point.y:.0f}%' } } },
             series: [{
                 type: 'bar',
-                name: 'Average ownership',
+                name: tr('Average ownership'),
                 data: averages.map((row) => ({
                     name: row.name,
                     y: row.values.reduce((sum, value) => sum + value, 0) / row.values.length,
@@ -647,14 +655,14 @@ export default function ProjectAdminReportsPage() {
         return {
             chart: { type: 'bubble', height: 380, plotBorderWidth: 1 },
             title: { text: undefined },
-            xAxis: { title: { text: 'Average applicant age' } },
-            yAxis: { title: { text: 'Average years trading' } },
+            xAxis: { title: { text: tr('Average applicant age') } },
+            yAxis: { title: { text: tr('Average years trading') } },
             legend: { enabled: false },
             tooltip: { pointFormat: '<b>{point.name}</b><br/>Applicants: {point.z}<br/>Average age: {point.x:.1f}<br/>Average years trading: {point.y:.1f}' },
             plotOptions: { bubble: { minSize: 18, maxSize: 70, dataLabels: { enabled: true, format: '{point.name}: {point.z}' } } },
             series: [{
                 type: 'bubble',
-                name: 'Sectors',
+                name: tr('Sectors'),
                 data: [...groups.entries()].map(([name, group], index) => ({
                     name,
                     x: average(group.ages),
@@ -670,7 +678,7 @@ export default function ProjectAdminReportsPage() {
         chart: { type: 'column', height: 320 },
         title: { text: undefined },
         xAxis: { type: 'category' },
-        yAxis: { title: { text: 'Applications' }, allowDecimals: false },
+        yAxis: { title: { text: tr('Applications') }, allowDecimals: false },
         legend: { enabled: false },
         plotOptions: {
             series: {
@@ -689,7 +697,7 @@ export default function ProjectAdminReportsPage() {
         },
         series: [{
             type: 'column',
-            name: 'Applications',
+            name: tr('Applications'),
             data: toStatusSeries(countBy(periodData.applications, (application) => application.status)),
         }],
     }), [periodData.applications])
@@ -715,7 +723,7 @@ export default function ProjectAdminReportsPage() {
         },
         series: [{
             type: 'pie',
-            name: 'Interventions',
+            name: tr('Interventions'),
             data: toStatusSeries(countBy(periodData.interventions, (intervention) => intervention.status)),
         }],
     }), [periodData.interventions])
@@ -727,18 +735,18 @@ export default function ProjectAdminReportsPage() {
      */
     const interventionProgressChart = useMemo<Highcharts.Options>(() => {
         const buckets: { label: string, test: (progress: number) => boolean, color: string }[] = [
-            { label: 'Not started (0%)', test: (progress) => progress <= 0, color: CHART_COLORS.slate },
+            { label: t('Not started (0%)'), test: (progress) => progress <= 0, color: CHART_COLORS.slate },
             { label: '1–24%', test: (progress) => progress > 0 && progress < 25, color: CHART_COLORS.danger },
             { label: '25–49%', test: (progress) => progress >= 25 && progress < 50, color: CHART_COLORS.amber },
             { label: '50–74%', test: (progress) => progress >= 50 && progress < 75, color: CHART_COLORS.primary },
             { label: '75–99%', test: (progress) => progress >= 75 && progress < 100, color: CHART_COLORS.cyan },
-            { label: 'Completed (100%)', test: (progress) => progress >= 100, color: CHART_COLORS.success },
+            { label: t('Completed (100%)'), test: (progress) => progress >= 100, color: CHART_COLORS.success },
         ]
         return {
             chart: { type: 'column', height: 340 },
             title: { text: undefined },
             xAxis: { categories: buckets.map((bucket) => bucket.label) },
-            yAxis: { min: 0, title: { text: 'Interventions' }, allowDecimals: false },
+            yAxis: { min: 0, title: { text: tr('Interventions') }, allowDecimals: false },
             legend: { enabled: false },
             tooltip: { pointFormat: '<b>{point.y}</b> interventions' },
             plotOptions: {
@@ -760,14 +768,14 @@ export default function ProjectAdminReportsPage() {
             },
             series: [{
                 type: 'column',
-                name: 'Interventions',
+                name: tr('Interventions'),
                 data: buckets.map((bucket) => ({
                     y: periodData.interventions.filter((row) => bucket.test(row.progress)).length,
                     color: bucket.color,
                 })),
             }],
         }
-    }, [periodData.interventions])
+    }, [periodData.interventions, t])
 
     const complianceStatusChart = useMemo<Highcharts.Options>(() => ({
         chart: { type: 'pie', height: 340 },
@@ -790,7 +798,7 @@ export default function ProjectAdminReportsPage() {
         },
         series: [{
             type: 'pie',
-            name: 'Documents',
+            name: tr('Documents'),
             data: toStatusSeries(countBy(periodData.complianceDocuments, (document) => document.status)),
         }],
     }), [periodData.complianceDocuments])
@@ -802,7 +810,7 @@ export default function ProjectAdminReportsPage() {
             chart: { type: 'column', height: 340 },
             title: { text: undefined },
             xAxis: { type: 'category' },
-            yAxis: { title: { text: 'Documents' }, allowDecimals: false },
+            yAxis: { title: { text: tr('Documents') }, allowDecimals: false },
             legend: { enabled: false },
             plotOptions: {
                 series: {
@@ -820,7 +828,7 @@ export default function ProjectAdminReportsPage() {
             },
             series: [{
                 type: 'column',
-                name: 'Documents',
+                name: tr('Documents'),
                 data: [
                     { name: 'Clear', y: clearRows.length, color: CHART_COLORS.success },
                     { name: 'Action required', y: attentionRows.length, color: CHART_COLORS.danger },
@@ -828,6 +836,63 @@ export default function ProjectAdminReportsPage() {
             }],
         }
     }, [periodData.complianceDocuments])
+
+    const buildExportData = (): ReportExportData => {
+        const countBy = (rows: Array<{ status?: string }>) => {
+            const counts = new Map<string, number>()
+            rows.forEach((row) => {
+                const label = String(row.status || 'Unspecified').trim() || 'Unspecified'
+                counts.set(label, (counts.get(label) || 0) + 1)
+            })
+            return [...counts.entries()].sort((left, right) => right[1] - left[1])
+        }
+        const rateTone = (rate: number) => (rate >= 70 ? 'good' as const : rate >= 40 ? 'watch' as const : 'risk' as const)
+        const change = (current: number, previous: number) => (previous ? `${Math.round(((current - previous) / previous) * 100)}% vs previous period` : 'no previous period figure')
+
+        return {
+            role: user?.role || 'projectadmin',
+            title: 'Programme Report',
+            periodLabel: `${dateRange[0].format('DD MMM YYYY')} to ${dateRange[1].format('DD MMM YYYY')}`,
+            organisation: user?.companyCode || undefined,
+            preparedBy: user?.name || user?.displayName || user?.email || 'Project administrator',
+            kpis: [
+                { label: 'Open applications', value: metrics.openApplications, note: `${metrics.acceptedApplications} accepted (${metrics.acceptanceRate}% acceptance rate)` },
+                { label: 'Participants', value: metrics.participants },
+                { label: 'Interventions completed', value: metrics.completedInterventions, note: `${metrics.completionRate}% completion rate`, tone: rateTone(metrics.completionRate) },
+                { label: 'Overdue interventions', value: metrics.overdueInterventions, tone: metrics.overdueInterventions ? 'risk' : 'good' },
+                { label: 'Compliance alerts', value: metrics.complianceAttention, note: `${metrics.complianceRate}% of documents compliant`, tone: metrics.complianceAttention ? 'watch' : 'good' },
+                { label: 'Programmes', value: programmeRows.length },
+                { label: 'SME revenue', value: formatCurrencyZAR(performanceData.revenue.current), note: change(performanceData.revenue.current, performanceData.revenue.previous), tone: performanceData.revenue.current >= performanceData.revenue.previous ? 'good' : 'watch' },
+                { label: 'Employees', value: performanceData.employees.current.toLocaleString(), note: change(performanceData.employees.current, performanceData.employees.previous), tone: performanceData.employees.current >= performanceData.employees.previous ? 'good' : 'watch' },
+            ],
+            tables: [
+                {
+                    key: 'programmes',
+                    title: 'Programme breakdown',
+                    columns: [{ key: 'programme', label: 'Programme' }, { key: 'applications', label: 'Applications' }, { key: 'participants', label: 'Participants' }, { key: 'interventions', label: 'Interventions' }, { key: 'completed', label: 'Completed' }, { key: 'overdue', label: 'Overdue' }],
+                    rows: programmeRows.map((row) => ({ programme: row.programme, applications: row.applications, participants: row.participants, interventions: row.interventions, completed: row.completed, overdue: row.overdue })),
+                },
+                {
+                    key: 'applications',
+                    title: 'Applications by status',
+                    columns: [{ key: 'status', label: 'Status' }, { key: 'count', label: 'Applications' }],
+                    rows: countBy(periodData.applications).map(([status, count]) => ({ status, count })),
+                },
+                {
+                    key: 'compliance',
+                    title: 'Compliance documents by status',
+                    columns: [{ key: 'status', label: 'Status' }, { key: 'count', label: 'Documents' }],
+                    rows: countBy(periodData.complianceDocuments).map(([status, count]) => ({ status, count })),
+                },
+                {
+                    key: 'performance',
+                    title: 'SME revenue and employment over time',
+                    columns: [{ key: 'period', label: 'Period' }, { key: 'revenue', label: 'Revenue' }, { key: 'employees', label: 'Employees' }],
+                    rows: performanceData.trend.map((bucket) => ({ period: bucket.label, revenue: formatCurrencyZAR(bucket.revenue), employees: bucket.employees })),
+                },
+            ],
+        }
+    }
 
     return (
         <DashboardPage className="operations-reports-page project-admin-reports-page">
@@ -838,25 +903,25 @@ export default function ProjectAdminReportsPage() {
                             loading={identityLoading || loading}
                             icon={<AuditOutlined />}
                             iconClassName="is-applications"
-                            label="Open Applications"
+                            label={t('Open Applications')}
                             value={metrics.openApplications}
                             hint={`${metrics.acceptedApplications} accepted`} />
                     </Col>
                 )}
                 {(identityLoading || loading || metrics.participants > 0) && (
-                    <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={identityLoading || loading} icon={<TeamOutlined />} iconClassName="is-participants" label="Participants" value={metrics.participants} /></Col>
+                    <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={identityLoading || loading} icon={<TeamOutlined />} iconClassName="is-participants" label={t('Participants')} value={metrics.participants} /></Col>
                 )}
                 {(identityLoading || loading || metrics.completedInterventions > 0) && (
-                    <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={identityLoading || loading} icon={<CheckCircleOutlined />} iconClassName="is-delivery" label="Completed interventions" value={metrics.completedInterventions} hint={`${metrics.completionRate}% rate`} /></Col>
+                    <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={identityLoading || loading} icon={<CheckCircleOutlined />} iconClassName="is-delivery" label={t('Completed interventions')} value={metrics.completedInterventions} hint={`${metrics.completionRate}% rate`} /></Col>
                 )}
                 {(identityLoading || loading || metrics.overdueInterventions > 0) && (
-                    <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={identityLoading || loading} icon={<ExclamationCircleOutlined />} iconClassName="is-attention" label="Overdue interventions" value={metrics.overdueInterventions} /></Col>
+                    <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={identityLoading || loading} icon={<ExclamationCircleOutlined />} iconClassName="is-attention" label={t('Overdue interventions')} value={metrics.overdueInterventions} /></Col>
                 )}
                 {(identityLoading || loading || metrics.complianceAttention > 0) && (
-                    <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={identityLoading || loading} icon={<FileProtectOutlined />} iconClassName="is-attention" label="Compliance alerts" value={metrics.complianceAttention} /></Col>
+                    <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={identityLoading || loading} icon={<FileProtectOutlined />} iconClassName="is-attention" label={t('Compliance alerts')} value={metrics.complianceAttention} /></Col>
                 )}
                 {(identityLoading || loading || programmeRows.length > 0) && (
-                    <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={identityLoading || loading} icon={<AppstoreOutlined />} iconClassName="is-users" label="Programmes" value={programmeRows.length} /></Col>
+                    <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={identityLoading || loading} icon={<AppstoreOutlined />} iconClassName="is-users" label={t('Programmes')} value={programmeRows.length} /></Col>
                 )}
             </Row>
 
@@ -867,11 +932,11 @@ export default function ProjectAdminReportsPage() {
                             value={view}
                             onChange={setView}
                             options={[
-                                { label: 'Overview', value: 'overview', icon: <DashboardOutlined /> },
-                                { label: 'Applications', value: 'applications', icon: <AuditOutlined /> },
-                                { label: 'Interventions', value: 'interventions', icon: <RiseOutlined /> },
-                                { label: 'Compliance', value: 'compliance', icon: <FileProtectOutlined /> },
-                                { label: 'Performance', value: 'performance', icon: <FundOutlined /> },
+                                { label: t('Overview'), value: 'overview', icon: <DashboardOutlined /> },
+                                { label: t('Applications'), value: 'applications', icon: <AuditOutlined /> },
+                                { label: t('Interventions'), value: 'interventions', icon: <RiseOutlined /> },
+                                { label: t('Compliance'), value: 'compliance', icon: <FileProtectOutlined /> },
+                                { label: t('Performance'), value: 'performance', icon: <FundOutlined /> },
                             ]}
                         />
                         <RangePicker
@@ -884,6 +949,7 @@ export default function ProjectAdminReportsPage() {
                         />
                     </>
                 )}
+                actions={<ReportExportButton buildData={buildExportData} disabled={identityLoading || loading} />}
             />
 
             {view === 'overview' && (
@@ -892,7 +958,7 @@ export default function ProjectAdminReportsPage() {
                         <Col xs={24} lg={8}>
                             <RateChangeCard
                                 loading={identityLoading || loading}
-                                title="Acceptance Rate"
+                                title={t('Acceptance Rate')}
                                 icon={<AuditOutlined />}
                                 value={metrics.acceptanceRate}
                                 previousValue={previousRates.acceptanceRate}
@@ -902,7 +968,7 @@ export default function ProjectAdminReportsPage() {
                         <Col xs={24} lg={8}>
                             <RateChangeCard
                                 loading={identityLoading || loading}
-                                title="Delivery Rate"
+                                title={t('Delivery Rate')}
                                 icon={<CheckCircleOutlined />}
                                 value={metrics.deliveryRate}
                                 previousValue={previousRates.deliveryRate}
@@ -912,7 +978,7 @@ export default function ProjectAdminReportsPage() {
                         <Col xs={24} lg={8}>
                             <RateChangeCard
                                 loading={identityLoading || loading}
-                                title="Compliance Rate"
+                                title={t('Compliance Rate')}
                                 icon={<FileProtectOutlined />}
                                 value={metrics.complianceRate}
                                 previousValue={previousRates.complianceRate}
@@ -923,7 +989,7 @@ export default function ProjectAdminReportsPage() {
 
                     <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
                         <Col span={24}>
-                            <Card loading={identityLoading || loading} className="dashboard-section-card motion-card" title="Programme Health" extra={<Typography.Text type="secondary">Click a programme for its breakdown</Typography.Text>}>
+                            <Card loading={identityLoading || loading} className="dashboard-section-card motion-card" title={t('Programme Health')} extra={<Typography.Text type="secondary">{t('Click a programme for its breakdown')}</Typography.Text>}>
                                 {programmeRows.length ? (
                                     <Row gutter={[10, 10]}>
                                         {programmeRows.map((row) => (
@@ -932,7 +998,7 @@ export default function ProjectAdminReportsPage() {
                                             </Col>
                                         ))}
                                     </Row>
-                                ) : <Empty description="No programme report data for this period." />}
+                                ) : <Empty description={t('No programme report data for this period.')} />}
                             </Card>
                         </Col>
                     </Row>
@@ -942,7 +1008,7 @@ export default function ProjectAdminReportsPage() {
             <Modal
                 open={!!selectedProgrammeDetail}
                 onCancel={() => setSelectedProgramme(undefined)}
-                footer={<Button onClick={() => setSelectedProgramme(undefined)}>Close</Button>}
+                footer={<Button onClick={() => setSelectedProgramme(undefined)}>{t('Close')}</Button>}
                 title={selectedProgrammeDetail ? `${selectedProgrammeDetail.row.programme} — Programme Breakdown` : ''}
                 width={760}
                 destroyOnClose
@@ -950,22 +1016,22 @@ export default function ProjectAdminReportsPage() {
                 {selectedProgrammeDetail && (
                     <>
                         <Row gutter={[12, 12]} style={{ marginBottom: 24 }}>
-                            <Col xs={12} md={6}><Typography.Text type="secondary">Applications</Typography.Text><div style={{ fontSize: 22, fontWeight: 700 }}>{selectedProgrammeDetail.row.applications}</div></Col>
-                            <Col xs={12} md={6}><Typography.Text type="secondary">Participants</Typography.Text><div style={{ fontSize: 22, fontWeight: 700 }}>{selectedProgrammeDetail.row.participants}</div></Col>
-                            <Col xs={12} md={6}><Typography.Text type="secondary">Interventions</Typography.Text><div style={{ fontSize: 22, fontWeight: 700 }}>{selectedProgrammeDetail.row.interventions}</div></Col>
-                            <Col xs={12} md={6}><Typography.Text type="secondary">Overdue</Typography.Text><div style={{ fontSize: 22, fontWeight: 700, color: selectedProgrammeDetail.row.overdue > 0 ? '#EF4444' : undefined }}>{selectedProgrammeDetail.row.overdue}</div></Col>
+                            <Col xs={12} md={6}><Typography.Text type="secondary">{t('Applications')}</Typography.Text><div style={{ fontSize: 22, fontWeight: 700 }}>{selectedProgrammeDetail.row.applications}</div></Col>
+                            <Col xs={12} md={6}><Typography.Text type="secondary">{t('Participants')}</Typography.Text><div style={{ fontSize: 22, fontWeight: 700 }}>{selectedProgrammeDetail.row.participants}</div></Col>
+                            <Col xs={12} md={6}><Typography.Text type="secondary">{t('Interventions')}</Typography.Text><div style={{ fontSize: 22, fontWeight: 700 }}>{selectedProgrammeDetail.row.interventions}</div></Col>
+                            <Col xs={12} md={6}><Typography.Text type="secondary">{t('Overdue')}</Typography.Text><div style={{ fontSize: 22, fontWeight: 700, color: selectedProgrammeDetail.row.overdue > 0 ? '#EF4444' : undefined }}>{selectedProgrammeDetail.row.overdue}</div></Col>
                         </Row>
                         <Row gutter={[24, 24]}>
                             <Col xs={24} md={8}>
-                                <Typography.Text strong style={{ display: 'block', marginBottom: 12 }}>Applications</Typography.Text>
+                                <Typography.Text strong style={{ display: 'block', marginBottom: 12 }}>{t('Applications')}</Typography.Text>
                                 <StatusBreakdownList counts={selectedProgrammeDetail.applicationCounts} />
                             </Col>
                             <Col xs={24} md={8}>
-                                <Typography.Text strong style={{ display: 'block', marginBottom: 12 }}>Interventions</Typography.Text>
+                                <Typography.Text strong style={{ display: 'block', marginBottom: 12 }}>{t('Interventions')}</Typography.Text>
                                 <StatusBreakdownList counts={selectedProgrammeDetail.interventionCounts} />
                             </Col>
                             <Col xs={24} md={8}>
-                                <Typography.Text strong style={{ display: 'block', marginBottom: 12 }}>Compliance</Typography.Text>
+                                <Typography.Text strong style={{ display: 'block', marginBottom: 12 }}>{t('Compliance')}</Typography.Text>
                                 <StatusBreakdownList counts={selectedProgrammeDetail.complianceCounts} />
                             </Col>
                         </Row>
@@ -979,20 +1045,20 @@ export default function ProjectAdminReportsPage() {
                         <Card
                             loading={identityLoading || loading}
                             className="dashboard-section-card motion-card"
-                            title="Applications And Statuses Over Time"
-                            extra={<Button onClick={() => setApplicantProfileOpen(true)}>View applicant profile</Button>}
+                            title={t('Applications And Statuses Over Time')}
+                            extra={<Button onClick={() => setApplicantProfileOpen(true)}>{t('View applicant profile')}</Button>}
                         >
-                            {periodData.applications.length ? <ThemedHighcharts options={applicationTimelineChart} /> : <Empty description="No applications found for this period." />}
+                            {periodData.applications.length ? <ThemedHighcharts options={applicationTimelineChart} /> : <Empty description={t('No applications found for this period.')} />}
                         </Card>
                     </Col>
                     <Col xs={24}>
                         <Card
                             loading={identityLoading || loading}
                             className="dashboard-section-card motion-card"
-                            title="Application Status Mix"
-                            extra={<Typography.Text type="secondary">Click a bar for details</Typography.Text>}
+                            title={t('Application Status Mix')}
+                            extra={<Typography.Text type="secondary">{t('Click a bar for details')}</Typography.Text>}
                         >
-                            {periodData.applications.length ? <ThemedHighcharts options={applicationStatusChart} /> : <Empty description="No application statuses found." />}
+                            {periodData.applications.length ? <ThemedHighcharts options={applicationStatusChart} /> : <Empty description={t('No application statuses found.')} />}
                         </Card>
                     </Col>
                 </Row>
@@ -1001,21 +1067,21 @@ export default function ProjectAdminReportsPage() {
             <Modal
                 open={applicantProfileOpen}
                 onCancel={() => setApplicantProfileOpen(false)}
-                footer={<Button onClick={() => setApplicantProfileOpen(false)}>Close</Button>}
-                title="Applicant Profile"
+                footer={<Button onClick={() => setApplicantProfileOpen(false)}>{t('Close')}</Button>}
+                title={t('Applicant Profile')}
                 width={960}
                 destroyOnClose
             >
                 <Row gutter={[16, 16]}>
                     {ownershipChart && (
                         <Col xs={24} xl={12}>
-                            <Typography.Text strong>Ownership Profile</Typography.Text>
+                            <Typography.Text strong>{t('Ownership Profile')}</Typography.Text>
                             <ThemedHighcharts options={ownershipChart} />
                         </Col>
                     )}
                     {sectorBubbleChart && (
                         <Col xs={24}>
-                            <Typography.Text strong>Sector Profile: Applicant Age, Trading Experience And Volume</Typography.Text>
+                            <Typography.Text strong>{t('Sector Profile: Applicant Age, Trading Experience And Volume')}</Typography.Text>
                             <ThemedHighcharts options={sectorBubbleChart} />
                         </Col>
                     )}
@@ -1027,7 +1093,7 @@ export default function ProjectAdminReportsPage() {
                     ))}
                     {!applicantDemographicCharts.length && !ownershipChart && !sectorBubbleChart && (
                         <Col xs={24}>
-                            <Empty description="Applicant demographic fields have not been captured for this period." />
+                            <Empty description={t('Applicant demographic fields have not been captured for this period.')} />
                         </Col>
                     )}
                 </Row>
@@ -1036,28 +1102,28 @@ export default function ProjectAdminReportsPage() {
             {view === 'interventions' && (
                 <Row gutter={[20, 20]} className="project-admin-report-chart-grid">
                     <Col xs={24}>
-                        <Card loading={identityLoading || loading} className="dashboard-section-card motion-card" title="Intervention Activity Over Time">
-                            {periodData.interventions.length ? <ThemedHighcharts options={interventionTimelineChart} /> : <Empty description="No intervention activity found." />}
+                        <Card loading={identityLoading || loading} className="dashboard-section-card motion-card" title={t('Intervention Activity Over Time')}>
+                            {periodData.interventions.length ? <ThemedHighcharts options={interventionTimelineChart} /> : <Empty description={t('No intervention activity found.')} />}
                         </Card>
                     </Col>
                     <Col xs={24} xl={9}>
                         <Card
                             loading={identityLoading || loading}
                             className="dashboard-section-card motion-card"
-                            title="Intervention Status Mix"
-                            extra={<Typography.Text type="secondary">Click a segment for details</Typography.Text>}
+                            title={t('Intervention Status Mix')}
+                            extra={<Typography.Text type="secondary">{t('Click a segment for details')}</Typography.Text>}
                         >
-                            {periodData.interventions.length ? <ThemedHighcharts options={interventionChart} /> : <Empty description="No interventions found." />}
+                            {periodData.interventions.length ? <ThemedHighcharts options={interventionChart} /> : <Empty description={t('No interventions found.')} />}
                         </Card>
                     </Col>
                     <Col xs={24} xl={15}>
                         <Card
                             loading={identityLoading || loading}
                             className="dashboard-section-card motion-card"
-                            title="Intervention Progress Distribution"
-                            extra={<Typography.Text type="secondary">Click a bar for details</Typography.Text>}
+                            title={t('Intervention Progress Distribution')}
+                            extra={<Typography.Text type="secondary">{t('Click a bar for details')}</Typography.Text>}
                         >
-                            {periodData.interventions.length ? <ThemedHighcharts options={interventionProgressChart} /> : <Empty description="No intervention progress found." />}
+                            {periodData.interventions.length ? <ThemedHighcharts options={interventionProgressChart} /> : <Empty description={t('No intervention progress found.')} />}
                         </Card>
                     </Col>
                 </Row>
@@ -1069,20 +1135,20 @@ export default function ProjectAdminReportsPage() {
                         <Card
                             loading={identityLoading || loading}
                             className="dashboard-section-card motion-card"
-                            title="Compliance Status Mix"
-                            extra={<Typography.Text type="secondary">Click a segment for details</Typography.Text>}
+                            title={t('Compliance Status Mix')}
+                            extra={<Typography.Text type="secondary">{t('Click a segment for details')}</Typography.Text>}
                         >
-                            {periodData.complianceDocuments.length ? <ThemedHighcharts options={complianceStatusChart} /> : <Empty description="No compliance records found." />}
+                            {periodData.complianceDocuments.length ? <ThemedHighcharts options={complianceStatusChart} /> : <Empty description={t('No compliance records found.')} />}
                         </Card>
                     </Col>
                     <Col xs={24} xl={12}>
                         <Card
                             loading={identityLoading || loading}
                             className="dashboard-section-card motion-card"
-                            title="Compliance Action Summary"
-                            extra={<Typography.Text type="secondary">Click a bar for details</Typography.Text>}
+                            title={t('Compliance Action Summary')}
+                            extra={<Typography.Text type="secondary">{t('Click a bar for details')}</Typography.Text>}
                         >
-                            {periodData.complianceDocuments.length ? <ThemedHighcharts options={complianceHealthChart} /> : <Empty description="No compliance records found." />}
+                            {periodData.complianceDocuments.length ? <ThemedHighcharts options={complianceHealthChart} /> : <Empty description={t('No compliance records found.')} />}
                         </Card>
                     </Col>
                 </Row>
@@ -1093,7 +1159,7 @@ export default function ProjectAdminReportsPage() {
                     <Col xs={24} lg={12}>
                         <PerformanceStatCard
                             loading={identityLoading || loading}
-                            title="Revenue"
+                            title={t('Revenue')}
                             icon={<DollarCircleOutlined />}
                             formattedValue={formatCurrencyZAR(performanceData.revenue.current)}
                             deltaLabel={performanceData.revenue.delta.label}
@@ -1105,7 +1171,7 @@ export default function ProjectAdminReportsPage() {
                     <Col xs={24} lg={12}>
                         <PerformanceStatCard
                             loading={identityLoading || loading}
-                            title="Employees"
+                            title={t('Employees')}
                             icon={<TeamOutlined />}
                             formattedValue={formatMetricNumber(performanceData.employees.current)}
                             deltaLabel={performanceData.employees.delta.label}
@@ -1115,8 +1181,8 @@ export default function ProjectAdminReportsPage() {
                         />
                     </Col>
                     <Col span={24}>
-                        <Card loading={identityLoading || loading} className="dashboard-section-card motion-card" title={<Space><FundOutlined /> Revenue & Employees Trend</Space>}>
-                            {performanceData.smeCount ? <ThemedHighcharts options={performanceTrendOptions} /> : <Empty description="No SME revenue or employee data for this programme scope." />}
+                        <Card loading={identityLoading || loading} className="dashboard-section-card motion-card" title={<Space><FundOutlined /> {t('Revenue & Employees Trend')}</Space>}>
+                            {performanceData.smeCount ? <ThemedHighcharts options={performanceTrendOptions} /> : <Empty description={t('No SME revenue or employee data for this programme scope.')} />}
                         </Card>
                     </Col>
                 </Row>
@@ -1125,7 +1191,7 @@ export default function ProjectAdminReportsPage() {
             <Modal
                 open={!!drilldown}
                 onCancel={() => setDrilldown(null)}
-                footer={<Button onClick={() => setDrilldown(null)}>Close</Button>}
+                footer={<Button onClick={() => setDrilldown(null)}>{t('Close')}</Button>}
                 title={drilldown?.title}
                 width={800}
                 destroyOnClose
@@ -1136,12 +1202,12 @@ export default function ProjectAdminReportsPage() {
                         size="small"
                         dataSource={drilldown.rows}
                         pagination={{ pageSize: 8, showSizeChanger: false }}
-                        locale={{ emptyText: 'No applications match this selection.' }}
+                        locale={{ emptyText: t('No applications match this selection.') }}
                         columns={[
-                            { title: 'Business', dataIndex: 'businessName' },
-                            { title: 'Programme', dataIndex: 'programName' },
-                            { title: 'Status', dataIndex: 'status', render: (value: string) => <Tag color={statusColor(value)}>{statusLabel(value)}</Tag> },
-                            { title: 'Submitted', dataIndex: 'submittedAt', render: (value: Date | null) => value ? dayjs(value).format('DD MMM YYYY') : '—' },
+                            { title: t('Business'), dataIndex: 'businessName' },
+                            { title: t('Programme'), dataIndex: 'programName' },
+                            { title: t('Status'), dataIndex: 'status', render: (value: string) => <Tag color={statusColor(value)}>{statusLabel(value)}</Tag> },
+                            { title: t('Submitted'), dataIndex: 'submittedAt', render: (value: Date | null) => value ? dayjs(value).format('DD MMM YYYY') : '—' },
                         ]}
                     />
                 )}
@@ -1151,13 +1217,13 @@ export default function ProjectAdminReportsPage() {
                         size="small"
                         dataSource={drilldown.rows}
                         pagination={{ pageSize: 8, showSizeChanger: false }}
-                        locale={{ emptyText: 'No interventions match this selection.' }}
+                        locale={{ emptyText: t('No interventions match this selection.') }}
                         columns={[
-                            { title: 'Intervention', dataIndex: 'title' },
-                            { title: 'SME', dataIndex: 'participantName' },
-                            { title: 'Owner', dataIndex: 'owner' },
-                            { title: 'Progress', dataIndex: 'progress', width: 140, render: (value: number) => <Progress percent={value} size="small" /> },
-                            { title: 'Status', dataIndex: 'status', render: (value: string) => <Tag color={statusColor(value)}>{statusLabel(value)}</Tag> },
+                            { title: t('Intervention'), dataIndex: 'title' },
+                            { title: t('SME'), dataIndex: 'participantName' },
+                            { title: t('Owner'), dataIndex: 'owner' },
+                            { title: t('Progress'), dataIndex: 'progress', width: 140, render: (value: number) => <Progress percent={value} size="small" /> },
+                            { title: t('Status'), dataIndex: 'status', render: (value: string) => <Tag color={statusColor(value)}>{statusLabel(value)}</Tag> },
                         ]}
                     />
                 )}
@@ -1167,12 +1233,12 @@ export default function ProjectAdminReportsPage() {
                         size="small"
                         dataSource={drilldown.rows}
                         pagination={{ pageSize: 8, showSizeChanger: false }}
-                        locale={{ emptyText: 'No compliance documents match this selection.' }}
+                        locale={{ emptyText: t('No compliance documents match this selection.') }}
                         columns={[
-                            { title: 'Participant', dataIndex: 'participantId' },
-                            { title: 'Status', dataIndex: 'status', render: (value: string) => <Tag color={statusColor(value)}>{statusLabel(value)}</Tag> },
-                            { title: 'Expiry', dataIndex: 'expiryDate', render: (value: Date | null) => value ? dayjs(value).format('DD MMM YYYY') : '—' },
-                            { title: 'Updated', dataIndex: 'updatedAt', render: (value: Date | null) => value ? dayjs(value).format('DD MMM YYYY') : '—' },
+                            { title: t('Participant'), dataIndex: 'participantId' },
+                            { title: t('Status'), dataIndex: 'status', render: (value: string) => <Tag color={statusColor(value)}>{statusLabel(value)}</Tag> },
+                            { title: t('Expiry'), dataIndex: 'expiryDate', render: (value: Date | null) => value ? dayjs(value).format('DD MMM YYYY') : '—' },
+                            { title: t('Updated'), dataIndex: 'updatedAt', render: (value: Date | null) => value ? dayjs(value).format('DD MMM YYYY') : '—' },
                         ]}
                     />
                 )}

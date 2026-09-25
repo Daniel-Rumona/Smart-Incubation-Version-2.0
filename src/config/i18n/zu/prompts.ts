@@ -1,0 +1,23 @@
+// isiZulu translations for the agentic home suggestions. Needs native-speaker review.
+export const zuPrompts: Record<string, string> = {
+  "Draft a plan for my active assignments": "Ngilungisele uhlelo lokwabelwa kwami okusebenzayo",
+  "Explain the programme requirements": "Chaza izidingo zohlelo",
+  "Explore": "Hlola",
+  "Help me prepare for my next milestone": "Ngisize ngilungiselele isigaba sami esilandelayo",
+  "Help me strengthen my application": "Ngisize ngiqinise isicelo sami",
+  "Incubatee": "Ohlanganyelayo Ohlelweni",
+  "Let’s get your application moving.": "Ake siqhubekise isicelo sakho.",
+  "Prioritise my intervention queue": "Beka phambili ulayini wami wokungenelela",
+  "Project manager": "Umphathi wephrojekthi",
+  "Ready": "Kulungile",
+  "Show me adoption changes this week": "Ngikhombise izinguquko zokwamukelwa kuleli viki",
+  "Summarise my intervention progress": "Fingqa inqubekela phambili yami yokungenelela",
+  "Summarise platform risks": "Fingqa ubungozi beplathifomu",
+  "What do I need to complete today?": "Yini okufanele ngiyiqedele namuhla?",
+  "What should I complete next?": "Yini okufanele ngiyiqede okulandelayo?",
+  "What should we improve across the platform today?": "Yini okufanele siyithuthukise kuyo yonke iplathifomu namuhla?",
+  "What would you like to move forward today?": "Yini ongathanda ukuyiqhubekisa namuhla?",
+  "Where should we focus your delivery time today?": "Kufanele sigxile kuphi ngesikhathi sakho sokulethwa namuhla?",
+  "Which SMEs need attention?": "Ama-SME athini adinga ukunakwa?",
+  "Which errors need immediate attention?": "Yiziphi izinkinga ezidinga ukunakwa ngokushesha?",
+}

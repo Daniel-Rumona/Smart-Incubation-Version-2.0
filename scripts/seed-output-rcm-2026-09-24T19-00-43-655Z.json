@@ -1,0 +1,581 @@
+{
+  "createdAt": "2026-09-24T18:59:48.361Z",
+  "createdCompany": true,
+  "createdAccounts": [
+    {
+      "uid": "whbZ8JBnbSSvmHptRNnLBX63oXw1",
+      "email": "director@quantilytix.co.za"
+    },
+    {
+      "uid": "GJq7whJYg5PTJb41Kq2BYMM9Plf2",
+      "email": "thandi.molefe.rcm@quantilytix.co.za"
+    },
+    {
+      "uid": "sfsfjAQ1yfOP8sM9Xlh29Lxpm2h2",
+      "email": "sipho.ndlovu.rcm@quantilytix.co.za"
+    }
+  ],
+  "restored": [
+    {
+      "collection": "users",
+      "id": "7NFLLRL7RzffvDHfsGnvr5X2eon2",
+      "previous": {
+        "companyCode": null
+      },
+      "deleteIfNull": [
+        "companyCode"
+      ]
+    },
+    {
+      "collection": "userIdentities",
+      "id": "7NFLLRL7RzffvDHfsGnvr5X2eon2",
+      "previous": {
+        "companyCode": null
+      },
+      "deleteIfNull": [
+        "companyCode"
+      ]
+    },
+    {
+      "collection": "programs",
+      "id": "itGOWCM83DzMjkJktW6W",
+      "previous": {
+        "companyCode": "QTX"
+      }
+    },
+    {
+      "collection": "participants",
+      "id": "FprC2byWC7wjAk5LcKA3",
+      "previous": {
+        "companyCode": "QTX"
+      }
+    },
+    {
+      "collection": "participants",
+      "id": "GE6WZMhVC16A6mq3q076",
+      "previous": {
+        "companyCode": "QTX"
+      }
+    },
+    {
+      "collection": "participants",
+      "id": "KLvVFSRusnBv7AEIPHIx",
+      "previous": {
+        "companyCode": "QTX"
+      }
+    },
+    {
+      "collection": "participants",
+      "id": "KZ5TQivLrwkmwpn4GMO3",
+      "previous": {
+        "companyCode": "QTX"
+      }
+    },
+    {
+      "collection": "participants",
+      "id": "QCXsJhsRf8E4rxEWYwxc",
+      "previous": {
+        "companyCode": "QTX"
+      }
+    },
+    {
+      "collection": "participants",
+      "id": "R6s5YJFeYeUQ2HB6gxhp",
+      "previous": {
+        "companyCode": "QTX"
+      }
+    },
+    {
+      "collection": "participants",
+      "id": "jOZwpcEDhwAZHgk1ad3F",
+      "previous": {
+        "companyCode": "QTX"
+      }
+    },
+    {
+      "collection": "participants",
+      "id": "qmBHvDv80E9nXbyKhxfZ",
+      "previous": {
+        "companyCode": "QTX"
+      }
+    },
+    {
+      "collection": "participants",
+      "id": "se3SsNZsKLYQvIc5pk04",
+      "previous": {
+        "companyCode": "QTX"
+      }
+    },
+    {
+      "collection": "applications",
+      "id": "6LSjuem37WITvM6BVPSy",
+      "previous": {
+        "companyCode": "QTX"
+      }
+    },
+    {
+      "collection": "applications",
+      "id": "BoPFTLJ7PJow91QyTypS",
+      "previous": {
+        "companyCode": "QTX"
+      }
+    },
+    {
+      "collection": "applications",
+      "id": "IfZAA4TK794jDfESvu0L",
+      "previous": {
+        "companyCode": "QTX"
+      }
+    },
+    {
+      "collection": "applications",
+      "id": "KfAkaeKckZ0qrO0ivIQT",
+      "previous": {
+        "companyCode": "QTX"
+      }
+    },
+    {
+      "collection": "applications",
+      "id": "O0sxbn9DQmPiJ4hPbap1",
+      "previous": {
+        "companyCode": "QTX"
+      }
+    },
+    {
+      "collection": "applications",
+      "id": "VJPeLiIHDe5ZCjEkQOIK",
+      "previous": {
+        "companyCode": "QTX"
+      }
+    },
+    {
+      "collection": "applications",
+      "id": "X7mlyYYZVWk0iqbUjelS",
+      "previous": {
+        "companyCode": "QTX"
+      }
+    },
+    {
+      "collection": "applications",
+      "id": "XOyhf8gjJk4zBSCfO0FW",
+      "previous": {
+        "companyCode": "QTX"
+      }
+    },
+    {
+      "collection": "applications",
+      "id": "xZNcfmNz5J74rc6jbxoG",
+      "previous": {
+        "companyCode": "QTX"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "01v7i9gdrRe0kWibPvMA",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "1nKDcGuLkCWSUJz3h52g",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "3RSOAckzw1GNU7EyXdUz",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "4dhldqq4ssNqHvAFFzhy",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "5ZFAgdULmPWveiqGg11h",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "6HPiIhRUFjsRc1P4uWSk",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "94cTzZ0twhw7xQnj3Oot",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "A3N6Bj7RG4ju96km1X5W",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "AIGmLyTCBuBLTbHPZ6VQ",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "B5Pbzje6nnHf2X2faYUr",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "BfzidPDfySan7zWby4gB",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "Dv2pyp87LtvqApIZo3JD",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "EnRs2hc8ZPKVrGSBy3wo",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "GVTWAOJY6N7XvdzCKR4e",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "HM8n5TnASWaAVt87UCsk",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "JLEt6It1Uvsbh8IC6EFr",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "K6zHJcGLYd9hD1v6HsKe",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "L2AnAlCQ9aWuXNEvQGba",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "MTf8vJe3sntprknCaimc",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "OggW0M8LJ8Ia8Ynd1MdO",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "Pr9HGdfpXFiWS3zsnjYR",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "UhoECJ5UH65cpsroQTt5",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "WDhzGSa6YF0A7nx0VPui",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "X3XSQqtlHtChPW9STGNJ",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "h0XHtqPMUmVYZIDqdcq9",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "j54wxN9JWQ9OFkhgGOnh",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "kjmOmncA3BNqHoOLwpAX",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "mySrAwo36HzESJD59rU0",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "rxsNkYck29RLLGyB9SEY",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "s7F4vRAjWrMqNa3v8sYO",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "sudIHkZcdc4Ue5ExtrwD",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "tmuNK9xMffx0T4OT6vzE",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "u07uD6Aufi42xDSotDjL",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    },
+    {
+      "collection": "assignedInterventions",
+      "id": "wU0pTDTKesKOmDnI4HQ4",
+      "previous": {
+        "companyCode": "QTX",
+        "assigneeUid": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeId": "tNkUbKDdVBacA9EXZQwNn4z16tf2",
+        "assigneeName": "Daniel Mazorodze",
+        "assigneeEmail": "danieltmazorodze@gmail.com",
+        "assigneeType": "operations"
+      }
+    }
+  ]
+}

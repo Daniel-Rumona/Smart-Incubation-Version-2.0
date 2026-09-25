@@ -5,6 +5,7 @@ import { ConversationMode } from '@/components/agent/ConversationMode'
 import { lessonPageContext } from '@/lib/lessonAgentContext'
 import type { CourseLesson, CourseTemplate } from '@/services/courseTemplatesService'
 import type { SmeBusiness } from '@/services/courseProgressService'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 type LessonAiReviewProps = {
     course: CourseTemplate
@@ -22,6 +23,7 @@ type LessonAiReviewProps = {
  * Rendered inline inside the step frame — never gates moving on.
  */
 export const LessonAiReview = ({ course, lesson, business, onInteract }: LessonAiReviewProps) => {
+    const { t } = useLanguage()
     const [draft, setDraft] = useState('')
     const [voiceOpen, setVoiceOpen] = useState(false)
     const startedRef = useRef<string | null>(null)
@@ -60,7 +62,7 @@ export const LessonAiReview = ({ course, lesson, business, onInteract }: LessonA
                 onDraftChange={setDraft}
                 onSend={submit}
                 onVoice={() => setVoiceOpen(true)}
-                placeholder="Reply, or ask a follow-up…"
+                placeholder={t('Reply, or ask a follow-up…')}
             />
 
             {voiceOpen && (

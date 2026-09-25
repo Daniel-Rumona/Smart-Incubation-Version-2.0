@@ -6,10 +6,12 @@ import DashboardHeader from '@/components/shared/DashboardHeader'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { listConsultantProfilesForVerification, setConsultantVerification } from '@/services/consultantMarketplaceService'
 import type { ConsultantMarketplaceProfile, ConsultantVerificationStatus } from '@/types/consultantMarketplace'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 const verificationColor: Record<ConsultantVerificationStatus, string> = { unverified: 'default', pending: 'orange', verified: 'green' }
 
 export default function ConsultantVerificationPage() {
+  const { t } = useLanguage()
   const { user } = useFullIdentity()
   const { message } = App.useApp()
   const [profiles, setProfiles] = useState<ConsultantMarketplaceProfile[]>([])
@@ -22,7 +24,7 @@ export default function ConsultantVerificationPage() {
       setLoading(true)
       setProfiles(await listConsultantProfilesForVerification(user))
     } catch (error) {
-      message.error(error instanceof Error ? error.message : 'Consultant profiles could not be loaded.')
+      message.error(error instanceof Error ? error.message : t('Consultant profiles could not be loaded.'))
     } finally {
       setLoading(false)
     }
@@ -41,7 +43,7 @@ export default function ConsultantVerificationPage() {
       message.success(status === 'verified' ? `${profile.name} is now verified.` : `${profile.name} verification was removed.`)
       await load()
     } catch (error) {
-      message.error(error instanceof Error ? error.message : 'Verification status could not be updated.')
+      message.error(error instanceof Error ? error.message : t('Verification status could not be updated.'))
     } finally {
       setUpdating(undefined)
     }
@@ -49,19 +51,19 @@ export default function ConsultantVerificationPage() {
 
   return (
     <DashboardPage>
-      <DashboardHeader title="Consultant verification" subtitle="Review consultant accounts and approve the profiles that meet your verification standard." actions={<Tag color="blue" icon={<SafetyCertificateOutlined />}>System administrator only</Tag>} />
+      <DashboardHeader title={t('Consultant verification')} subtitle={tr('Review consultant accounts and approve the profiles that meet your verification standard.')} actions={<Tag color="blue" icon={<SafetyCertificateOutlined />}>{t('System administrator only')}</Tag>} />
       <Card className="dashboard-section-card">
         <Table
           rowKey="uid"
           loading={loading}
           dataSource={profiles}
-          locale={{ emptyText: <Empty description="No consultant profiles found." /> }}
+          locale={{ emptyText: <Empty description={t('No consultant profiles found.')} /> }}
           columns={[
-            { title: 'Consultant', render: (_: unknown, profile: ConsultantMarketplaceProfile) => <Space><Avatar src={profile.profileImageUrl || undefined}>{profile.name.charAt(0)}</Avatar><Space direction="vertical" size={0}><Typography.Text strong>{profile.name}</Typography.Text><Typography.Text type="secondary">{profile.email}</Typography.Text></Space></Space> },
-            { title: 'Location', render: (_: unknown, profile: ConsultantMarketplaceProfile) => [profile.province, profile.country].filter(Boolean).join(', ') || 'Not provided' },
-            { title: 'Profile status', dataIndex: 'status', render: (status: string) => <Tag color={status === 'published' ? 'green' : 'gold'}>{status}</Tag> },
-            { title: 'Verification', dataIndex: 'verificationStatus', render: (status: ConsultantVerificationStatus) => <Tag color={verificationColor[status]} icon={status === 'verified' ? <SafetyCertificateOutlined /> : undefined}>{status}</Tag> },
-            { title: 'Actions', render: (_: unknown, profile: ConsultantMarketplaceProfile) => <Space><Button type="primary" icon={<CheckOutlined />} loading={updating === profile.uid} disabled={profile.verificationStatus === 'verified'} onClick={() => void updateVerification(profile, 'verified')}>Verify</Button><Button danger icon={<StopOutlined />} loading={updating === profile.uid} disabled={profile.verificationStatus !== 'verified'} onClick={() => void updateVerification(profile, 'unverified')}>Remove badge</Button></Space> },
+            { title: t('Consultant'), render: (_: unknown, profile: ConsultantMarketplaceProfile) => <Space><Avatar src={profile.profileImageUrl || undefined}>{profile.name.charAt(0)}</Avatar><Space direction="vertical" size={0}><Typography.Text strong>{profile.name}</Typography.Text><Typography.Text type="secondary">{profile.email}</Typography.Text></Space></Space> },
+            { title: t('Location'), render: (_: unknown, profile: ConsultantMarketplaceProfile) => [profile.province, profile.country].filter(Boolean).join(', ') || t('Not provided') },
+            { title: t('Profile status'), dataIndex: 'status', render: (status: string) => <Tag color={status === 'published' ? 'green' : 'gold'}>{status}</Tag> },
+            { title: t('Verification'), dataIndex: 'verificationStatus', render: (status: ConsultantVerificationStatus) => <Tag color={verificationColor[status]} icon={status === 'verified' ? <SafetyCertificateOutlined /> : undefined}>{status}</Tag> },
+            { title: t('Actions'), render: (_: unknown, profile: ConsultantMarketplaceProfile) => <Space><Button type="primary" icon={<CheckOutlined />} loading={updating === profile.uid} disabled={profile.verificationStatus === 'verified'} onClick={() => void updateVerification(profile, 'verified')}>{t('Verify')}</Button><Button danger icon={<StopOutlined />} loading={updating === profile.uid} disabled={profile.verificationStatus !== 'verified'} onClick={() => void updateVerification(profile, 'unverified')}>{t('Remove badge')}</Button></Space> },
           ]}
         />
       </Card>

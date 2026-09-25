@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button, Flex, Modal } from 'antd'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 const CHECK_INTERVAL_MS = 5 * 60 * 1000
 
@@ -14,6 +15,7 @@ const fetchIndexHtml = async (): Promise<string | null> => {
 }
 
 export const AppUpdateModal = () => {
+    const { t } = useLanguage()
     const [open, setOpen] = useState(false)
     const baselineRef = useRef<string | null>(null)
     const dismissedRef = useRef(false)
@@ -72,19 +74,19 @@ export const AppUpdateModal = () => {
             closable={false}
             maskClosable={false}
             keyboard={false}
-            title="New update available"
+            title={t('New update available')}
             footer={
                 <Flex gap={12} style={{ width: '100%' }}>
                     <Button block onClick={handleLater} style={{ flex: '1 1 0' }}>
-                        Later
+                        {t('Later')}
                     </Button>
                     <Button block type="primary" onClick={handleRefresh} style={{ flex: '1 1 0' }}>
-                        Refresh
+                        {t('Refresh')}
                     </Button>
                 </Flex>
             }
         >
-            <p>A new version of this app is available. Refresh now to get the latest updates and improvements.</p>
+            <p>{t('A new version of this app is available. Refresh now to get the latest updates and improvements.')}</p>
         </Modal>
     )
 }

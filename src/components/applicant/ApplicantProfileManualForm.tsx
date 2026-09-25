@@ -3,18 +3,20 @@ import { Col, DatePicker, Form, Grid, Input, InputNumber, Row, Select, Typograph
 import { ManOutlined, WomanOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import type { ApplicantProfileFormValues } from '@/pages/applicant/ApplicantProfilePage'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 const { Title, Text } = Typography
 const { useBreakpoint } = Grid
 
 const genderOptions = [
-  { value: 'Male', label: 'Male', Icon: ManOutlined },
-  { value: 'Female', label: 'Female', Icon: WomanOutlined },
+  { value: 'Male', get label() { return tr('Male') }, Icon: ManOutlined },
+  { value: 'Female', get label() { return tr('Female') }, Icon: WomanOutlined },
 ]
 
 function GenderChoiceGroup({ value, onChange }: { value?: string; onChange?: (value: string) => void }) {
+  const { t } = useLanguage()
   return (
-    <div className="applicant-profile-choice-grid" role="radiogroup" aria-label="Gender">
+    <div className="applicant-profile-choice-grid" role="radiogroup" aria-label={t('Gender')}>
       {genderOptions.map(({ value: optionValue, label, Icon }) => (
         <button
           key={optionValue}
@@ -77,6 +79,7 @@ type ApplicantProfileManualFormProps = {
 }
 
 export default function ApplicantProfileManualForm({ activeStep, email }: ApplicantProfileManualFormProps) {
+  const { t } = useLanguage()
   const screens = useBreakpoint()
   const isMobile = !screens.md
   const form = Form.useFormInstance<ApplicantProfileFormValues>()
@@ -101,29 +104,29 @@ export default function ApplicantProfileManualForm({ activeStep, email }: Applic
   if (activeStep === 0) {
     return (
       <section className="applicant-profile-step-panel">
-        <Title level={isMobile ? 5 : 4}>Personal details</Title>
-        <Text type="secondary">Capture the applicant identity and demographic details.</Text>
+        <Title level={isMobile ? 5 : 4}>{t('Personal details')}</Title>
+        <Text type="secondary">{t('Capture the applicant identity and demographic details.')}</Text>
 
         <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
           <Col xs={24} md={8}>
-            <Form.Item name="participantName" label="Full name" rules={[{ required: true }]}>
-              <Input placeholder="Applicant full name" />
+            <Form.Item name="participantName" label={t('Full name')} rules={[{ required: true }]}>
+              <Input placeholder={t('Applicant full name')} />
             </Form.Item>
           </Col>
           <Col xs={24} md={8}>
-            <Form.Item name="email" label="Email" rules={[{ required: true }, { type: 'email' }]}>
+            <Form.Item name="email" label={t('Email')} rules={[{ required: true }, { type: 'email' }]}>
               <Input inputMode="email" placeholder="name@example.com" disabled />
             </Form.Item>
           </Col>
           <Col xs={24} md={8}>
-            <Form.Item name="gender" label="Gender" rules={[{ required: true }]}>
+            <Form.Item name="gender" label={t('Gender')} rules={[{ required: true }]}>
               <GenderChoiceGroup />
             </Form.Item>
           </Col>
           <Col xs={24} md={8}>
             <Form.Item
               name="idNumber"
-              label="ID number"
+              label={t('ID number')}
               rules={[
                 {
                   validator: (_, value) =>
@@ -134,37 +137,37 @@ export default function ApplicantProfileManualForm({ activeStep, email }: Applic
               ]}
               getValueFromEvent={(event) => event.target.value.replace(/\D/g, '').slice(0, 13)}
             >
-              <Input inputMode="numeric" maxLength={13} placeholder="e.g. 9001015009087" />
+              <Input inputMode="numeric" maxLength={13} placeholder={t('e.g. 9001015009087')} />
             </Form.Item>
           </Col>
           <Col xs={24} md={8}>
-            <Form.Item name="maritalStatus" label="Marital status">
+            <Form.Item name="maritalStatus" label={t('Marital status')}>
               <Select
                 allowClear
-                placeholder="Select marital status"
+                placeholder={t('Select marital status')}
                 options={[
-                  { value: 'single', label: 'Single' },
-                  { value: 'married', label: 'Married' },
-                  { value: 'divorced', label: 'Divorced' },
-                  { value: 'widowed', label: 'Widowed' },
-                  { value: 'prefer_not_to_say', label: 'Prefer not to say' },
+                  { value: 'single', label: t('Single') },
+                  { value: 'married', label: t('Married') },
+                  { value: 'divorced', label: t('Divorced') },
+                  { value: 'widowed', label: t('Widowed') },
+                  { value: 'prefer_not_to_say', label: t('Prefer not to say') },
                 ]}
               />
             </Form.Item>
           </Col>
           <Col xs={24} md={8}>
-            <Form.Item name="educationLevel" label="Education level">
+            <Form.Item name="educationLevel" label={t('Education level')}>
               <Select
                 allowClear
-                placeholder="Select education level"
+                placeholder={t('Select education level')}
                 options={[
-                  { value: 'primary', label: 'Primary' },
-                  { value: 'secondary', label: 'Secondary' },
-                  { value: 'certificate', label: 'Certificate' },
-                  { value: 'diploma', label: 'Diploma' },
-                  { value: 'degree', label: 'Degree' },
-                  { value: 'postgraduate', label: 'Postgraduate' },
-                  { value: 'other', label: 'Other' },
+                  { value: 'primary', label: t('Primary') },
+                  { value: 'secondary', label: t('Secondary') },
+                  { value: 'certificate', label: t('Certificate') },
+                  { value: 'diploma', label: t('Diploma') },
+                  { value: 'degree', label: t('Degree') },
+                  { value: 'postgraduate', label: t('Postgraduate') },
+                  { value: 'other', label: t('Other') },
                 ]}
               />
             </Form.Item>
@@ -177,44 +180,44 @@ export default function ApplicantProfileManualForm({ activeStep, email }: Applic
   if (activeStep === 1) {
     return (
       <section className="applicant-profile-step-panel">
-        <Title level={isMobile ? 5 : 4}>Contact and employment</Title>
-        <Text type="secondary">Capture contact details and the applicant's current employment context.</Text>
+        <Title level={isMobile ? 5 : 4}>{t('Contact and employment')}</Title>
+        <Text type="secondary">{t('Capture contact details and the applicant\'s current employment context.')}</Text>
 
         <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
           <Col xs={24} md={8}>
-            <Form.Item name="phone" label="Phone number" rules={[{ required: true }]}>
-              <Input inputMode="tel" placeholder="e.g. 082 123 4567" />
+            <Form.Item name="phone" label={t('Phone number')} rules={[{ required: true }]}>
+              <Input inputMode="tel" placeholder={t('e.g. 082 123 4567')} />
             </Form.Item>
           </Col>
           <Col xs={24} md={8}>
-            <Form.Item name="alternativePhone" label="Alternative phone">
-              <Input inputMode="tel" placeholder="Optional" />
+            <Form.Item name="alternativePhone" label={t('Alternative phone')}>
+              <Input inputMode="tel" placeholder={t('Optional')} />
             </Form.Item>
           </Col>
           <Col xs={24} md={8}>
-            <Form.Item name="employmentStatus" label="Employment status">
+            <Form.Item name="employmentStatus" label={t('Employment status')}>
               <Select
                 allowClear
-                placeholder="Select employment status"
+                placeholder={t('Select employment status')}
                 options={[
-                  { value: 'employed', label: 'Employed' },
-                  { value: 'self_employed', label: 'Self-employed' },
-                  { value: 'unemployed', label: 'Unemployed' },
-                  { value: 'student', label: 'Student' },
-                  { value: 'other', label: 'Other' },
+                  { value: 'employed', label: t('Employed') },
+                  { value: 'self_employed', label: t('Self-employed') },
+                  { value: 'unemployed', label: t('Unemployed') },
+                  { value: 'student', label: t('Student') },
+                  { value: 'other', label: t('Other') },
                 ]}
               />
             </Form.Item>
           </Col>
           <Col xs={24} md={8}>
-            <Form.Item name="disabilityStatus" label="Disability status">
+            <Form.Item name="disabilityStatus" label={t('Disability status')}>
               <Select
                 allowClear
-                placeholder="Select option"
+                placeholder={t('Select option')}
                 options={[
-                  { value: 'yes', label: 'Yes' },
-                  { value: 'no', label: 'No' },
-                  { value: 'prefer_not_to_say', label: 'Prefer not to say' },
+                  { value: 'yes', label: t('Yes') },
+                  { value: 'no', label: t('No') },
+                  { value: 'prefer_not_to_say', label: t('Prefer not to say') },
                 ]}
               />
             </Form.Item>
@@ -227,21 +230,21 @@ export default function ApplicantProfileManualForm({ activeStep, email }: Applic
   if (activeStep === 2) {
     return (
       <section className="applicant-profile-step-panel">
-        <Title level={isMobile ? 5 : 4}>Business details</Title>
-        <Text type="secondary">Capture the enterprise profile and what the business does.</Text>
+        <Title level={isMobile ? 5 : 4}>{t('Business details')}</Title>
+        <Text type="secondary">{t('Capture the enterprise profile and what the business does.')}</Text>
 
         <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
           <Col xs={24} md={12}>
-            <Form.Item name="businessName" label="Business name" rules={[{ required: true }]}>
-              <Input placeholder="Company or trading name" />
+            <Form.Item name="businessName" label={t('Business name')} rules={[{ required: true }]}>
+              <Input placeholder={t('Company or trading name')} />
             </Form.Item>
           </Col>
           <Col xs={24} md={12}>
-            <Form.Item name="sector" label="Sector" rules={[{ required: true }]}>
+            <Form.Item name="sector" label={t('Sector')} rules={[{ required: true }]}>
               <Select
                 showSearch
                 allowClear
-                placeholder="Select sector"
+                placeholder={t('Select sector')}
                 filterOption={selectFilter}
                 options={sectors.map((sector) => ({ value: sector, label: sector }))}
               />
@@ -250,14 +253,14 @@ export default function ApplicantProfileManualForm({ activeStep, email }: Applic
           <Col xs={24}>
             <Form.Item
               name="natureOfBusiness"
-              label="Nature of business"
-              rules={[{ required: true, message: 'Explain what the business offers' }]}
+              label={t('Nature of business')}
+              rules={[{ required: true, message: tr('Explain what the business offers') }]}
             >
-              <Input.TextArea autoSize={{ minRows: 4 }} placeholder="Describe products, services, customers, and operations" />
+              <Input.TextArea autoSize={{ minRows: 4 }} placeholder={t('Describe products, services, customers, and operations')} />
             </Form.Item>
           </Col>
           <Col xs={24} md={8}>
-            <Form.Item name="yearsOfTrading" label="Years of trading" rules={[{ required: true }]}>
+            <Form.Item name="yearsOfTrading" label={t('Years of trading')} rules={[{ required: true }]}>
               <InputNumber min={0} style={{ width: '100%' }} />
             </Form.Item>
           </Col>
@@ -269,19 +272,19 @@ export default function ApplicantProfileManualForm({ activeStep, email }: Applic
   if (activeStep === 3) {
     return (
       <section className="applicant-profile-step-panel">
-        <Title level={isMobile ? 5 : 4}>Compliance and ownership</Title>
-        <Text type="secondary">Capture registration status, B-BBEE context, and ownership profile.</Text>
+        <Title level={isMobile ? 5 : 4}>{t('Compliance and ownership')}</Title>
+        <Text type="secondary">{t('Capture registration status, B-BBEE context, and ownership profile.')}</Text>
 
         <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
           <Col xs={24} md={8}>
-            <Form.Item name="registrationStatus" label="Registration status">
+            <Form.Item name="registrationStatus" label={t('Registration status')}>
               <Select
                 allowClear
-                placeholder="Select status"
+                placeholder={t('Select status')}
                 options={[
-                  { value: 'registered', label: 'Registered' },
-                  { value: 'not_registered', label: 'Not registered' },
-                  { value: 'in_progress', label: 'In progress' },
+                  { value: 'registered', label: t('Registered') },
+                  { value: 'not_registered', label: t('Not registered') },
+                  { value: 'in_progress', label: t('In progress') },
                 ]}
               />
             </Form.Item>
@@ -289,9 +292,9 @@ export default function ApplicantProfileManualForm({ activeStep, email }: Applic
           <Col xs={24} md={8}>
             <Form.Item
               name="registrationNumber"
-              label="Registration number"
+              label={t('Registration number')}
               rules={[
-                { required: registrationStatus === 'registered', message: 'Registration number is required when registered' },
+                { required: registrationStatus === 'registered', message: tr('Registration number is required when registered') },
                 {
                   validator: (_, value) =>
                     isValidZARegistration(value)
@@ -300,11 +303,11 @@ export default function ApplicantProfileManualForm({ activeStep, email }: Applic
                 },
               ]}
             >
-              <Input placeholder="e.g. 2024/123456/07" disabled={registrationFieldsDisabled} />
+              <Input placeholder={t('e.g. 2024/123456/07')} disabled={registrationFieldsDisabled} />
             </Form.Item>
           </Col>
           <Col xs={24} md={8}>
-            <Form.Item name="dateOfRegistration" label="Date of registration">
+            <Form.Item name="dateOfRegistration" label={t('Date of registration')}>
               <DatePicker
                 style={{ width: '100%' }}
                 disabled={registrationFieldsDisabled}
@@ -313,26 +316,26 @@ export default function ApplicantProfileManualForm({ activeStep, email }: Applic
             </Form.Item>
           </Col>
           <Col xs={24} md={8}>
-            <Form.Item name="beeLevel" label="B-BBEE level">
+            <Form.Item name="beeLevel" label={t('B-BBEE level')}>
               <Select
                 allowClear
-                placeholder="Select level"
+                placeholder={t('Select level')}
                 options={['Level 1', 'Level 2', 'Level 3', 'Level 4', 'Level 5', 'Level 6', 'Level 7', 'Level 8', 'Not sure'].map((value) => ({ value, label: value }))}
               />
             </Form.Item>
           </Col>
           <Col xs={24} md={8}>
-            <Form.Item name="youthOwnedPercent" label="Youth-owned %">
+            <Form.Item name="youthOwnedPercent" label={t('Youth-owned %')}>
               <InputNumber min={0} max={100} style={{ width: '100%' }} />
             </Form.Item>
           </Col>
           <Col xs={24} md={8}>
-            <Form.Item name="femaleOwnedPercent" label="Female-owned %">
+            <Form.Item name="femaleOwnedPercent" label={t('Female-owned %')}>
               <InputNumber min={0} max={100} style={{ width: '100%' }} />
             </Form.Item>
           </Col>
           <Col xs={24} md={8}>
-            <Form.Item name="blackOwnedPercent" label="Black-owned %">
+            <Form.Item name="blackOwnedPercent" label={t('Black-owned %')}>
               <InputNumber min={0} max={100} style={{ width: '100%' }} />
             </Form.Item>
           </Col>
@@ -343,52 +346,52 @@ export default function ApplicantProfileManualForm({ activeStep, email }: Applic
 
   return (
     <section className="applicant-profile-step-panel">
-      <Title level={isMobile ? 5 : 4}>Operating location</Title>
-      <Text type="secondary">Capture where the business operates and how it is situated.</Text>
+      <Title level={isMobile ? 5 : 4}>{t('Operating location')}</Title>
+      <Text type="secondary">{t('Capture where the business operates and how it is situated.')}</Text>
 
       <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
         <Col xs={24} md={8}>
-          <Form.Item name="province" label="Province" rules={[{ required: true }]}>
+          <Form.Item name="province" label={t('Province')} rules={[{ required: true }]}>
             <Select
               showSearch
               allowClear
-              placeholder="Select province"
+              placeholder={t('Select province')}
               filterOption={selectFilter}
               options={provinces.map((province) => ({ value: province, label: province }))}
             />
           </Form.Item>
         </Col>
         <Col xs={24} md={8}>
-          <Form.Item name="city" label="City / town" rules={[{ required: true }]}>
-            <Input placeholder="City or town" />
+          <Form.Item name="city" label={t('City / town')} rules={[{ required: true }]}>
+            <Input placeholder={t('City or town')} />
           </Form.Item>
         </Col>
         <Col xs={24} md={8}>
-          <Form.Item name="postalCode" label="Postal code">
-            <Input inputMode="numeric" placeholder="Optional" />
+          <Form.Item name="postalCode" label={t('Postal code')}>
+            <Input inputMode="numeric" placeholder={t('Optional')} />
           </Form.Item>
         </Col>
         <Col xs={24}>
-          <Form.Item name="businessAddress" label="Business address" rules={[{ required: true }]}>
-            <Input.TextArea autoSize={{ minRows: 3 }} placeholder="Physical operating address" />
+          <Form.Item name="businessAddress" label={t('Business address')} rules={[{ required: true }]}>
+            <Input.TextArea autoSize={{ minRows: 3 }} placeholder={t('Physical operating address')} />
           </Form.Item>
         </Col>
         <Col xs={24} md={12}>
-          <Form.Item name="hostCommunity" label="Host community">
-            <Input placeholder="Community, township, industrial area, or ward" />
+          <Form.Item name="hostCommunity" label={t('Host community')}>
+            <Input placeholder={t('Community, township, industrial area, or ward')} />
           </Form.Item>
         </Col>
         <Col xs={24} md={12}>
-          <Form.Item name="locationType" label="Location type">
+          <Form.Item name="locationType" label={t('Location type')}>
             <Select
               allowClear
-              placeholder="Select location type"
+              placeholder={t('Select location type')}
               options={[
-                { value: 'urban', label: 'Urban' },
-                { value: 'peri_urban', label: 'Peri-urban' },
-                { value: 'rural', label: 'Rural' },
-                { value: 'industrial', label: 'Industrial' },
-                { value: 'home_based', label: 'Home-based' },
+                { value: 'urban', label: t('Urban') },
+                { value: 'peri_urban', label: t('Peri-urban') },
+                { value: 'rural', label: t('Rural') },
+                { value: 'industrial', label: t('Industrial') },
+                { value: 'home_based', label: t('Home-based') },
               ]}
             />
           </Form.Item>

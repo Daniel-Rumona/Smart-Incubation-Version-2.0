@@ -9,6 +9,7 @@ import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { listConnectionRequests, updateConnectionRequestStatus } from '@/services/connectionRequestService'
 import type { ConnectionRequest, ConnectionRequestDeliveryMode, ConnectionRequestStatus } from '@/types/connectionRequest'
 import '@/styles/dashboard.css'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 const { Text } = Typography
 
@@ -32,6 +33,7 @@ const formatDate = (value: unknown) => {
 }
 
 export default function ConsultantConnectionRequestsPage() {
+  const { t } = useLanguage()
   const { message } = App.useApp()
   const { user } = useFullIdentity()
   const [rows, setRows] = useState<ConnectionRequest[]>([])
@@ -48,7 +50,7 @@ export default function ConsultantConnectionRequestsPage() {
     try {
       setRows(await listConnectionRequests(user))
     } catch {
-      message.error('Connection requests could not be loaded.')
+      message.error(t('Connection requests could not be loaded.'))
       setRows([])
     } finally {
       setLoading(false)
@@ -85,37 +87,37 @@ export default function ConsultantConnectionRequestsPage() {
       setSelected(undefined)
       await load()
     } catch (error) {
-      message.error(error instanceof Error ? error.message : 'The review could not be submitted.')
+      message.error(error instanceof Error ? error.message : t('The review could not be submitted.'))
     } finally {
       setSubmitting(false)
     }
   }
 
   const columns = [
-    { title: 'SME', dataIndex: 'smeName', render: (_: string, row: ConnectionRequest) => <Space direction="vertical" size={0}><Text strong>{row.smeName}</Text><Text type="secondary">{row.smeEmail}</Text></Space> },
-    { title: 'Requested', dataIndex: 'targetName', render: (_: string, row: ConnectionRequest) => <Space direction="vertical" size={0}><Text>{row.targetName}</Text><Tag>{row.targetType === 'agent' ? 'AI agent' : 'Consultant'}</Tag></Space> },
-    { title: 'Support needed', dataIndex: 'areaOfSupport', render: (_: string, row: ConnectionRequest) => <Space direction="vertical" size={0}><Text>{row.areaOfSupport || 'Not specified'}</Text>{row.preferredStartDate && <Text type="secondary">From {row.preferredStartDate}</Text>}</Space> },
-    { title: 'Budget', dataIndex: 'budget', render: (value: number | undefined, row: ConnectionRequest) => value ? `${row.currency || 'ZAR'} ${value.toLocaleString()}` : 'Not specified' },
-    { title: 'Received', dataIndex: 'createdAt', render: (value: unknown) => formatDate(value) },
-    { title: 'Status', dataIndex: 'status', render: (value: ConnectionRequestStatus) => <Tag color={statusColor[value]}>{value.toUpperCase()}</Tag> },
+    { title: t('SME'), dataIndex: 'smeName', render: (_: string, row: ConnectionRequest) => <Space direction="vertical" size={0}><Text strong>{row.smeName}</Text><Text type="secondary">{row.smeEmail}</Text></Space> },
+    { title: t('Requested'), dataIndex: 'targetName', render: (_: string, row: ConnectionRequest) => <Space direction="vertical" size={0}><Text>{row.targetName}</Text><Tag>{row.targetType === 'agent' ? t('AI agent') : t('Consultant')}</Tag></Space> },
+    { title: t('Support needed'), dataIndex: 'areaOfSupport', render: (_: string, row: ConnectionRequest) => <Space direction="vertical" size={0}><Text>{row.areaOfSupport || t('Not specified')}</Text>{row.preferredStartDate && <Text type="secondary">{t('From')} {row.preferredStartDate}</Text>}</Space> },
+    { title: t('Budget'), dataIndex: 'budget', render: (value: number | undefined, row: ConnectionRequest) => value ? `${row.currency || 'ZAR'} ${value.toLocaleString()}` : t('Not specified') },
+    { title: t('Received'), dataIndex: 'createdAt', render: (value: unknown) => formatDate(value) },
+    { title: t('Status'), dataIndex: 'status', render: (value: ConnectionRequestStatus) => <Tag color={statusColor[value]}>{value.toUpperCase()}</Tag> },
     {
       title: '',
       key: 'actions',
       align: 'right' as const,
       render: (_: unknown, row: ConnectionRequest) => row.status === 'pending' ? (
         <Space>
-          <Button size="small" type="primary" icon={<PhoneOutlined />} onClick={() => openReview(row, 'contacted')}>Mark contacted</Button>
-          <Button size="small" danger icon={<CloseOutlined />} onClick={() => openReview(row, 'declined')}>Decline</Button>
+          <Button size="small" type="primary" icon={<PhoneOutlined />} onClick={() => openReview(row, 'contacted')}>{t('Mark contacted')}</Button>
+          <Button size="small" danger icon={<CloseOutlined />} onClick={() => openReview(row, 'declined')}>{t('Decline')}</Button>
         </Space>
       ) : row.status === 'contacted' ? (
-        <Button size="small" type="primary" icon={<CheckOutlined />} onClick={() => openReview(row, 'matched')}>Mark matched</Button>
-      ) : <Text type="secondary">Closed</Text>,
+        <Button size="small" type="primary" icon={<CheckOutlined />} onClick={() => openReview(row, 'matched')}>{t('Mark matched')}</Button>
+      ) : <Text type="secondary">{t('Closed')}</Text>,
     },
   ]
 
   return (
     <DashboardPage>
-      {loading && <LoadingOverlay tip="Loading connection requests" />}
+      {loading && <LoadingOverlay tip={t('Loading connection requests')} />}
 
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         <div className="dashboard-metrics-row">
@@ -135,41 +137,41 @@ export default function ConsultantConnectionRequestsPage() {
         </div>
 
         <FilterBar
-          title="SME connection requests"
-          primary={<Text type="secondary">Independently registered SMEs - those who signed up outside a company's program link - choose consultants and agents from the marketplace here. Contact them, arrange the engagement and its funding, then mark the outcome.</Text>}
-          actions={<Button icon={<ReloadOutlined />} onClick={() => void load()}>Refresh</Button>}
+          title={t('SME connection requests')}
+          primary={<Text type="secondary">{t('Independently registered SMEs - those who signed up outside a company\'s program link - choose consultants and agents from the marketplace here. Contact them, arrange the engagement and its funding, then mark the outcome.')}</Text>}
+          actions={<Button icon={<ReloadOutlined />} onClick={() => void load()}>{t('Refresh')}</Button>}
         />
 
-        <Card className="dashboard-section-card motion-card" title={<Space><TeamOutlined /> Requests</Space>}>
+        <Card className="dashboard-section-card motion-card" title={<Space><TeamOutlined /> {t('Requests')}</Space>}>
           {filteredRows.length ? (
             <ResponsiveDataView
               rowKey="id"
               rows={filteredRows}
               columns={columns}
-              emptyText="No connection requests found."
+              emptyText={t('No connection requests found.')}
               renderCard={(row) => (
                 <Space direction="vertical" className="dashboard-mobile-record">
                   <Space><Tag color={statusColor[row.status]}>{row.status.toUpperCase()}</Tag><Text>{formatDate(row.createdAt)}</Text></Space>
                   <Text strong>{row.smeName}</Text>
                   <Text type="secondary">{row.smeEmail}</Text>
-                  <Text>{row.targetName} ({row.targetType === 'agent' ? 'AI agent' : 'Consultant'})</Text>
+                  <Text>{row.targetName} ({row.targetType === 'agent' ? t('AI agent') : t('Consultant')})</Text>
                   {row.status === 'pending' && (
                     <Space>
-                      <Button size="small" type="primary" icon={<PhoneOutlined />} onClick={() => openReview(row, 'contacted')}>Mark contacted</Button>
-                      <Button size="small" danger icon={<CloseOutlined />} onClick={() => openReview(row, 'declined')}>Decline</Button>
+                      <Button size="small" type="primary" icon={<PhoneOutlined />} onClick={() => openReview(row, 'contacted')}>{t('Mark contacted')}</Button>
+                      <Button size="small" danger icon={<CloseOutlined />} onClick={() => openReview(row, 'declined')}>{t('Decline')}</Button>
                     </Space>
                   )}
                 </Space>
               )}
             />
-          ) : <Empty description="No connection requests found." />}
+          ) : <Empty description={t('No connection requests found.')} />}
         </Card>
       </Space>
 
       <Modal
         open={Boolean(selected)}
-        title={decision === 'declined' ? 'Decline request' : `Mark as ${decision}`}
-        okText="Save"
+        title={decision === 'declined' ? t('Decline request') : `Mark as ${decision}`}
+        okText={t('Save')}
         okButtonProps={{ danger: decision === 'declined' }}
         confirmLoading={submitting}
         onOk={() => void submitReview()}
@@ -179,18 +181,18 @@ export default function ConsultantConnectionRequestsPage() {
         {selected && (
           <Space direction="vertical" size={12} style={{ width: '100%' }}>
             <Descriptions bordered size="small" column={1}>
-              <Descriptions.Item label="SME">{selected.smeName} ({selected.smeEmail})</Descriptions.Item>
-              <Descriptions.Item label="Requested">{selected.targetName}</Descriptions.Item>
-              {selected.areaOfSupport && <Descriptions.Item label="Support needed">{selected.areaOfSupport}</Descriptions.Item>}
-              {selected.deliveryMode && <Descriptions.Item label="Delivery mode">{deliveryModeLabel[selected.deliveryMode]}</Descriptions.Item>}
-              {selected.preferredStartDate && <Descriptions.Item label="Preferred start">{selected.preferredStartDate}</Descriptions.Item>}
-              {selected.engagementDays && <Descriptions.Item label="Estimated days">{selected.engagementDays}</Descriptions.Item>}
-              {selected.urgency && <Descriptions.Item label="Urgency">{selected.urgency.toUpperCase()}</Descriptions.Item>}
-              <Descriptions.Item label="Budget">{selected.budget ? `${selected.currency || 'ZAR'} ${selected.budget.toLocaleString()}` : 'Not specified'}</Descriptions.Item>
-              {selected.note && <Descriptions.Item label="Note">{selected.note}</Descriptions.Item>}
+              <Descriptions.Item label={t('SME')}>{selected.smeName} ({selected.smeEmail})</Descriptions.Item>
+              <Descriptions.Item label={t('Requested')}>{selected.targetName}</Descriptions.Item>
+              {selected.areaOfSupport && <Descriptions.Item label={t('Support needed')}>{selected.areaOfSupport}</Descriptions.Item>}
+              {selected.deliveryMode && <Descriptions.Item label={t('Delivery mode')}>{deliveryModeLabel[selected.deliveryMode]}</Descriptions.Item>}
+              {selected.preferredStartDate && <Descriptions.Item label={t('Preferred start')}>{selected.preferredStartDate}</Descriptions.Item>}
+              {selected.engagementDays && <Descriptions.Item label={t('Estimated days')}>{selected.engagementDays}</Descriptions.Item>}
+              {selected.urgency && <Descriptions.Item label={t('Urgency')}>{selected.urgency.toUpperCase()}</Descriptions.Item>}
+              <Descriptions.Item label={t('Budget')}>{selected.budget ? `${selected.currency || 'ZAR'} ${selected.budget.toLocaleString()}` : t('Not specified')}</Descriptions.Item>
+              {selected.note && <Descriptions.Item label={t('Note')}>{selected.note}</Descriptions.Item>}
             </Descriptions>
             <Form form={form} layout="vertical">
-              <Form.Item name="reviewerNote" label="Note (optional)">
+              <Form.Item name="reviewerNote" label={t('Note (optional)')}>
                 <Input.TextArea rows={3} />
               </Form.Item>
             </Form>

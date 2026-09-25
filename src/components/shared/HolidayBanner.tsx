@@ -3,6 +3,7 @@ import { CloseOutlined } from '@ant-design/icons'
 import { getUpcomingSouthAfricanHoliday } from '@/utils/holidays'
 import { useThemeMode } from '@/providers/ThemeProvider'
 import '@/styles/holiday-banner.css'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 const GREETINGS: Record<string, string> = {
   "New Year's Day": 'Wishing you a bright and successful year ahead!',
@@ -29,9 +30,9 @@ const readDismissed = (): string | null => {
   }
 }
 
-const formatDate = (dateStr: string) => {
+const formatDate = (dateStr: string, locale: string) => {
   const [y, m, d] = dateStr.split('-').map(Number)
-  return new Date(y, m - 1, d).toLocaleDateString('en-ZA', {
+  return new Date(y, m - 1, d).toLocaleDateString(locale, {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
@@ -40,6 +41,7 @@ const formatDate = (dateStr: string) => {
 
 /** Celebrates South African public holidays (today, or coming up within a week). */
 export const HolidayBanner = () => {
+  const { t, language } = useLanguage()
   const { mode } = useThemeMode()
   const status = getUpcomingSouthAfricanHoliday(new Date(), 7)
   const [dismissed, setDismissed] = useState(() => readDismissed())
@@ -49,21 +51,22 @@ export const HolidayBanner = () => {
   const key = `${holiday.date}:${daysAway === 0 ? 'today' : 'soon'}`
   if (dismissed === key) return null
 
-  const name = isObservedDay ? `${holiday.name} (observed)` : holiday.name
+  const holidayName = t(holiday.name)
+  const name = isObservedDay ? t('{name} (observed)', undefined, { name: holidayName }) : holidayName
   const targetDate = isObservedDay && holiday.observedDate ? holiday.observedDate : holiday.date
   const isToday = daysAway === 0
-  const greeting = GREETINGS[holiday.name] ?? 'Enjoy the day off!'
+  const greeting = t(GREETINGS[holiday.name] ?? 'Enjoy the day off!')
 
   let title: string
   let message: string
   if (isToday) {
-    title = `Happy ${name}, South Africa!`
-    message = `${greeting} Some services and support may be limited today.`
+    title = t('Happy {name}, South Africa!', undefined, { name })
+    message = t('{greeting} Some services and support may be limited today.', undefined, { greeting })
   } else if (daysAway === 1) {
-    title = `${name} is tomorrow!`
-    message = `${greeting} Get ready to celebrate.`
+    title = t('{name} is tomorrow!', undefined, { name })
+    message = t('{greeting} Get ready to celebrate.', undefined, { greeting })
   } else {
-    title = `${name} is coming up on ${formatDate(targetDate)}`
+    title = t('{name} is coming up on {date}', undefined, { name, date: formatDate(targetDate, language === 'zu' ? 'zu-ZA' : 'en-ZA') })
     message = greeting
   }
 
@@ -93,7 +96,7 @@ export const HolidayBanner = () => {
         <strong className="holiday-banner__title">{title}</strong>
         <span className="holiday-banner__message">{message}</span>
       </span>
-      <button type="button" className="holiday-banner__close" onClick={dismiss} aria-label="Dismiss holiday notice">
+      <button type="button" className="holiday-banner__close" onClick={dismiss} aria-label={t('Dismiss holiday notice')}>
         <CloseOutlined />
       </button>
     </div>

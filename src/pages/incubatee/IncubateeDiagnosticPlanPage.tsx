@@ -10,6 +10,7 @@ import type { LivePlanItem } from '@/utils/liveDiagnosticPlan'
 import { PlanProjectionPreview } from '@/components/interventions/PlanProjectionPreview'
 import '@/styles/incubatee.css'
 import { buildLivePlanItems, livePlanProgress } from '@/utils/liveDiagnosticPlan'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 const { Title, Text } = Typography
 const { useBreakpoint } = Grid
@@ -18,6 +19,7 @@ const statusTagColor = (status: LivePlanItem['status']) =>
     status === 'Completed' ? 'green' : status === 'In progress' ? 'blue' : status === 'Awaiting action' ? 'orange' : 'default'
 
 export default function IncubateeDiagnosticPlanPage() {
+    const { t } = useLanguage()
     const { message } = App.useApp()
     const { user } = useFullIdentity()
     const screens = useBreakpoint()
@@ -29,7 +31,7 @@ export default function IncubateeDiagnosticPlanPage() {
     const load = async () => {
         if (!user) return
         try { setWorkspace(await loadIncubateeWorkspace(user)) }
-        catch { message.error('Your diagnostic plan could not be loaded.'); setWorkspace(null) }
+        catch { message.error(t('Your diagnostic plan could not be loaded.')); setWorkspace(null) }
     }
     useEffect(() => { void load() }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -38,17 +40,17 @@ export default function IncubateeDiagnosticPlanPage() {
         setSaving(true)
         try {
             await confirmIncubateeGrowthPlan(workspace, user)
-            message.success('Diagnostic plan confirmed successfully.')
+            message.success(t('Diagnostic plan confirmed successfully.'))
             await load()
         } catch (error) {
-            message.error(error instanceof Error && error.message === 'missing-signature' ? 'Please set up your signature on the Welcome page before confirming.' : 'The diagnostic plan could not be confirmed.')
+            message.error(error instanceof Error && error.message === 'missing-signature' ? t('Please set up your signature on the Welcome page before confirming.') : t('The diagnostic plan could not be confirmed.'))
         } finally { setSaving(false) }
     }
 
     // `undefined` is still loading; the panels carry their own skeletons while it is.
     const loading = workspace === undefined
-    if (!loading && !workspace) return <DashboardPage><Empty description="No accepted programme or diagnostic plan was found." /></DashboardPage>
-    if (!loading && !workspace.growthPlanAvailable) return <DashboardPage><Alert type="info" showIcon message="Your diagnostic plan is not ready yet." description="Operations must complete and confirm the plan before it becomes available here." /></DashboardPage>
+    if (!loading && !workspace) return <DashboardPage><Empty description={t('No accepted programme or diagnostic plan was found.')} /></DashboardPage>
+    if (!loading && !workspace.growthPlanAvailable) return <DashboardPage><Alert type="info" showIcon message={t('Your diagnostic plan is not ready yet.')} description={t('Operations must complete and confirm the plan before it becomes available here.')} /></DashboardPage>
 
     const assignmentRecords = (workspace?.assignedInterventions || []).filter(item => !item.id.startsWith('unassigned-')).map(item => ({ ...item.raw, interventionId: item.interventionId, interventionTitle: item.title, progress: item.progress, status: item.status }))
     // `LivePlanItem` is the util's own documented return shape; the generic inference
@@ -74,7 +76,7 @@ export default function IncubateeDiagnosticPlanPage() {
     return <DashboardPage className="incubatee-page diagnostic-plan-page">
         <Title level={isMobile ? 4 : 3} className="diagnostic-plan-title">
             <FileSearchOutlined />
-            Diagnostic Plan
+            {t('Diagnostic Plan')}
         </Title>
 
         {!loading && workspace && (
@@ -88,8 +90,8 @@ export default function IncubateeDiagnosticPlanPage() {
                 style={{ marginBottom: 12 }}
                 type="info"
                 showIcon
-                message="Review your plan"
-                description="This is the live diagnostic plan operations has prepared for you. Review each intervention below, then confirm when ready."
+                message={t('Review your plan')}
+                description={t('This is the live diagnostic plan operations has prepared for you. Review each intervention below, then confirm when ready.')}
             />
         )}
 
@@ -97,15 +99,15 @@ export default function IncubateeDiagnosticPlanPage() {
         {isMobile ? (
             <MotionCard loading={loading} skeletonRows={3} className="diagnostic-plan-section">
                 <Space direction="vertical" size={10} style={{ width: '100%' }}>
-                    <Text strong style={{ fontSize: 13 }}>Plan status</Text>
+                    <Text strong style={{ fontSize: 13 }}>{t('Plan status')}</Text>
 
                     <div style={{ width: '100%' }}>
-                        <Text type="secondary" style={{ fontSize: 12 }}>Progress</Text>
+                        <Text type="secondary" style={{ fontSize: 12 }}>{t('Progress')}</Text>
                         <Progress percent={overallProgress} size={['100%', 10]} status={overallProgress === 100 ? 'success' : 'active'} />
                     </div>
 
                     <div style={{ width: '100%' }}>
-                        <Text type="secondary" style={{ fontSize: 12 }}>Confirmations</Text>
+                        <Text type="secondary" style={{ fontSize: 12 }}>{t('Confirmations')}</Text>
                         <Progress percent={confirmationPercent} size={['100%', 10]} status={confirmationPercent === 100 ? 'success' : 'active'} format={() => `${confirmedCount}/2`} />
                     </div>
                 </Space>
@@ -115,9 +117,9 @@ export default function IncubateeDiagnosticPlanPage() {
                 <Col span={12}>
                     <MotionCard loading={loading} skeletonRows={3} className="diagnostic-plan-section">
                         <Space direction="vertical" size={8} style={{ width: '100%' }}>
-                            <Text strong style={{ fontSize: 14 }}>Plan progress</Text>
+                            <Text strong style={{ fontSize: 14 }}>{t('Plan progress')}</Text>
                             <Progress percent={overallProgress} size={['100%', 14]} status={overallProgress === 100 ? 'success' : 'active'} />
-                            <Text type="secondary">{liveInterventions.length} intervention{liveInterventions.length === 1 ? '' : 's'}</Text>
+                            <Text type="secondary">{liveInterventions.length} {t('intervention')}{liveInterventions.length === 1 ? '' : 's'}</Text>
                         </Space>
                     </MotionCard>
                 </Col>
@@ -125,7 +127,7 @@ export default function IncubateeDiagnosticPlanPage() {
                 <Col span={12}>
                     <MotionCard loading={loading} skeletonRows={3} className="diagnostic-plan-section">
                         <Space direction="vertical" size={8} style={{ width: '100%' }}>
-                            <Text strong style={{ fontSize: 14 }}>Confirmations</Text>
+                            <Text strong style={{ fontSize: 14 }}>{t('Confirmations')}</Text>
                             <Progress percent={confirmationPercent} size={['100%', 14]} status={confirmationPercent === 100 ? 'success' : 'active'} />
                             <Text type="secondary">{confirmedCount}/2 confirmed</Text>
                         </Space>
@@ -135,16 +137,16 @@ export default function IncubateeDiagnosticPlanPage() {
         )}
 
         <div className="diagnostic-plan-interventions-head">
-            <Text strong style={{ fontSize: isMobile ? 14 : 16 }}>Your interventions</Text>
+            <Text strong style={{ fontSize: isMobile ? 14 : 16 }}>{t('Your interventions')}</Text>
 
             <Space wrap size={8}>
                 <PlanProjectionPreview interventions={liveInterventions} />
-                <Button size="small" icon={<DownloadOutlined />} onClick={downloadPlan}>Download</Button>
+                <Button size="small" icon={<DownloadOutlined />} onClick={downloadPlan}>{t('Download')}</Button>
             </Space>
         </div>
 
         {!liveInterventions.length ? (
-            <Empty description="No interventions were added to this plan." />
+            <Empty description={t('No interventions were added to this plan.')} />
         ) : (
             <Collapse accordion bordered={false} className="diagnostic-plan-collapse" style={{ background: 'transparent' }}>
                 {liveInterventions.map((item, index) => {
@@ -156,7 +158,7 @@ export default function IncubateeDiagnosticPlanPage() {
 
                             <Space wrap size={6}>
                                 <Tag color={statusTagColor(item.status)}>{item.status}</Tag>
-                                {item.totalSteps > 1 && <Tag color="purple">{item.completedSteps}/{item.totalSteps} steps</Tag>}
+                                {item.totalSteps > 1 && <Tag color="purple">{item.completedSteps}/{item.totalSteps} {t('steps')}</Tag>}
                             </Space>
                         </Space>
                     ) : (
@@ -164,26 +166,26 @@ export default function IncubateeDiagnosticPlanPage() {
                             <Space wrap>
                                 <Text strong>{item.title}</Text>
                                 <Tag color={statusTagColor(item.status)}>{item.status}</Tag>
-                                {item.totalSteps > 1 && <Tag color="purple">{item.completedSteps} of {item.totalSteps} steps completed</Tag>}
+                                {item.totalSteps > 1 && <Tag color="purple">{item.completedSteps} {t('of')} {item.totalSteps} {t('steps completed')}</Tag>}
                             </Space>
 
-                            <Text type="secondary" style={{ fontSize: 12 }}>{item.progress}% complete</Text>
+                            <Text type="secondary" style={{ fontSize: 12 }}>{item.progress}{t('% complete')}</Text>
                         </Space>
                     )
 
                     return (
                         <Collapse.Panel key={key} header={header}>
                             <Space direction="vertical" size={10} style={{ width: '100%' }}>
-                                <Text type="secondary">{item.areaOfSupport || 'General support'}</Text>
+                                <Text type="secondary">{item.areaOfSupport || t('General support')}</Text>
 
                                 <Progress percent={item.progress} size="small" />
 
                                 {item.totalSteps > 1 && (
-                                    <Text>{item.remainingSteps ? `${item.remainingSteps} step${item.remainingSteps === 1 ? '' : 's'} remaining` : 'All steps covered'}</Text>
+                                    <Text>{item.remainingSteps ? `${item.remainingSteps} step${item.remainingSteps === 1 ? '' : 's'} remaining` : t('All steps covered')}</Text>
                                 )}
 
                                 {!item.history.length ? (
-                                    <Alert type="info" showIcon message="No steps recorded yet" description="This intervention has not started." />
+                                    <Alert type="info" showIcon message={t('No steps recorded yet')} description={t('This intervention has not started.')} />
                                 ) : isMobile ? (
                                     <List
                                         dataSource={item.history}
@@ -191,7 +193,7 @@ export default function IncubateeDiagnosticPlanPage() {
                                         renderItem={(entry, historyIndex) => (
                                             <List.Item style={{ padding: '6px 0' }}>
                                                 <div className="diagnostic-step-card">
-                                                    <Text type="secondary" style={{ fontSize: 12 }}>Step {historyIndex + 1}</Text>
+                                                    <Text type="secondary" style={{ fontSize: 12 }}>{t('Step')} {historyIndex + 1}</Text>
                                                     <Text>{entry.title}</Text>
                                                     <Space size={6}>
                                                         <Tag color={entry.status === 'Completed' ? 'green' : 'blue'}>{entry.status}</Tag>
@@ -207,9 +209,9 @@ export default function IncubateeDiagnosticPlanPage() {
                                         pagination={false}
                                         rowKey="id"
                                         columns={[
-                                            { title: 'Step', dataIndex: 'title', key: 'title' },
-                                            { title: 'Status', dataIndex: 'status', key: 'status', render: (value: string) => <Tag color={value === 'Completed' ? 'green' : 'blue'}>{value}</Tag> },
-                                            { title: 'Progress', dataIndex: 'progress', key: 'progress', render: (value: number) => `${value}%` },
+                                            { title: t('Step'), dataIndex: 'title', key: 'title' },
+                                            { title: t('Status'), dataIndex: 'status', key: 'status', render: (value: string) => <Tag color={value === 'Completed' ? 'green' : 'blue'}>{value}</Tag> },
+                                            { title: t('Progress'), dataIndex: 'progress', key: 'progress', render: (value: number) => `${value}%` },
                                         ]}
                                         dataSource={item.history}
                                     />
@@ -225,35 +227,35 @@ export default function IncubateeDiagnosticPlanPage() {
             <div style={{ textAlign: 'center', marginTop: 4 }}>
                 <CheckCircleOutlined style={{ fontSize: isMobile ? 34 : 44, color: '#52c41a' }} />
                 <Title level={isMobile ? 4 : 3} style={{ marginTop: 8, marginBottom: 0, color: '#52c41a' }}>
-                    Diagnostic Plan Confirmed
+                    {t('Diagnostic Plan Confirmed')}
                 </Title>
                 <Text type="secondary">
-                    You confirmed this plan{workspace.participantPlanConfirmation?.confirmedAt ? ` on ${new Date(workspace.participantPlanConfirmation.confirmedAt).toLocaleDateString()}` : ''}.
+                    {t('You confirmed this plan')}{workspace.participantPlanConfirmation?.confirmedAt ? ` on ${new Date(workspace.participantPlanConfirmation.confirmedAt).toLocaleDateString()}` : ''}.
                 </Text>
             </div>
         ) : (
-            <MotionCard loading={loading} skeletonRows={3} className="diagnostic-plan-section" title="Confirmations">
+            <MotionCard loading={loading} skeletonRows={3} className="diagnostic-plan-section" title={t('Confirmations')}>
                 <div className="diagnostic-signature-grid">
                     <div className="diagnostic-signature-card">
-                        <Typography.Text strong>Operations approval</Typography.Text>
+                        <Typography.Text strong>{t('Operations approval')}</Typography.Text>
                         {workspace?.operationsPlanConfirmation?.signatureURL
-                            ? <img src={workspace.operationsPlanConfirmation.signatureURL} alt="Operations signature" />
-                            : <Tag color="green" icon={<SafetyCertificateOutlined />}>Confirmed</Tag>}
+                            ? <img src={workspace.operationsPlanConfirmation.signatureURL} alt={t('Operations signature')} />
+                            : <Tag color="green" icon={<SafetyCertificateOutlined />}>{t('Confirmed')}</Tag>}
                     </div>
 
                     <div className="diagnostic-signature-card">
-                        <Typography.Text strong>Your confirmation</Typography.Text>
-                        <Tag color="orange">Not confirmed yet</Tag>
+                        <Typography.Text strong>{t('Your confirmation')}</Typography.Text>
+                        <Tag color="orange">{t('Not confirmed yet')}</Tag>
                     </div>
                 </div>
 
                 <div className="diagnostic-plan-confirm-action">
-                    <Popconfirm title="Confirm this diagnostic plan?" description="This applies your saved signature and acknowledges the listed interventions." onConfirm={() => void confirm()} okText="Confirm plan">
-                        <Button block type="primary" loading={saving} disabled={!user?.signatureURL}>Confirm diagnostic plan</Button>
+                    <Popconfirm title={t('Confirm this diagnostic plan?')} description={t('This applies your saved signature and acknowledges the listed interventions.')} onConfirm={() => void confirm()} okText={t('Confirm plan')}>
+                        <Button block type="primary" loading={saving} disabled={!user?.signatureURL}>{t('Confirm diagnostic plan')}</Button>
                     </Popconfirm>
                 </div>
 
-                {!user?.signatureURL && <Alert style={{ marginTop: 12 }} type="error" showIcon message="A saved signature is required before confirmation." />}
+                {!user?.signatureURL && <Alert style={{ marginTop: 12 }} type="error" showIcon message={t('A saved signature is required before confirmation.')} />}
             </MotionCard>
         )}
     </DashboardPage>

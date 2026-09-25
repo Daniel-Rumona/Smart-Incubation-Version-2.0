@@ -7,7 +7,7 @@ import { FilterBar } from '@/components/shared/FilterBar'
 import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
 import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
-import { useLanguage } from '@/providers/LanguageProvider'
+import { useLanguage, tEnglish } from '@/providers/LanguageProvider'
 import { listApplicantApplications } from '@/services/applicantService'
 import type { ApplicantApplication } from '@/types/applicant'
 import '@/styles/applicant.css'
@@ -55,8 +55,8 @@ export const ApplicationTrackerPage = () => {
 
     useRegisterAgentPageContext({
         pageKey: 'applicant-application-tracker',
-        pageName: t('applicant.tracker.title'),
-        purpose: t('applicant.tracker.subtitle'),
+        pageName: tEnglish('applicant.tracker.title'),
+        purpose: tEnglish('applicant.tracker.subtitle'),
         filters: { search, status },
         metrics: { total: applications.length, ...counts },
         tables: { visibleApplications: visibleApplications.length },

@@ -56,6 +56,7 @@ import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import { FilterBar } from '@/components/shared/FilterBar'
 import { ThemedHighcharts } from '@/components/shared/ThemedHighcharts'
 import '@/styles/incubatee.css'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 const { Text } = Typography
 const { Option } = Select
@@ -163,6 +164,7 @@ const getReviewTag = (verificationStatus: string) => {
 }
 
 export const DocumentHub: React.FC = () => {
+    const { t } = useLanguage()
     const screens = useBreakpoint()
     const isMobile = !screens.md
     const [searchParams, setSearchParams] = useSearchParams()
@@ -294,14 +296,14 @@ export const DocumentHub: React.FC = () => {
                 normalizeDocs(docs)
             } catch (e) {
                 console.error(e)
-                message.error('Failed to load documents')
+                message.error(t('Failed to load documents'))
             } finally {
                 setLoading(false)
             }
         })
 
         return () => unsub()
-    }, [])
+    }, [t])
 
     const refreshFromServer = async () => {
         if (!appRef) return
@@ -314,7 +316,7 @@ export const DocumentHub: React.FC = () => {
 
     async function uploadComplianceDoc(type: string, file: File, issue?: Dayjs | null, expiry?: Dayjs | null) {
         if (!appRef || !participantId) {
-            message.error('Cannot upload: missing app reference.')
+            message.error(t('Cannot upload: missing app reference.'))
             return null
         }
 
@@ -367,7 +369,7 @@ export const DocumentHub: React.FC = () => {
         const idx = next.findIndex((d: any) => d?.type === type)
 
         if (idx < 0) {
-            message.error('Cannot update: document entry not found.')
+            message.error(t('Cannot update: document entry not found.'))
             return
         }
 
@@ -484,7 +486,7 @@ export const DocumentHub: React.FC = () => {
                     },
                 },
             },
-            series: [{ name: 'Count', type: 'pie', data: riskSeriesData }],
+            series: [{ name: tr('Count'), type: 'pie', data: riskSeriesData }],
         }),
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [riskSeriesData, isMobile]
@@ -500,7 +502,7 @@ export const DocumentHub: React.FC = () => {
 
     const handleAddNew = async () => {
         if (!selectedType || !uploadFile) {
-            message.error('Please select a type and file.')
+            message.error(t('Please select a type and file.'))
             return
         }
 
@@ -513,7 +515,7 @@ export const DocumentHub: React.FC = () => {
             resetAddModal()
         } catch (e) {
             console.error(e)
-            message.error('Failed to upload document.')
+            message.error(t('Failed to upload document.'))
         } finally {
             setAddUploading(false)
         }
@@ -568,10 +570,10 @@ export const DocumentHub: React.FC = () => {
             setDetailsSaving(true)
             await updateComplianceDocDates(activeRow.type, editIssue, editExpiry)
             await refreshFromServer()
-            message.success('Dates updated')
+            message.success(t('Dates updated'))
         } catch (e) {
             console.error(e)
-            message.error(e instanceof Error ? e.message : 'The dates could not be updated.')
+            message.error(e instanceof Error ? e.message : t('The dates could not be updated.'))
         } finally {
             setDetailsSaving(false)
         }
@@ -585,11 +587,11 @@ export const DocumentHub: React.FC = () => {
             const entry = await uploadComplianceDoc(activeRow.type, replaceFile, editIssue, editExpiry)
             if (!entry) return
             await refreshFromServer()
-            message.success('Replacement uploaded')
+            message.success(t('Replacement uploaded'))
             closeReplace()
         } catch (e) {
             console.error(e)
-            message.error('Upload failed')
+            message.error(t('Upload failed'))
         } finally {
             setReplaceUploading(false)
         }
@@ -597,25 +599,25 @@ export const DocumentHub: React.FC = () => {
 
     const columns: ColumnsType<ComplianceRow> = [
         {
-            title: 'Document',
+            title: t('Document'),
             dataIndex: 'type',
             key: 'type',
             render: (v: any) => <Text strong>{String(v || '').trim() || '-'}</Text>,
         },
         {
-            title: 'Status',
+            title: t('Status'),
             dataIndex: 'status',
             key: 'status',
             render: (v: any) => getStatusTag(String(v || 'missing')),
         },
         {
-            title: 'Review',
+            title: t('Review'),
             key: 'review',
             render: (_: any, record: ComplianceRow) => (
                 <Space size={8}>
                     {getReviewTag(record.verificationStatus)}
                     {record.verificationStatus === 'queried' && record.verificationComment ? (
-                        <Tooltip title={<div style={{ maxWidth: 320 }}><b>Reason:</b> {record.verificationComment}</div>}>
+                        <Tooltip title={<div style={{ maxWidth: 320 }}><b>{t('Reason:')}</b> {record.verificationComment}</div>}>
                             <ExclamationCircleOutlined style={{ color: '#fa541c' }} />
                         </Tooltip>
                     ) : null}
@@ -623,7 +625,7 @@ export const DocumentHub: React.FC = () => {
             ),
         },
         {
-            title: 'Expiry',
+            title: t('Expiry'),
             dataIndex: 'expiry',
             key: 'expiry',
             render: (_: any, record: ComplianceRow) => {
@@ -632,21 +634,21 @@ export const DocumentHub: React.FC = () => {
                 return (
                     <Space size={8}>
                         <Text>{record.expiry}</Text>
-                        {expired ? <Tag color="red">EXPIRED</Tag> : soon ? <Tag color="orange">EXPIRING</Tag> : null}
+                        {expired ? <Tag color="red">{t('EXPIRED')}</Tag> : soon ? <Tag color="orange">{t('EXPIRING')}</Tag> : null}
                     </Space>
                 )
             },
         },
         {
-            title: 'Actions',
+            title: t('Actions'),
             key: 'actions',
             width: 190,
             render: (_: any, record: ComplianceRow) => (
                 <Space>
-                    <Tooltip title="Details">
+                    <Tooltip title={t('Details')}>
                         <Button type="text" shape="circle" icon={<FileTextOutlined />} onClick={() => openDetails(record)} />
                     </Tooltip>
-                    <Tooltip title={record.url ? 'Open' : 'No file'}>
+                    <Tooltip title={record.url ? t('Open') : t('No file')}>
                         <Button
                             type="text"
                             shape="circle"
@@ -655,7 +657,7 @@ export const DocumentHub: React.FC = () => {
                             onClick={() => openInNewTab(record.url)}
                         />
                     </Tooltip>
-                    <Tooltip title={record.url ? 'Replace document' : 'Upload document'}>
+                    <Tooltip title={record.url ? t('Replace document') : t('Upload document')}>
                         <Button
                             type={record.url ? 'text' : 'primary'}
                             shape="circle"
@@ -676,8 +678,8 @@ export const DocumentHub: React.FC = () => {
                 <Alert
                     type="info"
                     showIcon
-                    message="No documents uploaded yet"
-                    description="Use Add Document to upload your first compliance file."
+                    message={t('No documents uploaded yet')}
+                    description={t('Use Add Document to upload your first compliance file.')}
                 />
             ) : (
                 visibleDocs.map(d => {
@@ -692,17 +694,17 @@ export const DocumentHub: React.FC = () => {
                                     <Space size={6} wrap>
                                         {getStatusTag(d.status)}
                                         {getReviewTag(d.verificationStatus)}
-                                        {expired ? <Tag color="red">EXPIRED</Tag> : soon ? <Tag color="orange">EXPIRING</Tag> : null}
+                                        {expired ? <Tag color="red">{t('EXPIRED')}</Tag> : soon ? <Tag color="orange">{t('EXPIRING')}</Tag> : null}
                                     </Space>
                                 </Space>
 
                                 <Descriptions bordered size="small" column={1}>
-                                    <Descriptions.Item label="Issue Date">{d.issue}</Descriptions.Item>
-                                    <Descriptions.Item label="Expiry Date">{d.expiry}</Descriptions.Item>
+                                    <Descriptions.Item label={t('Issue Date')}>{d.issue}</Descriptions.Item>
+                                    <Descriptions.Item label={t('Expiry Date')}>{d.expiry}</Descriptions.Item>
                                 </Descriptions>
 
                                 {d.verificationStatus === 'queried' && d.verificationComment ? (
-                                    <Alert type="warning" showIcon message="Queried" description={d.verificationComment} />
+                                    <Alert type="warning" showIcon message={t('Queried')} description={d.verificationComment} />
                                 ) : null}
 
                                 <Button
@@ -714,7 +716,7 @@ export const DocumentHub: React.FC = () => {
                                     onClick={() => openReplace(d)}
                                     style={{ height: 46, fontWeight: 700 }}
                                 >
-                                    Replace Document
+                                    {t('Replace Document')}
                                 </Button>
 
                                 <Row gutter={[10, 10]}>
@@ -727,7 +729,7 @@ export const DocumentHub: React.FC = () => {
                                             style={{ border: '1px solid dodgerblue' }}
                                             icon={<FileTextOutlined />}
                                             onClick={() => openDetails(d)}>
-                                            Details
+                                            {t('Details')}
                                         </Button>
                                     </Col>
                                     <Col span={12}>
@@ -739,7 +741,7 @@ export const DocumentHub: React.FC = () => {
                                             style={{ border: '1px solid dodgerblue' }}
                                             icon={<EyeOutlined />}
                                             disabled={!d.url} onClick={() => openInNewTab(d.url)}>
-                                            View
+                                            {t('View')}
                                         </Button>
                                     </Col>
                                 </Row>
@@ -757,7 +759,7 @@ export const DocumentHub: React.FC = () => {
             icon={<PlusOutlined />}
             onClick={() => setIsAddModalVisible(true)}
         >
-            {isMobile ? 'Add' : 'Add document'}
+            {isMobile ? t('Add') : t('Add document')}
         </Button>
     )
 
@@ -766,8 +768,8 @@ export const DocumentHub: React.FC = () => {
             value={view}
             onChange={(next) => setView(next as ViewKey)}
             options={[
-                { label: 'Data', value: 'data', icon: <TableOutlined /> },
-                { label: 'Risk', value: 'risk', icon: <BarChartOutlined /> },
+                { label: t('Data'), value: 'data', icon: <TableOutlined /> },
+                { label: t('Risk'), value: 'risk', icon: <BarChartOutlined /> },
             ]}
         />
     )
@@ -775,24 +777,24 @@ export const DocumentHub: React.FC = () => {
     return (
         <DashboardPage className="incubatee-page incubatee-compliance-page">
             <Helmet>
-                <title>Compliance Tracking | Smart Incubation</title>
+                <title>{t('Compliance Tracking | Smart Incubation')}</title>
             </Helmet>
 
             <Row gutter={[12, 12]} className="dashboard-metrics-row">
                 <Col xs={12} lg={6}>
-                    <DashboardMetricCard icon={<CheckCircleOutlined />} label="Valid documents" value={validCount} />
+                    <DashboardMetricCard icon={<CheckCircleOutlined />} label={t('Valid documents')} value={validCount} />
                 </Col>
 
                 <Col xs={12} lg={6}>
-                    <DashboardMetricCard icon={<ExclamationCircleOutlined />} label="Still missing" value={missingCount} />
+                    <DashboardMetricCard icon={<ExclamationCircleOutlined />} label={t('Still missing')} value={missingCount} />
                 </Col>
 
                 <Col xs={12} lg={6}>
-                    <DashboardMetricCard icon={<ClockCircleOutlined />} label="Expired" value={expiredCount} />
+                    <DashboardMetricCard icon={<ClockCircleOutlined />} label={t('Expired')} value={expiredCount} />
                 </Col>
 
                 <Col xs={12} lg={6}>
-                    <DashboardMetricCard icon={<FileTextOutlined />} label="Queried by operations" value={queriedCount} />
+                    <DashboardMetricCard icon={<FileTextOutlined />} label={t('Queried by operations')} value={queriedCount} />
                 </Col>
             </Row>
 
@@ -803,11 +805,11 @@ export const DocumentHub: React.FC = () => {
                             value={statusFilter}
                             onChange={setStatusFilter}
                             options={[
-                                { value: 'all', label: 'All statuses' },
-                                { value: 'valid', label: 'Valid' },
-                                { value: 'missing', label: 'Missing' },
-                                { value: 'expired', label: 'Expired' },
-                                { value: 'queried', label: 'Queried' },
+                                { value: 'all', label: t('All statuses') },
+                                { value: 'valid', label: t('Valid') },
+                                { value: 'missing', label: t('Missing') },
+                                { value: 'expired', label: t('Expired') },
+                                { value: 'queried', label: t('Queried') },
                             ]}
                         />
 
@@ -827,7 +829,7 @@ export const DocumentHub: React.FC = () => {
 
             {view === 'risk' ? (
                 <div className="incubatee-compliance-charts">
-                    <MotionCard className="incubatee-metrics-panel" title="Compliance score">
+                    <MotionCard className="incubatee-metrics-panel" title={t('Compliance score')}>
                         <div className="compliance-score">
                             <Progress
                                 type="dashboard"
@@ -844,22 +846,22 @@ export const DocumentHub: React.FC = () => {
                             />
 
                             <div className="compliance-score-legend">
-                                <span><i className="is-valid" />Valid {validCount}</span>
-                                <span><i className="is-missing" />Missing {missingCount}</span>
-                                <span><i className="is-expired" />Expired {expiredCount}</span>
-                                <span><i className="is-queried" />Queried {queriedCount}</span>
+                                <span><i className="is-valid" />{t('Valid')} {validCount}</span>
+                                <span><i className="is-missing" />{t('Missing')} {missingCount}</span>
+                                <span><i className="is-expired" />{t('Expired')} {expiredCount}</span>
+                                <span><i className="is-queried" />{t('Queried')} {queriedCount}</span>
                             </div>
                         </div>
                     </MotionCard>
 
-                    <MotionCard className="incubatee-metrics-panel" title="Risk drivers">
+                    <MotionCard className="incubatee-metrics-panel" title={t('Risk drivers')}>
                         <ThemedHighcharts options={riskOptions} />
                     </MotionCard>
                 </div>
             ) : (
                 <MotionCard
                     className="incubatee-metrics-panel"
-                    title="Compliance documents"
+                    title={t('Compliance documents')}
                     extra={
                         <Text type="secondary">
                             {`${visibleDocs.length} of ${documentRows.length}`}
@@ -883,15 +885,15 @@ export const DocumentHub: React.FC = () => {
             )}
 
             <Modal
-                title={<Space><UploadOutlined /><span>Upload new document</span></Space>}
+                title={<Space><UploadOutlined /><span>{t('Upload new document')}</span></Space>}
                 open={isAddModalVisible}
                 onCancel={resetAddModal}
                 width={520}
                 destroyOnClose
                 footer={[
-                    <Button key="cancel" onClick={resetAddModal}>Cancel</Button>,
+                    <Button key="cancel" onClick={resetAddModal}>{t('Cancel')}</Button>,
                     <Button key="upload" type="primary" icon={<UploadOutlined />} loading={addUploading} disabled={!selectedType || !uploadFile} onClick={handleAddNew}>
-                        Upload Document
+                        {t('Upload Document')}
                     </Button>,
                 ]}
                 style={{ borderRadius: 14 }}
@@ -899,14 +901,14 @@ export const DocumentHub: React.FC = () => {
                 <Alert
                     type="info"
                     showIcon
-                    message="Upload a clear document"
-                    description="Expiry date can be left blank if it does not apply."
+                    message={t('Upload a clear document')}
+                    description={t('Expiry date can be left blank if it does not apply.')}
                     style={{ marginBottom: 14, borderRadius: 12 }}
                 />
 
                 <Space direction="vertical" style={{ width: '100%' }} size={12}>
                     <Select
-                        placeholder="Select document type"
+                        placeholder={t('Select document type')}
                         style={{ width: '100%' }}
                         value={selectedType || undefined}
                         onChange={setSelectedType}
@@ -917,8 +919,8 @@ export const DocumentHub: React.FC = () => {
                     </Select>
 
                     <Row gutter={[12, 12]}>
-                        <Col xs={24} md={12}><DatePicker placeholder="Issue Date" style={{ width: '100%' }} value={issueDateAdd} onChange={setIssueDateAdd} /></Col>
-                        <Col xs={24} md={12}><DatePicker placeholder="Expiry Date" style={{ width: '100%' }} value={expiryDateAdd} onChange={setExpiryDateAdd} /></Col>
+                        <Col xs={24} md={12}><DatePicker placeholder={t('Issue Date')} style={{ width: '100%' }} value={issueDateAdd} onChange={setIssueDateAdd} /></Col>
+                        <Col xs={24} md={12}><DatePicker placeholder={t('Expiry Date')} style={{ width: '100%' }} value={expiryDateAdd} onChange={setExpiryDateAdd} /></Col>
                     </Row>
 
                     <Dragger
@@ -931,14 +933,14 @@ export const DocumentHub: React.FC = () => {
                         onRemove={() => setUploadFile(null)}
                     >
                         <p className="ant-upload-drag-icon"><UploadOutlined /></p>
-                        <p className="ant-upload-text">Select or drag document here</p>
-                        <p className="ant-upload-hint">PDF or image files are recommended.</p>
+                        <p className="ant-upload-text">{t('Select or drag document here')}</p>
+                        <p className="ant-upload-hint">{t('PDF or image files are recommended.')}</p>
                     </Dragger>
                 </Space>
             </Modal>
 
             <Modal
-                title={<Space><FileTextOutlined /><span>Document details</span></Space>}
+                title={<Space><FileTextOutlined /><span>{t('Document details')}</span></Space>}
                 open={detailsOpen}
                 onCancel={closeDetails}
                 width={620}
@@ -953,7 +955,7 @@ export const DocumentHub: React.FC = () => {
                                 icon={<ExclamationCircleOutlined />}
                                 onClick={closeDetails}
                             >
-                                Close
+                                {t('Close')}
                             </Button>
                         </Col>
 
@@ -966,7 +968,7 @@ export const DocumentHub: React.FC = () => {
                                         icon={<UploadOutlined />}
                                         onClick={() => activeRow && openReplace(activeRow)}
                                     >
-                                        Replace
+                                        {t('Replace')}
                                     </Button>
                                 </Col>
 
@@ -977,7 +979,7 @@ export const DocumentHub: React.FC = () => {
                                         icon={<EyeOutlined />}
                                         onClick={() => openInNewTab(activeRow?.url)}
                                     >
-                                        View
+                                        {t('View')}
                                     </Button>
                                 </Col>
 
@@ -991,7 +993,7 @@ export const DocumentHub: React.FC = () => {
                                         disabled={!canSaveDates}
                                         onClick={saveDates}
                                     >
-                                        Save
+                                        {t('Save')}
                                     </Button>
                                 </Col>
                             </>
@@ -1007,7 +1009,7 @@ export const DocumentHub: React.FC = () => {
                                         if (activeRow) openUploadFor(activeRow.type)
                                     }}
                                 >
-                                    Upload document
+                                    {t('Upload document')}
                                 </Button>
                             </Col>
                         )}
@@ -1018,39 +1020,39 @@ export const DocumentHub: React.FC = () => {
                 {activeRow ? (
                     <Space direction="vertical" style={{ width: '100%' }} size={14}>
                         <Descriptions bordered size="small" column={isMobile ? 1 : 2}>
-                            <Descriptions.Item label="Type"><Text strong>{activeRow.type}</Text></Descriptions.Item>
-                            <Descriptions.Item label="Status">{getStatusTag(activeRow.status)}</Descriptions.Item>
-                            <Descriptions.Item label="Review">{getReviewTag(activeRow.verificationStatus)}</Descriptions.Item>
-                            <Descriptions.Item label="File">{activeRow.fileName || '-'}</Descriptions.Item>
+                            <Descriptions.Item label={t('Type')}><Text strong>{activeRow.type}</Text></Descriptions.Item>
+                            <Descriptions.Item label={t('Status')}>{getStatusTag(activeRow.status)}</Descriptions.Item>
+                            <Descriptions.Item label={t('Review')}>{getReviewTag(activeRow.verificationStatus)}</Descriptions.Item>
+                            <Descriptions.Item label={t('File')}>{activeRow.fileName || '-'}</Descriptions.Item>
                         </Descriptions>
 
                         {activeRow.url ? (
                             <Row gutter={[12, 12]}>
                                 <Col xs={24} md={12}>
-                                    <DatePicker placeholder="Issue date" style={{ width: '100%' }} value={editIssue} onChange={setEditIssue} />
+                                    <DatePicker placeholder={t('Issue date')} style={{ width: '100%' }} value={editIssue} onChange={setEditIssue} />
                                 </Col>
                                 <Col xs={24} md={12}>
-                                    <DatePicker placeholder="Expiry date" style={{ width: '100%' }} value={editExpiry} onChange={setEditExpiry} />
+                                    <DatePicker placeholder={t('Expiry date')} style={{ width: '100%' }} value={editExpiry} onChange={setEditExpiry} />
                                 </Col>
                             </Row>
                         ) : (
                             <Alert
                                 type="info"
                                 showIcon
-                                message="Nothing uploaded yet"
-                                description="Upload this document to record its issue and expiry dates."
+                                message={t('Nothing uploaded yet')}
+                                description={t('Upload this document to record its issue and expiry dates.')}
                             />
                         )}
 
                         {activeRow.verificationStatus === 'queried' && activeRow.verificationComment ? (
-                            <Alert type="warning" showIcon message="Queried by reviewer" description={activeRow.verificationComment} />
+                            <Alert type="warning" showIcon message={t('Queried by reviewer')} description={activeRow.verificationComment} />
                         ) : null}
                     </Space>
-                ) : <Text type="secondary">No document selected.</Text>}
+                ) : <Text type="secondary">{t('No document selected.')}</Text>}
             </Modal>
 
             <Modal
-                title={<Space><UploadOutlined /><span>Replace document</span></Space>}
+                title={<Space><UploadOutlined /><span>{t('Replace document')}</span></Space>}
                 open={replaceOpen}
                 onCancel={closeReplace}
                 width={520}
@@ -1065,7 +1067,7 @@ export const DocumentHub: React.FC = () => {
                                 icon={<ExclamationCircleOutlined />}
                                 onClick={closeReplace}
                             >
-                                Close
+                                {t('Close')}
                             </Button>
                         </Col>
 
@@ -1078,7 +1080,7 @@ export const DocumentHub: React.FC = () => {
                                 disabled={!activeRow || !replaceFile}
                                 onClick={doReplaceUpload}
                             >
-                                Upload
+                                {t('Upload')}
                             </Button>
                         </Col>
 
@@ -1090,7 +1092,7 @@ export const DocumentHub: React.FC = () => {
                                 disabled={!activeRow?.url}
                                 onClick={() => openInNewTab(activeRow?.url)}
                             >
-                                View
+                                {t('View')}
                             </Button>
                         </Col>
 
@@ -1104,7 +1106,7 @@ export const DocumentHub: React.FC = () => {
                                 disabled={!activeRow || !canSaveDates}
                                 onClick={saveDates}
                             >
-                                Save
+                                {t('Save')}
                             </Button>
                         </Col>
                     </Row>
@@ -1118,21 +1120,21 @@ export const DocumentHub: React.FC = () => {
                             type="warning"
                             showIcon
                             message={`Replacing: ${activeRow.type}`}
-                            description="This will replace the current file and reset the document for review."
+                            description={t('This will replace the current file and reset the document for review.')}
                             style={{ borderRadius: 12 }}
                         />
 
                         <Descriptions bordered size="small" column={1}>
-                            <Descriptions.Item label="Current File">{activeRow.fileName || '-'}</Descriptions.Item>
-                            <Descriptions.Item label="Current Status">{getStatusTag(activeRow.status)}</Descriptions.Item>
+                            <Descriptions.Item label={t('Current File')}>{activeRow.fileName || '-'}</Descriptions.Item>
+                            <Descriptions.Item label={t('Current Status')}>{getStatusTag(activeRow.status)}</Descriptions.Item>
                         </Descriptions>
 
                         <Row gutter={[12, 12]}>
                             <Col xs={24} md={12}>
-                                <DatePicker placeholder="Issue Date" style={{ width: '100%' }} value={editIssue} onChange={setEditIssue} />
+                                <DatePicker placeholder={t('Issue Date')} style={{ width: '100%' }} value={editIssue} onChange={setEditIssue} />
                             </Col>
                             <Col xs={24} md={12}>
-                                <DatePicker placeholder="Expiry Date" style={{ width: '100%' }} value={editExpiry} onChange={setEditExpiry} />
+                                <DatePicker placeholder={t('Expiry Date')} style={{ width: '100%' }} value={editExpiry} onChange={setEditExpiry} />
                             </Col>
                         </Row>
 
@@ -1146,17 +1148,17 @@ export const DocumentHub: React.FC = () => {
                             onRemove={() => setReplaceFile(null)}
                         >
                             <p className="ant-upload-drag-icon"><UploadOutlined /></p>
-                            <p className="ant-upload-text">Select the replacement document</p>
-                            <p className="ant-upload-hint">The file is only uploaded when Upload Replacement is clicked.</p>
+                            <p className="ant-upload-text">{t('Select the replacement document')}</p>
+                            <p className="ant-upload-hint">{t('The file is only uploaded when Upload Replacement is clicked.')}</p>
                         </Dragger>
 
                         {activeRow.url ? (
                             <Button icon={<EyeOutlined />} onClick={() => openInNewTab(activeRow.url)}>
-                                View Current Document
+                                {t('View Current Document')}
                             </Button>
                         ) : null}
                     </Space>
-                ) : <Text type="secondary">No document selected.</Text>}
+                ) : <Text type="secondary">{t('No document selected.')}</Text>}
             </Modal>
         </DashboardPage>
     )

@@ -55,6 +55,7 @@ import DashboardMetricCard from "@/components/shared/DashboardMetricCard";
 import { FilterBar } from "@/components/shared/FilterBar";
 import { ThemedHighcharts } from "@/components/shared/ThemedHighcharts";
 import "@/styles/incubatee.css";
+import { tr, useLanguage } from '@/providers/LanguageProvider'
 
 const { Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -70,11 +71,11 @@ type SectionKey = "revenue" | "employees" | "sales" | "traffic" | "networking";
  * which keeps "not reported" distinct from a genuine zero.
  */
 const METRIC_SECTIONS: Array<{ key: SectionKey; label: string; hint: string; icon: React.ReactNode; fields: string[] }> = [
-    { key: "revenue", label: "Revenue", hint: "Turnover plus a bank statement", icon: <DollarCircleOutlined />, fields: ["revenue"] },
-    { key: "employees", label: "Employees", hint: "Permanent and temporary headcount", icon: <TeamOutlined />, fields: ["headPermanent", "headTemporary"] },
-    { key: "sales", label: "Orders and customers", hint: "Orders submitted, new customers", icon: <ShoppingCartOutlined />, fields: ["orders", "customers"] },
-    { key: "traffic", label: "Website traffic", hint: "Visits recorded for the month", icon: <LineChartOutlined />, fields: ["traffic"] },
-    { key: "networking", label: "Networking", hint: "Events attended this month", icon: <UsergroupAddOutlined />, fields: ["networking"] },
+    { key: "revenue", get label() { return tr('Revenue') }, get hint() { return tr('Turnover plus a bank statement') }, icon: <DollarCircleOutlined />, fields: ["revenue"] },
+    { key: "employees", get label() { return tr('Employees') }, get hint() { return tr('Permanent and temporary headcount') }, icon: <TeamOutlined />, fields: ["headPermanent", "headTemporary"] },
+    { key: "sales", get label() { return tr('Orders and customers') }, get hint() { return tr('Orders submitted, new customers') }, icon: <ShoppingCartOutlined />, fields: ["orders", "customers"] },
+    { key: "traffic", get label() { return tr('Website traffic') }, get hint() { return tr('Visits recorded for the month') }, icon: <LineChartOutlined />, fields: ["traffic"] },
+    { key: "networking", get label() { return tr('Networking') }, get hint() { return tr('Events attended this month') }, icon: <UsergroupAddOutlined />, fields: ["networking"] },
 ];
 
 const fullWidthUploadStyle: React.CSSProperties = { width: "100%" };
@@ -113,6 +114,7 @@ const resolveParticipantRecord = async (uid: string, email: string) => {
 };
 
 export const MonthlyPerformanceForm: React.FC = () => {
+    useLanguage() // re-render when the language changes
     const [form] = Form.useForm();
     const screens = useBreakpoint();
     const isMobile = !screens.md;
@@ -602,9 +604,9 @@ export const MonthlyPerformanceForm: React.FC = () => {
         },
         tooltip: { shared: true, valuePrefix: 'R' },
         series: [
-            { name: 'Revenue', type: 'line', data: pickRange(revenueMerged) },
+            { name: tr('Revenue'), type: 'line', data: pickRange(revenueMerged) },
             ...(!isMobile
-                ? [{ name: '3-month Avg', type: 'line' as const, dashStyle: 'ShortDot' as const, data: pickRange(revMA3) }]
+                ? [{ name: tr('3-month Avg'), type: 'line' as const, dashStyle: 'ShortDot' as const, data: pickRange(revMA3) }]
                 : []),
         ],
     }
@@ -653,8 +655,8 @@ export const MonthlyPerformanceForm: React.FC = () => {
             },
         },
         series: [
-            { name: "Permanent", type: "column", data: pickRange(permMerged) },
-            { name: "Temporary", type: "column", data: pickRange(tempMerged) },
+            { name: tr('Permanent'), type: "column", data: pickRange(permMerged) },
+            { name: tr('Temporary'), type: "column", data: pickRange(tempMerged) },
         ],
     }
 
@@ -668,19 +670,19 @@ export const MonthlyPerformanceForm: React.FC = () => {
         subtitle: { text: "" },
         xAxis: [{ categories, crosshair: true }],
         yAxis: [
-            { title: { text: "Orders" } },
-            { title: { text: "Customers" }, opposite: true },
+            { title: { text: tr('Orders') } },
+            { title: { text: tr('Customers') }, opposite: true },
         ],
         tooltip: { shared: true },
         series: [
             {
-                name: "Orders",
+                name: tr('Orders'),
                 type: "column",
                 yAxis: 0,
                 data: pickRange(ordersMerged),
             },
             {
-                name: "Customers",
+                name: tr('Customers'),
                 type: "spline",
                 yAxis: 1,
                 data: pickRange(customersMerged),
@@ -805,22 +807,22 @@ export const MonthlyPerformanceForm: React.FC = () => {
     };
 
     const columns = [
-        { title: "Month", dataIndex: "month", key: "month" },
-        { title: "Revenue (R)", dataIndex: "revenue", key: "revenue" },
+        { title: tr('Month'), dataIndex: "month", key: "month" },
+        { title: tr('Revenue (R)'), dataIndex: "revenue", key: "revenue" },
         {
-            title: "Permanent Employees",
+            title: tr('Permanent Employees'),
             dataIndex: "headPermanent",
             key: "headPermanent",
         },
         {
-            title: "Temporary Employees",
+            title: tr('Temporary Employees'),
             dataIndex: "headTemporary",
             key: "headTemporary",
         },
-        { title: "Orders", dataIndex: "orders", key: "orders" },
-        { title: "Customers", dataIndex: "customers", key: "customers" },
-        { title: "Traffic", dataIndex: "traffic", key: "traffic" },
-        { title: "Networking Events", dataIndex: "networking", key: "networking" },
+        { title: tr('Orders'), dataIndex: "orders", key: "orders" },
+        { title: tr('Customers'), dataIndex: "customers", key: "customers" },
+        { title: tr('Traffic'), dataIndex: "traffic", key: "traffic" },
+        { title: tr('Networking Events'), dataIndex: "networking", key: "networking" },
     ];
 
     const totalRevenue = displayData.reduce(
@@ -852,8 +854,8 @@ export const MonthlyPerformanceForm: React.FC = () => {
                 <Alert
                     type="info"
                     showIcon
-                    message="No monthly metrics uploaded yet"
-                    description="Use the upload button to submit the first pending month."
+                    message={tr('No monthly metrics uploaded yet')}
+                    description={tr('Use the upload button to submit the first pending month.')}
                     style={{ borderRadius: 14 }}
                 />
             );
@@ -880,7 +882,7 @@ export const MonthlyPerformanceForm: React.FC = () => {
                                         {row.month || "-"}
                                     </Text>
                                     <Text type="secondary" style={{ fontSize: 12 }}>
-                                        Monthly record
+                                        {tr('Monthly record')}
                                     </Text>
                                 </Space>
 
@@ -892,7 +894,7 @@ export const MonthlyPerformanceForm: React.FC = () => {
                                             bodyStyle={{ padding: 10 }}
                                         >
                                             <Text type="secondary" style={{ fontSize: 12 }}>
-                                                Revenue
+                                                {tr('Revenue')}
                                             </Text>
                                             <div style={{ fontWeight: 800, fontSize: 16 }}>
                                                 R{Number(row.revenue || 0).toLocaleString()}
@@ -906,7 +908,7 @@ export const MonthlyPerformanceForm: React.FC = () => {
                                             bodyStyle={{ padding: 10 }}
                                         >
                                             <Text type="secondary" style={{ fontSize: 12 }}>
-                                                Employees
+                                                {tr('Employees')}
                                             </Text>
                                             <div style={{ fontWeight: 800, fontSize: 16 }}>
                                                 {employees}
@@ -918,7 +920,7 @@ export const MonthlyPerformanceForm: React.FC = () => {
                                 <Row gutter={[8, 8]}>
                                     <Col span={12}>
                                         <Text type="secondary" style={{ fontSize: 12 }}>
-                                            Orders
+                                            {tr('Orders')}
                                         </Text>
                                         <div style={{ fontWeight: 700 }}>
                                             {Number(row.orders || 0).toLocaleString()}
@@ -926,7 +928,7 @@ export const MonthlyPerformanceForm: React.FC = () => {
                                     </Col>
                                     <Col span={12}>
                                         <Text type="secondary" style={{ fontSize: 12 }}>
-                                            Customers
+                                            {tr('Customers')}
                                         </Text>
                                         <div style={{ fontWeight: 700 }}>
                                             {Number(row.customers || 0).toLocaleString()}
@@ -934,7 +936,7 @@ export const MonthlyPerformanceForm: React.FC = () => {
                                     </Col>
                                     <Col span={12}>
                                         <Text type="secondary" style={{ fontSize: 12 }}>
-                                            Traffic
+                                            {tr('Traffic')}
                                         </Text>
                                         <div style={{ fontWeight: 700 }}>
                                             {Number(row.traffic || 0).toLocaleString()}
@@ -942,7 +944,7 @@ export const MonthlyPerformanceForm: React.FC = () => {
                                     </Col>
                                     <Col span={12}>
                                         <Text type="secondary" style={{ fontSize: 12 }}>
-                                            Networking
+                                            {tr('Networking')}
                                         </Text>
                                         <div style={{ fontWeight: 700 }}>
                                             {Number(row.networking || 0).toLocaleString()}
@@ -975,8 +977,8 @@ export const MonthlyPerformanceForm: React.FC = () => {
             value={view}
             onChange={(v) => setView(v as ViewKey)}
             options={[
-                { label: "Data", value: "data", icon: <TableOutlined /> },
-                { label: "Analytics", value: "analytics", icon: <BarChartOutlined /> },
+                { label: tr('Data'), value: "data", icon: <TableOutlined /> },
+                { label: tr('Analytics'), value: "analytics", icon: <BarChartOutlined /> },
             ]}
         />
     );
@@ -984,14 +986,14 @@ export const MonthlyPerformanceForm: React.FC = () => {
     return (
         <DashboardPage className="incubatee-page incubatee-metrics-page">
             <Helmet>
-                <title>Monthly Metrics | Smart Incubation</title>
+                <title>{tr('Monthly Metrics | Smart Incubation')}</title>
             </Helmet>
 
             <Row gutter={[12, 12]} className="dashboard-metrics-row incubatee-metrics-row">
                 <Col xs={12} lg={6}>
                     <DashboardMetricCard
                         icon={<DollarCircleOutlined />}
-                        label="Revenue reported"
+                        label={tr('Revenue reported')}
                         value={`R${totalRevenue.toLocaleString()}`}
                     />
                 </Col>
@@ -999,7 +1001,7 @@ export const MonthlyPerformanceForm: React.FC = () => {
                 <Col xs={12} lg={6}>
                     <DashboardMetricCard
                         icon={<TeamOutlined />}
-                        label="Latest headcount"
+                        label={tr('Latest headcount')}
                         value={latestEmployees}
                     />
                 </Col>
@@ -1007,7 +1009,7 @@ export const MonthlyPerformanceForm: React.FC = () => {
                 <Col xs={12} lg={6}>
                     <DashboardMetricCard
                         icon={<ShoppingCartOutlined />}
-                        label="Orders reported"
+                        label={tr('Orders reported')}
                         value={totalOrders.toLocaleString()}
                     />
                 </Col>
@@ -1015,7 +1017,7 @@ export const MonthlyPerformanceForm: React.FC = () => {
                 <Col xs={12} lg={6}>
                     <DashboardMetricCard
                         icon={<CalendarOutlined />}
-                        label="Months outstanding"
+                        label={tr('Months outstanding')}
                         value={missingMonths.length}
                     />
                 </Col>
@@ -1057,7 +1059,7 @@ export const MonthlyPerformanceForm: React.FC = () => {
             {view === "data" ? (
                 <MotionCard
                     className="incubatee-metrics-panel"
-                    title="Historical monthly metrics"
+                    title={tr('Historical monthly metrics')}
                     extra={
                         <Text type="secondary">
                             {`${displayData.length} month${displayData.length === 1 ? "" : "s"}`}
@@ -1077,16 +1079,16 @@ export const MonthlyPerformanceForm: React.FC = () => {
                 </MotionCard>
             ) : (
                 <div className="incubatee-metrics-charts">
-                    <MotionCard className="incubatee-metrics-panel" title="Revenue trend">
+                    <MotionCard className="incubatee-metrics-panel" title={tr('Revenue trend')}>
                         <ThemedHighcharts immutable options={revenueTrendOptions} />
                     </MotionCard>
 
-                    <MotionCard className="incubatee-metrics-panel" title="Headcount composition">
+                    <MotionCard className="incubatee-metrics-panel" title={tr('Headcount composition')}>
                         <ThemedHighcharts immutable options={employeesStackedOptions} />
                     </MotionCard>
 
                     {!isMobile && (
-                        <MotionCard className="incubatee-metrics-panel is-wide" title="Orders vs customers">
+                        <MotionCard className="incubatee-metrics-panel is-wide" title={tr('Orders vs customers')}>
                             <ThemedHighcharts immutable options={ordersCustomersDualAxis} />
                         </MotionCard>
                     )}
@@ -1110,7 +1112,7 @@ export const MonthlyPerformanceForm: React.FC = () => {
                         {step === "pick" ? (
                             <>
                                 <Button icon={<CloseCircleOutlined />} onClick={() => setModalVisible(false)}>
-                                    Cancel
+                                    {tr('Cancel')}
                                 </Button>
 
                                 <Button
@@ -1123,7 +1125,7 @@ export const MonthlyPerformanceForm: React.FC = () => {
                             </>
                         ) : (
                             <>
-                                <Button onClick={() => setStep("pick")}>Back</Button>
+                                <Button onClick={() => setStep("pick")}>{tr('Back')}</Button>
 
                                 <Button
                                     type="primary"
@@ -1131,7 +1133,7 @@ export const MonthlyPerformanceForm: React.FC = () => {
                                     loading={loading}
                                     onClick={() => form.submit()}
                                 >
-                                    Save
+                                    {tr('Save')}
                                 </Button>
                             </>
                         )}
@@ -1141,7 +1143,7 @@ export const MonthlyPerformanceForm: React.FC = () => {
                 {step === "pick" ? (
                     <>
                         <Text type="secondary">
-                            Pick only what you have for this month. Anything you leave out stays empty rather than being recorded as zero.
+                            {tr('Pick only what you have for this month. Anything you leave out stays empty rather than being recorded as zero.')}
                         </Text>
 
                         <div className="incubatee-upload-picker">
@@ -1174,8 +1176,8 @@ export const MonthlyPerformanceForm: React.FC = () => {
                     <Form layout="vertical" form={form} onFinish={handleSubmit}>
                         <Form.Item
                             name="monthKey"
-                            label="Month to upload"
-                            rules={[{ required: true, message: "Please select a month" }]}
+                            label={tr('Month to upload')}
+                            rules={[{ required: true, message: tr('Please select a month') }]}
                         >
                             <Select
                                 options={missingMonths.map((m) => ({ value: m, label: m }))}
@@ -1192,7 +1194,7 @@ export const MonthlyPerformanceForm: React.FC = () => {
                             {sections.includes("revenue") && (
                                 <>
                                     <Col xs={24} sm={12}>
-                                        <Form.Item name="revenue" label="Revenue (R)" rules={[{ required: true }]}>
+                                        <Form.Item name="revenue" label={tr('Revenue (R)')} rules={[{ required: true }]}>
                                             <InputNumber min={0} style={{ width: "100%" }} />
                                         </Form.Item>
                                     </Col>
@@ -1200,13 +1202,13 @@ export const MonthlyPerformanceForm: React.FC = () => {
                                     <Col xs={24} sm={12}>
                                         <Form.Item
                                             name="revenueProof"
-                                            label="Bank statement"
-                                            rules={[{ required: true, message: "Please upload the bank statement" }]}
+                                            label={tr('Bank statement')}
+                                            rules={[{ required: true, message: tr('Please upload the bank statement') }]}
                                             valuePropName="fileList"
                                             getValueFromEvent={(e) => (Array.isArray(e) ? e : e?.fileList)}
                                         >
                                             <Upload multiple beforeUpload={() => false} style={fullWidthUploadStyle}>
-                                                <Button block icon={<DollarCircleOutlined />}>Attach statement</Button>
+                                                <Button block icon={<DollarCircleOutlined />}>{tr('Attach statement')}</Button>
                                             </Upload>
                                         </Form.Item>
                                     </Col>
@@ -1216,13 +1218,13 @@ export const MonthlyPerformanceForm: React.FC = () => {
                             {sections.includes("employees") && (
                                 <>
                                     <Col xs={12} sm={6}>
-                                        <Form.Item name="headPermanent" label="Permanent" rules={[{ required: true }]}>
+                                        <Form.Item name="headPermanent" label={tr('Permanent')} rules={[{ required: true }]}>
                                             <InputNumber min={0} style={{ width: "100%" }} />
                                         </Form.Item>
                                     </Col>
 
                                     <Col xs={12} sm={6}>
-                                        <Form.Item name="headTemporary" label="Temporary" rules={[{ required: true }]}>
+                                        <Form.Item name="headTemporary" label={tr('Temporary')} rules={[{ required: true }]}>
                                             <InputNumber min={0} style={{ width: "100%" }} />
                                         </Form.Item>
                                     </Col>
@@ -1241,7 +1243,7 @@ export const MonthlyPerformanceForm: React.FC = () => {
                                                 return (
                                                     <Form.Item
                                                         name="employeeProof"
-                                                        label="Contracts or payslips"
+                                                        label={tr('Contracts or payslips')}
                                                         rules={[{
                                                             validator: async (_, value) => {
                                                                 const list = value?.fileList ?? value ?? [];
@@ -1255,7 +1257,7 @@ export const MonthlyPerformanceForm: React.FC = () => {
                                                         extra={required ? "Required while headcount is above zero." : "Not needed while headcount is zero."}
                                                     >
                                                         <Upload multiple beforeUpload={() => false} disabled={!required} style={fullWidthUploadStyle}>
-                                                            <Button block icon={<TeamOutlined />} disabled={!required}>Attach proof</Button>
+                                                            <Button block icon={<TeamOutlined />} disabled={!required}>{tr('Attach proof')}</Button>
                                                         </Upload>
                                                     </Form.Item>
                                                 );
@@ -1268,13 +1270,13 @@ export const MonthlyPerformanceForm: React.FC = () => {
                             {sections.includes("sales") && (
                                 <>
                                     <Col xs={12} sm={12}>
-                                        <Form.Item name="orders" label="Orders submitted" rules={[{ required: true }]}>
+                                        <Form.Item name="orders" label={tr('Orders submitted')} rules={[{ required: true }]}>
                                             <InputNumber min={0} style={{ width: "100%" }} />
                                         </Form.Item>
                                     </Col>
 
                                     <Col xs={12} sm={12}>
-                                        <Form.Item name="customers" label="New customers" rules={[{ required: true }]}>
+                                        <Form.Item name="customers" label={tr('New customers')} rules={[{ required: true }]}>
                                             <InputNumber min={0} style={{ width: "100%" }} />
                                         </Form.Item>
                                     </Col>
@@ -1283,7 +1285,7 @@ export const MonthlyPerformanceForm: React.FC = () => {
 
                             {sections.includes("traffic") && (
                                 <Col xs={24} sm={12}>
-                                    <Form.Item name="traffic" label="Website traffic" rules={[{ required: true }]}>
+                                    <Form.Item name="traffic" label={tr('Website traffic')} rules={[{ required: true }]}>
                                         <InputNumber min={0} style={{ width: "100%" }} />
                                     </Form.Item>
                                 </Col>
@@ -1291,7 +1293,7 @@ export const MonthlyPerformanceForm: React.FC = () => {
 
                             {sections.includes("networking") && (
                                 <Col xs={24} sm={12}>
-                                    <Form.Item name="networking" label="Networking events" rules={[{ required: true }]}>
+                                    <Form.Item name="networking" label={tr('Networking events')} rules={[{ required: true }]}>
                                         <InputNumber min={0} style={{ width: "100%" }} />
                                     </Form.Item>
                                 </Col>

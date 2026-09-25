@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Progress, Space, Tag, Tooltip, Typography } from 'antd'
 import { InfoCircleOutlined } from '@ant-design/icons'
 import '@/styles/survey-question-frame.css'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 /**
  * The one-question-at-a-time shell shared by the builder's preview and the SME
@@ -50,6 +51,7 @@ export const SurveyQuestionFrame = ({
     surveyTitle,
     surveySubtitle,
 }: SurveyQuestionFrameProps) => {
+    const { t } = useLanguage()
     const progress = total > 0 && answeredCount !== undefined ? Math.round((answeredCount / total) * 100) : undefined
 
     return (
@@ -65,7 +67,7 @@ export const SurveyQuestionFrame = ({
                         {progress !== undefined && (
                             <Space size={6} wrap className="survey-frame-tags">
                                 <Tag className="survey-frame-tag">{total} {total === 1 ? 'question' : 'questions'}</Tag>
-                                <Tag color="blue" className="survey-frame-tag">{answeredCount} answered</Tag>
+                                <Tag color="blue" className="survey-frame-tag">{answeredCount} {t('answered')}</Tag>
                             </Space>
                         )}
                     </div>
@@ -78,13 +80,13 @@ export const SurveyQuestionFrame = ({
             <div className="survey-frame-body" key={field.id}>
                 <div className="survey-frame-position">
                     <span className="survey-frame-number">{String(index + 1).padStart(2, '0')}</span>
-                    <Typography.Text type="secondary">Question {index + 1} of {total}</Typography.Text>
+                    <Typography.Text type="secondary">{t('Question')} {index + 1} {t('of')} {total}</Typography.Text>
                 </div>
 
                 {sectionLabel && <span className="survey-frame-section">{sectionLabel}</span>}
 
                 <div className="survey-frame-question">
-                    <Typography.Title level={3} className="survey-frame-title">{field.label || 'Untitled question'}</Typography.Title>
+                    <Typography.Title level={3} className="survey-frame-title">{field.label || t('Untitled question')}</Typography.Title>
 
                     {field.required && <span className="survey-frame-required">*</span>}
 

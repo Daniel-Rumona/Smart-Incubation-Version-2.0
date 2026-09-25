@@ -4,6 +4,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { Empty, Tag, Typography } from 'antd'
 import { HolderOutlined, QuestionCircleOutlined, RobotOutlined } from '@ant-design/icons'
 import type { CourseLesson } from '@/services/courseTemplatesService'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 type OutlineProps = {
     lessons: CourseLesson[]
@@ -14,6 +15,7 @@ type OutlineProps = {
 }
 
 const OutlineRow = ({ lesson, index, selected, onSelect }: { lesson: CourseLesson, index: number, selected: boolean, onSelect: () => void }) => {
+    const { t } = useLanguage()
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: lesson.id })
 
     return (
@@ -29,12 +31,12 @@ const OutlineRow = ({ lesson, index, selected, onSelect }: { lesson: CourseLesso
             <Tag className="survey-outline-index">{index + 1}</Tag>
 
             <span className="survey-outline-copy">
-                <Typography.Paragraph ellipsis={{ rows: 2, tooltip: lesson.title || 'Untitled lesson' }} className="survey-outline-label">
-                    {lesson.title || 'Untitled lesson'}
+                <Typography.Paragraph ellipsis={{ rows: 2, tooltip: lesson.title || t('Untitled lesson') }} className="survey-outline-label">
+                    {lesson.title || t('Untitled lesson')}
                 </Typography.Paragraph>
                 <span className="survey-outline-type">
-                    Lesson
-                    {lesson.aiReviewEnabled && <RobotOutlined title="AI review follows this lesson" style={{ marginLeft: 6 }} />}
+                    {t('Lesson')}
+                    {lesson.aiReviewEnabled && <RobotOutlined title={t('AI review follows this lesson')} style={{ marginLeft: 6 }} />}
                 </span>
             </span>
         </div>
@@ -49,13 +51,14 @@ const QuizRow = ({ lesson, selected, onSelect }: { lesson: CourseLesson, selecte
     >
         <span className="survey-outline-handle survey-outline-subrow-icon"><QuestionCircleOutlined /></span>
         <span className="survey-outline-copy">
-            <span className="survey-outline-label">Quiz</span>
-            <span className="survey-outline-type">{lesson.quiz?.length} question{lesson.quiz?.length === 1 ? '' : 's'}</span>
+            <span className="survey-outline-label">{tr('Quiz')}</span>
+            <span className="survey-outline-type">{lesson.quiz?.length} {tr('question')}{lesson.quiz?.length === 1 ? '' : 's'}</span>
         </span>
     </div>
 )
 
 export const LessonOutline = ({ lessons, selectedId, onSelect, onReorder }: OutlineProps) => {
+    const { t } = useLanguage()
     // A small activation distance keeps a plain click selecting rather than starting a drag.
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
 
@@ -68,7 +71,7 @@ export const LessonOutline = ({ lessons, selectedId, onSelect, onReorder }: Outl
         onReorder(from, to)
     }
 
-    if (!lessons.length) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No lessons yet" />
+    if (!lessons.length) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('No lessons yet')} />
 
     return (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>

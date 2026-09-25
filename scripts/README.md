@@ -158,6 +158,66 @@ node scripts/seed-completion-dates.cjs --service-account ./scripts/new-service-a
 
 Undo with `--undo ./scripts/seed-output-completion-dates-<timestamp>.json --apply`.
 
+## Second company (RCM) with its own director and consultants
+
+`setup-company-rcm.cjs` creates `companies/RCM`, a working director login
+(`director@quantilytix.co.za`, dummy password printed by the script / `--password`), two RCM
+consultants with logins, moves the existing `quantilytix@gmail.com` consultant under RCM, and re-homes
+one programme ("Women in Agri Accelerator 2026" by default, `--program-name` to change) with its
+participants, applications and assigned interventions to RCM (interventions are re-assigned
+round-robin across the three RCM consultants). Dry-run by default; `--undo` restores everything and
+deletes the accounts it created.
+
+```bash
+node scripts/setup-company-rcm.cjs --service-account ./scripts/new-service-account.json --apply
+```
+
+## Diagnostic plans for the seeded SMEs
+
+The Operations > Interventions > Assign page only lists SMEs with an accepted application AND an
+Operations-confirmed diagnostic plan. `seed-diagnostic-plans.cjs` creates a confirmed plan (from each
+seeded application's `interventions.required`) for every seeded application lacking one, using the
+application's own companyCode (run it after `setup-company-rcm.cjs`).
+
+```bash
+node scripts/seed-diagnostic-plans.cjs --service-account ./scripts/new-service-account.json --apply
+```
+
+`add-rcm-staff.cjs` adds RCM's `operations@quantilytix.co.za` (all RCM programmes) and
+`projectadmin@quantilytix.co.za` (restricted to RCM's one programme, set as its `assignedAdmin`) with
+the same dummy password. Real logins; `--undo` deletes them.
+
+```bash
+node scripts/add-rcm-staff.cjs --service-account ./scripts/new-service-account.json --apply
+```
+
+`seed-rcm-smes.cjs` tops RCM's programme up to `--target` SMEs (default 30) - each with a participant
+(revenue/headcount history), accepted application, confirmed diagnostic plan, 3-5 assigned
+interventions shared across RCM's consultants, and two appointments (one held, one upcoming).
+
+```bash
+node scripts/seed-rcm-smes.cjs --service-account ./scripts/new-service-account.json --apply
+```
+
+`seed-compliance.cjs` writes `complianceDocuments` for every seeded SME (QTX and RCM): each SME gets a
+compliance discipline, and for the six standard document types a document that is valid/verified,
+pending, queried (with a reason), expired, or simply not uploaded - so scores range from poor to
+excellent. Skips SMEs that already have documents.
+
+```bash
+node scripts/seed-compliance.cjs --service-account ./scripts/new-service-account.json --apply
+```
+
+`backfill-assignment-sector.cjs` stamps each SME's `sector` onto existing `assignedInterventions`
+(consultants can't read `participants`, so the consultant My SMEs page needs it on the assignment;
+new assignments now carry it automatically).
+
+```bash
+node scripts/backfill-assignment-sector.cjs --service-account ./scripts/new-service-account.json --apply
+```
+
+Undo any of these with `--undo ./scripts/seed-output-<...>-<timestamp>.json --apply`.
+
 ## `assignedInterventions.businessName` backfill
 
 Use `migrate-assigned-interventions-business-name.cjs` to backfill `businessName` on

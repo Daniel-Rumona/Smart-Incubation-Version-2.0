@@ -8,12 +8,14 @@ import { confirmEmailVerificationCode } from '@/services/emailVerificationAction
 import { resendEmailVerification } from '@/services/onboardingService'
 import { getRoleHomePath } from '@/utils/roleRouting'
 import '@/styles/auth/email-verification.css'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 const { Paragraph, Text, Title } = Typography
 
 type VerificationState = 'checking' | 'success' | 'missing' | 'failed' | 'waiting'
 
 export default function EmailVerificationPage() {
+    const { t } = useLanguage()
     const navigate = useNavigate()
     const [params] = useSearchParams()
     const { message } = App.useApp()
@@ -73,14 +75,14 @@ export default function EmailVerificationPage() {
             setState('waiting')
             if (result.verified) {
                 setState('success')
-                message.success('Your email is already verified.')
+                message.success(t('Your email is already verified.'))
             } else if (result.throttled) {
-                message.info('A verification email was sent recently. Please wait a minute before requesting another one.')
+                message.info(t('A verification email was sent recently. Please wait a minute before requesting another one.'))
             } else {
-                message.success('Verification email sent. Please check your inbox and spam folder.')
+                message.success(t('Verification email sent. Please check your inbox and spam folder.'))
             }
         } catch (error) {
-            message.error(error instanceof Error ? error.message : 'Verification email could not be sent.')
+            message.error(error instanceof Error ? error.message : t('Verification email could not be sent.'))
         } finally {
             setResending(false)
         }
@@ -106,26 +108,26 @@ export default function EmailVerificationPage() {
         <main className="email-verification-page">
             <Card className="email-verification-card" variant="borderless">
                 <span className={`email-verification-icon is-${state}`}>{icon}</span>
-                <Text className="email-verification-kicker">Smart Incubation</Text>
+                <Text className="email-verification-kicker">{t('Smart Incubation')}</Text>
                 <Title level={1}>{title}</Title>
                 <Paragraph>{body}</Paragraph>
 
                 {state === 'success' && (
-                    <Alert type="success" showIcon title="Your email address is verified." />
+                    <Alert type="success" showIcon title={t('Your email address is verified.')} />
                 )}
 
                 {state === 'waiting' && (
-                    <Alert type="info" showIcon title="Keep this tab open, then return after opening the email link." />
+                    <Alert type="info" showIcon title={t('Keep this tab open, then return after opening the email link.')} />
                 )}
 
                 {(state === 'missing' || state === 'failed') && (
-                    <Alert type="warning" showIcon title="Need a fresh link?" description="Use the resend option while signed in, or sign in again and request a new verification email." />
+                    <Alert type="warning" showIcon title={t('Need a fresh link?')} description={t('Use the resend option while signed in, or sign in again and request a new verification email.')} />
                 )}
 
                 <Space wrap className="email-verification-actions">
                     {state === 'success' && (
                         <Button type="primary" size="large" icon={<LoginOutlined />} onClick={goToSystem}>
-                            Continue to system
+                            {t('Continue to system')}
                         </Button>
                     )}
 
@@ -134,7 +136,7 @@ export default function EmailVerificationPage() {
                             size="large"
                             shape='round'
                             icon={<ReloadOutlined />} loading={resending} onClick={() => void resend()}>
-                            Resend verification email
+                            {t('Resend verification email')}
                         </Button>
                     )}
 
@@ -143,7 +145,7 @@ export default function EmailVerificationPage() {
                             size="large"
                             shape='round'
                             onClick={() => navigate('/auth', { replace: true })}>
-                            Back to sign in
+                            {t('Back to sign in')}
                         </Button>
                     )}
                 </Space>

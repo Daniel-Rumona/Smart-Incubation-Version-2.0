@@ -1,4 +1,4 @@
-import { collection, getDocs, doc, serverTimestamp, setDoc } from 'firebase/firestore'
+import { collection, getDoc, getDocs, doc, serverTimestamp, setDoc } from 'firebase/firestore'
 import { getFirebaseDb } from '@/config/firebase'
 import type { FullIdentity } from '@/types/identity'
 
@@ -37,6 +37,21 @@ export const isPlatformOwnerSme = (user?: CompanyScoped | null) =>
  */
 export const isPlatformOwnerStaff = (user?: CompanyScoped | null) =>
   Boolean(user) && (rawCompanyCode(user) === PLATFORM_OWNER_CODE || isPlatformAdmin(user as FullIdentity))
+
+/**
+ * Consultants with the marketplace listing: independent consultants (no company) and the platform
+ * owner's own. A consultant employed by a client company works inside that company and has no
+ * public marketplace presence, so they get the universal profile instead.
+ */
+export const hasConsultantMarketplaceProfile = (user?: CompanyScoped | null) =>
+  user?.role === 'consultant' && (!rawCompanyCode(user) || rawCompanyCode(user) === PLATFORM_OWNER_CODE)
+
+/** Where "My profile" leads for each kind of user. */
+export const profilePathForUser = (user?: CompanyScoped | null) => {
+  if (user?.role === 'incubatee') return '/applicant/profile'
+  if (hasConsultantMarketplaceProfile(user)) return '/consultant/profile'
+  return '/profile'
+}
 
 /** Gate for pages that only exist inside the platform owner's workspace (the SME marketplace and its review queue). */
 export const canAccessPlatformOwnerRoute = (user?: CompanyScoped | null) =>
@@ -84,9 +99,13 @@ export const listCompaniesForOnboarding = async () => {
 export const ensureWorkspaceCompany = async (companyCode: string, name?: string, updatedBy?: string) => {
   const code = companyCode.trim()
   if (!code) return
-  await setDoc(doc(getFirebaseDb(), 'companies', code), {
+  const ref = doc(getFirebaseDb(), 'companies', code)
+  // Never overwrite a display name that has already been set (e.g. "Quantilytix") with the bare code.
+  const existing = await getDoc(ref).catch(() => null)
+  const hasName = Boolean(existing?.exists() && (existing.data()?.name || existing.data()?.companyName))
+  await setDoc(ref, {
     companyCode: code,
-    name: name?.trim() || code,
+    ...(hasName ? {} : { name: name?.trim() || code }),
     status: 'active',
     updatedAt: serverTimestamp(),
     ...(updatedBy ? { updatedBy } : {}),

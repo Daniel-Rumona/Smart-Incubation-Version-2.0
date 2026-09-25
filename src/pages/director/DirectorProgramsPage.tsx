@@ -19,7 +19,7 @@ import { ThemedHighcharts } from '@/components/shared/ThemedHighcharts'
 import { CHART_COLORS } from '@/config/chartPalette'
 import { useActiveProgramId } from '@/hooks/useActiveProgramId'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
-import { useLanguage } from '@/providers/LanguageProvider'
+import { useLanguage, tr, tEnglish } from '@/providers/LanguageProvider'
 import { listDirectorProgramPerformance } from '@/services/directorProgramsService'
 import { useRegisterAgentPageContext } from '@/shared/hooks/useRegisterAgentPageContext'
 import type { DirectorProgramPerformance } from '@/types/director'
@@ -48,8 +48,9 @@ const statusColor = (status: string) => {
 const healthColor = (value: number) => (value >= 75 ? CHART_COLORS.success : value >= 40 ? CHART_COLORS.amber : CHART_COLORS.danger)
 
 const RiskMixBar = ({ low, medium, high }: { low: number, medium: number, high: number }) => {
+    const { t } = useLanguage()
     const total = low + medium + high
-    if (!total) return <Typography.Text type="secondary" style={{ fontSize: 12 }}>No SME risk data</Typography.Text>
+    if (!total) return <Typography.Text type="secondary" style={{ fontSize: 12 }}>{t('No SME risk data')}</Typography.Text>
     const segments = [
         { key: 'low', value: low, color: CHART_COLORS.success },
         { key: 'medium', value: medium, color: CHART_COLORS.amber },
@@ -65,6 +66,7 @@ const RiskMixBar = ({ low, medium, high }: { low: number, medium: number, high: 
 }
 
 const ProgramCard = ({ row, onClick }: { row: DirectorProgramPerformance, onClick: () => void }) => {
+    const { t } = useLanguage()
     const { token } = theme.useToken()
     const delivery = deliveryRate(row)
     const accent = healthColor(row.avgProgress)
@@ -101,9 +103,9 @@ const ProgramCard = ({ row, onClick }: { row: DirectorProgramPerformance, onClic
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
                 {[
-                    { label: 'SMEs', value: row.smes.toLocaleString() },
-                    { label: 'Employees', value: row.totalEmployees.toLocaleString() },
-                    { label: 'Revenue', value: formatCurrency(row.totalRevenue) },
+                    { label: t('SMEs'), value: row.smes.toLocaleString() },
+                    { label: t('Employees'), value: row.totalEmployees.toLocaleString() },
+                    { label: t('Revenue'), value: formatCurrency(row.totalRevenue) },
                 ].map((stat) => (
                     <div key={stat.label} style={{ padding: '8px 10px', borderRadius: 10, background: token.colorFillQuaternary }}>
                         <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block' }}>{stat.label}</Typography.Text>
@@ -114,7 +116,7 @@ const ProgramCard = ({ row, onClick }: { row: DirectorProgramPerformance, onClic
 
             <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 2 }}>
-                    <Typography.Text type="secondary">Delivery ({row.completedAssignments}/{row.assignments})</Typography.Text>
+                    <Typography.Text type="secondary">{t('Delivery (')}{row.completedAssignments}/{row.assignments})</Typography.Text>
                     <Typography.Text strong>{delivery}%</Typography.Text>
                 </div>
                 <Progress percent={delivery} showInfo={false} size="small" strokeColor={healthColor(delivery)} />
@@ -123,8 +125,8 @@ const ProgramCard = ({ row, onClick }: { row: DirectorProgramPerformance, onClic
             <div>
                 <RiskMixBar low={row.lowRisk} medium={row.mediumRisk} high={row.highRisk} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>{row.highRisk} high · {row.mediumRisk} medium · {row.lowRisk} low</Typography.Text>
-                    {row.overdueAssignments > 0 && <Tag color="orange" style={{ margin: 0 }}>{row.overdueAssignments} overdue</Tag>}
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>{row.highRisk} {t('high ·')} {row.mediumRisk} {t('medium ·')} {row.lowRisk} {t('low')}</Typography.Text>
+                    {row.overdueAssignments > 0 && <Tag color="orange" style={{ margin: 0 }}>{row.overdueAssignments} {t('overdue')}</Tag>}
                 </div>
             </div>
         </button>
@@ -203,7 +205,7 @@ export const DirectorProgramsPage = () => {
 
     useRegisterAgentPageContext({
         pageKey: 'director-programs',
-        pageName: t('director.programs.title', 'Program Performance'),
+        pageName: tEnglish('director.programs.title', 'Program Performance'),
         purpose: 'Shows director-level performance across the active program selection.',
         currentFilters: { search, status, sortKey, activeProgramId },
         metrics,
@@ -219,13 +221,13 @@ export const DirectorProgramsPage = () => {
                 chart: { type: 'bar', height: Math.max(280, filtered.length * 46) },
                 title: { text: undefined },
                 xAxis: { categories },
-                yAxis: { min: 0, title: { text: 'Share of SMEs' }, labels: { format: '{value}%' } },
+                yAxis: { min: 0, title: { text: tr('Share of SMEs') }, labels: { format: '{value}%' } },
                 tooltip: { shared: true },
                 plotOptions: { series: { stacking: 'percent', borderRadius: 3, dataLabels: { enabled: true, filter: { property: 'y', operator: '>', value: 0 } } } },
                 series: [
-                    { type: 'bar', name: 'Low', color: CHART_COLORS.success, data: filtered.map((row) => row.lowRisk) },
-                    { type: 'bar', name: 'Medium', color: CHART_COLORS.amber, data: filtered.map((row) => row.mediumRisk) },
-                    { type: 'bar', name: 'High', color: CHART_COLORS.danger, data: filtered.map((row) => row.highRisk) },
+                    { type: 'bar', name: tr('Low'), color: CHART_COLORS.success, data: filtered.map((row) => row.lowRisk) },
+                    { type: 'bar', name: tr('Medium'), color: CHART_COLORS.amber, data: filtered.map((row) => row.mediumRisk) },
+                    { type: 'bar', name: tr('High'), color: CHART_COLORS.danger, data: filtered.map((row) => row.highRisk) },
                 ],
             }
         }
@@ -234,13 +236,13 @@ export const DirectorProgramsPage = () => {
                 chart: { type: 'column', height: 320 },
                 title: { text: undefined },
                 xAxis: { categories },
-                yAxis: { min: 0, allowDecimals: false, title: { text: 'Count' } },
+                yAxis: { min: 0, allowDecimals: false, title: { text: tr('Count') } },
                 tooltip: { shared: true },
                 plotOptions: { column: { borderRadius: 4, dataLabels: { enabled: true } } },
                 series: [
-                    { type: 'column', name: 'Submitted', color: CHART_COLORS.slate, data: filtered.map((row) => row.submitted) },
-                    { type: 'column', name: 'Accepted', color: CHART_COLORS.primary, data: filtered.map((row) => row.accepted) },
-                    { type: 'column', name: 'Active SMEs', color: CHART_COLORS.success, data: filtered.map((row) => row.smes) },
+                    { type: 'column', name: tr('Submitted'), color: CHART_COLORS.slate, data: filtered.map((row) => row.submitted) },
+                    { type: 'column', name: tr('Accepted'), color: CHART_COLORS.primary, data: filtered.map((row) => row.accepted) },
+                    { type: 'column', name: tr('Active SMEs'), color: CHART_COLORS.success, data: filtered.map((row) => row.smes) },
                 ],
             }
         }
@@ -249,15 +251,15 @@ export const DirectorProgramsPage = () => {
             title: { text: undefined },
             xAxis: { categories },
             yAxis: [
-                { min: 0, max: 100, title: { text: 'Rate' }, labels: { format: '{value}%' } },
-                { min: 0, title: { text: 'Revenue' }, opposite: true, labels: { formatter() { return formatCurrency(Number(this.value)) } } },
+                { min: 0, max: 100, title: { text: tr('Rate') }, labels: { format: '{value}%' } },
+                { min: 0, title: { text: tr('Revenue') }, opposite: true, labels: { formatter() { return formatCurrency(Number(this.value)) } } },
             ],
             tooltip: { shared: true },
             plotOptions: { column: { borderRadius: 4 }, spline: { marker: { enabled: true } } },
             series: [
-                { type: 'column', name: 'Revenue', yAxis: 1, color: CHART_COLORS.violet, opacity: 0.55, data: filtered.map((row) => row.totalRevenue), tooltip: { valuePrefix: 'R ' } },
-                { type: 'spline', name: 'Avg progress', yAxis: 0, color: CHART_COLORS.primary, data: filtered.map((row) => row.avgProgress), tooltip: { valueSuffix: '%' } },
-                { type: 'spline', name: 'Delivery rate', yAxis: 0, color: CHART_COLORS.success, data: filtered.map((row) => deliveryRate(row)), tooltip: { valueSuffix: '%' } },
+                { type: 'column', name: tr('Revenue'), yAxis: 1, color: CHART_COLORS.violet, opacity: 0.55, data: filtered.map((row) => row.totalRevenue), tooltip: { valuePrefix: 'R ' } },
+                { type: 'spline', name: tr('Avg progress'), yAxis: 0, color: CHART_COLORS.primary, data: filtered.map((row) => row.avgProgress), tooltip: { valueSuffix: '%' } },
+                { type: 'spline', name: tr('Delivery rate'), yAxis: 0, color: CHART_COLORS.success, data: filtered.map((row) => deliveryRate(row)), tooltip: { valueSuffix: '%' } },
             ],
         }
     }, [chartView, filtered])
@@ -272,8 +274,8 @@ export const DirectorProgramsPage = () => {
             <Row gutter={[12, 12]} className="dashboard-metrics-row">
                 <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={loading} icon={<ProjectOutlined />} iconClassName="is-users" label={t('director.programs.programs', 'Programs')} value={metrics.programs} /></Col>
                 <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={loading} icon={<TeamOutlined />} iconClassName="is-participants" label={t('director.programs.smes', 'SMEs')} value={metrics.smes} hint={`${metrics.employees.toLocaleString()} employees`} /></Col>
-                <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={loading} icon={<DollarOutlined />} iconClassName="is-participants" label="Revenue" value={formatCurrency(metrics.revenue)} /></Col>
-                <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={loading} icon={<CheckCircleOutlined />} iconClassName="is-delivery" label="Delivery rate" value={`${metrics.completionRate}%`} hint={`${metrics.avgProgress}% avg progress`} /></Col>
+                <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={loading} icon={<DollarOutlined />} iconClassName="is-participants" label={t('Revenue')} value={formatCurrency(metrics.revenue)} /></Col>
+                <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={loading} icon={<CheckCircleOutlined />} iconClassName="is-delivery" label={t('Delivery rate')} value={`${metrics.completionRate}%`} hint={`${metrics.avgProgress}% avg progress`} /></Col>
                 {(loading || metrics.overdue > 0) && (
                     <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={loading} icon={<ExclamationCircleOutlined />} iconClassName="is-attention" label={t('director.programs.overdue', 'Overdue')} value={metrics.overdue} /></Col>
                 )}
@@ -288,11 +290,11 @@ export const DirectorProgramsPage = () => {
                             value={sortKey}
                             onChange={setSortKey}
                             options={[
-                                { value: 'smes', label: 'Sort: SMEs' },
-                                { value: 'progress', label: 'Sort: Progress' },
-                                { value: 'delivery', label: 'Sort: Delivery rate' },
-                                { value: 'revenue', label: 'Sort: Revenue' },
-                                { value: 'risk', label: 'Sort: High risk' },
+                                { value: 'smes', label: t('Sort: SMEs') },
+                                { value: 'progress', label: t('Sort: Progress') },
+                                { value: 'delivery', label: t('Sort: Delivery rate') },
+                                { value: 'revenue', label: t('Sort: Revenue') },
+                                { value: 'risk', label: t('Sort: High risk') },
                             ]}
                         />
                     </>
@@ -304,8 +306,8 @@ export const DirectorProgramsPage = () => {
                     <Card
                         loading={loading}
                         className="dashboard-section-card motion-card"
-                        title={<Space><AppstoreOutlined /> Program Scorecards</Space>}
-                        extra={<Typography.Text type="secondary">Click a program for its full breakdown</Typography.Text>}
+                        title={<Space><AppstoreOutlined /> {t('Program Scorecards')}</Space>}
+                        extra={<Typography.Text type="secondary">{t('Click a program for its full breakdown')}</Typography.Text>}
                     >
                         {filtered.length ? (
                             <>
@@ -329,15 +331,15 @@ export const DirectorProgramsPage = () => {
                     <Card
                         loading={loading}
                         className="dashboard-section-card motion-card"
-                        title={<Space><BarChartOutlined /> Comparison</Space>}
+                        title={<Space><BarChartOutlined /> {t('Comparison')}</Space>}
                         extra={(
                             <Segmented<ChartView>
                                 value={chartView}
                                 onChange={setChartView}
                                 options={[
-                                    { label: 'Delivery & Revenue', value: 'delivery', icon: <CheckCircleOutlined /> },
-                                    { label: 'Risk Mix', value: 'risk', icon: <ExclamationCircleOutlined /> },
-                                    { label: 'Intake Funnel', value: 'funnel', icon: <TeamOutlined /> },
+                                    { label: t('Delivery & Revenue'), value: 'delivery', icon: <CheckCircleOutlined /> },
+                                    { label: t('Risk Mix'), value: 'risk', icon: <ExclamationCircleOutlined /> },
+                                    { label: t('Intake Funnel'), value: 'funnel', icon: <TeamOutlined /> },
                                 ]}
                             />
                         )}
@@ -358,7 +360,7 @@ export const DirectorProgramsPage = () => {
                         <Space><ProjectOutlined /> {selected.name}</Space>
                         <Space size={6}>
                             <Tag color={statusColor(selected.status)} style={{ margin: 0 }}>{selected.status.toUpperCase()}</Tag>
-                            {(selected.startDate || selected.endDate) && <Typography.Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>{selected.startDate || '—'} to {selected.endDate || 'ongoing'}</Typography.Text>}
+                            {(selected.startDate || selected.endDate) && <Typography.Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>{selected.startDate || '—'} {t('to')} {selected.endDate || 'ongoing'}</Typography.Text>}
                         </Space>
                     </Space>
                 ) : ''}
@@ -366,19 +368,19 @@ export const DirectorProgramsPage = () => {
                 {selected && (
                     <Space direction="vertical" size={16} style={{ width: '100%' }}>
                         <Row gutter={[12, 12]}>
-                            <Col xs={12} md={6}><DashboardMetricCard icon={<TeamOutlined />} iconClassName="is-users" label="SMEs" value={selected.smes} /></Col>
-                            <Col xs={12} md={6}><DashboardMetricCard icon={<TeamOutlined />} iconClassName="is-participants" label="Employees" value={selected.totalEmployees} /></Col>
-                            <Col xs={12} md={6}><DashboardMetricCard icon={<DollarOutlined />} iconClassName="is-participants" label="Revenue" value={formatCurrency(selected.totalRevenue)} /></Col>
-                            <Col xs={12} md={6}><DashboardMetricCard icon={<CheckCircleOutlined />} iconClassName="is-delivery" label="Avg progress" value={`${selected.avgProgress}%`} /></Col>
+                            <Col xs={12} md={6}><DashboardMetricCard icon={<TeamOutlined />} iconClassName="is-users" label={t('SMEs')} value={selected.smes} /></Col>
+                            <Col xs={12} md={6}><DashboardMetricCard icon={<TeamOutlined />} iconClassName="is-participants" label={t('Employees')} value={selected.totalEmployees} /></Col>
+                            <Col xs={12} md={6}><DashboardMetricCard icon={<DollarOutlined />} iconClassName="is-participants" label={t('Revenue')} value={formatCurrency(selected.totalRevenue)} /></Col>
+                            <Col xs={12} md={6}><DashboardMetricCard icon={<CheckCircleOutlined />} iconClassName="is-delivery" label={t('Avg progress')} value={`${selected.avgProgress}%`} /></Col>
                         </Row>
                         <Row gutter={[24, 16]}>
                             <Col xs={24} md={12}>
-                                <Typography.Text strong style={{ display: 'block', marginBottom: 12 }}>Intake funnel</Typography.Text>
+                                <Typography.Text strong style={{ display: 'block', marginBottom: 12 }}>{t('Intake funnel')}</Typography.Text>
                                 <Space direction="vertical" size={12} style={{ width: '100%' }}>
                                     {[
-                                        { label: 'Submitted', value: selected.submitted, color: CHART_COLORS.slate },
-                                        { label: 'Accepted', value: selected.accepted, color: CHART_COLORS.primary },
-                                        { label: 'Active SMEs', value: selected.smes, color: CHART_COLORS.success },
+                                        { label: t('Submitted'), value: selected.submitted, color: CHART_COLORS.slate },
+                                        { label: t('Accepted'), value: selected.accepted, color: CHART_COLORS.primary },
+                                        { label: t('Active SMEs'), value: selected.smes, color: CHART_COLORS.success },
                                     ].map((step) => (
                                         <div key={step.label}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
@@ -391,7 +393,7 @@ export const DirectorProgramsPage = () => {
                                 </Space>
                             </Col>
                             <Col xs={24} md={12}>
-                                <Typography.Text strong style={{ display: 'block', marginBottom: 12 }}>Delivery & risk</Typography.Text>
+                                <Typography.Text strong style={{ display: 'block', marginBottom: 12 }}>{t('Delivery & risk')}</Typography.Text>
                                 <Space direction="vertical" size={12} style={{ width: '100%' }}>
                                     {[
                                         { label: `Completed (${selected.completedAssignments}/${selected.assignments})`, value: deliveryRate(selected), color: healthColor(deliveryRate(selected)) },

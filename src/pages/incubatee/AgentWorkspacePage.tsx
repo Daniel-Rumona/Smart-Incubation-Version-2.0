@@ -43,6 +43,7 @@ import {
 import { getAgentDefinition } from '@/services/agentOrchestrationService'
 import type { AgentDefinition, AgentId } from '@/types/agentOrchestration'
 import '@/styles/agent-workspace.css'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 const { Paragraph, Text } = Typography
 const { TextArea } = Input
@@ -84,6 +85,7 @@ const renderPreviewValue = (value: unknown): ReactNode => {
 }
 
 const AgentWorkspacePage = ({ agentId = 'business-plan' }: Props) => {
+    const { t } = useLanguage()
     const { message } = App.useApp()
     const { user } = useFullIdentity()
     const [searchParams] = useSearchParams()
@@ -329,7 +331,7 @@ const AgentWorkspacePage = ({ agentId = 'business-plan' }: Props) => {
 
             return true
         } catch (error) {
-            message.error(error instanceof Error ? error.message : 'The agent could not respond.')
+            message.error(error instanceof Error ? error.message : t('The agent could not respond.'))
             setMessages(nextHistory)
             return false
         } finally {
@@ -357,7 +359,7 @@ const AgentWorkspacePage = ({ agentId = 'business-plan' }: Props) => {
             return sent
         } catch (error) {
             message.error(
-                error instanceof Error ? error.message : 'The document could not be attached.',
+                error instanceof Error ? error.message : t('The document could not be attached.'),
             )
             return false
         }
@@ -370,11 +372,11 @@ const AgentWorkspacePage = ({ agentId = 'business-plan' }: Props) => {
 
         try {
             await downloadDocumentAgentOutput(assignment, answers, user)
-            message.success('Your final document is saved in the library and ready to download.')
+            message.success(t('Your final document is saved in the library and ready to download.'))
             setPreviewOpen(false)
         } catch (error) {
             message.error(
-                error instanceof Error ? error.message : 'The document could not be created.',
+                error instanceof Error ? error.message : t('The document could not be created.'),
             )
         } finally {
             setGenerating(false)
@@ -392,7 +394,7 @@ const AgentWorkspacePage = ({ agentId = 'business-plan' }: Props) => {
             setPreviewOpen(true)
         } catch (error) {
             message.error(
-                error instanceof Error ? error.message : 'The document preview could not be created.',
+                error instanceof Error ? error.message : t('The document preview could not be created.'),
             )
         } finally {
             setPreviewing(false)
@@ -404,15 +406,15 @@ const AgentWorkspacePage = ({ agentId = 'business-plan' }: Props) => {
             <DashboardPage>
                 <Result
                     status="403"
-                    title="Assigned intervention required"
-                    subTitle="Open this agent from an active intervention on your Interventions page."
+                    title={t('Assigned intervention required')}
+                    subTitle={t('Open this agent from an active intervention on your Interventions page.')}
                 />
             </DashboardPage>
         )
     }
 
     if (definition === undefined) {
-        return <LoadingOverlay tip="Loading agent" />
+        return <LoadingOverlay tip={t('Loading agent')} />
     }
 
     if (definition === null) {
@@ -420,15 +422,15 @@ const AgentWorkspacePage = ({ agentId = 'business-plan' }: Props) => {
             <DashboardPage>
                 <Result
                     status="404"
-                    title="Agent unavailable"
-                    subTitle="This agent is not currently registered in the platform catalogue. Ask a system administrator to check the Agent Registry."
+                    title={t('Agent unavailable')}
+                    subTitle={t('This agent is not currently registered in the platform catalogue. Ask a system administrator to check the Agent Registry.')}
                 />
             </DashboardPage>
         )
     }
 
     if (assignment === undefined && !assignmentError) {
-        return <LoadingOverlay tip="Opening conversational agent" />
+        return <LoadingOverlay tip={t('Opening conversational agent')} />
     }
 
     if (!assignment) {
@@ -436,7 +438,7 @@ const AgentWorkspacePage = ({ agentId = 'business-plan' }: Props) => {
             <DashboardPage>
                 <Result
                     status="403"
-                    title="Agent workspace unavailable"
+                    title={t('Agent workspace unavailable')}
                     subTitle={assignmentError}
                 />
             </DashboardPage>
@@ -460,7 +462,7 @@ const AgentWorkspacePage = ({ agentId = 'business-plan' }: Props) => {
     return (
         <div className="agent-workspace-page conversational-agent-page">
             <Helmet>
-                <title>{definition?.name || 'Document Agent'} | Smart Incubation</title>
+                <title>{definition?.name || t('Document Agent')} {t('| Smart Incubation')}</title>
             </Helmet>
 
             <div className="agent-workspace-layout">
@@ -469,7 +471,7 @@ const AgentWorkspacePage = ({ agentId = 'business-plan' }: Props) => {
                         {!messages.length ? (
                             <div className="agent-conversation-empty">
                                 <Spin size="small" />
-                                <Text type="secondary">Starting conversation…</Text>
+                                <Text type="secondary">{t('Starting conversation…')}</Text>
                             </div>
                         ) : (
                             messages.map((item, index) => (
@@ -497,7 +499,7 @@ const AgentWorkspacePage = ({ agentId = 'business-plan' }: Props) => {
                                 </div>
                                 <div className="agent-message-bubble agent-thinking">
                                     <Spin size="small" />
-                                    <Text type="secondary">Thinking…</Text>
+                                    <Text type="secondary">{t('Thinking…')}</Text>
                                 </div>
                             </div>
                         )}
@@ -519,7 +521,7 @@ const AgentWorkspacePage = ({ agentId = 'business-plan' }: Props) => {
                                     shape="circle"
                                     className="agent-composer-action agent-composer-add"
                                     icon={<PlusOutlined />}
-                                    aria-label="Attach document"
+                                    aria-label={t('Attach document')}
                                     disabled={sending}
                                 />
                             </Upload>
@@ -527,7 +529,7 @@ const AgentWorkspacePage = ({ agentId = 'business-plan' }: Props) => {
                             <TextArea
                                 value={input}
                                 onChange={(event) => setInput(event.target.value)}
-                                placeholder="Message your document agent…"
+                                placeholder={t('Message your document agent…')}
                                 autoSize={{ minRows: 1, maxRows: 6 }}
                                 disabled={sending}
                                 onPressEnter={(event) => {
@@ -543,7 +545,7 @@ const AgentWorkspacePage = ({ agentId = 'business-plan' }: Props) => {
                                 shape="circle"
                                 className="agent-composer-action agent-composer-send"
                                 icon={<SendOutlined />}
-                                aria-label="Send message"
+                                aria-label={t('Send message')}
                                 disabled={!input.trim() || sending}
                                 loading={sending}
                                 onClick={() => void send(input)}
@@ -581,7 +583,7 @@ const AgentWorkspacePage = ({ agentId = 'business-plan' }: Props) => {
                         >
                             <span className="agent-current-step-dot" />
                             <div className="agent-current-step-copy">
-                                <Text type="secondary">Current step</Text>
+                                <Text type="secondary">{t('Current step')}</Text>
                                 <Text strong ellipsis>{currentStep.title}</Text>
                             </div>
                             <span className="agent-step-count">
@@ -592,7 +594,7 @@ const AgentWorkspacePage = ({ agentId = 'business-plan' }: Props) => {
 
                     <section className="agent-documents-panel">
                         <div className="agent-documents-head">
-                            <Text strong>Documents</Text>
+                            <Text strong>{t('Documents')}</Text>
                             <span className="agent-document-count">
                                 {providedDocuments.length}/{requestedDocuments.length}
                             </span>
@@ -622,7 +624,7 @@ const AgentWorkspacePage = ({ agentId = 'business-plan' }: Props) => {
                             ) : (
                                 <div className="agent-documents-empty">
                                     <CheckCircleFilled />
-                                    <Text type="secondary">No documents needed</Text>
+                                    <Text type="secondary">{t('No documents needed')}</Text>
                                 </div>
                             )}
                         </div>
@@ -637,7 +639,7 @@ const AgentWorkspacePage = ({ agentId = 'business-plan' }: Props) => {
                             loading={previewing}
                             onClick={() => void buildPreview()}
                         >
-                            {preview ? 'Refresh preview' : ready ? 'Build preview' : `${missingFields.length} topic${missingFields.length === 1 ? '' : 's'} remaining`}
+                            {preview ? t('Refresh preview') : ready ? t('Build preview') : `${missingFields.length} topic${missingFields.length === 1 ? '' : 's'} remaining`}
                         </Button>
                     </div>
                 </aside>
@@ -654,7 +656,7 @@ const AgentWorkspacePage = ({ agentId = 'business-plan' }: Props) => {
                 closable={!sending}
                 maskClosable={!sending}
                 className="agent-document-upload-modal"
-                title="Upload supporting document"
+                title={t('Upload supporting document')}
             >
                 <div className="agent-upload-modal-content">
                     <div className="agent-upload-request-pill">
@@ -663,7 +665,7 @@ const AgentWorkspacePage = ({ agentId = 'business-plan' }: Props) => {
                     </div>
 
                     <Text type="secondary" className="agent-upload-modal-help">
-                        Upload the file that best supports this request. The agent will read it and use only relevant verified information.
+                        {t('Upload the file that best supports this request. The agent will read it and use only relevant verified information.')}
                     </Text>
 
                     <Dragger
@@ -682,9 +684,9 @@ const AgentWorkspacePage = ({ agentId = 'business-plan' }: Props) => {
                             {sending ? <Spin /> : <InboxOutlined />}
                         </p>
                         <p className="ant-upload-text">
-                            {sending ? 'Reading document…' : 'Click or drag a file here'}
+                            {sending ? t('Reading document…') : t('Click or drag a file here')}
                         </p>
-                        <p className="ant-upload-hint">PDF, DOCX, TXT or CSV</p>
+                        <p className="ant-upload-hint">{t('PDF, DOCX, TXT or CSV')}</p>
                     </Dragger>
                 </div>
             </Modal>
@@ -697,14 +699,14 @@ const AgentWorkspacePage = ({ agentId = 'business-plan' }: Props) => {
                 title={`${definition?.name || 'Document'} preview`}
                 footer={
                     <Space>
-                        <Button onClick={() => setPreviewOpen(false)}>Keep editing</Button>
+                        <Button onClick={() => setPreviewOpen(false)}>{t('Keep editing')}</Button>
                         <Button
                             type="primary"
                             icon={<DownloadOutlined />}
                             loading={generating}
                             onClick={() => void generate()}
                         >
-                            Finalise and download
+                            {t('Finalise and download')}
                         </Button>
                     </Space>
                 }
@@ -712,8 +714,8 @@ const AgentWorkspacePage = ({ agentId = 'business-plan' }: Props) => {
                 <Alert
                     type="info"
                     showIcon
-                    title="Review before finalising"
-                    description="This is a working preview. Ask the agent for changes, rebuild the preview, then finalise only when you are happy."
+                    title={t('Review before finalising')}
+                    description={t('This is a working preview. Ask the agent for changes, rebuild the preview, then finalise only when you are happy.')}
                     style={{ marginBottom: 16 }}
                 />
 

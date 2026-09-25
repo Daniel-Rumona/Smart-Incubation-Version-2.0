@@ -50,6 +50,7 @@ import type { UserRole } from '@/config/roles'
 import { guideTarget, useRegisterPageGuide, type PageGuideRegistration } from '@/components/guide/PageGuideContext'
 import { ConversationMode } from '@/components/agent/ConversationMode'
 import '@/styles/agentic-home.css'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 type Metric = {
     label: string
@@ -104,26 +105,26 @@ const inferComplianceDates = async (file: File) => {
 const actionForPrompt = (prompt: string, role?: UserRole): AgentAction | undefined => {
     const request = prompt.toLowerCase()
     if (role === 'consultant' && /appointment|meeting|schedule/.test(request)) {
-        return { label: 'Schedule an appointment', description: 'Open the appointment form with your assigned interventions already available.', path: '/consultant/appointments?create=1' }
+        return { label: tr('Schedule an appointment'), description: tr('Open the appointment form with your assigned interventions already available.'), path: '/consultant/appointments?create=1' }
     }
     if (role === 'incubatee' && /document|compliance|upload/.test(request)) {
-        return { label: 'Upload a document', description: 'Open the compliance upload form and save the document to your workspace.', path: '/incubatee/compliance?upload=1' }
+        return { label: tr('Upload a document'), description: tr('Open the compliance upload form and save the document to your workspace.'), path: '/incubatee/compliance?upload=1' }
     }
     if (role === 'incubatee' && /intervention|support|work on/.test(request)) {
-        return { label: 'Open interventions', description: 'Review the intervention tracker and continue with the right item.', path: '/incubatee/interventions' }
+        return { label: tr('Open interventions'), description: tr('Review the intervention tracker and continue with the right item.'), path: '/incubatee/interventions' }
     }
     return undefined
 }
 
 const roleNames: Record<UserRole, string> = {
-    systemadmin: 'System administrator',
-    admin: 'Administrator',
-    director: 'Director',
-    projectadmin: 'Project administrator',
-    projectmanager: 'Project manager',
-    operations: 'Operations',
-    consultant: 'Consultant',
-    incubatee: 'Incubatee',
+    get systemadmin() { return tr('System administrator') },
+    get admin() { return tr('Administrator') },
+    get director() { return tr('Director') },
+    get projectadmin() { return tr('Project administrator') },
+    get projectmanager() { return tr('Project manager') },
+    get operations() { return tr('Operations') },
+    get consultant() { return tr('Consultant') },
+    get incubatee() { return tr('Incubatee') },
 }
 
 const roleWorkspacePaths: Record<UserRole, string> = {
@@ -152,16 +153,16 @@ const signedDelta = (current: number, previous: number, unit: string) => {
 
 const emptyOverview = (role?: UserRole): AgenticOverview => ({
     roleLabel: role ? roleNames[role] : 'Workspace',
-    headline: 'What would you like to move forward today?',
+    headline: tr('What would you like to move forward today?'),
     metrics: [
-        { label: 'Needs your attention', value: 0, detail: 'Items waiting for action', tone: 'amber' },
-        { label: 'Ongoing work', value: 0, detail: 'Currently in progress', tone: 'blue' },
-        { label: 'Completed', value: 0, detail: 'Across your workspace', tone: 'violet' },
+        { label: tr('Needs your attention'), value: 0, detail: tr('Items waiting for action'), tone: 'amber' },
+        { label: tr('Ongoing work'), value: 0, detail: tr('Currently in progress'), tone: 'blue' },
+        { label: tr('Completed'), value: 0, detail: tr('Across your workspace'), tone: 'violet' },
     ],
     insights: [
-        { label: 'Completed this week', value: 0, detail: 'No change vs last week', positive: true },
-        { label: 'Workspace health', value: 'Ready', detail: 'No urgent signals detected', positive: true },
-        { label: 'Current scope', value: 'All', detail: 'Using your permitted workspace data', positive: true },
+        { label: tr('Completed this week'), value: 0, detail: tr('No change vs last week'), positive: true },
+        { label: tr('Workspace health'), value: tr('Ready'), detail: tr('No urgent signals detected'), positive: true },
+        { label: tr('Current scope'), value: tr('All'), detail: tr('Using your permitted workspace data'), positive: true },
     ],
     prompts: ['Summarise what needs my attention', 'What should I work on next?', 'Show me this week’s progress'],
     workspacePath: role ? roleWorkspacePaths[role] : '/dashboard',
@@ -213,6 +214,7 @@ const renderAgentContent = (content: string): ReactNode[] => {
 }
 
 export const AgenticHomePage = () => {
+    const { t } = useLanguage()
     const { message } = App.useApp()
     const { token } = theme.useToken()
     const { user } = useFullIdentity()
@@ -258,17 +260,17 @@ export const AgenticHomePage = () => {
                     const workspace = await loadIncubateeWorkspace(user)
                     if (cancelled || !workspace) {
                         if (!cancelled) setOverview(user.isApplicant ? {
-                            roleLabel: 'Applicant',
-                            headline: 'Let’s get your application moving.',
+                            roleLabel: tr('Applicant'),
+                            headline: tr('Let’s get your application moving.'),
                             metrics: [
-                                { label: 'Application steps', value: 'Open', detail: 'Continue your active application', tone: 'amber' },
-                                { label: 'Programmes', value: 'Explore', detail: 'Find the right support programme', tone: 'blue' },
-                                { label: 'Profile readiness', value: 'Review', detail: 'Keep your business details current', tone: 'violet' },
+                                { label: t('Application steps'), value: tr('Open'), detail: tr('Continue your active application'), tone: 'amber' },
+                                { label: t('Programmes'), value: tr('Explore'), detail: tr('Find the right support programme'), tone: 'blue' },
+                                { label: t('Profile readiness'), value: tr('Review'), detail: tr('Keep your business details current'), tone: 'violet' },
                             ],
                             insights: [
-                                { label: 'Next best action', value: 'Continue', detail: 'Open your application tracker', positive: true },
-                                { label: 'Workspace status', value: 'Applicant', detail: 'Incubatee tools unlock after acceptance', positive: true },
-                                { label: 'Agent support', value: 'Ready', detail: 'Ask for help with any application step', positive: true },
+                                { label: t('Next best action'), value: tr('Continue'), detail: tr('Open your application tracker'), positive: true },
+                                { label: t('Workspace status'), value: tr('Applicant'), detail: tr('Incubatee tools unlock after acceptance'), positive: true },
+                                { label: t('Agent support'), value: tr('Ready'), detail: tr('Ask for help with any application step'), positive: true },
                             ],
                             prompts: ['What should I complete next?', 'Help me strengthen my application', 'Explain the programme requirements'],
                             workspacePath: '/applicant/application-tracker',
@@ -284,14 +286,14 @@ export const AgenticHomePage = () => {
                         roleLabel: user.isApplicant ? 'Applicant' : roleNames[user.role],
                         headline: user.isApplicant ? 'Let’s get your application moving.' : 'What can we move forward in your business today?',
                         metrics: [
-                            { label: 'Needs your action', value: needsAction, detail: 'Confirmations, forms and decisions', tone: 'amber' },
-                            { label: 'Ongoing interventions', value: ongoing, detail: 'Support currently in progress', tone: 'blue' },
-                            { label: 'Pending documents', value: workspace.outstandingDocuments, detail: 'Compliance items still outstanding', tone: 'violet' },
+                            { label: t('Needs your action'), value: needsAction, detail: tr('Confirmations, forms and decisions'), tone: 'amber' },
+                            { label: t('Ongoing interventions'), value: ongoing, detail: tr('Support currently in progress'), tone: 'blue' },
+                            { label: t('Pending documents'), value: workspace.outstandingDocuments, detail: tr('Compliance items still outstanding'), tone: 'violet' },
                         ],
                         insights: [
-                            { label: 'Completed interventions', value: completed.length, detail: 'Across your current programme', positive: true },
-                            { label: 'Growth plan', value: workspace.growthPlanConfirmed ? 'Confirmed' : workspace.growthPlanAvailable ? 'Ready' : 'Pending', detail: workspace.programName || 'Current programme', positive: workspace.growthPlanConfirmed },
-                            { label: 'Unread updates', value: unread, detail: unread ? 'New workspace notifications' : 'You are all caught up', positive: unread === 0 },
+                            { label: t('Completed interventions'), value: completed.length, detail: tr('Across your current programme'), positive: true },
+                            { label: t('Growth plan'), value: workspace.growthPlanConfirmed ? 'Confirmed' : workspace.growthPlanAvailable ? 'Ready' : 'Pending', detail: workspace.programName || 'Current programme', positive: workspace.growthPlanConfirmed },
+                            { label: t('Unread updates'), value: unread, detail: unread ? 'New workspace notifications' : 'You are all caught up', positive: unread === 0 },
                         ],
                         prompts: ['What do I need to complete today?', 'Summarise my intervention progress', 'Help me prepare for my next milestone'],
                         workspacePath: user.isApplicant ? '/applicant/application-tracker' : '/incubatee',
@@ -312,16 +314,16 @@ export const AgenticHomePage = () => {
                         : 'Not set'
                     setOverview({
                         roleLabel: roleNames[user.role],
-                        headline: 'Where should we focus your delivery time today?',
+                        headline: tr('Where should we focus your delivery time today?'),
                         metrics: [
-                            { label: 'Pending assignments', value: pending, detail: 'Waiting to be started', tone: 'amber' },
-                            { label: 'Ongoing interventions', value: ongoing, detail: 'Active client delivery', tone: 'blue' },
-                            { label: 'Assigned SMEs', value: new Set(mine.map((item) => item.participantId).filter(Boolean)).size, detail: 'Businesses in your portfolio', tone: 'violet' },
+                            { label: t('Pending assignments'), value: pending, detail: tr('Waiting to be started'), tone: 'amber' },
+                            { label: t('Ongoing interventions'), value: ongoing, detail: tr('Active client delivery'), tone: 'blue' },
+                            { label: t('Assigned SMEs'), value: new Set(mine.map((item) => item.participantId).filter(Boolean)).size, detail: tr('Businesses in your portfolio'), tone: 'violet' },
                         ],
                         insights: [
-                            { label: 'Completed interventions', value: completed, detail: `${mine.length ? Math.round((completed / mine.length) * 100) : 0}% completion rate`, positive: true },
-                            { label: 'Consulting budget', value: budget, detail: 'Current account allocation', positive: true },
-                            { label: 'Delivery load', value: ongoing + pending, detail: 'Open assignments requiring capacity', positive: ongoing + pending < 10 },
+                            { label: t('Completed interventions'), value: completed, detail: `${mine.length ? Math.round((completed / mine.length) * 100) : 0}% completion rate`, positive: true },
+                            { label: t('Consulting budget'), value: budget, detail: tr('Current account allocation'), positive: true },
+                            { label: t('Delivery load'), value: ongoing + pending, detail: tr('Open assignments requiring capacity'), positive: ongoing + pending < 10 },
                         ],
                         prompts: ['Prioritise my intervention queue', 'Which SMEs need attention?', 'Draft a plan for my active assignments'],
                         workspacePath: '/consultant',
@@ -338,16 +340,16 @@ export const AgenticHomePage = () => {
                     if (cancelled) return
                     setOverview({
                         roleLabel: roleNames[user.role],
-                        headline: 'What should we improve across the platform today?',
+                        headline: tr('What should we improve across the platform today?'),
                         metrics: [
-                            { label: 'Delivery errors', value: summary.errors, detail: 'Failed operations this week', tone: 'amber' },
-                            { label: 'Active users', value: summary.activeUsers, detail: 'Accounts currently enabled', tone: 'blue' },
-                            { label: 'Companies', value: summary.companies, detail: 'Organisations on the platform', tone: 'violet' },
+                            { label: t('Delivery errors'), value: summary.errors, detail: tr('Failed operations this week'), tone: 'amber' },
+                            { label: t('Active users'), value: summary.activeUsers, detail: tr('Accounts currently enabled'), tone: 'blue' },
+                            { label: t('Companies'), value: summary.companies, detail: tr('Organisations on the platform'), tone: 'violet' },
                         ],
                         insights: [
-                            { label: 'Applications this week', value: summary.applications, detail: signedDelta(summary.applications, summary.previous.applications, 'applications'), positive: summary.applications >= summary.previous.applications },
-                            { label: 'User growth', value: summary.users, detail: signedDelta(summary.users, summary.previous.users, 'users'), positive: summary.users >= summary.previous.users },
-                            { label: 'System health', value: summary.errors ? 'Attention' : 'Healthy', detail: summary.errors ? `${summary.errors} failures need review` : 'No delivery failures this week', positive: summary.errors === 0 },
+                            { label: t('Applications this week'), value: summary.applications, detail: signedDelta(summary.applications, summary.previous.applications, 'applications'), positive: summary.applications >= summary.previous.applications },
+                            { label: t('User growth'), value: summary.users, detail: signedDelta(summary.users, summary.previous.users, 'users'), positive: summary.users >= summary.previous.users },
+                            { label: t('System health'), value: summary.errors ? 'Attention' : 'Healthy', detail: summary.errors ? `${summary.errors} failures need review` : 'No delivery failures this week', positive: summary.errors === 0 },
                         ],
                         prompts: ['Summarise platform risks', 'Which errors need immediate attention?', 'Show me adoption changes this week'],
                         workspacePath: '/dashboard',
@@ -370,14 +372,14 @@ export const AgenticHomePage = () => {
                     roleLabel: roleNames[user.role],
                     headline: isExecutive ? 'What decision can I help you make today?' : 'What should the programme team move forward today?',
                     metrics: [
-                        { label: isExecutive ? 'Items at risk' : 'Pending decisions', value: isExecutive ? overdue + complianceAttention : openApplications + complianceAttention, detail: isExecutive ? 'Overdue and compliance signals' : 'Applications and compliance reviews', tone: 'amber' },
-                        { label: 'Ongoing interventions', value: ongoing, detail: 'Active delivery across the programme', tone: 'blue' },
-                        { label: 'Active SMEs', value: workspace.participants.length, detail: 'Businesses in the current scope', tone: 'violet' },
+                        { label: isExecutive ? t('Items at risk') : t('Pending decisions'), value: isExecutive ? overdue + complianceAttention : openApplications + complianceAttention, detail: isExecutive ? 'Overdue and compliance signals' : 'Applications and compliance reviews', tone: 'amber' },
+                        { label: t('Ongoing interventions'), value: ongoing, detail: tr('Active delivery across the programme'), tone: 'blue' },
+                        { label: t('Active SMEs'), value: workspace.participants.length, detail: tr('Businesses in the current scope'), tone: 'violet' },
                     ],
                     insights: [
-                        { label: 'Completed this week', value: completedThisWeek, detail: signedDelta(completedThisWeek, completedLastWeek, 'interventions'), positive: completedThisWeek >= completedLastWeek },
-                        { label: 'Completion rate', value: `${completionRate}%`, detail: `${completed.length} of ${workspace.interventions.length} interventions completed`, positive: completionRate >= 60 },
-                        { label: 'Portfolio risk', value: overdue, detail: overdue ? 'Overdue interventions need attention' : 'No overdue interventions', positive: overdue === 0 },
+                        { label: t('Completed this week'), value: completedThisWeek, detail: signedDelta(completedThisWeek, completedLastWeek, 'interventions'), positive: completedThisWeek >= completedLastWeek },
+                        { label: t('Completion rate'), value: `${completionRate}%`, detail: `${completed.length} of ${workspace.interventions.length} interventions completed`, positive: completionRate >= 60 },
+                        { label: t('Portfolio risk'), value: overdue, detail: overdue ? 'Overdue interventions need attention' : 'No overdue interventions', positive: overdue === 0 },
                     ],
                     prompts: isExecutive
                         ? ['Give me an executive programme brief', 'Where are our biggest delivery risks?', 'Compare this week’s intervention progress']
@@ -387,7 +389,7 @@ export const AgenticHomePage = () => {
             } catch {
                 if (!cancelled) {
                     setOverview(emptyOverview(user.role))
-                    message.error('The agentic overview could not load all workspace metrics.')
+                    message.error(t('The agentic overview could not load all workspace metrics.'))
                 }
             } finally {
                 if (!cancelled) setLoading(false)
@@ -396,7 +398,7 @@ export const AgenticHomePage = () => {
 
         void load()
         return () => { cancelled = true }
-    }, [activeProgramId, assignments, isMine, message, user])
+    }, [activeProgramId, assignments, isMine, message, user, t])
 
     const pageContext = useMemo<AgentPageContext>(() => ({
         pageKey: 'agentic-home',
@@ -508,7 +510,7 @@ export const AgenticHomePage = () => {
                 else if (label.includes('ongoing')) setMetricRows(rows.filter((row) => ['in-progress', 'in progress', 'active'].includes(row.status.toLowerCase())))
                 else if (label.includes('sme')) {
                     const uniqueSmes = new Map(rows.map((row) => [row.detail, row]))
-                    setMetricRows([...uniqueSmes.values()].map((row) => ({ ...row, item: row.detail, detail: 'Assigned SME' })))
+                    setMetricRows([...uniqueSmes.values()].map((row) => ({ ...row, item: row.detail, detail: tr('Assigned SME') })))
                 } else setMetricRows(rows)
                 return
             }
@@ -564,7 +566,7 @@ export const AgenticHomePage = () => {
             setPendingComplianceUpload(undefined)
             if (selectedMetric) void loadMetricDetails(selectedMetric)
         } catch {
-            message.error('The document could not be uploaded. Please try again.')
+            message.error(t('The document could not be uploaded. Please try again.'))
         } finally {
             setComplianceUploading(false)
         }
@@ -590,9 +592,9 @@ export const AgenticHomePage = () => {
     const activeMode = messages.length > 0
     const selectedMetricAction = selectedMetric && user?.role === 'incubatee'
         ? selectedMetric.label.toLowerCase().includes('document')
-            ? { label: 'Upload document', path: '/incubatee/compliance?upload=1' }
+            ? { label: t('Upload document'), path: '/incubatee/compliance?upload=1' }
             : selectedMetric.label.toLowerCase().includes('ongoing')
-                ? { label: 'Work on interventions', path: '/incubatee/interventions' }
+                ? { label: t('Work on interventions'), path: '/incubatee/interventions' }
                 : undefined
         : undefined
     const isDocumentMetric = Boolean(selectedMetric?.label.toLowerCase().includes('document'))
@@ -614,38 +616,38 @@ export const AgenticHomePage = () => {
         pageTitle: 'Agentic workspace',
         guides: [
             {
-                id: 'agentic-quick-tour', title: 'Quick tour', description: 'Learn where to start, what needs attention and how agentic work changes after your first message.', kind: 'page', order: 1,
+                id: 'agentic-quick-tour', title: t('Quick tour'), description: t('Learn where to start, what needs attention and how agentic work changes after your first message.'), kind: 'page', order: 1,
                 steps: [
-                    { element: guideTarget('agentic-command'), popover: { title: 'Your agentic workspace', description: 'Start here with a question or an action. The agent uses your role and current workspace scope to respond.', side: 'bottom' } },
-                    { element: guideTarget('agentic-priority-metrics'), skipMissingElement: true, popover: { title: 'Priority signals', description: 'Only items that need attention are shown. Select one to inspect the live records behind its count.', side: 'bottom' } },
-                    { element: guideTarget('agentic-composer'), popover: { title: 'Ask or direct the agent', description: 'Use this one-line composer for a question, a summary, or a task. Once you start, it stays docked below the conversation.', side: 'top' } },
-                    { element: guideTarget('agentic-suggestions'), skipMissingElement: true, popover: { title: 'Suggested starting points', description: 'These role-aware prompts are shortcuts. Select one to start a focused conversation immediately.', side: 'top' } },
-                    { element: guideTarget('agentic-insights'), skipMissingElement: true, popover: { title: 'Role insights', description: 'This landing-only snapshot highlights progress, health and the scope currently used by the agent.', side: 'top' } },
+                    { element: guideTarget('agentic-command'), popover: { title: t('Your agentic workspace'), description: t('Start here with a question or an action. The agent uses your role and current workspace scope to respond.'), side: 'bottom' } },
+                    { element: guideTarget('agentic-priority-metrics'), skipMissingElement: true, popover: { title: t('Priority signals'), description: t('Only items that need attention are shown. Select one to inspect the live records behind its count.'), side: 'bottom' } },
+                    { element: guideTarget('agentic-composer'), popover: { title: t('Ask or direct the agent'), description: t('Use this one-line composer for a question, a summary, or a task. Once you start, it stays docked below the conversation.'), side: 'top' } },
+                    { element: guideTarget('agentic-suggestions'), skipMissingElement: true, popover: { title: t('Suggested starting points'), description: t('These role-aware prompts are shortcuts. Select one to start a focused conversation immediately.'), side: 'top' } },
+                    { element: guideTarget('agentic-insights'), skipMissingElement: true, popover: { title: t('Role insights'), description: t('This landing-only snapshot highlights progress, health and the scope currently used by the agent.'), side: 'top' } },
                 ],
             },
             ...(visibleMetrics.length ? [{
-                id: 'agentic-priority-detail', title: 'Explore priority details', description: 'Open a live metric and review the exact records behind it.', kind: 'task' as const, order: 2,
+                id: 'agentic-priority-detail', title: t('Explore priority details'), description: t('Open a live metric and review the exact records behind it.'), kind: 'task' as const, order: 2,
                 steps: [
-                    { element: guideTarget('agentic-priority-metrics'), advanceOnClick: true, popover: { title: 'Choose a priority signal', description: 'Select the signal you want to investigate. The guide follows your choice and waits for its live detail view.', side: 'bottom' as const, showButtons: ['close'] as Array<'close'> } },
-                    { element: '.agentic-metric-modal .ant-modal-content', waitForElement: 5000, popover: { title: 'Live workspace records', description: 'This view loads the exact records behind the signal you chose, including each item, status and context. Use the footer action to continue the work in the right workspace.', side: 'left' as const } },
-                    { element: guideTarget('agentic-metric-footer'), waitForElement: 5000, skipMissingElement: true, popover: { title: 'Continue from the result', description: 'Use the relevant next action here, or page through the records when there are more than fit comfortably in this view.', side: 'top' as const } },
+                    { element: guideTarget('agentic-priority-metrics'), advanceOnClick: true, popover: { title: t('Choose a priority signal'), description: t('Select the signal you want to investigate. The guide follows your choice and waits for its live detail view.'), side: 'bottom' as const, showButtons: ['close'] as Array<'close'> } },
+                    { element: '.agentic-metric-modal .ant-modal-content', waitForElement: 5000, popover: { title: t('Live workspace records'), description: t('This view loads the exact records behind the signal you chose, including each item, status and context. Use the footer action to continue the work in the right workspace.'), side: 'left' as const } },
+                    { element: guideTarget('agentic-metric-footer'), waitForElement: 5000, skipMissingElement: true, popover: { title: t('Continue from the result'), description: t('Use the relevant next action here, or page through the records when there are more than fit comfortably in this view.'), side: 'top' as const } },
                 ],
             }] : []),
             {
-                id: 'agentic-start-conversation', title: 'Start a conversation', description: 'Use a suggested prompt or write a focused question for your workspace.', kind: 'task', order: 3,
+                id: 'agentic-start-conversation', title: t('Start a conversation'), description: t('Use a suggested prompt or write a focused question for your workspace.'), kind: 'task', order: 3,
                 steps: [
-                    { element: guideTarget('agentic-composer'), popover: { title: 'Write a focused request', description: 'Ask for a priority list, progress update, risk review or help with a particular item.', side: 'top' } },
-                    { element: guideTarget('agentic-suggestions'), skipMissingElement: true, popover: { title: 'Use a suggested prompt', description: 'Choose one of these to send a ready-made role-specific request and begin the conversation.', side: 'top' } },
+                    { element: guideTarget('agentic-composer'), popover: { title: t('Write a focused request'), description: t('Ask for a priority list, progress update, risk review or help with a particular item.'), side: 'top' } },
+                    { element: guideTarget('agentic-suggestions'), skipMissingElement: true, popover: { title: t('Use a suggested prompt'), description: t('Choose one of these to send a ready-made role-specific request and begin the conversation.'), side: 'top' } },
                 ],
             },
         ],
-    }), [visibleMetrics.length])
+    }), [visibleMetrics.length, t])
 
     useRegisterPageGuide(guideRegistration)
 
     return (
         <main className={`agentic-home ${activeMode ? 'is-conversing' : ''} ${!loading && visibleMetrics.length === 0 ? 'has-no-metrics' : ''}`}>
-            {(loading || visibleMetrics.length > 0) && <section data-guide-target="agentic-priority-metrics" className="agentic-summary" aria-label="Priority metrics">
+            {(loading || visibleMetrics.length > 0) && <section data-guide-target="agentic-priority-metrics" className="agentic-summary" aria-label={t('Priority metrics')}>
                 <div className="agentic-metric-grid">
                     {loading || (user?.role === 'consultant' && assignmentsLoading)
                         ? Array.from({ length: 3 }).map((_, index) => (
@@ -695,7 +697,7 @@ export const AgenticHomePage = () => {
                 {!activeMode && (
                     <>
                         <Typography.Title level={1}>{firstName ? `${firstName}, ${overview.headline.charAt(0).toLowerCase()}${overview.headline.slice(1)}` : overview.headline}</Typography.Title>
-                        <Typography.Paragraph>Ask across your permitted workspace data, or start with a suggested action.</Typography.Paragraph>
+                        <Typography.Paragraph>{t('Ask across your permitted workspace data, or start with a suggested action.')}</Typography.Paragraph>
                     </>
                 )}
 
@@ -733,7 +735,7 @@ export const AgenticHomePage = () => {
                 )}
 
                 {messages.length > 0 && (
-                    <aside className="agentic-chat-activity-rail" aria-label="Conversation message navigator">
+                    <aside className="agentic-chat-activity-rail" aria-label={t('Conversation message navigator')}>
                         {conversationTurns.slice(-10).map((turn, index) => {
                             const targetId = turn.response?.id || turn.prompt?.id || turn.id
                             const preview = [turn.prompt?.content, turn.response?.content].filter(Boolean).join('\n\n')
@@ -748,7 +750,7 @@ export const AgenticHomePage = () => {
                                 >
                                     <span />
                                     <div>
-                                        <strong>Conversation turn {conversationTurns.length - Math.min(10, conversationTurns.length) + index + 1}</strong>
+                                        <strong>{t('Conversation turn')} {conversationTurns.length - Math.min(10, conversationTurns.length) + index + 1}</strong>
                                         <p>{preview}</p>
                                     </div>
                                 </button>
@@ -764,26 +766,26 @@ export const AgenticHomePage = () => {
                         className="agentic-composer-mic-button"
                         icon={<AudioOutlined />}
                         onClick={() => setVoiceMode(true)}
-                        aria-label="Start voice conversation"
+                        aria-label={t('Start voice conversation')}
                     />
                     <Input
                         value={draft}
                         onChange={(event) => setDraft(event.target.value)}
                         onPressEnter={() => void send()}
-                        placeholder={selectedMetric ? `Ask a follow-up about ${selectedMetric.label.toLowerCase()}…` : 'Ask about priorities, progress, risks or next steps…'}
+                        placeholder={selectedMetric ? `Ask a follow-up about ${selectedMetric.label.toLowerCase()}…` : t('Ask about priorities, progress, risks or next steps…')}
                     />
-                    <Button type="primary" shape="circle" icon={<SendOutlined />} onClick={() => void send()} disabled={!draft.trim()} aria-label="Send message" />
+                    <Button type="primary" shape="circle" icon={<SendOutlined />} onClick={() => void send()} disabled={!draft.trim()} aria-label={t('Send message')} />
                 </div>
 
                 {!activeMode && (
                     <div data-guide-target="agentic-suggestions" className="agentic-suggestions">
-                        {overview.prompts.map((prompt) => <Button key={prompt} onClick={() => void send(prompt)}>{prompt}</Button>)}
+                        {overview.prompts.map((prompt) => <Button key={prompt} onClick={() => void send(prompt)}>{t(prompt)}</Button>)}
                     </div>
                 )}
             </section>
 
             {!activeMode && (
-                <section data-guide-target="agentic-insights" className="agentic-insights" aria-label="Role insights">
+                <section data-guide-target="agentic-insights" className="agentic-insights" aria-label={t('Role insights')}>
                     <div className="agentic-insight-grid">
                         {overview.insights.map((insight) => (
                             <article className="agentic-insight-card" key={insight.label}>
@@ -961,10 +963,10 @@ export const AgenticHomePage = () => {
                                         }}
                                     />
                                     <Typography.Title level={5} style={{ margin: 0 }}>
-                                        Nothing to show
+                                        {t('Nothing to show')}
                                     </Typography.Title>
                                     <Typography.Text type="secondary">
-                                        No matching workspace items were found for this metric.
+                                        {t('No matching workspace items were found for this metric.')}
                                     </Typography.Text>
                                 </div>
                             </div>
@@ -979,7 +981,7 @@ export const AgenticHomePage = () => {
                             showSizeChanger={false}
                             onChange={setMetricPage}
                         />}
-                        {selectedMetricAction && <Button type="primary" block onClick={() => openWorkspace(selectedMetricAction.path)}>{isDocumentMetric ? 'Manage compliance' : selectedMetricAction.label}</Button>}
+                        {selectedMetricAction && <Button type="primary" block onClick={() => openWorkspace(selectedMetricAction.path)}>{isDocumentMetric ? t('Manage compliance') : selectedMetricAction.label}</Button>}
                     </footer>}
                 </div>
             </Modal>
@@ -987,25 +989,25 @@ export const AgenticHomePage = () => {
             <input ref={complianceFileInputRef} type="file" hidden accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" onChange={(event) => void chooseComplianceFile(event)} />
             <Modal
                 open={Boolean(pendingComplianceUpload)}
-                title="Confirm document dates"
-                okText="Save document"
+                title={t('Confirm document dates')}
+                okText={t('Save document')}
                 confirmLoading={complianceUploading}
                 onCancel={() => !complianceUploading && setPendingComplianceUpload(undefined)}
                 onOk={() => pendingComplianceUpload && void saveComplianceUpload(pendingComplianceUpload)}
             >
                 <Typography.Paragraph>
-                    We could not confidently read both dates from <strong>{pendingComplianceUpload?.file.name}</strong>. Confirm the values before saving it for review.
+                    {t('We could not confidently read both dates from')} <strong>{pendingComplianceUpload?.file.name}</strong>. Confirm the values before saving it for review.
                 </Typography.Paragraph>
                 <DatePicker
                     value={pendingComplianceUpload?.issueDate || null}
                     onChange={(issueDate) => setPendingComplianceUpload((current) => current ? { ...current, issueDate } : current)}
-                    placeholder="Issue date"
+                    placeholder={t('Issue date')}
                     style={{ width: '100%', marginBottom: 12 }}
                 />
                 <DatePicker
                     value={pendingComplianceUpload?.expiryDate || null}
                     onChange={(expiryDate) => setPendingComplianceUpload((current) => current ? { ...current, expiryDate } : current)}
-                    placeholder="Expiry date"
+                    placeholder={t('Expiry date')}
                     style={{ width: '100%' }}
                 />
             </Modal>

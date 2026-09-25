@@ -1117,7 +1117,7 @@ html[data-theme='dark'] .sunken-panel {
 .apt-agenda-date span { color: var(--ant-color-text-secondary); font-size: 10px; text-transform: uppercase; }
 .apt-agenda-section.is-today .apt-agenda-date { color: #fff; background: var(--apt-accent); }
 .apt-agenda-section.is-today .apt-agenda-date span { color: rgba(255, 255, 255, .8); }
-.apt-agenda-heading { display: flex; align-items: baseline; gap: 10px; }
+.apt-agenda-heading { display: flex; align-items: center; gap: 10px; }
 .apt-agenda-weekday { font-weight: 700; }
 .apt-agenda-count { color: var(--ant-color-text-secondary); font-size: 12px; }
 .apt-agenda-rows { display: grid; grid-column: 2; gap: 6px; }

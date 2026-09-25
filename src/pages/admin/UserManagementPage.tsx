@@ -1,4 +1,4 @@
-import { Alert, App, AutoComplete, Button, Col, Form, Input, List, Modal, Popconfirm, Row, Select, Space, Switch, Tag, Typography, type TableProps } from 'antd'
+import { Alert, App, AutoComplete, Avatar, Button, Col, Form, Input, List, Modal, Popconfirm, Row, Select, Space, Switch, Tag, Typography, type TableProps } from 'antd'
 import { BankOutlined, CheckCircleOutlined, DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, StopOutlined, TeamOutlined, UserDeleteOutlined } from '@ant-design/icons'
 import { useEffect, useMemo, useState } from 'react'
 import DashboardPage from '@/components/shared/DashboardPage'
@@ -12,10 +12,17 @@ import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { cleanupOrphanUsers, createManagedUser, deleteManagedUser, listManagedUsers, previewOrphanUsers, updateManagedUser, type OrphanUserRecord } from '@/services/usersService'
 import type { ManagedUser } from '@/types/operations'
 import { getRolePermissions } from '@/config/permissions'
-import { useLanguage } from '@/providers/LanguageProvider'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 import '@/styles/user-management.css'
 
 type UserForm = Omit<ManagedUser, 'id' | 'status'> & { active: boolean }
+const initialsOf = (name: string, email: string) =>
+    (name || email || '?').split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('')
+
+const UserAvatar = ({ row, size }: { row: ManagedUser, size?: number }) => (
+    <Avatar shape="circle" size={size} src={row.photoUrl || undefined} style={{ flexShrink: 0 }}>{initialsOf(row.name, row.email)}</Avatar>
+)
+
 export const UserManagementPage = () => {
     const { message } = App.useApp()
     const { t } = useLanguage()
@@ -42,7 +49,7 @@ export const UserManagementPage = () => {
             setLoading(true)
             setUsers(await listManagedUsers(user))
         } catch {
-            message.error('Users could not be loaded.')
+            message.error(t('Users could not be loaded.'))
         } finally {
             setLoading(false)
         }
@@ -77,12 +84,12 @@ export const UserManagementPage = () => {
             setLoading(true)
             if (editing) await updateManagedUser(user, editing.id, payload)
             else await createManagedUser(user, payload)
-            message.success(editing ? 'User updated.' : 'User record created.')
+            message.success(editing ? t('User updated.') : t('User record created.'))
             setModalOpen(false)
             form.resetFields()
             await load()
         } catch {
-            message.error('User could not be saved.')
+            message.error(t('User could not be saved.'))
             setLoading(false)
         }
     }
@@ -90,10 +97,10 @@ export const UserManagementPage = () => {
         if (!user) return
         try {
             await deleteManagedUser(user, id)
-            message.success('User removed.')
+            message.success(t('User removed.'))
             await load()
         } catch {
-            message.error('User could not be removed.')
+            message.error(t('User could not be removed.'))
         }
     }
     const scanOrphans = async () => {
@@ -105,7 +112,7 @@ export const UserManagementPage = () => {
             setCleanupConfirmation('')
             setCleanupOpen(true)
         } catch {
-            message.error('Orphan user records could not be scanned.')
+            message.error(t('Orphan user records could not be scanned.'))
         } finally {
             setScanningOrphans(false)
         }
@@ -119,71 +126,80 @@ export const UserManagementPage = () => {
             setCleanupOpen(false)
             await load()
         } catch {
-            message.error('Orphan records could not be cleaned up.')
+            message.error(t('Orphan records could not be cleaned up.'))
         } finally {
             setCleaningOrphans(false)
         }
     }
     const columns: TableProps<ManagedUser>['columns'] = [
-        { title: 'Name', dataIndex: 'name' },
-        { title: 'Email', dataIndex: 'email' },
-        { title: 'Role', dataIndex: 'role', render: (value: UserRole) => <Tag color="purple">{value}</Tag> },
         {
-            title: 'WhatsApp', key: 'whatsapp', render: (_, row) => {
+            title: t('Name'), dataIndex: 'name', render: (value: string, row) => (
+                <Space size={10}>
+                    <UserAvatar row={row} />
+                    <Typography.Text strong>{value || row.email}</Typography.Text>
+                </Space>
+            ),
+        },
+        { title: t('Email'), dataIndex: 'email' },
+        { title: t('Role'), dataIndex: 'role', render: (value: UserRole) => <Tag color="purple">{value}</Tag> },
+        {
+            title: t('WhatsApp'), key: 'whatsapp', render: (_, row) => {
                 const phones = [row.phoneIsWhatsApp && row.phone, row.alternativePhoneIsWhatsApp && row.alternativePhone].filter(Boolean)
-                return phones.length ? <Space direction="vertical" size={0}>{phones.map((phone) => <Tag color="green" key={String(phone)}>WhatsApp · {phone}</Tag>)}</Space> : <Tag>Not enabled</Tag>
+                return phones.length ? <Space direction="vertical" size={0}>{phones.map((phone) => <Tag color="green" key={String(phone)}>{t('WhatsApp ·')} {phone}</Tag>)}</Space> : <Tag>{t('Not enabled')}</Tag>
             }
         },
-        { title: 'Status', dataIndex: 'status', render: (value: string) => <Tag color={value === 'active' ? 'green' : 'red'}>{value}</Tag> },
-        { title: 'Actions', render: (_, row) => <Space><Button type="text" icon={<EditOutlined />} onClick={() => openModal(row)} /><Popconfirm title="Remove this user record?" onConfirm={() => void remove(row.id)}><Button type="text" danger icon={<DeleteOutlined />} /></Popconfirm></Space> },
+        { title: t('Status'), dataIndex: 'status', render: (value: string) => <Tag color={value === 'active' ? 'green' : 'red'}>{value}</Tag> },
+        { title: t('Actions'), width: 110, render: (_, row) => <Space><Button shape="circle" icon={<EditOutlined />} onClick={() => openModal(row)} /><Popconfirm title={t('Remove this user record?')} onConfirm={() => void remove(row.id)}><Button shape="circle" danger icon={<DeleteOutlined />} /></Popconfirm></Space> },
     ]
 
     return (
-        <DashboardPage>
+        <DashboardPage className="user-management-page">
             <Row gutter={[14, 14]} className="dashboard-metrics-row">
-                <Col xs={12} lg={6}><DashboardMetricCard icon={<TeamOutlined />} label="Users" value={metrics.users} /></Col>
-                <Col xs={12} lg={6}><DashboardMetricCard icon={<CheckCircleOutlined />} label="Active users" value={metrics.active} /></Col>
-                <Col xs={12} lg={6}><DashboardMetricCard icon={<StopOutlined />} label="Inactive users" value={metrics.inactive} /></Col>
-                <Col xs={12} lg={6}><DashboardMetricCard icon={<BankOutlined />} label="Companies" value={metrics.companies} /></Col>
+                <Col xs={12} lg={6}><DashboardMetricCard icon={<TeamOutlined />} label={t('Users')} value={metrics.users} /></Col>
+                <Col xs={12} lg={6}><DashboardMetricCard icon={<CheckCircleOutlined />} label={t('Active users')} value={metrics.active} /></Col>
+                <Col xs={12} lg={6}><DashboardMetricCard icon={<StopOutlined />} label={t('Inactive users')} value={metrics.inactive} /></Col>
+                <Col xs={12} lg={6}><DashboardMetricCard icon={<BankOutlined />} label={t('Companies')} value={metrics.companies} /></Col>
             </Row>
-            <FilterBar title="User management" primary={<Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search users" allowClear />} actions={<Space wrap>{user && (user.role === USER_ROLES.SYSTEM_ADMIN || user.role === USER_ROLES.ADMIN) && <Button danger icon={<UserDeleteOutlined />} loading={scanningOrphans} onClick={() => void scanOrphans()}>Clean orphan records</Button>}<Button icon={<ReloadOutlined />} onClick={() => void load()} /><Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>Add user</Button></Space>} />
-            <ResponsiveDataView rowKey="id" rows={rows} columns={columns} loading={loading} emptyText="No users match your search." renderCard={(row) => <Space orientation="vertical"><Typography.Text strong>{row.name}</Typography.Text><Typography.Text type="secondary">{row.email}</Typography.Text><Space><Tag color="purple">{row.role}</Tag><Tag color={row.status === 'active' ? 'green' : 'red'}>{row.status}</Tag><Button type="text" icon={<EditOutlined />} onClick={() => openModal(row)} /></Space></Space>} />
-            <Modal open={modalOpen} title={editing ? 'Edit user' : 'Add user'} footer={null} onCancel={() => setModalOpen(false)} width={720} className="user-management-modal">
+            <FilterBar primary={<Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('Search users')} allowClear />} actions={<>{user && (user.role === USER_ROLES.SYSTEM_ADMIN || user.role === USER_ROLES.ADMIN) && <Button danger icon={<UserDeleteOutlined />} loading={scanningOrphans} onClick={() => void scanOrphans()}>{t('Clean orphan records')}</Button>}<Button icon={<ReloadOutlined />} onClick={() => void load()}>{t('Refresh')}</Button><Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>{t('Add user')}</Button></>} />
+            <ResponsiveDataView rowKey="id" rows={rows} columns={columns} loading={loading} emptyText={t('No users match your search.')} renderCard={(row) => <Space orientation="vertical"><Space size={10}><UserAvatar row={row} size={40} /><Space orientation="vertical" size={0}><Typography.Text strong>{row.name}</Typography.Text><Typography.Text type="secondary">{row.email}</Typography.Text></Space></Space><Space><Tag color="purple">{row.role}</Tag><Tag color={row.status === 'active' ? 'green' : 'red'}>{row.status}</Tag><Button shape="circle" icon={<EditOutlined />} onClick={() => openModal(row)} /></Space></Space>} />
+            <Modal open={modalOpen} title={editing ? t('Edit user') : t('Add user')} footer={null} onCancel={() => setModalOpen(false)} width={720} className="user-management-modal">
                 <Form form={form} layout="vertical" onFinish={(values) => void save(values)}>
-                    <Form.Item name="name" label="Name" rules={[{ required: true }]}><Input /></Form.Item>
-                    <Form.Item name="email" label="Email" rules={[{ required: true }, { type: 'email' }]}><Input /></Form.Item>
-                    <Form.Item name="role" label="Role" rules={[{ required: true }]}><Select options={roleOptions} onChange={(role: UserRole) => form.setFieldValue('permissions', getRolePermissions(role))} /></Form.Item>
-                    <Form.Item name="companyCode" label="Company code"><AutoComplete options={companyOptions} placeholder="Select or enter a company code" allowClear /></Form.Item>
                     <Row gutter={12}>
-                        <Col xs={24} md={16}><Form.Item name="phone" label="Primary phone"><Input placeholder="Include country code, e.g. +263..." /></Form.Item></Col>
-                        <Col xs={24} md={8}><Form.Item name="phoneIsWhatsApp" label="WhatsApp number" valuePropName="checked"><Switch checkedChildren="Yes" unCheckedChildren="No" /></Form.Item></Col>
+                        <Col xs={24} md={12}><Form.Item name="name" label={t('Name')} rules={[{ required: true }]}><Input /></Form.Item></Col>
+                        <Col xs={24} md={12}><Form.Item name="email" label={t('Email')} rules={[{ required: true }, { type: 'email' }]}><Input /></Form.Item></Col>
+                        <Col xs={24} md={12}><Form.Item name="role" label={t('Role')} rules={[{ required: true }]}><Select options={roleOptions} onChange={(role: UserRole) => form.setFieldValue('permissions', getRolePermissions(role))} /></Form.Item></Col>
+                        <Col xs={24} md={12}><Form.Item name="companyCode" label={t('Company code')}><AutoComplete options={companyOptions} placeholder={t('Select or enter a company code')} allowClear /></Form.Item></Col>
+                    </Row>
+                    <Row gutter={12}>
+                        <Col xs={24} md={16}><Form.Item name="phone" label={t('Primary phone')}><Input placeholder={t('Include country code, e.g. +263...')} /></Form.Item></Col>
+                        <Col xs={24} md={8}><Form.Item name="phoneIsWhatsApp" label={t('WhatsApp number')} valuePropName="checked"><Switch checkedChildren={tr('Yes')} unCheckedChildren={tr('No')} /></Form.Item></Col>
                     </Row>
                     {selectedRole === USER_ROLES.INCUBATEE && <Row gutter={12}>
-                        <Col xs={24} md={16}><Form.Item name="alternativePhone" label="Alternative phone"><Input placeholder="Optional alternative number" /></Form.Item></Col>
-                        <Col xs={24} md={8}><Form.Item name="alternativePhoneIsWhatsApp" label="WhatsApp number" valuePropName="checked"><Switch checkedChildren="Yes" unCheckedChildren="No" /></Form.Item></Col>
+                        <Col xs={24} md={16}><Form.Item name="alternativePhone" label={t('Alternative phone')}><Input placeholder={t('Optional alternative number')} /></Form.Item></Col>
+                        <Col xs={24} md={8}><Form.Item name="alternativePhoneIsWhatsApp" label={t('WhatsApp number')} valuePropName="checked"><Switch checkedChildren={tr('Yes')} unCheckedChildren={tr('No')} /></Form.Item></Col>
                     </Row>}
-                    <Typography.Paragraph type="secondary">Only numbers explicitly marked as WhatsApp can identify this user to the bot. Marking a number confirms it belongs to this person; it does not query WhatsApp automatically.</Typography.Paragraph>
+                    <Typography.Paragraph type="secondary">{t('Only numbers explicitly marked as WhatsApp can identify this user to the AI. Marking a number confirms it belongs to this person; it does not query WhatsApp automatically.')}</Typography.Paragraph>
                     <Form.Item name="permissions" label={t('permissions.featureAccess')}><FeaturePermissionsField /></Form.Item>
-                    <Form.Item name="active" label="Active" valuePropName="checked"><Switch /></Form.Item>
-                    <Button block type="primary" htmlType="submit">Save user</Button>
+                    <Form.Item name="active" label={t('Active')} valuePropName="checked"><Switch /></Form.Item>
+                    <Button block type="primary" htmlType="submit">{t('Save user')}</Button>
                 </Form>
             </Modal>
             <Modal
                 open={cleanupOpen}
-                title="Clean orphan user records"
+                title={t('Clean orphan user records')}
                 onCancel={() => setCleanupOpen(false)}
                 width={760}
-                footer={<Space><Button onClick={() => setCleanupOpen(false)}>Cancel</Button><Button danger type="primary" icon={<UserDeleteOutlined />} loading={cleaningOrphans} disabled={!orphanUsers.length || cleanupConfirmation !== 'DELETE ORPHAN USERS'} onClick={() => void cleanOrphans()}>Delete orphan records</Button></Space>}
+                footer={<Space><Button onClick={() => setCleanupOpen(false)}>{t('Cancel')}</Button><Button danger type="primary" icon={<UserDeleteOutlined />} loading={cleaningOrphans} disabled={!orphanUsers.length || cleanupConfirmation !== 'DELETE ORPHAN USERS'} onClick={() => void cleanOrphans()}>{t('Delete orphan records')}</Button></Space>}
             >
-                <Alert type="warning" showIcon message={`${orphanUsers.length} orphan user record${orphanUsers.length === 1 ? '' : 's'} found`} description="These Firestore profiles have neither a matching Firebase Auth UID nor a matching Auth email. Cleanup removes their identity, assignee, participant and profile records. Applications, interventions and reporting history are preserved." />
+                <Alert type="warning" showIcon message={`${orphanUsers.length} orphan user record${orphanUsers.length === 1 ? '' : 's'} found`} description={t('These Firestore profiles have neither a matching Firebase Auth UID nor a matching Auth email. Cleanup removes their identity, assignee, participant and profile records. Applications, interventions and reporting history are preserved.')} />
                 <List
                     style={{ marginTop: 16, maxHeight: 300, overflow: 'auto' }}
                     bordered
-                    locale={{ emptyText: 'No orphan records were found. Nothing will be deleted.' }}
+                    locale={{ emptyText: t('No orphan records were found. Nothing will be deleted.') }}
                     dataSource={orphanUsers}
-                    renderItem={item => <List.Item><List.Item.Meta title={<Space><Typography.Text strong>{item.name || item.email || item.id}</Typography.Text><Tag>{item.role || 'No role'}</Tag></Space>} description={`${item.email || 'No email'} · ${item.companyCode || 'No company'} · ${item.id}`} /></List.Item>}
+                    renderItem={item => <List.Item><List.Item.Meta title={<Space><Typography.Text strong>{item.name || item.email || item.id}</Typography.Text><Tag>{item.role || t('No role')}</Tag></Space>} description={`${item.email || 'No email'} · ${item.companyCode || 'No company'} · ${item.id}`} /></List.Item>}
                 />
-                {!!orphanUsers.length && <div style={{ marginTop: 16 }}><Typography.Paragraph>Type <Typography.Text code>DELETE ORPHAN USERS</Typography.Text> to confirm:</Typography.Paragraph><Input value={cleanupConfirmation} onChange={event => setCleanupConfirmation(event.target.value)} placeholder="DELETE ORPHAN USERS" /></div>}
+                {!!orphanUsers.length && <div style={{ marginTop: 16 }}><Typography.Paragraph>{t('Type')} <Typography.Text code>{t('DELETE ORPHAN USERS')}</Typography.Text> {t('to confirm:')}</Typography.Paragraph><Input value={cleanupConfirmation} onChange={event => setCleanupConfirmation(event.target.value)} placeholder={t('DELETE ORPHAN USERS')} /></div>}
             </Modal>
         </DashboardPage>
     )

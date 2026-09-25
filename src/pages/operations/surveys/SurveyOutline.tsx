@@ -4,6 +4,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { Empty, Tag, Typography } from 'antd'
 import { HolderOutlined } from '@ant-design/icons'
 import { SURVEY_FIELD_TYPES, type SurveyField } from '@/services/surveyTemplatesService'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 type OutlineProps = {
     fields: SurveyField[]
@@ -15,6 +16,7 @@ type OutlineProps = {
 const typeLabel = (type: string) => SURVEY_FIELD_TYPES.find((item) => item.value === type)?.label || type
 
 const OutlineRow = ({ field, index, selected, onSelect }: { field: SurveyField, index: number, selected: boolean, onSelect: () => void }) => {
+    const { t } = useLanguage()
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: field.id })
 
     return (
@@ -30,8 +32,8 @@ const OutlineRow = ({ field, index, selected, onSelect }: { field: SurveyField, 
             <Tag className="survey-outline-index">{index + 1}</Tag>
 
             <span className="survey-outline-copy">
-                <Typography.Paragraph ellipsis={{ rows: 2, tooltip: field.label || 'Untitled question' }} className="survey-outline-label">
-                    {field.label || 'Untitled question'}
+                <Typography.Paragraph ellipsis={{ rows: 2, tooltip: field.label || t('Untitled question') }} className="survey-outline-label">
+                    {field.label || t('Untitled question')}
                 </Typography.Paragraph>
                 <span className="survey-outline-type">{typeLabel(field.type)}</span>
             </span>
@@ -40,6 +42,7 @@ const OutlineRow = ({ field, index, selected, onSelect }: { field: SurveyField, 
 }
 
 export const SurveyOutline = ({ fields, selectedId, onSelect, onReorder }: OutlineProps) => {
+    const { t } = useLanguage()
     // A small activation distance keeps a plain click selecting rather than starting a drag.
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
 
@@ -52,7 +55,7 @@ export const SurveyOutline = ({ fields, selectedId, onSelect, onReorder }: Outli
         onReorder(from, to)
     }
 
-    if (!fields.length) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No questions yet" />
+    if (!fields.length) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('No questions yet')} />
 
     return (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>

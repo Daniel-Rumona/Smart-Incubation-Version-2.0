@@ -4,6 +4,7 @@ import { BulbOutlined, CheckCircleOutlined, FileTextOutlined, RobotOutlined, Sav
 import { useMemo, useState } from 'react'
 import { analyseInterventionUpdate } from '@/services/interventionAiService'
 import type { AiReview, InterventionRow, ProgressUpdateForm, UpdateMode } from '@/types/interventions'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 const { Text, Paragraph } = Typography
 
@@ -17,9 +18,9 @@ type AIInterventionUpdateModalProps = {
 }
 
 const readinessTag = (review: AiReview) => {
-  if (review.completionReadiness === 'ready') return <Tag color="green" icon={<CheckCircleOutlined />}>Ready for completion review</Tag>
-  if (review.completionReadiness === 'close') return <Tag color="gold" icon={<BulbOutlined />}>Close to completion</Tag>
-  return <Tag icon={<WarningOutlined />}>Needs more work</Tag>
+  if (review.completionReadiness === 'ready') return <Tag color="green" icon={<CheckCircleOutlined />}>{tr('Ready for completion review')}</Tag>
+  if (review.completionReadiness === 'close') return <Tag color="gold" icon={<BulbOutlined />}>{tr('Close to completion')}</Tag>
+  return <Tag icon={<WarningOutlined />}>{tr('Needs more work')}</Tag>
 }
 
 /**
@@ -50,6 +51,7 @@ const targetFieldFor = (row: InterventionRow) => {
 type FormValues = Omit<ProgressUpdateForm, 'evidenceFiles'> & { sourceText?: string; evidenceFiles?: UploadFile[] }
 
 export const AIInterventionUpdateModal = ({ open, row, mode, saving, onCancel, onApply }: AIInterventionUpdateModalProps) => {
+  const { t } = useLanguage()
   const [form] = Form.useForm<FormValues>()
   const [activeMode, setActiveMode] = useState<UpdateMode>(mode)
   const [review, setReview] = useState<AiReview>()
@@ -114,13 +116,13 @@ export const AIInterventionUpdateModal = ({ open, row, mode, saving, onCancel, o
           </Col>
         )}
         <Col xs={24} md={targetField ? 16 : 24}>
-          <Form.Item name="progressAfter" label="Progress after" rules={[{ required: true, message: 'Progress is required.' }]}>
+          <Form.Item name="progressAfter" label={t('Progress after')} rules={[{ required: true, message: tr('Progress is required.') }]}>
             <InputNumber min={0} max={100} style={{ width: '100%' }} addonAfter="%" />
           </Form.Item>
         </Col>
       </Row>
 
-      <Form.Item name="notes" label="Final progress notes">
+      <Form.Item name="notes" label={t('Final progress notes')}>
         <Input.TextArea rows={4} />
       </Form.Item>
 
@@ -130,16 +132,16 @@ export const AIInterventionUpdateModal = ({ open, row, mode, saving, onCancel, o
             type="warning"
             showIcon
             style={{ marginBottom: 12 }}
-            message="This marks the intervention 100% complete."
-            description="Attach proof of evidence below before applying the update."
+            message={t('This marks the intervention 100% complete.')}
+            description={t('Attach proof of evidence below before applying the update.')}
           />
         )}
       </Form.Item>
 
       <Form.Item
         name="evidenceFiles"
-        label="Proof of evidence"
-        extra="Optional unless this update reaches 100%."
+        label={t('Proof of evidence')}
+        extra={tr('Optional unless this update reaches 100%.')}
         valuePropName="fileList"
         getValueFromEvent={(event) => (Array.isArray(event) ? event : event?.fileList)}
         dependencies={['progressAfter']}
@@ -155,7 +157,7 @@ export const AIInterventionUpdateModal = ({ open, row, mode, saving, onCancel, o
         ]}
       >
         <Upload beforeUpload={() => false} multiple>
-          <Button icon={<UploadOutlined />}>Attach evidence</Button>
+          <Button icon={<UploadOutlined />}>{t('Attach evidence')}</Button>
         </Upload>
       </Form.Item>
     </>
@@ -185,7 +187,7 @@ export const AIInterventionUpdateModal = ({ open, row, mode, saving, onCancel, o
                 <Col xs={24} md={8}>
                   <Space direction="vertical" size={0}>
                     <Text strong>{row.beneficiaryName}</Text>
-                    <Text type="secondary">{row.programmeName || 'Assigned programme'}</Text>
+                    <Text type="secondary">{row.programmeName || t('Assigned programme')}</Text>
                   </Space>
                 </Col>
                 <Col xs={24} md={9}>
@@ -200,8 +202,8 @@ export const AIInterventionUpdateModal = ({ open, row, mode, saving, onCancel, o
                       setReview(undefined)
                     }}
                     options={[
-                      { value: 'manual', label: 'Manual' },
-                      { value: 'ai', label: 'AI' },
+                      { value: 'manual', label: t('Manual') },
+                      { value: 'ai', label: t('AI') },
                     ]}
                   />
                 </Col>
@@ -209,13 +211,13 @@ export const AIInterventionUpdateModal = ({ open, row, mode, saving, onCancel, o
             </Card>
 
             {activeMode === 'manual' && (
-              <Card size="small" title="Manual progress capture">
+              <Card size="small" title={t('Manual progress capture')}>
                 {applyFields}
               </Card>
             )}
 
             {activeMode === 'ai' && (
-              <Card size="small" title={<Space><RobotOutlined /> AI progress assistant</Space>}>
+              <Card size="small" title={<Space><RobotOutlined /> {t('AI progress assistant')}</Space>}>
                 {/*
                   Plain flex div, not antd's Space: a global rule (.ant-modal .ant-modal-body
                   .ant-space:has(> .ant-space-item > .ant-btn)) forces ANY Space in a modal body
@@ -227,23 +229,23 @@ export const AIInterventionUpdateModal = ({ open, row, mode, saving, onCancel, o
                   <Alert
                     type="info"
                     showIcon
-                    message="Describe the work completed in plain language. The assistant will extract hours, deliverables, progress, blockers, next steps, and evidence suggestions."
+                    message={t('Describe the work completed in plain language. The assistant will extract hours, deliverables, progress, blockers, next steps, and evidence suggestions.')}
                   />
 
                   <Form.Item
                     name="sourceText"
-                    label="Work update"
-                    rules={[{ required: true, message: 'Describe what was completed before running AI review.' }]}
+                    label={t('Work update')}
+                    rules={[{ required: true, message: tr('Describe what was completed before running AI review.') }]}
                     style={{ marginBottom: 0 }}
                   >
                     <Input.TextArea
                       rows={4}
-                      placeholder="Example: Completed 3 hours with the SME, reviewed bookkeeping records, identified missing invoices, and prepared the next action list."
+                      placeholder={t('Example: Completed 3 hours with the SME, reviewed bookkeeping records, identified missing invoices, and prepared the next action list.')}
                     />
                   </Form.Item>
 
                   <Button icon={<RobotOutlined />} onClick={() => void runAiReview()} loading={analysing}>
-                    Analyse update
+                    {t('Analyse update')}
                   </Button>
 
                   {review && (
@@ -252,23 +254,23 @@ export const AIInterventionUpdateModal = ({ open, row, mode, saving, onCancel, o
 
                       <Space direction="vertical" size={12} style={{ width: '100%' }}>
                         <Space wrap size={8}>
-                          <Tag color="blue">Confidence {Math.round(review.confidence || 0)}%</Tag>
-                          {review.suggestedProgress != null && <Tag color="green">Suggested progress {review.suggestedProgress}%</Tag>}
+                          <Tag color="blue">{t('Confidence')} {Math.round(review.confidence || 0)}%</Tag>
+                          {review.suggestedProgress != null && <Tag color="green">{t('Suggested progress')} {review.suggestedProgress}%</Tag>}
                           {readinessTag(review)}
                         </Space>
 
                         <div>
-                          <Text strong>AI summary</Text>
+                          <Text strong>{t('AI summary')}</Text>
                           <Paragraph style={{ marginBottom: 0 }}>{review.summary}</Paragraph>
                         </div>
 
                         {review.blockers.length > 0 && (
-                          <Alert type="warning" showIcon message="Detected blockers" description={review.blockers.join(' ')} />
+                          <Alert type="warning" showIcon message={t('Detected blockers')} description={review.blockers.join(' ')} />
                         )}
 
                         {review.nextSteps.length > 0 && (
                           <div>
-                            <Text strong>Recommended next steps</Text>
+                            <Text strong>{t('Recommended next steps')}</Text>
                             <ul style={{ marginBottom: 0, paddingLeft: 20 }}>
                               {review.nextSteps.map((item) => <li key={item}>{item}</li>)}
                             </ul>
@@ -277,7 +279,7 @@ export const AIInterventionUpdateModal = ({ open, row, mode, saving, onCancel, o
 
                         {review.proofSuggestions.length > 0 && (
                           <div>
-                            <Text strong>Suggested evidence</Text>
+                            <Text strong>{t('Suggested evidence')}</Text>
                             <Row gutter={[8, 8]} style={{ marginTop: 8 }}>
                               {review.proofSuggestions.map((proof) => (
                                 <Col xs={24} md={12} key={proof.id}>
@@ -287,7 +289,7 @@ export const AIInterventionUpdateModal = ({ open, row, mode, saving, onCancel, o
                                       <Space direction="vertical" size={0}>
                                         <Text strong>{proof.label}</Text>
                                         <Text type="secondary">{proof.reason}</Text>
-                                        {proof.required && <Tag color="red">Required before completion</Tag>}
+                                        {proof.required && <Tag color="red">{t('Required before completion')}</Tag>}
                                       </Space>
                                     </Space>
                                   </Card>
@@ -299,7 +301,7 @@ export const AIInterventionUpdateModal = ({ open, row, mode, saving, onCancel, o
                       </Space>
 
                       <Divider style={{ margin: 0 }} />
-                      <Text strong>Apply this update</Text>
+                      <Text strong>{t('Apply this update')}</Text>
 
                       {applyFields}
                     </>
@@ -309,9 +311,9 @@ export const AIInterventionUpdateModal = ({ open, row, mode, saving, onCancel, o
             )}
 
             <Space style={{ justifyContent: 'flex-end', width: '100%' }}>
-              <Button onClick={resetAndClose}>Cancel</Button>
+              <Button onClick={resetAndClose}>{t('Cancel')}</Button>
               <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={saving || analysing} disabled={activeMode === 'ai' && !review}>
-                Apply update
+                {t('Apply update')}
               </Button>
             </Space>
           </Space>

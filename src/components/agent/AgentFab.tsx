@@ -65,28 +65,25 @@ export const AgentFab = ({ placement = 'floating' }: { placement?: 'floating' | 
     const failedTaskCount = tasks.filter((task) => task.status === 'failed').length
     const taskCount = tasks.length
 
+    // The English text is what gets sent to the agent (and logged); only the button label is translated.
     const templates = useMemo(() => {
+        const explain = `Explain ${context.pageName}`
+        const nextSteps = `What can I do on ${context.pageName}?`
         const base = [
-            t('agent.template.explain', `Explain ${context.pageName}`).replace(
-                '{page}',
-                context.pageName,
-            ),
-            t('agent.template.nextSteps', `What can I do on ${context.pageName}?`).replace(
-                '{page}',
-                context.pageName,
-            ),
+            { prompt: explain, label: t('agent.template.explain', explain).replace('{page}', context.pageName) },
+            { prompt: nextSteps, label: t('agent.template.nextSteps', nextSteps).replace('{page}', context.pageName) },
         ]
 
         if (context.pageKey.includes('program')) {
-            return [...base, t('agent.template.programs', 'Help me understand these programs')]
+            return [...base, { prompt: 'Help me understand these programs', label: t('agent.template.programs', 'Help me understand these programs') }]
         }
 
         if (context.pageKey.includes('tracker')) {
-            return [...base, t('agent.template.tracker', 'Help me understand this tracker')]
+            return [...base, { prompt: 'Help me understand this tracker', label: t('agent.template.tracker', 'Help me understand this tracker') }]
         }
 
         if (context.pageKey.includes('profile')) {
-            return [...base, t('agent.template.profile', 'Help me complete this profile')]
+            return [...base, { prompt: 'Help me complete this profile', label: t('agent.template.profile', 'Help me complete this profile') }]
         }
 
         return base
@@ -188,19 +185,16 @@ export const AgentFab = ({ placement = 'floating' }: { placement?: 'floating' | 
     }
 
     const taskAlertMessage = failedTaskCount > 0
-        ? t(
-            'agent.tasks.failedSummary',
-            `${failedTaskCount} background task${failedTaskCount === 1 ? '' : 's'} need attention`,
-        )
+        ? (failedTaskCount === 1
+            ? t('{count} background task needs attention', undefined, { count: failedTaskCount })
+            : t('{count} background tasks need attention', undefined, { count: failedTaskCount }))
         : activeTaskCount > 0
-            ? t(
-                'agent.tasks.runningSummary',
-                `${activeTaskCount} background task${activeTaskCount === 1 ? '' : 's'} running`,
-            )
-            : t(
-                'agent.tasks.readySummary',
-                `${taskCount} background task${taskCount === 1 ? '' : 's'} ready`,
-            )
+            ? (activeTaskCount === 1
+                ? t('{count} background task running', undefined, { count: activeTaskCount })
+                : t('{count} background tasks running', undefined, { count: activeTaskCount }))
+            : (taskCount === 1
+                ? t('{count} background task ready', undefined, { count: taskCount })
+                : t('{count} background tasks ready', undefined, { count: taskCount }))
     const completedResponses = messages.filter((item) => item.role === 'agent' && item.content !== 'Working on this in the background…')
     const sessionRatingTarget = completedResponses.at(-1)
     const showSessionRating = Boolean(sessionRatingTarget && completedResponses.length >= 3 && !sessionRating && !ratingDismissed)
@@ -212,7 +206,7 @@ export const AgentFab = ({ placement = 'floating' }: { placement?: 'floating' | 
                 centered
                 footer={null}
                 width={expanded ? 1040 : 620}
-                title="Thuso"
+                title={t('Thuso')}
                 onCancel={closePanel}
                 className="agent-conversation-modal"
             >
@@ -223,7 +217,7 @@ export const AgentFab = ({ placement = 'floating' }: { placement?: 'floating' | 
                                 <RobotOutlined />
                             </span>
                             <div>
-                                <strong>Thuso</strong>
+                                <strong>{t('Thuso')}</strong>
                                 <span className="agent-status">
                                     <span />
                                     {view === 'assistant'
@@ -266,7 +260,7 @@ export const AgentFab = ({ placement = 'floating' }: { placement?: 'floating' | 
                                     </span>
                                     <div className="agent-message-content">
                                         <strong>{taskAlertMessage}</strong>
-                                        <span>{activeTaskCount > 0 ? 'Continuing while you work' : 'Open Tasks to review the results'}</span>
+                                        <span>{activeTaskCount > 0 ? t('Continuing while you work') : t('Open Tasks to review the results')}</span>
                                     </div>
                                     <Button size="small" onClick={() => setView('tasks')}>
                                         {t('agent.tasks.view', 'View tasks')}
@@ -292,8 +286,8 @@ export const AgentFab = ({ placement = 'floating' }: { placement?: 'floating' | 
 
                                     <div className="agent-templates">
                                         {templates.map((template) => (
-                                            <Button key={template} onClick={() => void send(template)}>
-                                                {template}
+                                            <Button key={template.prompt} onClick={() => void send(template.prompt)}>
+                                                {template.label}
                                             </Button>
                                         ))}
                                     </div>
@@ -339,9 +333,9 @@ export const AgentFab = ({ placement = 'floating' }: { placement?: 'floating' | 
 
                     {view === 'assistant' && (
                         <>{showSessionRating && sessionRatingTarget && <div className="agent-session-rating">
-                            <span>How helpful has Thuso been in this session?</span>
+                            <span>{t('How helpful has Thuso been in this session?')}</span>
                             <Rate disabled={ratingMessageId === sessionRatingTarget.id} onChange={(value) => void rateAgentMessage(sessionRatingTarget, value)} />
-                            <Button type="text" size="small" onClick={() => setRatingDismissed(true)}>Not now</Button>
+                            <Button type="text" size="small" onClick={() => setRatingDismissed(true)}>{t('Not now')}</Button>
                         </div>}
                         <footer className="agent-panel-footer">
                             <Input

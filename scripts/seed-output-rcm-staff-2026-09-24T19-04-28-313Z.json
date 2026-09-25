@@ -1,0 +1,17 @@
+{
+  "createdAt": "2026-09-24T19:04:18.675Z",
+  "createdAccounts": [
+    {
+      "uid": "19DalUqh3RUd4SuWmqnZKLJw2dj1",
+      "email": "operations@quantilytix.co.za"
+    },
+    {
+      "uid": "OBvLEsfxiPXHvNPZKr6mj9ylvL73",
+      "email": "projectadmin@quantilytix.co.za"
+    }
+  ],
+  "programme": {
+    "id": "itGOWCM83DzMjkJktW6W",
+    "previousAssignedAdmin": "tNkUbKDdVBacA9EXZQwNn4z16tf2"
+  }
+}

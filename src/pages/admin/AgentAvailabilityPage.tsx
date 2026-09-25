@@ -40,8 +40,10 @@ import type {
 } from '@/types/agentOrchestration'
 import { useRegisterAgentPageContext } from '@/shared/hooks/useRegisterAgentPageContext'
 import '@/styles/agent-availability.css'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 const AgentAvailabilityPage = () => {
+  const { t } = useLanguage()
   const { message } = App.useApp()
   const { user } = useFullIdentity()
   const [companies, setCompanies] = useState<WorkspaceCompany[]>([])
@@ -95,14 +97,14 @@ const AgentAvailabilityPage = () => {
         setCompanies(rows)
         setCompanyCode((current) => current || rows[0]?.code)
       } catch {
-        message.error('Companies could not be loaded.')
+        message.error(t('Companies could not be loaded.'))
       } finally {
         setLoadingCompanies(false)
       }
     }
 
     void load()
-  }, [message, user])
+  }, [message, user, t])
 
   useEffect(() => {
     const unsubscribe = subscribeAgents(
@@ -111,13 +113,13 @@ const AgentAvailabilityPage = () => {
         setLoadingCatalogue(false)
       },
       () => {
-        message.error('Agent catalogue could not be loaded.')
+        message.error(t('Agent catalogue could not be loaded.'))
         setLoadingCatalogue(false)
       },
     )
 
     return unsubscribe
-  }, [message])
+  }, [message, t])
 
   useEffect(() => {
     if (!companyCode || loadingCatalogue) return
@@ -132,7 +134,7 @@ const AgentAvailabilityPage = () => {
         setSavedEnabled(settings.enabledAgentIds)
       })
       .catch(() => {
-        if (active) message.error('Agent availability could not be loaded.')
+        if (active) message.error(t('Agent availability could not be loaded.'))
       })
       .finally(() => {
         if (active) setLoadingSettings(false)
@@ -141,7 +143,7 @@ const AgentAvailabilityPage = () => {
     return () => {
       active = false
     }
-  }, [activeAgents, companyCode, loadingCatalogue, message])
+  }, [activeAgents, companyCode, loadingCatalogue, message, t])
 
   const save = async () => {
     if (!user || !companyCode) return
@@ -154,24 +156,24 @@ const AgentAvailabilityPage = () => {
         `Agent availability saved for ${selectedCompany?.name || companyCode}.`,
       )
     } catch {
-      message.error('Agent availability could not be saved.')
+      message.error(t('Agent availability could not be saved.'))
     } finally {
       setSaving(false)
     }
   }
 
   if (loadingCompanies || loadingCatalogue) {
-    return <LoadingOverlay tip="Loading agent catalogue" />
+    return <LoadingOverlay tip={t('Loading agent catalogue')} />
   }
 
   return (
     <DashboardPage className="agent-availability-page">
       <DashboardHeaderCard
-        title="Agent availability"
-        subtitle="Control which approved AI agents each company can use for intervention delivery."
+        title={t('Agent availability')}
+        subtitle={tr('Control which approved AI agents each company can use for intervention delivery.')}
         extraRight={
           <Tag icon={<SafetyCertificateOutlined />} color="purple">
-            System administration
+            {t('System administration')}
           </Tag>
         }
       />
@@ -183,14 +185,14 @@ const AgentAvailabilityPage = () => {
 
         <div className="agent-company-picker">
           <Typography.Text className="agent-admin-eyebrow">
-            ACTIVE COMPANY
+            {t('ACTIVE COMPANY')}
           </Typography.Text>
           <Select
             showSearch
             optionFilterProp="label"
             value={companyCode}
             loading={loadingSettings}
-            placeholder="Select a company"
+            placeholder={t('Select a company')}
             options={companies.map((company) => ({
               value: company.code,
               label: `${company.name} (${company.code})`,
@@ -198,42 +200,42 @@ const AgentAvailabilityPage = () => {
             onChange={setCompanyCode}
           />
           <Typography.Text type="secondary">
-            Changes apply only to the selected company.
+            {t('Changes apply only to the selected company.')}
           </Typography.Text>
         </div>
 
         <div className="agent-company-summary">
           <div>
             <strong>{enabled.length}</strong>
-            <span>Enabled</span>
+            <span>{t('Enabled')}</span>
           </div>
           <div>
             <strong>{Math.max(activeAgents.length - enabled.length, 0)}</strong>
-            <span>Unavailable</span>
+            <span>{t('Unavailable')}</span>
           </div>
           <div>
             <strong>{enabledPercent}%</strong>
-            <span>Coverage</span>
+            <span>{t('Coverage')}</span>
           </div>
         </div>
       </section>
 
       {!companyCode ? (
-        <Empty description="Select a company to configure its agents." />
+        <Empty description={t('Select a company to configure its agents.')} />
       ) : !activeAgents.length ? (
-        <Empty description="No active agents are registered. Add agents in the Agent Registry first." />
+        <Empty description={t('No active agents are registered. Add agents in the Agent Registry first.')} />
       ) : (
         <div className={`agent-catalogue ${loadingSettings ? 'is-loading' : ''}`}>
           <div className="agent-catalogue-heading">
             <div>
               <Typography.Title level={4}>
-                Available agent catalogue
+                {t('Available agent catalogue')}
               </Typography.Title>
               <Typography.Text type="secondary">
-                Enable only the agents this company is approved to offer its participants.
+                {t('Enable only the agents this company is approved to offer its participants.')}
               </Typography.Text>
             </div>
-            <Tag>{activeAgents.length} registered agents</Tag>
+            <Tag>{activeAgents.length} {t('registered agents')}</Tag>
           </div>
 
           <Row gutter={[18, 18]}>
@@ -263,8 +265,8 @@ const AgentAvailabilityPage = () => {
                           >
                             {isEnabled && <CheckCircleFilled />}
                             {isEnabled
-                              ? ' Available to company'
-                              : ' Not available'}
+                              ? t(' Available to company')
+                              : t(' Not available')}
                           </span>
                         </div>
                       </div>
@@ -272,8 +274,8 @@ const AgentAvailabilityPage = () => {
                       <Switch
                         aria-label={`Toggle ${agent.name}`}
                         checked={isEnabled}
-                        checkedChildren="On"
-                        unCheckedChildren="Off"
+                        checkedChildren={tr('On')}
+                        unCheckedChildren={tr('Off')}
                         onChange={(checked) =>
                           setEnabled((current) =>
                             checked
@@ -287,12 +289,12 @@ const AgentAvailabilityPage = () => {
                     <div className="agent-provider-row">
                       <Tag color={agent.executionMode === 'external_api' ? 'blue' : 'default'}>
                         {agent.executionMode === 'external_api'
-                          ? 'External provider'
-                          : 'Platform agent'}
+                          ? t('External provider')
+                          : t('Platform agent')}
                       </Tag>
                       {agent.billable && (
                         <Tag color="gold" icon={<DollarOutlined />}>
-                          Usage-based credits
+                          {t('Usage-based credits')}
                         </Tag>
                       )}
                     </div>
@@ -302,7 +304,7 @@ const AgentAvailabilityPage = () => {
                     </Typography.Paragraph>
 
                     <div className="agent-capability-label">
-                      <ThunderboltOutlined /> CAPABILITIES
+                      <ThunderboltOutlined /> {t('CAPABILITIES')}
                     </div>
                     <div className="agent-capability-list">
                       {agent.capabilities.map((capability) => (
@@ -314,10 +316,10 @@ const AgentAvailabilityPage = () => {
                       <CloudServerOutlined />
                       <span>
                         {!isEnabled
-                          ? 'Hidden from intervention delivery setup.'
+                          ? t('Hidden from intervention delivery setup.')
                           : agent.executionMode === 'external_api'
-                            ? 'Operations can assign this agent. Sessions use an approved external provider.'
-                            : 'Operations can assign this agent to interventions.'}
+                            ? t('Operations can assign this agent. Sessions use an approved external provider.')
+                            : t('Operations can assign this agent to interventions.')}
                       </span>
                     </div>
                   </Card>
@@ -329,11 +331,11 @@ const AgentAvailabilityPage = () => {
           <div className={`agent-save-bar ${hasChanges ? 'has-changes' : ''}`}>
             <div>
               <span className="agent-save-state">
-                {hasChanges ? 'Unsaved changes' : 'All changes saved'}
+                {hasChanges ? t('Unsaved changes') : t('All changes saved')}
               </span>
               <Typography.Text type="secondary">
-                {selectedCompany?.name || companyCode} · {enabled.length} of{' '}
-                {activeAgents.length} agents enabled
+                {selectedCompany?.name || companyCode} · {enabled.length} {t('of')}{' '}
+                {activeAgents.length} {t('agents enabled')}
               </Typography.Text>
             </div>
             <Button
@@ -344,7 +346,7 @@ const AgentAvailabilityPage = () => {
               disabled={!hasChanges || loadingSettings}
               onClick={() => void save()}
             >
-              Save availability
+              {t('Save availability')}
             </Button>
           </div>
         </div>

@@ -12,6 +12,7 @@ import {
     type CalendarAppointment,
     type MeetingType,
 } from './appointmentSchedule'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 const meetingTypeIcon = (value?: MeetingType) => {
     if (value === 'online') return <VideoCameraOutlined />
@@ -43,31 +44,33 @@ type AppointmentDetailModalProps<T extends CalendarAppointment> = {
  * enough for one job, and reading a meeting's details is a deliberate act, not ambient context.
  */
 export function AppointmentDetailModal<T extends CalendarAppointment>({ open, appointment, onClose, onComplete, onReschedule, onReviewIntervention }: AppointmentDetailModalProps<T>) {
+    const { t } = useLanguage()
     const start = appointment ? toDayjs(appointment.startTime) : null
     const canComplete = appointment ? ['accepted', 'pending'].includes(appointment.status) : false
     const rescheduleAsk = openRescheduleRequestSummary(appointment?.rescheduleRequest)
     const dropRequested = isInterventionDropRequest(appointment)
     const canReschedule = Boolean(appointment && onReschedule && !dropRequested && (appointment.status === 'declined' || (rescheduleAsk && ['pending', 'accepted'].includes(appointment.status))))
 
+    const actionButtons = [
+        dropRequested && appointment && onReviewIntervention
+            ? <Button key="review" type="primary" danger icon={<ExportOutlined />} onClick={() => onReviewIntervention(appointment)}>{t('Review intervention')}</Button>
+            : null,
+        canReschedule && appointment && onReschedule
+            ? <Button key="reschedule" type="primary" icon={<RedoOutlined />} onClick={() => onReschedule(appointment)}>{t('Reschedule')}</Button>
+            : null,
+        canComplete && appointment
+            ? <Button key="complete" type="primary" icon={<CheckCircleOutlined />} onClick={() => onComplete(appointment)}>{t('Complete intervention')}</Button>
+            : null,
+    ].filter(Boolean)
+
     return (
         <Modal
             open={open && Boolean(appointment)}
             onCancel={onClose}
             width={560}
-            title="Appointment details"
+            title={t('Appointment details')}
             destroyOnHidden
-            footer={[
-                <Button key="close" onClick={onClose}>Close</Button>,
-                dropRequested && appointment && onReviewIntervention
-                    ? <Button key="review" type="primary" danger icon={<ExportOutlined />} onClick={() => onReviewIntervention(appointment)}>Review intervention</Button>
-                    : null,
-                canReschedule && appointment && onReschedule
-                    ? <Button key="reschedule" type="primary" icon={<RedoOutlined />} onClick={() => onReschedule(appointment)}>Reschedule</Button>
-                    : null,
-                canComplete && appointment
-                    ? <Button key="complete" type="primary" icon={<CheckCircleOutlined />} onClick={() => onComplete(appointment)}>Complete intervention</Button>
-                    : null,
-            ]}
+            footer={actionButtons.length ? actionButtons : null}
         >
             {appointment && (
                 <div className={`apt-detail is-${appointment.status}`}>
@@ -78,15 +81,15 @@ export function AppointmentDetailModal<T extends CalendarAppointment>({ open, ap
                     </div>
 
                     <dl className="apt-detail-meta">
-                        <div><dt><CalendarOutlined />Date</dt><dd>{start ? start.format('dddd, DD MMMM YYYY') : 'To be confirmed'}</dd></div>
-                        <div><dt><ClockCircleOutlined />Time</dt><dd>{formatSpan(appointment)}</dd></div>
-                        <div><dt>{meetingTypeIcon(appointment.meetingType)}Format</dt><dd>{meetingTypeLabel(appointment.meetingType)}</dd></div>
-                        <div><dt><TeamOutlined />Client</dt><dd>{appointment.participantName || appointment.participantEmail || 'SME'}</dd></div>
+                        <div><dt><CalendarOutlined />{t('Date')}</dt><dd>{start ? start.format('dddd, DD MMMM YYYY') : t('To be confirmed')}</dd></div>
+                        <div><dt><ClockCircleOutlined />{t('Time')}</dt><dd>{formatSpan(appointment)}</dd></div>
+                        <div><dt>{meetingTypeIcon(appointment.meetingType)}{t('Format')}</dt><dd>{meetingTypeLabel(appointment.meetingType)}</dd></div>
+                        <div><dt><TeamOutlined />{t('Client')}</dt><dd>{appointment.participantName || appointment.participantEmail || t('SME')}</dd></div>
                     </dl>
 
                     {appointment.meetingLink && (
                         <a className="apt-detail-link" href={appointment.meetingLink} target="_blank" rel="noreferrer">
-                            <LinkOutlined />Join meeting
+                            <LinkOutlined />{t('Join meeting')}
                         </a>
                     )}
                     {appointment.location && (
@@ -98,17 +101,17 @@ export function AppointmentDetailModal<T extends CalendarAppointment>({ open, ap
                             type="error"
                             showIcon
                             style={{ marginBottom: 12 }}
-                            message="The SME no longer needs this intervention"
+                            message={t('The SME no longer needs this intervention')}
                             description={onReviewIntervention
-                                ? 'Review it on the interventions page and confirm the decline to close it. Any work already recorded is kept.'
-                                : 'Operations will review this and confirm the decline.'}
+                                ? t('Review it on the interventions page and confirm the decline to close it. Any work already recorded is kept.')
+                                : t('Operations will review this and confirm the decline.')}
                         />
                     )}
                     {appointment.status === 'declined' && !dropRequested && appointment.declineReason && (
-                        <Alert type="error" showIcon style={{ marginBottom: 12 }} message="Declined by the SME" description={appointment.declineReason} />
+                        <Alert type="error" showIcon style={{ marginBottom: 12 }} message={t('Declined by the SME')} description={appointment.declineReason} />
                     )}
                     {rescheduleAsk && (
-                        <Alert type="warning" showIcon style={{ marginBottom: 12 }} message="The SME asked to reschedule" description={rescheduleAsk} />
+                        <Alert type="warning" showIcon style={{ marginBottom: 12 }} message={t('The SME asked to reschedule')} description={rescheduleAsk} />
                     )}
 
                     <p className="apt-detail-note"><InfoCircleOutlined />{statusCopy(appointment.status)}</p>

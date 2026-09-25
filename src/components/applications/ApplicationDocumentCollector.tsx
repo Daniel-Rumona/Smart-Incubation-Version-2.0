@@ -2,6 +2,7 @@ import { Button, Card, Col, DatePicker, Empty, Row, Space, Tag, Typography, Uplo
 import { CalendarOutlined, FileDoneOutlined, UploadOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import type { ProgramDocumentRequirement } from '@/types/application'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 const { Text, Paragraph } = Typography
 
@@ -12,6 +13,7 @@ type Props = {
 }
 
 export default function ApplicationDocumentCollector({ documents, onChange, activeRequirementId }: Props) {
+  const { t } = useLanguage()
   const updateDocument = (requirementId: string, patch: Partial<ProgramDocumentRequirement>) => {
     onChange(documents.map((item) => (item.requirementId === requirementId ? { ...item, ...patch } : item)))
   }
@@ -19,7 +21,7 @@ export default function ApplicationDocumentCollector({ documents, onChange, acti
   if (!documents.length) {
     return (
       <Card className="program-application-soft-card">
-        <Empty description="No document requirements have been configured for this programme." />
+        <Empty description={t('No document requirements have been configured for this programme.')} />
       </Card>
     )
   }
@@ -39,9 +41,9 @@ export default function ApplicationDocumentCollector({ documents, onChange, acti
                   <Space wrap size={6}>
                     <FileDoneOutlined />
                     <Text strong>{item.type}</Text>
-                    {item.isRequired !== false ? <Tag color="red">Required</Tag> : <Tag color="blue">Optional</Tag>}
-                    {item.requiresExpiry ? <Tag icon={<CalendarOutlined />} color="orange">Expiry date needed</Tag> : null}
-                    {hasFile ? <Tag color="green">Added</Tag> : <Tag>Missing</Tag>}
+                    {item.isRequired !== false ? <Tag color="red">{t('Required')}</Tag> : <Tag color="blue">{t('Optional')}</Tag>}
+                    {item.requiresExpiry ? <Tag icon={<CalendarOutlined />} color="orange">{t('Expiry date needed')}</Tag> : null}
+                    {hasFile ? <Tag color="green">{t('Added')}</Tag> : <Tag>{t('Missing')}</Tag>}
                   </Space>
 
                   {item.description ? (
@@ -51,7 +53,7 @@ export default function ApplicationDocumentCollector({ documents, onChange, acti
                   ) : null}
 
                   <Text type="secondary" className="program-application-help-text">
-                    {allowedFormats.join(', ').toUpperCase()} · Max {item.maxSizeMB || 10} MB
+                    {allowedFormats.join(', ').toUpperCase()} {t('· Max')} {item.maxSizeMB || 10} {t('MB')}
                   </Text>
                 </div>
 
@@ -72,7 +74,7 @@ export default function ApplicationDocumentCollector({ documents, onChange, acti
                     maxCount={1}
                   >
                     <Button block icon={<UploadOutlined />}>
-                      {hasFile ? 'Replace document' : 'Upload document'}
+                      {hasFile ? t('Replace document') : t('Upload document')}
                     </Button>
                   </Upload>
 
@@ -81,7 +83,7 @@ export default function ApplicationDocumentCollector({ documents, onChange, acti
                       style={{ width: '100%' }}
                       value={item.expiryDate ? dayjs(item.expiryDate) : null}
                       onChange={(date) => updateDocument(item.requirementId, { expiryDate: date ? date.format('YYYY-MM-DD') : null })}
-                      placeholder="Expiry date"
+                      placeholder={t('Expiry date')}
                     />
                   ) : null}
                 </div>

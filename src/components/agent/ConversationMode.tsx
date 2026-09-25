@@ -7,6 +7,7 @@ import { AgentRichText, type RichTextItemAction } from '@/components/agent/Agent
 import { VoiceOrb, type VoiceOrbMode } from '@/components/agent/VoiceOrb'
 import type { AgentChatMessage } from '@/types/agent'
 import '@/styles/conversation-mode.css'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 // The placeholder content queueTask() writes while a reply is still in
 // flight — see BackgroundTasksProvider.tsx / AgenticHomePage.tsx.
@@ -106,6 +107,7 @@ interface ConversationModeProps {
 type ConversationPhase = Exclude<VoiceOrbMode, 'thinking'>
 
 export const ConversationMode = ({ messages, isTyping, onSend, onClose, suggestions, intro, startMuted = false, startInVoice = true, followUps, itemActions, renderAgentMessage, toSpeech }: ConversationModeProps) => {
+    const { t } = useLanguage()
     const [phase, setPhase] = useState<ConversationPhase>('idle')
     const [muted, setMuted] = useState(startMuted)
     const [voiceMode, setVoiceMode] = useState(startInVoice)
@@ -502,8 +504,8 @@ export const ConversationMode = ({ messages, isTyping, onSend, onClose, suggesti
     )
 
     return (
-        <div className="conversation-mode" role="dialog" aria-modal="true" aria-label="Conversation mode">
-            <button type="button" className="conversation-mode-exit-button" aria-label="Exit conversation mode" onClick={onClose}>
+        <div className="conversation-mode" role="dialog" aria-modal="true" aria-label={t('Conversation mode')}>
+            <button type="button" className="conversation-mode-exit-button" aria-label={t('Exit conversation mode')} onClick={onClose}>
                 <CloseOutlined />
             </button>
 
@@ -515,7 +517,7 @@ export const ConversationMode = ({ messages, isTyping, onSend, onClose, suggesti
                         {item.role === 'agent'
                             ? <div className="agentic-message-content">
                                 {item.content === PENDING_AGENT_CONTENT
-                                    ? <span className="conversation-typing" role="status" aria-label="Thinking"><i /><i /><i /></span>
+                                    ? <span className="conversation-typing" role="status" aria-label={t('Thinking')}><i /><i /><i /></span>
                                     : renderAgentMessage?.(item) ?? <AgentRichText content={item.content} itemActions={itemActions} onItemAction={itemActions ? sendTypedMessage : undefined} />}
                             </div>
                             : <p>{item.content}</p>}
@@ -554,8 +556,8 @@ export const ConversationMode = ({ messages, isTyping, onSend, onClose, suggesti
                         onClick={voiceMode ? toggleMuted : dictating ? stopDictation : startDictation}
                         disabled={!voiceSupported}
                         aria-pressed={voiceMode ? !muted : dictating}
-                        aria-label={voiceMode ? (muted ? 'Resume listening' : 'Mute microphone') : dictating ? 'Stop dictating' : 'Dictate your message'}
-                        title={voiceSupported ? (voiceMode ? undefined : 'Dictate — speech is typed into the box') : 'Voice input is not supported in this browser'}
+                        aria-label={voiceMode ? (muted ? t('Resume listening') : t('Mute microphone')) : dictating ? t('Stop dictating') : t('Dictate your message')}
+                        title={voiceSupported ? (voiceMode ? undefined : t('Dictate — speech is typed into the box')) : t('Voice input is not supported in this browser')}
                     >
                         {voiceMode ? (muted || phase !== 'listening' ? <AudioMutedOutlined /> : <AudioOutlined />) : <AudioOutlined />}
                     </button>
@@ -565,9 +567,9 @@ export const ConversationMode = ({ messages, isTyping, onSend, onClose, suggesti
                         onKeyDown={voiceMode ? handleManualTyping : undefined}
                         onFocus={voiceMode ? handleManualTyping : undefined}
                         onPressEnter={() => sendTypedMessage(draft)}
-                        placeholder={(voiceMode ? phase === 'listening' : dictating) ? 'Listening…' : 'Type your message…'}
+                        placeholder={(voiceMode ? phase === 'listening' : dictating) ? t('Listening…') : t('Type your message…')}
                         disabled={isBusy}
-                        aria-label="Message"
+                        aria-label={t('Message')}
                     />
                     <Button
                         shape="circle"
@@ -575,8 +577,8 @@ export const ConversationMode = ({ messages, isTyping, onSend, onClose, suggesti
                         icon={<SoundOutlined />}
                         onClick={toggleVoiceMode}
                         aria-pressed={voiceMode}
-                        aria-label={voiceMode ? 'Turn off voice conversation' : 'Start voice conversation'}
-                        title={voiceMode ? 'Voice conversation on — click to turn off' : 'Voice conversation: hear replies and talk hands-free'}
+                        aria-label={voiceMode ? t('Turn off voice conversation') : t('Start voice conversation')}
+                        title={voiceMode ? t('Voice conversation on — click to turn off') : t('Voice conversation: hear replies and talk hands-free')}
                     />
                     <Button
                         type="primary"
@@ -584,7 +586,7 @@ export const ConversationMode = ({ messages, isTyping, onSend, onClose, suggesti
                         icon={<SendOutlined />}
                         onClick={() => sendTypedMessage(draft)}
                         disabled={!draft.trim() || isBusy}
-                        aria-label="Send message"
+                        aria-label={t('Send message')}
                     />
                 </div>
             </div>

@@ -9,6 +9,7 @@ import { NEXT_QUIZ_LABEL, QUIZ_LABEL, QUIZ_PROMPT, matchQuizAnswer, optionLetter
 import { isAgentApiConfigured } from '@/config/agent'
 import type { CourseLesson, CourseTemplate } from '@/services/courseTemplatesService'
 import type { SmeBusiness } from '@/services/courseProgressService'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 type LessonHelpChatProps = {
     course: CourseTemplate
@@ -31,9 +32,9 @@ const YOUR_BUSINESS_SUGGESTION = 'How does this apply to my business?'
 const FOLLOW_UPS = ['Elaborate on that', 'Simplify that', 'Give me an example from my business', 'Summarise it in one sentence']
 
 const ITEM_ACTIONS: RichTextItemAction[] = [
-    { label: 'Elaborate', prompt: (item) => `Elaborate on this point: ${item}` },
-    { label: 'Simplify', prompt: (item) => `Simplify this point: ${item}` },
-    { label: 'Example', prompt: (item) => `Give me an example of this point from my own business: ${item}` },
+    { get label() { return tr('Elaborate') }, prompt: (item) => `Elaborate on this point: ${item}` },
+    { get label() { return tr('Simplify') }, prompt: (item) => `Simplify this point: ${item}` },
+    { get label() { return tr('Example') }, prompt: (item) => `Give me an example of this point from my own business: ${item}` },
 ]
 
 /**
@@ -43,6 +44,7 @@ const ITEM_ACTIONS: RichTextItemAction[] = [
  * turns the assistant's questions into tappable multiple-choice cards.
  */
 export const LessonHelpChat = ({ course, lesson, business, onInteract }: LessonHelpChatProps) => {
+    const { t } = useLanguage()
     const [open, setOpen] = useState(false)
     // Which option was picked for each quiz message, by message id.
     const [picked, setPicked] = useState<Record<string, number>>({})
@@ -98,7 +100,7 @@ export const LessonHelpChat = ({ course, lesson, business, onInteract }: LessonH
     return (
         <>
             <button type="button" className="lesson-help-trigger" onClick={() => setOpen(true)}>
-                <BulbOutlined /> Don't understand? Ask AI
+                <BulbOutlined /> {t('Don\'t understand? Ask AI')}
             </button>
 
             {open && (
@@ -114,8 +116,8 @@ export const LessonHelpChat = ({ course, lesson, business, onInteract }: LessonH
                     intro={(
                         <div className="conversation-intro-card">
                             <span className="conversation-intro-icon"><BulbOutlined /></span>
-                            <strong>Ask about "{lesson.title || 'this lesson'}"</strong>
-                            <p>Stuck on something? I can explain it another way, give an example or quiz you. Pick a suggestion below or type your own question.</p>
+                            <strong>{t('Ask about "')}{lesson.title || t('this lesson')}"</strong>
+                            <p>{t('Stuck on something? I can explain it another way, give an example or quiz you. Pick a suggestion below or type your own question.')}</p>
                         </div>
                     )}
                     renderAgentMessage={(message) => {

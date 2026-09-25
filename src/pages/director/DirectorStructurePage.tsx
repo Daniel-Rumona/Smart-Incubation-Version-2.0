@@ -8,7 +8,7 @@ import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
 import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
-import { useLanguage } from '@/providers/LanguageProvider'
+import { useLanguage, tEnglish } from '@/providers/LanguageProvider'
 import { getSystemSettings } from '@/services/companySettingsService'
 import { listDirectorOrgUnits, saveDirectorOrgUnit } from '@/services/directorStructureService'
 import { useRegisterAgentPageContext } from '@/shared/hooks/useRegisterAgentPageContext'
@@ -102,7 +102,7 @@ export const DirectorStructurePage = () => {
 
   useRegisterAgentPageContext({
     pageKey: 'director-structure',
-    pageName: t('director.structure.title', 'Departments and Offices'),
+    pageName: tEnglish('director.structure.title', 'Departments and Offices'),
     purpose: 'Allows directors to set up departments and offices when enabled in company setup.',
     currentFilters: { active, search, status },
     metrics,

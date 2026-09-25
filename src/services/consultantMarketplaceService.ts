@@ -216,6 +216,15 @@ export const saveConsultantProfile = async (profile: ConsultantMarketplaceProfil
     updatedAt: serverTimestamp(),
     createdAt: profile.createdAt || serverTimestamp(),
   }, { merge: true })
+
+  // The admin user directory reads the photo from users/{uid}, so mirror it there.
+  if (profile.profileImageUrl.trim()) {
+    try {
+      await updateDoc(doc(getFirebaseDb(), 'users', profile.uid), { profileImageUrl: profile.profileImageUrl.trim() })
+    } catch (error) {
+      console.warn('[consultant profile] could not mirror photo to users record', error)
+    }
+  }
 }
 
 export const uploadConsultantProfileImage = async (uid: string, file: File) => {

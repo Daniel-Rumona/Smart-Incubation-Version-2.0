@@ -37,6 +37,7 @@ import PreviewSurveyModal from './PreviewSurveyModal'
 import SurveyFieldPreview from './SurveyFieldPreview'
 import SurveyOutline from './SurveyOutline'
 import '@/styles/survey-builder.css'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 const SURVEYS_PATH = '/operations/surveys'
 
@@ -66,6 +67,7 @@ const fingerprint = (template: SurveyTemplate | null) => template
     : null
 
 export default function SurveyBuilderPage() {
+    const { t } = useLanguage()
     const { message } = App.useApp()
     const { user } = useFullIdentity()
     const navigate = useNavigate()
@@ -100,7 +102,7 @@ export default function SurveyBuilderPage() {
         void loadSurveyTemplate(params.id)
             .then((template) => {
                 if (!template) {
-                    message.error('That survey template could not be found.')
+                    message.error(t('That survey template could not be found.'))
                     navigate(SURVEYS_PATH)
                     return
                 }
@@ -108,7 +110,7 @@ export default function SurveyBuilderPage() {
                 setBaseline(fingerprint(template))
                 setSelectedId(template.fields[0]?.id ?? null)
             })
-            .catch(() => message.error('The survey template could not be loaded.'))
+            .catch(() => message.error(t('The survey template could not be loaded.')))
             .finally(() => setLoading(false))
     }, [params.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -224,16 +226,16 @@ export default function SurveyBuilderPage() {
     const save = async (status: 'draft' | 'published') => {
         if (!survey.title.trim()) {
             setSettingsOpen(true)
-            message.error('Give the survey a title first.')
+            message.error(t('Give the survey a title first.'))
             return
         }
         if (!survey.fields.length) {
-            message.error('Add at least one question.')
+            message.error(t('Add at least one question.'))
             return
         }
         if (!survey.programId) {
             setSettingsOpen(true)
-            message.error('Choose the programme this survey belongs to.')
+            message.error(t('Choose the programme this survey belongs to.'))
             return
         }
 
@@ -246,7 +248,7 @@ export default function SurveyBuilderPage() {
             setBaseline(fingerprint(saved))
 
             if (status !== 'published') {
-                message.success('Draft saved.')
+                message.success(t('Draft saved.'))
                 return
             }
 
@@ -254,9 +256,9 @@ export default function SurveyBuilderPage() {
             const assigned = await assignSurveyToProgramme(saved)
             message.success(assigned
                 ? `Survey published and sent to ${assigned} SME${assigned === 1 ? '' : 's'}.`
-                : 'Survey published. Everyone on this programme already has it.')
+                : t('Survey published. Everyone on this programme already has it.'))
         } catch {
-            message.error('The survey could not be saved.')
+            message.error(t('The survey could not be saved.'))
         } finally {
             setSaving(false)
         }
@@ -268,10 +270,10 @@ export default function SurveyBuilderPage() {
             return
         }
         Modal.confirm({
-            title: 'Save as draft before leaving?',
-            content: 'This survey has unsaved changes.',
-            okText: 'Save draft',
-            cancelText: 'Discard',
+            title: t('Save as draft before leaving?'),
+            content: t('This survey has unsaved changes.'),
+            okText: t('Save draft'),
+            cancelText: t('Discard'),
             onOk: async () => { await save('draft'); navigate(SURVEYS_PATH) },
             onCancel: () => navigate(SURVEYS_PATH),
         })
@@ -288,11 +290,11 @@ export default function SurveyBuilderPage() {
 
     const settingsForm = (
         <Form layout="vertical">
-            <Form.Item label="Programme" required tooltip="Only this programme's participants receive the survey.">
+            <Form.Item label={t('Programme')} required tooltip={t('Only this programme\'s participants receive the survey.')}>
                 <Select
                     value={survey.programId}
                     onChange={(value) => patchSurvey({ programId: value })}
-                    placeholder="Select a programme"
+                    placeholder={t('Select a programme')}
                     showSearch
                     optionFilterProp="label"
                     allowClear
@@ -300,15 +302,15 @@ export default function SurveyBuilderPage() {
                 />
             </Form.Item>
 
-            <Form.Item label="Title" required>
-                <Input value={survey.title} onChange={(event) => patchSurvey({ title: event.target.value })} placeholder="Survey title" />
+            <Form.Item label={t('Title')} required>
+                <Input value={survey.title} onChange={(event) => patchSurvey({ title: event.target.value })} placeholder={t('Survey title')} />
             </Form.Item>
 
-            <Form.Item label="Description">
-                <Input.TextArea rows={3} value={survey.description} onChange={(event) => patchSurvey({ description: event.target.value })} placeholder="What is this survey for?" />
+            <Form.Item label={t('Description')}>
+                <Input.TextArea rows={3} value={survey.description} onChange={(event) => patchSurvey({ description: event.target.value })} placeholder={t('What is this survey for?')} />
             </Form.Item>
 
-            <Form.Item label="Category">
+            <Form.Item label={t('Category')}>
                 <Select
                     value={survey.category}
                     onChange={(value) => patchSurvey({ category: value })}
@@ -316,8 +318,8 @@ export default function SurveyBuilderPage() {
                 />
             </Form.Item>
 
-            <Form.Item label="Department" tooltip="Taken from your own workspace scope.">
-                <Tag color="purple">{survey.department || user?.departmentId || 'Not set'}</Tag>
+            <Form.Item label={t('Department')} tooltip={t('Taken from your own workspace scope.')}>
+                <Tag color="purple">{survey.department || user?.departmentId || t('Not set')}</Tag>
             </Form.Item>
         </Form>
     )
@@ -327,21 +329,21 @@ export default function SurveyBuilderPage() {
             <MotionCard className="survey-builder-bar">
                 <div className="survey-builder-bar-inner">
                     <Space size={8} className="survey-builder-bar-side">
-                        <Button icon={<ArrowLeftOutlined />} onClick={goBack}>Back</Button>
-                        {isCompact && <Button icon={<UnorderedListOutlined />} onClick={() => setOutlineOpen(true)}>Outline</Button>}
-                        <Button icon={<FileSearchOutlined />} onClick={() => setImportOpen(true)}>Import</Button>
-                        <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>Add question</Button>
+                        <Button icon={<ArrowLeftOutlined />} onClick={goBack}>{t('Back')}</Button>
+                        {isCompact && <Button icon={<UnorderedListOutlined />} onClick={() => setOutlineOpen(true)}>{t('Outline')}</Button>}
+                        <Button icon={<FileSearchOutlined />} onClick={() => setImportOpen(true)}>{t('Import')}</Button>
+                        <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>{t('Add question')}</Button>
                     </Space>
 
                     <button type="button" className="survey-builder-identity" onClick={() => setSettingsOpen(true)}>
-                        <strong>{survey.title.trim() || 'Untitled survey'}</strong>
-                        <span>{survey.description.trim() || 'Add a description'}</span>
+                        <strong>{survey.title.trim() || t('Untitled survey')}</strong>
+                        <span>{survey.description.trim() || t('Add a description')}</span>
                     </button>
 
                     <Space size={8} className="survey-builder-bar-side is-end">
-                        <Button icon={<EyeOutlined />} disabled={!survey.fields.length} onClick={() => setPreviewOpen(true)}>Preview</Button>
-                        <Button icon={<SaveOutlined />} loading={saving} onClick={() => void save('draft')}>Save draft</Button>
-                        <Button type="primary" icon={<SendOutlined />} loading={saving} onClick={() => void save('published')}>Publish</Button>
+                        <Button icon={<EyeOutlined />} disabled={!survey.fields.length} onClick={() => setPreviewOpen(true)}>{t('Preview')}</Button>
+                        <Button icon={<SaveOutlined />} loading={saving} onClick={() => void save('draft')}>{t('Save draft')}</Button>
+                        <Button type="primary" icon={<SendOutlined />} loading={saving} onClick={() => void save('published')}>{t('Publish')}</Button>
                     </Space>
                 </div>
             </MotionCard>
@@ -351,7 +353,7 @@ export default function SurveyBuilderPage() {
                     <MotionCard
                         loading={loading}
                         className="survey-builder-panel survey-builder-outline"
-                        title="Outline"
+                        title={t('Outline')}
                         extra={<Button type="text" size="small" icon={<PlusOutlined />} onClick={() => setAddOpen(true)} />}
                     >
                         {outlinePanel}
@@ -365,10 +367,10 @@ export default function SurveyBuilderPage() {
                                 <span className="survey-question-number">{String(selectedIndex + 1).padStart(2, '0')}</span>
 
                                 <Space size={8}>
-                                    <Tooltip title="Duplicate question">
+                                    <Tooltip title={t('Duplicate question')}>
                                         <Button shape="circle" icon={<CopyOutlined />} onClick={() => duplicateField(selectedField.id)} />
                                     </Tooltip>
-                                    <Tooltip title="Delete question">
+                                    <Tooltip title={t('Delete question')}>
                                         <Button shape="circle" danger icon={<DeleteOutlined />} onClick={() => removeField(selectedField.id)} />
                                     </Tooltip>
                                 </Space>
@@ -382,7 +384,7 @@ export default function SurveyBuilderPage() {
                                     // The label is what pairs a prefilled question with the stored value.
                                     readOnly={Boolean(selectedField.prefill)}
                                     onChange={(event) => patchField(selectedField.id, { label: event.target.value })}
-                                    placeholder={selectedField.type === 'heading' ? 'Section title' : 'Ask a question'}
+                                    placeholder={selectedField.type === 'heading' ? t('Section title') : t('Ask a question')}
                                 />
                                 {selectedField.type !== 'heading' && selectedField.required && <span className="survey-question-required">*</span>}
                             </div>
@@ -393,8 +395,8 @@ export default function SurveyBuilderPage() {
                                 <>
                                     <Input disabled placeholder={`${PREFILL_LABELS[selectedField.prefill]} from the SME's record`} />
                                     <p className="survey-question-prefill">
-                                        <Tag icon={<LockOutlined />} color="blue">Prefilled · {PREFILL_LABELS[selectedField.prefill]}</Tag>
-                                        Filled in when the SME opens the survey. They can correct it for this response; their record is unchanged.
+                                        <Tag icon={<LockOutlined />} color="blue">{t('Prefilled ·')} {PREFILL_LABELS[selectedField.prefill]}</Tag>
+                                        {t('Filled in when the SME opens the survey. They can correct it for this response; their record is unchanged.')}
                                     </p>
                                 </>
                             ) : selectedField.type !== 'heading' ? <SurveyFieldPreview field={selectedField} /> : null}
@@ -402,12 +404,12 @@ export default function SurveyBuilderPage() {
                     ) : (
                         <MotionCard className="survey-builder-panel survey-builder-empty">
                             {survey.fields.length ? (
-                                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Select a question from the outline" />
+                                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('Select a question from the outline')} />
                             ) : (
                                 <>
-                                    <Typography.Title level={4}>Start building your survey</Typography.Title>
-                                    <Typography.Paragraph type="secondary">Add your first question, then arrange them in the outline.</Typography.Paragraph>
-                                    <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>Add question</Button>
+                                    <Typography.Title level={4}>{t('Start building your survey')}</Typography.Title>
+                                    <Typography.Paragraph type="secondary">{t('Add your first question, then arrange them in the outline.')}</Typography.Paragraph>
+                                    <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>{t('Add question')}</Button>
                                 </>
                             )}
                         </MotionCard>
@@ -416,22 +418,22 @@ export default function SurveyBuilderPage() {
 
                 {!isCompact && (
                     <div className="survey-builder-side">
-                        <MotionCard loading={loading} className="survey-builder-panel" title="Question settings">
+                        <MotionCard loading={loading} className="survey-builder-panel" title={t('Question settings')}>
                             {selectedField?.prefill ? (
                                 <Space direction="vertical" size={10} className="survey-settings-stack">
-                                    <Tag icon={<LockOutlined />} color="blue">Prefilled question</Tag>
+                                    <Tag icon={<LockOutlined />} color="blue">{t('Prefilled question')}</Tag>
                                     <div className="survey-setting">
-                                        <span>Answer comes from</span>
+                                        <span>{t('Answer comes from')}</span>
                                         <Typography.Text>{PREFILL_LABELS[selectedField.prefill]}</Typography.Text>
                                     </div>
                                     <Typography.Text type="secondary" className="survey-setting-note">
-                                        There is nothing to configure here. Delete the question to remove it from the survey.
+                                        {t('There is nothing to configure here. Delete the question to remove it from the survey.')}
                                     </Typography.Text>
                                 </Space>
                             ) : selectedField ? (
                                 <Space direction="vertical" size={10} className="survey-settings-stack">
                                     <label className="survey-setting">
-                                        <span>Question type</span>
+                                        <span>{t('Question type')}</span>
                                         <Select
                                             value={selectedField.type}
                                             onChange={(type) => changeFieldType(selectedField.id, type)}
@@ -441,26 +443,26 @@ export default function SurveyBuilderPage() {
 
                                     {selectedField.type !== 'heading' && (
                                         <div className="survey-setting is-row">
-                                            <span>Required</span>
+                                            <span>{t('Required')}</span>
                                             <Switch size="small" checked={selectedField.required} onChange={(required) => patchField(selectedField.id, { required })} />
                                         </div>
                                     )}
 
                                     {PLACEHOLDER_TYPES.includes(selectedField.type) && (
                                         <label className="survey-setting">
-                                            <span>Placeholder</span>
-                                            <Input size="small" value={selectedField.placeholder} onChange={(event) => patchField(selectedField.id, { placeholder: event.target.value })} placeholder="Hint inside the empty box" />
+                                            <span>{t('Placeholder')}</span>
+                                            <Input size="small" value={selectedField.placeholder} onChange={(event) => patchField(selectedField.id, { placeholder: event.target.value })} placeholder={t('Hint inside the empty box')} />
                                         </label>
                                     )}
 
                                     <label className="survey-setting">
-                                        <span>Helper text</span>
-                                        <Input.TextArea size="small" autoSize={{ minRows: 1, maxRows: 3 }} value={selectedField.description} onChange={(event) => patchField(selectedField.id, { description: event.target.value })} placeholder="Guidance shown under the question" />
+                                        <span>{t('Helper text')}</span>
+                                        <Input.TextArea size="small" autoSize={{ minRows: 1, maxRows: 3 }} value={selectedField.description} onChange={(event) => patchField(selectedField.id, { description: event.target.value })} placeholder={t('Guidance shown under the question')} />
                                     </label>
 
                                     {OPTION_TYPES.includes(selectedField.type) && (
                                         <div className="survey-setting">
-                                            <span>Options</span>
+                                            <span>{t('Options')}</span>
                                             <Space direction="vertical" size={6} className="survey-options">
                                                 {(selectedField.options || []).map((option, index) => (
                                                     <Space.Compact key={index} block>
@@ -493,20 +495,20 @@ export default function SurveyBuilderPage() {
                                                     icon={<PlusOutlined />}
                                                     onClick={() => patchField(selectedField.id, { options: [...(selectedField.options || []), `Option ${(selectedField.options?.length || 0) + 1}`] })}
                                                 >
-                                                    Add option
+                                                    {t('Add option')}
                                                 </Button>
                                             </Space>
                                         </div>
                                     )}
                                 </Space>
-                            ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No question selected" />}
+                            ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('No question selected')} />}
                         </MotionCard>
 
-                        <MotionCard loading={loading} className="survey-builder-panel" title="Survey at a glance">
-                            <div className="survey-snapshot-row"><span>Questions</span><strong>{survey.fields.length}</strong></div>
-                            <div className="survey-snapshot-row"><span>Required</span><strong>{requiredCount}</strong></div>
-                            <div className="survey-snapshot-row"><span>Status</span><Tag color={survey.status === 'published' ? 'green' : 'default'}>{survey.status === 'published' ? 'Published' : 'Draft'}</Tag></div>
-                            <div className="survey-snapshot-row"><span>Changes</span><Tag color={isDirty ? 'orange' : 'green'}>{isDirty ? 'Unsaved' : 'Saved'}</Tag></div>
+                        <MotionCard loading={loading} className="survey-builder-panel" title={t('Survey at a glance')}>
+                            <div className="survey-snapshot-row"><span>{t('Questions')}</span><strong>{survey.fields.length}</strong></div>
+                            <div className="survey-snapshot-row"><span>{t('Required')}</span><strong>{requiredCount}</strong></div>
+                            <div className="survey-snapshot-row"><span>{t('Status')}</span><Tag color={survey.status === 'published' ? 'green' : 'default'}>{survey.status === 'published' ? t('Published') : t('Draft')}</Tag></div>
+                            <div className="survey-snapshot-row"><span>{t('Changes')}</span><Tag color={isDirty ? 'orange' : 'green'}>{isDirty ? t('Unsaved') : t('Saved')}</Tag></div>
                         </MotionCard>
                     </div>
                 )}
@@ -529,10 +531,10 @@ export default function SurveyBuilderPage() {
 
             <Modal
                 open={settingsOpen}
-                title="Survey settings"
+                title={t('Survey settings')}
                 width={520}
                 onCancel={() => setSettingsOpen(false)}
-                footer={<Button type="primary" onClick={() => setSettingsOpen(false)}>Done</Button>}
+                footer={<Button type="primary" onClick={() => setSettingsOpen(false)}>{t('Done')}</Button>}
             >
                 {settingsForm}
             </Modal>
@@ -547,7 +549,7 @@ export default function SurveyBuilderPage() {
 
             <Modal
                 open={outlineOpen}
-                title="Outline"
+                title={t('Outline')}
                 footer={null}
                 onCancel={() => setOutlineOpen(false)}
                 className="survey-outline-modal"

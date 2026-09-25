@@ -22,6 +22,7 @@ import {
     type ProjectAdminWorkspaceData,
 } from '@/services/projectAdminWorkspaceService'
 import '@/styles/dashboard.css'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 const emptyWorkspace: ProjectAdminWorkspaceData = {
     applications: [],
@@ -86,6 +87,7 @@ const QuickProgressCard = ({ icon, iconClassName, label, value, total, loading, 
     loading?: boolean
     danger?: boolean
 }) => {
+    const { t } = useLanguage()
     const { token } = theme.useToken()
     return (
         <Card loading={loading} bordered className="dashboard-metric-card motion-card">
@@ -101,7 +103,7 @@ const QuickProgressCard = ({ icon, iconClassName, label, value, total, loading, 
                         strokeColor={danger ? token.colorError : token.colorPrimary}
                         style={{ marginTop: 6 }}
                     />
-                    <Typography.Text type="secondary" style={{ fontSize: 11 }}>{value} of {total}</Typography.Text>
+                    <Typography.Text type="secondary" style={{ fontSize: 11 }}>{value} {t('of')} {total}</Typography.Text>
                 </div>
             </div>
         </Card>
@@ -120,6 +122,7 @@ const HorizontalRateBar = ({ label, value, caption, color }: { label: string, va
 )
 
 export default function ProjectAdminDashboardPage() {
+    const { t } = useLanguage()
     const { message } = App.useApp()
     const { user, loading: identityLoading } = useFullIdentity()
     const { activeProgramId } = useActiveProgramId()
@@ -140,7 +143,7 @@ export default function ProjectAdminDashboardPage() {
                 console.error('[PROJECT ADMIN DASHBOARD] Failed loading workspace:', error)
                 if (!cancelled) {
                     setData(emptyWorkspace)
-                    message.error('Failed to load project admin dashboard data.')
+                    message.error(t('Failed to load project admin dashboard data.'))
                 }
             } finally {
                 if (!cancelled) setLoading(false)
@@ -152,7 +155,7 @@ export default function ProjectAdminDashboardPage() {
         return () => {
             cancelled = true
         }
-    }, [activeProgramId, identityLoading, message, user])
+    }, [activeProgramId, identityLoading, message, user, t])
 
     const metrics = useMemo(() => {
         const totalParticipants = data.participants.length
@@ -206,7 +209,7 @@ export default function ProjectAdminDashboardPage() {
         plotOptions: { pie: { innerSize: '55%', dataLabels: { enabled: true, style: { fontSize: '11px', textOutline: 'none' } } } },
         series: [{
             type: 'pie',
-            name: 'Interventions',
+            name: tr('Interventions'),
             data: mapCountSeries(countBy(data.interventions, (intervention) => intervention.status), statusColor),
         }],
     }), [data.interventions])
@@ -229,42 +232,42 @@ export default function ProjectAdminDashboardPage() {
         <DashboardPage className="dashboard-home-page project-admin-dashboard-page project-admin-dashboard-compact">
             <Row gutter={[16, 16]} className="dashboard-metrics-row">
                 <Col xs={12} lg={6}>
-                    <QuickProgressCard loading={cardsLoading} icon={<TeamOutlined />} iconClassName="dashboard-icon-green" label="Active SMEs" value={metrics.activeParticipants} total={metrics.totalParticipants} />
+                    <QuickProgressCard loading={cardsLoading} icon={<TeamOutlined />} iconClassName="dashboard-icon-green" label={t('Active SMEs')} value={metrics.activeParticipants} total={metrics.totalParticipants} />
                 </Col>
                 <Col xs={12} lg={6}>
-                    <QuickProgressCard loading={cardsLoading} icon={<CheckCircleOutlined />} iconClassName="dashboard-icon-blue" label="Interventions in progress" value={metrics.interventionsInProgress} total={metrics.totalInterventions} />
+                    <QuickProgressCard loading={cardsLoading} icon={<CheckCircleOutlined />} iconClassName="dashboard-icon-blue" label={t('Interventions in progress')} value={metrics.interventionsInProgress} total={metrics.totalInterventions} />
                 </Col>
                 <Col xs={12} lg={6}>
-                    <QuickProgressCard loading={cardsLoading} icon={<ExclamationCircleOutlined />} iconClassName="dashboard-icon-red" label="Overdue interventions" value={metrics.overdueInterventions} total={metrics.totalInterventions} danger />
+                    <QuickProgressCard loading={cardsLoading} icon={<ExclamationCircleOutlined />} iconClassName="dashboard-icon-red" label={t('Overdue interventions')} value={metrics.overdueInterventions} total={metrics.totalInterventions} danger />
                 </Col>
                 <Col xs={12} lg={6}>
-                    <QuickProgressCard loading={cardsLoading} icon={<CalendarOutlined />} iconClassName="dashboard-icon-green" label="Active staff" value={metrics.activeStaff} total={metrics.totalStaff} />
+                    <QuickProgressCard loading={cardsLoading} icon={<CalendarOutlined />} iconClassName="dashboard-icon-green" label={t('Active staff')} value={metrics.activeStaff} total={metrics.totalStaff} />
                 </Col>
             </Row>
 
             <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
                 <Col xs={24} lg={12}>
-                    <Card loading={cardsLoading} className="dashboard-section-card motion-card" title="Intervention Delivery">
-                        {data.interventions.length ? <ThemedHighcharts options={interventionChart} /> : <Empty description="No intervention data yet." />}
+                    <Card loading={cardsLoading} className="dashboard-section-card motion-card" title={t('Intervention Delivery')}>
+                        {data.interventions.length ? <ThemedHighcharts options={interventionChart} /> : <Empty description={t('No intervention data yet.')} />}
                     </Card>
                 </Col>
                 <Col xs={24} lg={12}>
-                    <Card loading={cardsLoading} className="dashboard-section-card motion-card" title="Rates">
+                    <Card loading={cardsLoading} className="dashboard-section-card motion-card" title={t('Rates')}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 18, padding: '4px 0' }}>
                             <HorizontalRateBar
-                                label="Acceptance"
+                                label={t('Acceptance')}
                                 value={metrics.acceptanceRate}
                                 color="#3B82F6"
                                 caption={`${metrics.openApplications} of ${metrics.totalApplications} still open`}
                             />
                             <HorizontalRateBar
-                                label="Delivery"
+                                label={t('Delivery')}
                                 value={metrics.deliveryRate}
                                 color="#22C55E"
                                 caption={`${metrics.completedInterventions} of ${metrics.totalInterventions} completed`}
                             />
                             <HorizontalRateBar
-                                label="Compliance"
+                                label={t('Compliance')}
                                 value={metrics.complianceRate}
                                 color="#F59E0B"
                                 caption={`${metrics.complianceAttention} of ${metrics.totalComplianceDocuments} need attention`}

@@ -9,6 +9,7 @@ import { getSystemSettings, listMySystemSettingsChangeRequests, submitSystemSett
 import { useRegisterAgentPageContext } from '@/shared/hooks/useRegisterAgentPageContext'
 import { DEFAULT_INTERVENTION_DELIVERY_ROLES, type InterventionDeliveryRole, type SystemSettingsChangeRequest, type SystemSettingsRecord } from '@/types/companySettings'
 import '@/styles/dashboard.css'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 const { Text } = Typography
 
@@ -37,6 +38,7 @@ const deliveryRoleLabels: Record<InterventionDeliveryRole, string> = {
 }
 
 export const CompanySettingsPage = () => {
+  const { t } = useLanguage()
   const { message } = App.useApp()
   const { user } = useFullIdentity()
   const [active, setActive] = useState<SectionKey>('account')
@@ -61,7 +63,7 @@ export const CompanySettingsPage = () => {
       setRequests(requestData)
     } catch (error) {
       console.error(error)
-      message.error('Settings could not be loaded.')
+      message.error(t('Settings could not be loaded.'))
     } finally {
       setLoading(false)
     }
@@ -90,28 +92,28 @@ export const CompanySettingsPage = () => {
     try {
       const values = await form.validateFields()
       await submitSystemSettingsChangeRequest(user, settings, values.reason, values.interventionDeliveryRoles)
-      message.success(settings ? 'Change request sent to the admin account.' : 'Setup addition request sent to the admin account.')
+      message.success(settings ? t('Change request sent to the admin account.') : t('Setup addition request sent to the admin account.'))
       setRequestOpen(false)
       form.resetFields()
       await load()
     } catch (error) {
       console.error(error)
-      message.error('The change request could not be submitted.')
+      message.error(t('The change request could not be submitted.'))
     } finally {
       setSubmitting(false)
     }
   }
 
   const requestColumns = [
-    { title: 'Requested', dataIndex: 'requestedAt', render: (value?: Date) => formatDate(value) },
-    { title: 'Status', dataIndex: 'status', render: (value: string) => <Tag color={statusColor(value)}>{value.toUpperCase()}</Tag> },
-    { title: 'Request', dataIndex: 'reason', render: (value: string) => <Text>{value}</Text> },
-    { title: 'Response', dataIndex: 'adminResponse', render: (value: string) => value || <Text type="secondary">Awaiting response</Text> },
+    { title: t('Requested'), dataIndex: 'requestedAt', render: (value?: Date) => formatDate(value) },
+    { title: t('Status'), dataIndex: 'status', render: (value: string) => <Tag color={statusColor(value)}>{value.toUpperCase()}</Tag> },
+    { title: t('Request'), dataIndex: 'reason', render: (value: string) => <Text>{value}</Text> },
+    { title: t('Response'), dataIndex: 'adminResponse', render: (value: string) => value || <Text type="secondary">{t('Awaiting response')}</Text> },
   ]
 
   return (
     <DashboardPage>
-      {loading && <LoadingOverlay tip="Loading settings" />}
+      {loading && <LoadingOverlay tip={t('Loading settings')} />}
 
       <Card className="dashboard-section-card motion-card" style={{ marginBottom: 16 }}>
         <Segmented<SectionKey>
@@ -119,20 +121,20 @@ export const CompanySettingsPage = () => {
           value={active}
           onChange={setActive}
           options={[
-            { label: 'Account', value: 'account', icon: <UserOutlined /> },
-            { label: 'Company Setup', value: 'company', icon: <SettingOutlined /> },
-            { label: 'Change Requests', value: 'requests', icon: <ExclamationCircleOutlined /> },
+            { label: t('Account'), value: 'account', icon: <UserOutlined /> },
+            { label: t('Company Setup'), value: 'company', icon: <SettingOutlined /> },
+            { label: t('Change Requests'), value: 'requests', icon: <ExclamationCircleOutlined /> },
           ]}
         />
       </Card>
 
       {active === 'account' && (
-        <Card className="dashboard-section-card motion-card" title={<Space><UserOutlined /> Account</Space>}>
+        <Card className="dashboard-section-card motion-card" title={<Space><UserOutlined /> {t('Account')}</Space>}>
           <Descriptions bordered column={{ xs: 1, md: 2 }}>
-            <Descriptions.Item label="Name">{user?.displayName || user?.name || 'Not recorded'}</Descriptions.Item>
-            <Descriptions.Item label="Email">{user?.email || 'Not recorded'}</Descriptions.Item>
-            <Descriptions.Item label="Role"><Tag>{String(user?.role || '').toUpperCase()}</Tag></Descriptions.Item>
-            <Descriptions.Item label="Company">{companyName}</Descriptions.Item>
+            <Descriptions.Item label={t('Name')}>{user?.displayName || user?.name || t('Not recorded')}</Descriptions.Item>
+            <Descriptions.Item label={t('Email')}>{user?.email || t('Not recorded')}</Descriptions.Item>
+            <Descriptions.Item label={t('Role')}><Tag>{String(user?.role || '').toUpperCase()}</Tag></Descriptions.Item>
+            <Descriptions.Item label={t('Company')}>{companyName}</Descriptions.Item>
           </Descriptions>
         </Card>
       )}
@@ -140,36 +142,36 @@ export const CompanySettingsPage = () => {
       {active === 'company' && (
         <Row gutter={[16, 16]}>
           <Col xs={24} xl={16}>
-            <Card className="dashboard-section-card motion-card" title={<Space><ApartmentOutlined /> Company Setup</Space>}>
+            <Card className="dashboard-section-card motion-card" title={<Space><ApartmentOutlined /> {t('Company Setup')}</Space>}>
               {!settings ? (
-                <Alert type="warning" showIcon message="No company setup record was found for this workspace." />
+                <Alert type="warning" showIcon message={t('No company setup record was found for this workspace.')} />
               ) : (
                 <Descriptions bordered column={1}>
-                  <Descriptions.Item label="Company Name">{settings.companyName || 'Not recorded'}</Descriptions.Item>
-                  <Descriptions.Item label="Company Code">{settings.companyCode || user?.companyCode || 'Not recorded'}</Descriptions.Item>
-                  <Descriptions.Item label="Consultant Label">{settings.consultantLabel || 'Consultants'}</Descriptions.Item>
-                  <Descriptions.Item label="Departments">{settings.hasDepartments ? 'Yes' : 'No'}</Descriptions.Item>
-                  <Descriptions.Item label="Branches / Offices">{settings.hasBranches ? 'Yes' : 'No'}</Descriptions.Item>
-                  <Descriptions.Item label="Branch-scoped Management">{settings.branchScopedManagement ? 'Yes' : 'No'}</Descriptions.Item>
-                  <Descriptions.Item label="Intervention Assignment">{prettyAssignment(settings.assignmentModel)}</Descriptions.Item>
-                  <Descriptions.Item label="Intervention Delivery Roles">
+                  <Descriptions.Item label={t('Company Name')}>{settings.companyName || t('Not recorded')}</Descriptions.Item>
+                  <Descriptions.Item label={t('Company Code')}>{settings.companyCode || user?.companyCode || t('Not recorded')}</Descriptions.Item>
+                  <Descriptions.Item label={t('Consultant Label')}>{settings.consultantLabel || t('Consultants')}</Descriptions.Item>
+                  <Descriptions.Item label={t('Departments')}>{settings.hasDepartments ? t('Yes') : t('No')}</Descriptions.Item>
+                  <Descriptions.Item label={t('Branches / Offices')}>{settings.hasBranches ? t('Yes') : t('No')}</Descriptions.Item>
+                  <Descriptions.Item label={t('Branch-scoped Management')}>{settings.branchScopedManagement ? t('Yes') : t('No')}</Descriptions.Item>
+                  <Descriptions.Item label={t('Intervention Assignment')}>{prettyAssignment(settings.assignmentModel)}</Descriptions.Item>
+                  <Descriptions.Item label={t('Intervention Delivery Roles')}>
                     <Space wrap>{(settings.interventionDeliveryRoles?.length ? settings.interventionDeliveryRoles : DEFAULT_INTERVENTION_DELIVERY_ROLES).map(role => <Tag key={role}>{deliveryRoleLabels[role]}</Tag>)}</Space>
                   </Descriptions.Item>
-                  <Descriptions.Item label="SME Division">{prettyDivision(settings.smeDivisionModel)}</Descriptions.Item>
-                  <Descriptions.Item label="Owner">{settings.ownerEmail || settings.createdByEmail || 'Not recorded'}</Descriptions.Item>
-                  <Descriptions.Item label="Status">{settings.locked ? <Tag color="orange">LOCKED</Tag> : <Tag color="green">EDITABLE</Tag>}</Descriptions.Item>
+                  <Descriptions.Item label={t('SME Division')}>{prettyDivision(settings.smeDivisionModel)}</Descriptions.Item>
+                  <Descriptions.Item label={t('Owner')}>{settings.ownerEmail || settings.createdByEmail || t('Not recorded')}</Descriptions.Item>
+                  <Descriptions.Item label={t('Status')}>{settings.locked ? <Tag color="orange">{t('LOCKED')}</Tag> : <Tag color="green">{t('EDITABLE')}</Tag>}</Descriptions.Item>
                 </Descriptions>
               )}
             </Card>
           </Col>
 
           <Col xs={24} xl={8}>
-            <Card className="dashboard-section-card motion-card" title="Actions">
+            <Card className="dashboard-section-card motion-card" title={t('Actions')}>
               <Space direction="vertical" style={{ width: '100%' }}>
                 <Alert
                   type="info"
                   showIcon
-                  message={settings ? 'Company setup changes are reviewed by the platform admin.' : 'Company setup additions are reviewed by the platform admin.'}
+                  message={settings ? t('Company setup changes are reviewed by the platform admin.') : t('Company setup additions are reviewed by the platform admin.')}
                 />
                 <Button
                   type="primary"
@@ -191,29 +193,29 @@ export const CompanySettingsPage = () => {
       )}
 
       {active === 'requests' && (
-        <Card className="dashboard-section-card motion-card" title={<Space><ExclamationCircleOutlined /> My Change Requests</Space>}>
+        <Card className="dashboard-section-card motion-card" title={<Space><ExclamationCircleOutlined /> {t('My Change Requests')}</Space>}>
           {requests.length ? (
             <ResponsiveDataView
               rowKey="id"
               columns={requestColumns}
               rows={requests}
-              emptyText="No change requests have been submitted."
+              emptyText={t('No change requests have been submitted.')}
               renderCard={request => (
                 <Space direction="vertical" className="dashboard-mobile-record">
                   <Space><Tag color={statusColor(request.status)}>{request.status.toUpperCase()}</Tag><Text>{formatDate(request.requestedAt)}</Text></Space>
                   <Text>{request.reason}</Text>
-                  <Text type="secondary">{request.adminResponse || 'Awaiting response'}</Text>
+                  <Text type="secondary">{request.adminResponse || t('Awaiting response')}</Text>
                 </Space>
               )}
             />
-          ) : <Empty description="No change requests have been submitted." />}
+          ) : <Empty description={t('No change requests have been submitted.')} />}
         </Card>
       )}
 
       <Modal
         open={requestOpen}
-        title={settings ? 'Request Company Setup Change' : 'Request Company Setup Addition'}
-        okText="Submit Request"
+        title={settings ? t('Request Company Setup Change') : t('Request Company Setup Addition')}
+        okText={t('Submit Request')}
         confirmLoading={submitting}
         onOk={submitRequest}
         onCancel={() => setRequestOpen(false)}
@@ -222,17 +224,17 @@ export const CompanySettingsPage = () => {
         <Alert
           type="info"
           showIcon
-          message="Send enough detail for review."
+          message={t('Send enough detail for review.')}
           description={settings
-            ? 'The request will be sent to daniel@quantilytix.co.za and the response will appear in your request history.'
-            : 'The setup addition request will be sent to daniel@quantilytix.co.za and the response will appear in your request history.'}
+            ? t('The request will be sent to daniel@quantilytix.co.za and the response will appear in your request history.')
+            : t('The setup addition request will be sent to daniel@quantilytix.co.za and the response will appear in your request history.')}
           style={{ marginBottom: 12 }}
         />
         <Form form={form} layout="vertical">
           <Form.Item
             name="interventionDeliveryRoles"
-            label="Roles allowed to deliver interventions"
-            rules={[{ required: true, type: 'array', min: 1, message: 'Choose at least one delivery role.' }]}
+            label={t('Roles allowed to deliver interventions')}
+            rules={[{ required: true, type: 'array', min: 1, message: tr('Choose at least one delivery role.') }]}
           >
             <Checkbox.Group>
               <Space direction="vertical">
@@ -242,13 +244,13 @@ export const CompanySettingsPage = () => {
           </Form.Item>
           <Form.Item
             name="reason"
-            label={settings ? 'Requested change' : 'Requested setup addition'}
+            label={settings ? t('Requested change') : t('Requested setup addition')}
             rules={[
-              { required: true, message: 'Describe the change you need.' },
-              { min: 10, message: 'Please add a bit more detail.' },
+              { required: true, message: tr('Describe the change you need.') },
+              { min: 10, message: tr('Please add a bit more detail.') },
             ]}
           >
-            <Input.TextArea rows={5} placeholder={settings ? 'Example: We now have two regional offices and need branch-scoped consultant management enabled.' : 'Example: Please add our company setup with departments enabled and operations assigning SMEs to consultants.'} />
+            <Input.TextArea rows={5} placeholder={settings ? t('Example: We now have two regional offices and need branch-scoped consultant management enabled.') : t('Example: Please add our company setup with departments enabled and operations assigning SMEs to consultants.')} />
           </Form.Item>
         </Form>
       </Modal>

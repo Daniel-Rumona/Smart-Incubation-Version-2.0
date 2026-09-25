@@ -33,6 +33,7 @@ import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
 import { sendAdminEmail } from '@/services/emailOperationsService'
 import { matchesActiveProgram } from '@/services/workspaceProgramsService'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 type AppointmentRow = {
     id: string
@@ -90,10 +91,10 @@ const { RangePicker } = DatePicker
 const normalize = (value: unknown) => String(value ?? '').trim().toLowerCase()
 
 const LEGEND: Array<{ status: AppointmentStatus; label: string }> = [
-    { status: 'pending', label: 'Awaiting acceptance' },
-    { status: 'accepted', label: 'Confirmed' },
-    { status: 'completed', label: 'Completed' },
-    { status: 'cancelled', label: 'Cancelled or declined' },
+    { status: 'pending', get label() { return tr('Awaiting acceptance') } },
+    { status: 'accepted', get label() { return tr('Confirmed') } },
+    { status: 'completed', get label() { return tr('Completed') } },
+    { status: 'cancelled', get label() { return tr('Cancelled or declined') } },
 ]
 
 const clampProgress = (value: number) => Math.max(0, Math.min(100, Math.round(value)))
@@ -103,6 +104,7 @@ const safeNumber = (value: unknown) => {
 }
 
 const AppointmentGuide = ({ text, onComplete }: { text: string; onComplete: () => void }) => {
+    const { t } = useLanguage()
     const [visible, setVisible] = useState('')
     const onCompleteRef = useRef(onComplete)
     useEffect(() => { onCompleteRef.current = onComplete }, [onComplete])
@@ -112,7 +114,7 @@ const AppointmentGuide = ({ text, onComplete }: { text: string; onComplete: () =
         const timer = window.setInterval(() => { index += 1; setVisible(text.slice(0, index)); if (index >= text.length) { window.clearInterval(timer); completeTimer = window.setTimeout(() => onCompleteRef.current(), 650) } }, 22)
         return () => { window.clearInterval(timer); if (completeTimer) window.clearTimeout(completeTimer) }
     }, [text])
-    return <div className="appointment-modal-guide"><Typography.Text strong>Thuso · appointment guide</Typography.Text><Typography.Paragraph type="secondary">{visible}<span className="appointment-typing-cursor" aria-hidden="true" /></Typography.Paragraph></div>
+    return <div className="appointment-modal-guide"><Typography.Text strong>{t('Thuso · appointment guide')}</Typography.Text><Typography.Paragraph type="secondary">{visible}<span className="appointment-typing-cursor" aria-hidden="true" /></Typography.Paragraph></div>
 }
 
 const OUTCOME_PROMPTS = [
@@ -148,6 +150,7 @@ const targetActualFromOutcome = (assignment: AssignedIntervention | undefined, v
 }
 
 export const InterventionAppointmentsPage = () => {
+    const { t } = useLanguage()
     const { message } = App.useApp()
     const { user } = useFullIdentity()
     const { activeProgramId } = useActiveProgramId()
@@ -200,7 +203,7 @@ export const InterventionAppointmentsPage = () => {
                     return matchesActiveProgram(user, activeProgramId, String(appointment.programId || assignment.programId || ''))
                 }))
         } catch {
-            message.error('Appointments could not be loaded.')
+            message.error(t('Appointments could not be loaded.'))
         } finally {
             setLoading(false)
         }
@@ -366,13 +369,13 @@ export const InterventionAppointmentsPage = () => {
                 createdAt: serverTimestamp(),
                 readBy: {},
             })
-            message.success('Appointment scheduled.')
+            message.success(t('Appointment scheduled.'))
             setCreateOpen(false)
             setSelectedDate(values.timeRange[0])
             setAnchorDate(values.timeRange[0])
             await loadAppointments()
         } catch {
-            message.error('Appointment could not be saved.')
+            message.error(t('Appointment could not be saved.'))
         } finally {
             setSaving(false)
         }
@@ -404,7 +407,7 @@ export const InterventionAppointmentsPage = () => {
         if (!rescheduleTarget || !user) return
         const [start, end] = values.timeRange
         if (!start.isAfter(dayjs())) {
-            message.error('Choose a time in the future.')
+            message.error(t('Choose a time in the future.'))
             return
         }
         const clash = appointments.find((other) => other.id !== rescheduleTarget.id
@@ -448,13 +451,13 @@ export const InterventionAppointmentsPage = () => {
                 createdAt: serverTimestamp(),
                 readBy: {},
             })
-            message.success('Appointment rescheduled. The SME will be asked to accept the new time.')
+            message.success(t('Appointment rescheduled. The SME will be asked to accept the new time.'))
             setRescheduleTarget(undefined)
             setSelectedDate(start)
             setAnchorDate(start)
             await loadAppointments()
         } catch {
-            message.error('The appointment could not be rescheduled.')
+            message.error(t('The appointment could not be rescheduled.'))
         } finally {
             setSaving(false)
         }
@@ -577,12 +580,12 @@ export const InterventionAppointmentsPage = () => {
                 }
             }
 
-            message.success('Appointment completed and progress updated.')
+            message.success(t('Appointment completed and progress updated.'))
             setOutcomeOpen(false)
             setSelected(undefined)
             await Promise.all([loadAppointments(), refreshAssignments()])
         } catch {
-            message.error('Appointment outcome could not be saved.')
+            message.error(t('Appointment outcome could not be saved.'))
         } finally {
             setSaving(false)
         }
@@ -590,7 +593,7 @@ export const InterventionAppointmentsPage = () => {
 
     return (
         <DashboardPage className="operations-appointments-page">
-            {(loading || saving || assignmentsLoading) && <LoadingOverlay tip={saving ? 'Saving appointment' : 'Loading appointments'} />}
+            {(loading || saving || assignmentsLoading) && <LoadingOverlay tip={saving ? t('Saving appointment') : t('Loading appointments')} />}
 
             <div className="apt-workspace">
                 <Card className="apt-calendar-card" styles={{ body: { padding: 0 } }}>
@@ -605,18 +608,18 @@ export const InterventionAppointmentsPage = () => {
                             </Typography.Text>
                         </div>
                         <div className="apt-toolbar-controls">
-                            <Button shape="circle" aria-label="Previous range" icon={<LeftOutlined />} onClick={() => moveCalendar(-1)} />
+                            <Button shape="circle" aria-label={t('Previous range')} icon={<LeftOutlined />} onClick={() => moveCalendar(-1)} />
                             <Segmented value={calendarView} onChange={(value) => handleChangeView(value as CalendarView)} options={CALENDAR_VIEWS} />
-                            <Button shape="circle" aria-label="Next range" icon={<RightOutlined />} onClick={() => moveCalendar(1)} />
-                            <Button onClick={goToToday}>Today</Button>
-                            <Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search" allowClear />
-                            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>New</Button>
+                            <Button shape="circle" aria-label={t('Next range')} icon={<RightOutlined />} onClick={() => moveCalendar(1)} />
+                            <Button onClick={goToToday}>{t('Today')}</Button>
+                            <Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('Search')} allowClear />
+                            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>{t('New')}</Button>
                         </div>
                     </div>
 
                     <div className="apt-legend">
                         {LEGEND.map((entry) => <span key={entry.status} className={`apt-legend-item is-${entry.status}`}><i />{entry.label}</span>)}
-                        {isDemoData && <Tooltip title="No appointments exist for this program yet, so a sample week is shown."><span className="apt-legend-sample">Sample data</span></Tooltip>}
+                        {isDemoData && <Tooltip title={t('No appointments exist for this program yet, so a sample week is shown.')}><span className="apt-legend-sample">{t('Sample data')}</span></Tooltip>}
                     </div>
 
                     <div className="apt-calendar-body">
@@ -653,101 +656,101 @@ export const InterventionAppointmentsPage = () => {
                 onReviewIntervention={canReviewInterventions ? reviewIntervention : undefined}
             />
 
-            <Modal open={Boolean(rescheduleTarget)} title="Reschedule appointment" onCancel={() => setRescheduleTarget(undefined)} footer={null} width={640} destroyOnHidden>
+            <Modal open={Boolean(rescheduleTarget)} title={t('Reschedule appointment')} onCancel={() => setRescheduleTarget(undefined)} footer={null} width={640} destroyOnHidden>
                 {rescheduleTarget && (
                     <Form form={rescheduleForm} layout="vertical" onFinish={saveReschedule}>
                         <div className="appointment-outcome-context">
                             <Typography.Text strong>{rescheduleTarget.interventionTitle}</Typography.Text>
-                            <Typography.Text type="secondary">{rescheduleTarget.participantName || rescheduleTarget.participantEmail || 'SME'}</Typography.Text>
+                            <Typography.Text type="secondary">{rescheduleTarget.participantName || rescheduleTarget.participantEmail || t('SME')}</Typography.Text>
                         </div>
                         {(rescheduleTarget.declineReason || openRescheduleRequestSummary(rescheduleTarget.rescheduleRequest)) && (
                             <Alert
                                 type="info"
                                 showIcon
                                 style={{ marginBottom: 12 }}
-                                message={rescheduleTarget.status === 'declined' ? `Declined: ${rescheduleTarget.declineReason || 'no reason given'}` : 'The SME asked to reschedule'}
+                                message={rescheduleTarget.status === 'declined' ? `Declined: ${rescheduleTarget.declineReason || 'no reason given'}` : t('The SME asked to reschedule')}
                                 description={openRescheduleRequestSummary(rescheduleTarget.rescheduleRequest) || undefined}
                             />
                         )}
-                        {isInterventionDropRequest(rescheduleTarget) && <Alert type="warning" showIcon style={{ marginBottom: 12 }} message="The SME asked to drop this intervention. Review it on the interventions page instead." />}
+                        {isInterventionDropRequest(rescheduleTarget) && <Alert type="warning" showIcon style={{ marginBottom: 12 }} message={t('The SME asked to drop this intervention. Review it on the interventions page instead.')} />}
                         <Row gutter={12}>
-                            <Col xs={24} md={12}><Form.Item name="meetingType" label="Meeting type" rules={[{ required: true }]}><Select options={MEETING_TYPE_OPTIONS} /></Form.Item></Col>
-                            <Col xs={24} md={12}><Form.Item name="timeRange" label="New date and time" rules={[{ required: true, message: 'Choose the new time.' }]}><RangePicker showTime format="DD MMM YYYY HH:mm" style={{ width: '100%' }} /></Form.Item></Col>
+                            <Col xs={24} md={12}><Form.Item name="meetingType" label={t('Meeting type')} rules={[{ required: true }]}><Select options={MEETING_TYPE_OPTIONS} /></Form.Item></Col>
+                            <Col xs={24} md={12}><Form.Item name="timeRange" label={t('New date and time')} rules={[{ required: true, message: tr('Choose the new time.') }]}><RangePicker showTime format="DD MMM YYYY HH:mm" style={{ width: '100%' }} /></Form.Item></Col>
                         </Row>
-                        {rescheduleMeetingType === 'online' && <Form.Item name="meetingLink" label="Meeting link" rules={[{ required: true, message: 'Add the meeting link.' }]}><Input placeholder="Paste Zoom, Google Meet, Teams, or any online meeting link" /></Form.Item>}
-                        {rescheduleMeetingType === 'in_person' && <Form.Item name="location" label="Location" rules={[{ required: true, message: 'Add the location.' }]}><Input.TextArea rows={3} /></Form.Item>}
+                        {rescheduleMeetingType === 'online' && <Form.Item name="meetingLink" label={t('Meeting link')} rules={[{ required: true, message: tr('Add the meeting link.') }]}><Input placeholder={t('Paste Zoom, Google Meet, Teams, or any online meeting link')} /></Form.Item>}
+                        {rescheduleMeetingType === 'in_person' && <Form.Item name="location" label={t('Location')} rules={[{ required: true, message: tr('Add the location.') }]}><Input.TextArea rows={3} /></Form.Item>}
                         <Space style={{ justifyContent: 'flex-end', width: '100%' }}>
-                            <Button onClick={() => setRescheduleTarget(undefined)}>Cancel</Button>
-                            <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={saving}>Reschedule</Button>
+                            <Button onClick={() => setRescheduleTarget(undefined)}>{t('Cancel')}</Button>
+                            <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={saving}>{t('Reschedule')}</Button>
                         </Space>
                     </Form>
                 )}
             </Modal>
 
-            <Modal open={createOpen} title="New appointment" onCancel={() => setCreateOpen(false)} footer={null} width={820} destroyOnHidden>
-                <AppointmentGuide text="Let’s schedule a useful conversation. Choose the intervention, how you’ll meet, and a time that works for everyone." onComplete={() => setCreateGuideComplete(true)} />
+            <Modal open={createOpen} title={t('New appointment')} onCancel={() => setCreateOpen(false)} footer={null} width={820} destroyOnHidden>
+                <AppointmentGuide text={t('Let’s schedule a useful conversation. Choose the intervention, how you’ll meet, and a time that works for everyone.')} onComplete={() => setCreateGuideComplete(true)} />
                 {createGuideComplete && <Form className="appointment-modal-reveal" form={form} layout="vertical" onFinish={saveAppointment}>
-                    <Form.Item name="assignedInterventionId" label="Assigned intervention" rules={[{ required: true, message: 'Choose an intervention.' }]}>
+                    <Form.Item name="assignedInterventionId" label={t('Assigned intervention')} rules={[{ required: true, message: tr('Choose an intervention.') }]}>
                         <Select showSearch optionFilterProp="label" options={assignableInterventions.map((assignment) => ({ value: assignment.id, label: `${assignment.interventionTitle || 'Intervention'} - ${assignment.businessName || 'SME'}` }))} />
                     </Form.Item>
                     <Row gutter={12}>
-                        <Col xs={24} md={12}><Form.Item name="meetingType" label="Meeting type" rules={[{ required: true }]}><Select options={MEETING_TYPE_OPTIONS} /></Form.Item></Col>
-                        <Col xs={24} md={12}><Form.Item name="timeRange" label="Date and time" rules={[{ required: true }]}><RangePicker showTime format="DD MMM YYYY HH:mm" style={{ width: '100%' }} /></Form.Item></Col>
+                        <Col xs={24} md={12}><Form.Item name="meetingType" label={t('Meeting type')} rules={[{ required: true }]}><Select options={MEETING_TYPE_OPTIONS} /></Form.Item></Col>
+                        <Col xs={24} md={12}><Form.Item name="timeRange" label={t('Date and time')} rules={[{ required: true }]}><RangePicker showTime format="DD MMM YYYY HH:mm" style={{ width: '100%' }} /></Form.Item></Col>
                     </Row>
                     <Form.Item noStyle dependencies={['meetingType']}>
                         {({ getFieldValue }) => {
                             const type = getFieldValue('meetingType')
-                            if (type === 'online') return <Form.Item name="meetingLink" label="Meeting link" rules={[{ required: true }]}><Input placeholder="Paste Zoom, Google Meet, Teams, or any online meeting link" /></Form.Item>
-                            if (type === 'in_person') return <Form.Item name="location" label="Location" rules={[{ required: true }]}><Input.TextArea rows={3} /></Form.Item>
+                            if (type === 'online') return <Form.Item name="meetingLink" label={t('Meeting link')} rules={[{ required: true }]}><Input placeholder={t('Paste Zoom, Google Meet, Teams, or any online meeting link')} /></Form.Item>
+                            if (type === 'in_person') return <Form.Item name="location" label={t('Location')} rules={[{ required: true }]}><Input.TextArea rows={3} /></Form.Item>
                             return null
                         }}
                     </Form.Item>
                     <Space style={{ justifyContent: 'flex-end', width: '100%' }}>
-                        <Button onClick={() => setCreateOpen(false)}>Cancel</Button>
-                        <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={saving}>Save appointment</Button>
+                        <Button onClick={() => setCreateOpen(false)}>{t('Cancel')}</Button>
+                        <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={saving}>{t('Save appointment')}</Button>
                     </Space>
                 </Form>}
             </Modal>
 
-            <Modal open={outcomeOpen} title="Complete appointment" onCancel={() => setOutcomeOpen(false)} footer={null} width={820} destroyOnHidden>
+            <Modal open={outcomeOpen} title={t('Complete appointment')} onCancel={() => setOutcomeOpen(false)} footer={null} width={820} destroyOnHidden>
                 {selected && (
                     <>
                         <AppointmentGuide key={outcomeStep} text={OUTCOME_PROMPTS[outcomeStep] ?? OUTCOME_PROMPTS[0]} onComplete={() => setOutcomeGuideComplete(true)} />
                         {outcomeGuideComplete && <Form className="appointment-modal-reveal" form={outcomeForm} layout="vertical" onFinish={completeAppointment}>
                             <div className="appointment-outcome-context">
                                 <Typography.Text strong>{selected.interventionTitle}</Typography.Text>
-                                <Typography.Text type="secondary">{selected.participantName || selected.participantEmail || 'SME'}</Typography.Text>
+                                <Typography.Text type="secondary">{selected.participantName || selected.participantEmail || t('SME')}</Typography.Text>
                             </div>
                             {outcomeStep === 0 && <>
-                                <Form.Item name="attendanceStatus" label="Attendance" rules={[{ required: true, message: 'Choose an attendance status.' }]}>
-                                    <Select options={[{ value: 'present', label: 'Present' }, { value: 'absent', label: 'Absent' }]} />
+                                <Form.Item name="attendanceStatus" label={t('Attendance')} rules={[{ required: true, message: tr('Choose an attendance status.') }]}>
+                                    <Select options={[{ value: 'present', label: t('Present') }, { value: 'absent', label: t('Absent') }]} />
                                 </Form.Item>
-                                <Button type="primary" block icon={<RightOutlined />} onClick={() => void advanceOutcome(['attendanceStatus'])}>Continue</Button>
+                                <Button type="primary" block icon={<RightOutlined />} onClick={() => void advanceOutcome(['attendanceStatus'])}>{t('Continue')}</Button>
                             </>}
                             {outcomeStep === 1 && <>
-                                <Form.Item name="discussionSummary" label="What was discussed?" rules={[{ required: true, message: 'Add discussion notes.' }]}>
+                                <Form.Item name="discussionSummary" label={t('What was discussed?')} rules={[{ required: true, message: tr('Add discussion notes.') }]}>
                                     <Input.TextArea rows={6} autoFocus />
                                 </Form.Item>
-                                <Button type="primary" block icon={<RightOutlined />} onClick={() => void advanceOutcome(['discussionSummary'])}>Continue</Button>
+                                <Button type="primary" block icon={<RightOutlined />} onClick={() => void advanceOutcome(['discussionSummary'])}>{t('Continue')}</Button>
                             </>}
                             {outcomeStep === 2 && <>
                                 <Row gutter={12}>
-                                    <Col xs={24} md={8}><Form.Item name="hoursAdded" label="Hours added"><Input type="number" min={0} autoFocus /></Form.Item></Col>
-                                    <Col xs={24} md={8}><Form.Item name="unitsAdded" label="Units completed"><Input type="number" min={0} /></Form.Item></Col>
-                                    <Col xs={24} md={8}><Form.Item name="progressAfter" label="Progress after (%)"><Input type="number" min={0} max={100} /></Form.Item></Col>
+                                    <Col xs={24} md={8}><Form.Item name="hoursAdded" label={t('Hours added')}><Input type="number" min={0} autoFocus /></Form.Item></Col>
+                                    <Col xs={24} md={8}><Form.Item name="unitsAdded" label={t('Units completed')}><Input type="number" min={0} /></Form.Item></Col>
+                                    <Col xs={24} md={8}><Form.Item name="progressAfter" label={t('Progress after (%)')}><Input type="number" min={0} max={100} /></Form.Item></Col>
                                 </Row>
-                                <Button type="primary" block icon={<RightOutlined />} onClick={() => { setOutcomeGuideComplete(false); setOutcomeStep(3) }}>Continue</Button>
+                                <Button type="primary" block icon={<RightOutlined />} onClick={() => { setOutcomeGuideComplete(false); setOutcomeStep(3) }}>{t('Continue')}</Button>
                             </>}
                             {outcomeStep === 3 && <>
-                                <Form.Item label="Images or evidence">
+                                <Form.Item label={t('Images or evidence')}>
                                     <Upload beforeUpload={() => false} multiple onChange={({ fileList }) => setEvidenceFiles(fileList.map((file) => file.name))}>
-                                        <Button icon={<EditOutlined />}>Choose files</Button>
+                                        <Button icon={<EditOutlined />}>{t('Choose files')}</Button>
                                     </Upload>
                                 </Form.Item>
                                 <Progress percent={progressFromOutcome(interventionById.get(selected.assignedInterventionId), outcomeForm.getFieldsValue())} />
                                 <Space className="appointment-outcome-actions">
-                                    <Button onClick={() => setOutcomeOpen(false)}>Cancel</Button>
-                                    <Button type="primary" htmlType="submit" icon={<CheckCircleOutlined />} loading={saving}>Complete appointment</Button>
+                                    <Button onClick={() => setOutcomeOpen(false)}>{t('Cancel')}</Button>
+                                    <Button type="primary" htmlType="submit" icon={<CheckCircleOutlined />} loading={saving}>{t('Complete appointment')}</Button>
                                 </Space>
                             </>}
                         </Form>}

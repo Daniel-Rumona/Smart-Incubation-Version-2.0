@@ -67,6 +67,7 @@ import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
 import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
 import '@/styles/operations-participants.css'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 const { Text } = Typography
 const { TextArea } = Input
@@ -402,6 +403,7 @@ const asArray = (value: any): any[] => {
 }
 
 export const ParticipantsPage: React.FC = () => {
+    const { t } = useLanguage()
     const navigate = useNavigate()
     const { user } = useFullIdentity()
     const { getSetting, settings, loading: settingsLoading } = useSystemSettings()
@@ -654,7 +656,7 @@ export const ParticipantsPage: React.FC = () => {
             setParticipants(rows)
         } catch (e) {
             console.error(e)
-            message.error('Failed to load participants')
+            message.error(t('Failed to load participants'))
             setParticipants([])
             setProgramNameMap({})
         } finally {
@@ -764,13 +766,13 @@ export const ParticipantsPage: React.FC = () => {
 
     const assignProgramToParticipant = async () => {
         if (!viewData?.participantId) {
-            message.error('SME record not found')
+            message.error(t('SME record not found'))
             return
         }
 
         const programId = String(selectedProgramId || '').trim()
         if (!programId) {
-            message.error('Please select a program')
+            message.error(t('Please select a program'))
             return
         }
 
@@ -842,7 +844,7 @@ export const ParticipantsPage: React.FC = () => {
                 }
             })
 
-            message.success('Program assigned successfully')
+            message.success(t('Program assigned successfully'))
             setAssignProgramOpen(false)
             setSelectedProgramId(undefined)
 
@@ -856,7 +858,7 @@ export const ParticipantsPage: React.FC = () => {
             await refreshList()
         } catch (error: any) {
             console.error(error)
-            message.error(error?.message || 'Failed to assign program')
+            message.error(error?.message || t('Failed to assign program'))
         } finally {
             setAssigningProgram(false)
         }
@@ -1009,7 +1011,7 @@ export const ParticipantsPage: React.FC = () => {
             })
         } catch (error) {
             console.error(error)
-            message.error('Failed to load full SME details')
+            message.error(t('Failed to load full SME details'))
         } finally {
             setViewLoading(false)
         }
@@ -1017,7 +1019,7 @@ export const ParticipantsPage: React.FC = () => {
 
     const saveEdits = async () => {
         if (!viewData?.participantId || !viewData?.participant || !viewData?.application) {
-            message.error('Missing participant data to update')
+            message.error(t('Missing participant data to update'))
             return
         }
 
@@ -1223,7 +1225,7 @@ export const ParticipantsPage: React.FC = () => {
             )
 
             if (!allChanges.length) {
-                message.info('No changes detected')
+                message.info(t('No changes detected'))
                 return
             }
 
@@ -1403,7 +1405,7 @@ export const ParticipantsPage: React.FC = () => {
                 }
             })
 
-            message.success('SME details updated')
+            message.success(t('SME details updated'))
             setEditMode(false)
 
             await openView({
@@ -1418,7 +1420,7 @@ export const ParticipantsPage: React.FC = () => {
             await refreshList()
         } catch (error: any) {
             console.error(error)
-            message.error(error?.message || 'Failed to update SME details')
+            message.error(error?.message || t('Failed to update SME details'))
         } finally {
             setSavingEdit(false)
         }
@@ -1426,13 +1428,13 @@ export const ParticipantsPage: React.FC = () => {
 
     const removeFromProgram = async () => {
         if (!viewData?.participantId || !viewData?.applicationId || !viewData?.application) {
-            message.error('Program record not found')
+            message.error(t('Program record not found'))
             return
         }
 
         const reason = String(removalReason || '').trim()
         if (!reason) {
-            message.error('Removal reason is required')
+            message.error(t('Removal reason is required'))
             return
         }
 
@@ -1494,7 +1496,7 @@ export const ParticipantsPage: React.FC = () => {
                 }
             })
 
-            message.success('SME removed from program')
+            message.success(t('SME removed from program'))
             setRemoveModalOpen(false)
             setRemovalReason('')
             setViewOpen(false)
@@ -1503,7 +1505,7 @@ export const ParticipantsPage: React.FC = () => {
             await refreshList()
         } catch (error: any) {
             console.error(error)
-            message.error(error?.message || 'Failed to remove SME from program')
+            message.error(error?.message || t('Failed to remove SME from program'))
         } finally {
             setRemovingParticipant(false)
         }
@@ -1512,7 +1514,7 @@ export const ParticipantsPage: React.FC = () => {
     const columns: ColumnsType<ParticipantRow> = useMemo(() => {
         const base: ColumnsType<ParticipantRow> = [
             {
-                title: 'SME Name',
+                title: t('SME Name'),
                 dataIndex: 'businessName',
                 key: 'businessName',
                 render: (v: any) => <Text strong>{labelOrHide(v) || ''}</Text>
@@ -1520,7 +1522,7 @@ export const ParticipantsPage: React.FC = () => {
             ...(isAllPrograms
                 ? [
                     {
-                        title: 'Program',
+                        title: t('Program'),
                         dataIndex: 'programName',
                         key: 'programName',
                         render: (v: any) => (
@@ -1530,29 +1532,29 @@ export const ParticipantsPage: React.FC = () => {
                 ]
                 : []),
             {
-                title: 'Sector',
+                title: t('Sector'),
                 dataIndex: 'sector',
                 key: 'sector',
                 render: (v: any) => labelOrHide(v) || ''
             },
             {
-                title: 'Stage',
+                title: t('Stage'),
                 dataIndex: 'stage',
                 key: 'stage',
                 render: (v: any) => labelOrHide(v) || ''
             },
             {
-                title: 'Required',
+                title: t('Required'),
                 key: 'required',
                 render: (_: any, record: ParticipantRow) => record.interventions?.required?.length ?? 0
             },
             {
-                title: 'Completed',
+                title: t('Completed'),
                 key: 'completed',
                 render: (_: any, record: ParticipantRow) => record.interventions?.completed?.length ?? 0
             },
             {
-                title: 'Progress',
+                title: t('Progress'),
                 key: 'progress',
                 render: (_: any, record: ParticipantRow) => (
                     <Progress
@@ -1563,7 +1565,7 @@ export const ParticipantsPage: React.FC = () => {
                 )
             },
             {
-                title: 'Actions',
+                title: t('Actions'),
                 key: 'actions',
                 render: (_: any, record: ParticipantRow) => (
                     <Space size={8}>
@@ -1571,7 +1573,7 @@ export const ParticipantsPage: React.FC = () => {
                             icon={<EyeOutlined />}
                             onClick={() => openView(record)}
                         >
-                            View
+                            {t('View')}
                         </Button>
 
                         {!String(record.programId || '').trim() && (
@@ -1582,7 +1584,7 @@ export const ParticipantsPage: React.FC = () => {
                                     setAssignProgramOpen(true)
                                 }}
                             >
-                                Assign Program
+                                {t('Assign Program')}
                             </Button>
                         )}
 
@@ -1597,7 +1599,7 @@ export const ParticipantsPage: React.FC = () => {
                                 })
                             }
                         >
-                            Performance
+                            {t('Performance')}
                         </Button>
                     </Space>
                 )
@@ -1605,7 +1607,7 @@ export const ParticipantsPage: React.FC = () => {
         ]
 
         return base
-    }, [activeProgramId, isAllPrograms, navigate, user?.role])
+    }, [activeProgramId, isAllPrograms, navigate, user?.role, t])
 
     const currentParticipant = viewData?.participant || {}
     const currentApplication = viewData?.application || {}
@@ -1635,28 +1637,28 @@ export const ParticipantsPage: React.FC = () => {
         <DashboardPage className="operations-participants-page">
             <Row gutter={[12, 12]} className="operations-participants-metrics dashboard-metrics-row">
                 <Col xs={12} lg={6}>
-                    <DashboardMetricCard icon={<TeamOutlined />} label="Total SMEs" value={metrics.totalParticipants} />
+                    <DashboardMetricCard icon={<TeamOutlined />} label={t('Total SMEs')} value={metrics.totalParticipants} />
                 </Col>
                 <Col xs={12} lg={6}>
-                    <DashboardMetricCard icon={<PlusOutlined />} label="Required Interventions" value={metrics.totalRequiredInterventions} />
+                    <DashboardMetricCard icon={<PlusOutlined />} label={t('Required Interventions')} value={metrics.totalRequiredInterventions} />
                 </Col>
                 <Col xs={12} lg={6}>
-                    <DashboardMetricCard icon={<CheckCircleOutlined />} label="Completed Interventions" value={metrics.totalCompletedInterventions} />
+                    <DashboardMetricCard icon={<CheckCircleOutlined />} label={t('Completed Interventions')} value={metrics.totalCompletedInterventions} />
                 </Col>
                 <Col xs={12} lg={6}>
-                    <DashboardMetricCard icon={<WarningOutlined />} label="Need Assignment" value={metrics.totalNeedingAssignment} />
+                    <DashboardMetricCard icon={<WarningOutlined />} label={t('Need Assignment')} value={metrics.totalNeedingAssignment} />
                 </Col>
             </Row>
 
             <FilterBar
-                title="SMEs"
+                title={t('SMEs')}
                 primary={
                     <Input
                         prefix={<SearchOutlined />}
                         placeholder={
                             isAllPrograms
-                                ? 'Search by SME name, program, sector, or email'
-                                : 'Search by SME name, sector, or email'
+                                ? t('Search by SME name, program, sector, or email')
+                                : t('Search by SME name, sector, or email')
                         }
                         value={searchText}
                         onChange={e => setSearchText(e.target.value)}
@@ -1674,7 +1676,7 @@ export const ParticipantsPage: React.FC = () => {
                             })
                         }
                     >
-                        Add SME
+                        {t('Add SME')}
                     </Button>
                 }
             />
@@ -1685,18 +1687,18 @@ export const ParticipantsPage: React.FC = () => {
                     columns={columns}
                     rowKey={record => `${record.id}-${record.programId || 'na'}`}
                     loading={loading}
-                    emptyText="No SMEs found"
+                    emptyText={t('No SMEs found')}
                     renderCard={record => (
                         <Space direction="vertical" size={8} style={{ width: '100%' }}>
-                            <Text strong>{record.businessName || 'Unnamed SME'}</Text>
-                            <Text type="secondary">{record.email || 'No email'}</Text>
+                            <Text strong>{record.businessName || t('Unnamed SME')}</Text>
+                            <Text type="secondary">{record.email || t('No email')}</Text>
                             <Space wrap>
-                                <Tag>{record.programName || 'Unassigned'}</Tag>
+                                <Tag>{record.programName || t('Unassigned')}</Tag>
                                 {record.stage ? <Tag>{record.stage}</Tag> : null}
                             </Space>
                             <Progress percent={record.progress || 0} size="small" />
                             <Space wrap>
-                                <Button size="small" onClick={() => openView(record)}>View</Button>
+                                <Button size="small" onClick={() => openView(record)}>{t('View')}</Button>
                                 {!String(record.programId || '').trim() && (
                                     <Button
                                         size="small"
@@ -1706,7 +1708,7 @@ export const ParticipantsPage: React.FC = () => {
                                             setAssignProgramOpen(true)
                                         }}
                                     >
-                                        Assign Program
+                                        {t('Assign Program')}
                                     </Button>
                                 )}
                             </Space>
@@ -1719,7 +1721,7 @@ export const ParticipantsPage: React.FC = () => {
                 title={
                     <Space>
                         <InfoCircleOutlined />
-                        <span>SME Details</span>
+                        <span>{t('SME Details')}</span>
                     </Space>
                 }
                 open={viewOpen}
@@ -1745,7 +1747,7 @@ export const ParticipantsPage: React.FC = () => {
                             editForm.resetFields()
                         }}
                     >
-                        Close
+                        {t('Close')}
                     </Button>,
                     !editMode ? (
                         <Button
@@ -1754,7 +1756,7 @@ export const ParticipantsPage: React.FC = () => {
                             disabled={!viewData}
                             onClick={() => setEditMode(true)}
                         >
-                            Edit
+                            {t('Edit')}
                         </Button>
                     ) : (
                         <Button
@@ -1764,7 +1766,7 @@ export const ParticipantsPage: React.FC = () => {
                             loading={savingEdit}
                             onClick={saveEdits}
                         >
-                            Save Changes
+                            {t('Save Changes')}
                         </Button>
                     ),
                     canAssignProgram ? (
@@ -1773,7 +1775,7 @@ export const ParticipantsPage: React.FC = () => {
                             icon={<DeploymentUnitOutlined />}
                             onClick={() => setAssignProgramOpen(true)}
                         >
-                            Assign Program
+                            {t('Assign Program')}
                         </Button>
                     ) : null,
                     <Button
@@ -1783,7 +1785,7 @@ export const ParticipantsPage: React.FC = () => {
                         disabled={!viewData?.applicationId}
                         onClick={() => setRemoveModalOpen(true)}
                     >
-                        Remove From Program
+                        {t('Remove From Program')}
                     </Button>
                 ]}
                 width={1100}
@@ -1791,7 +1793,7 @@ export const ParticipantsPage: React.FC = () => {
                 {viewLoading ? (
                     <Spin />
                 ) : !viewData ? (
-                    <Alert type="warning" showIcon message="No record selected" />
+                    <Alert type="warning" showIcon message={t('No record selected')} />
                 ) : (
                     <Space direction="vertical" size={16} style={{ width: '100%' }}>
                         {!editMode ? (
@@ -1805,7 +1807,7 @@ export const ParticipantsPage: React.FC = () => {
                                             label: (
                                                 <Space>
                                                     <InfoCircleOutlined />
-                                                    Overview
+                                                    {t('Overview')}
                                                 </Space>
                                             ),
                                             value: 'overview'
@@ -1814,7 +1816,7 @@ export const ParticipantsPage: React.FC = () => {
                                             label: (
                                                 <Space>
                                                     <ShopOutlined />
-                                                    Business
+                                                    {t('Business')}
                                                 </Space>
                                             ),
                                             value: 'business'
@@ -1823,7 +1825,7 @@ export const ParticipantsPage: React.FC = () => {
                                             label: (
                                                 <Space>
                                                     <SafetyCertificateOutlined />
-                                                    Compliance
+                                                    {t('Compliance')}
                                                 </Space>
                                             ),
                                             value: 'compliance'
@@ -1832,7 +1834,7 @@ export const ParticipantsPage: React.FC = () => {
                                             label: (
                                                 <Space>
                                                     <DeploymentUnitOutlined />
-                                                    Interventions
+                                                    {t('Interventions')}
                                                 </Space>
                                             ),
                                             value: 'interventions'
@@ -1841,7 +1843,7 @@ export const ParticipantsPage: React.FC = () => {
                                             label: (
                                                 <Space>
                                                     <BarChartOutlined />
-                                                    Financials
+                                                    {t('Financials')}
                                                 </Space>
                                             ),
                                             value: 'financials'
@@ -1850,109 +1852,109 @@ export const ParticipantsPage: React.FC = () => {
                                 />
 
                                 {viewSegment === 'overview' && (
-                                    <Card size="small" title="Profile">
+                                    <Card size="small" title={t('Profile')}>
                                         <Descriptions bordered size="small" column={2}>
-                                            <Descriptions.Item label="Owner Name">
+                                            <Descriptions.Item label={t('Owner Name')}>
                                                 {currentParticipant?.participantName || currentApplication?.participantName || '—'}
                                             </Descriptions.Item>
-                                            <Descriptions.Item label="SME Name">
+                                            <Descriptions.Item label={t('SME Name')}>
                                                 {currentParticipant?.businessName || currentApplication?.businessName || '—'}
                                             </Descriptions.Item>
 
                                             {isAllPrograms && (
-                                                <Descriptions.Item label="Program">
+                                                <Descriptions.Item label={t('Program')}>
                                                     {viewData.programName || currentApplication?.programName || '—'}
                                                 </Descriptions.Item>
                                             )}
 
-                                            <Descriptions.Item label="Email">
+                                            <Descriptions.Item label={t('Email')}>
                                                 {currentParticipant?.email || currentApplication?.email || '—'}
                                             </Descriptions.Item>
-                                            <Descriptions.Item label="Phone">{currentParticipant?.phone || '—'}</Descriptions.Item>
-                                            <Descriptions.Item label="Gender">
+                                            <Descriptions.Item label={t('Phone')}>{currentParticipant?.phone || '—'}</Descriptions.Item>
+                                            <Descriptions.Item label={t('Gender')}>
                                                 {currentParticipant?.gender || currentApplication?.gender || '—'}
                                             </Descriptions.Item>
-                                            <Descriptions.Item label="ID Number">{currentParticipant?.idNumber || '—'}</Descriptions.Item>
-                                            <Descriptions.Item label="B-BBEE Level">{currentParticipant?.beeLevel || '—'}</Descriptions.Item>
-                                            <Descriptions.Item label="Youth-Owned %">{currentParticipant?.youthOwnedPercent ?? 0}%</Descriptions.Item>
-                                            <Descriptions.Item label="Female-Owned %">{currentParticipant?.femaleOwnedPercent ?? 0}%</Descriptions.Item>
-                                            <Descriptions.Item label="Black-Owned %">{currentParticipant?.blackOwnedPercent ?? 0}%</Descriptions.Item>
-                                            <Descriptions.Item label="Date of Registration">
+                                            <Descriptions.Item label={t('ID Number')}>{currentParticipant?.idNumber || '—'}</Descriptions.Item>
+                                            <Descriptions.Item label={t('B-BBEE Level')}>{currentParticipant?.beeLevel || '—'}</Descriptions.Item>
+                                            <Descriptions.Item label={t('Youth-Owned %')}>{currentParticipant?.youthOwnedPercent ?? 0}%</Descriptions.Item>
+                                            <Descriptions.Item label={t('Female-Owned %')}>{currentParticipant?.femaleOwnedPercent ?? 0}%</Descriptions.Item>
+                                            <Descriptions.Item label={t('Black-Owned %')}>{currentParticipant?.blackOwnedPercent ?? 0}%</Descriptions.Item>
+                                            <Descriptions.Item label={t('Date of Registration')}>
                                                 {formatDateOnly(currentParticipant?.dateOfRegistration) || '—'}
                                             </Descriptions.Item>
-                                            <Descriptions.Item label="Years of Trading">{currentParticipant?.yearsOfTrading ?? '—'}</Descriptions.Item>
-                                            <Descriptions.Item label="Registration Number">{currentParticipant?.registrationNumber || '—'}</Descriptions.Item>
-                                            <Descriptions.Item label="Age">{currentParticipant?.age ?? '—'}</Descriptions.Item>
-                                            <Descriptions.Item label="Age Group">{currentParticipant?.ageGroup || '—'}</Descriptions.Item>
-                                            <Descriptions.Item label="Sector">
+                                            <Descriptions.Item label={t('Years of Trading')}>{currentParticipant?.yearsOfTrading ?? '—'}</Descriptions.Item>
+                                            <Descriptions.Item label={t('Registration Number')}>{currentParticipant?.registrationNumber || '—'}</Descriptions.Item>
+                                            <Descriptions.Item label={t('Age')}>{currentParticipant?.age ?? '—'}</Descriptions.Item>
+                                            <Descriptions.Item label={t('Age Group')}>{currentParticipant?.ageGroup || '—'}</Descriptions.Item>
+                                            <Descriptions.Item label={t('Sector')}>
                                                 {currentParticipant?.sector || currentApplication?.sector || '—'}
                                             </Descriptions.Item>
-                                            <Descriptions.Item label="Stage">
+                                            <Descriptions.Item label={t('Stage')}>
                                                 {currentParticipant?.stage || currentApplication?.stage || '—'}
                                             </Descriptions.Item>
-                                            <Descriptions.Item label="Development Type">{currentParticipant?.developmentType || '—'}</Descriptions.Item>
+                                            <Descriptions.Item label={t('Development Type')}>{currentParticipant?.developmentType || '—'}</Descriptions.Item>
                                         </Descriptions>
                                     </Card>
                                 )}
 
                                 {viewSegment === 'business' && (
                                     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-                                        <Card size="small" title="Business & Location">
+                                        <Card size="small" title={t('Business & Location')}>
                                             <Descriptions bordered size="small" column={2}>
-                                                <Descriptions.Item label="Nature of Business" span={2}>
+                                                <Descriptions.Item label={t('Nature of Business')} span={2}>
                                                     {currentParticipant?.natureOfBusiness || '—'}
                                                 </Descriptions.Item>
-                                                <Descriptions.Item label="Business Address" span={2}>
+                                                <Descriptions.Item label={t('Business Address')} span={2}>
                                                     {currentParticipant?.businessAddress || '—'}
                                                 </Descriptions.Item>
-                                                <Descriptions.Item label="Province">
+                                                <Descriptions.Item label={t('Province')}>
                                                     {currentParticipant?.businessAddressProvince || currentParticipant?.province || '—'}
                                                 </Descriptions.Item>
-                                                <Descriptions.Item label="City">
+                                                <Descriptions.Item label={t('City')}>
                                                     {currentParticipant?.businessAddressCity || currentParticipant?.city || '—'}
                                                 </Descriptions.Item>
-                                                <Descriptions.Item label="Location Type">{currentParticipant?.locationType || '—'}</Descriptions.Item>
-                                                <Descriptions.Item label="Location">{currentParticipant?.location || '—'}</Descriptions.Item>
-                                                <Descriptions.Item label="Postal Code">{currentParticipant?.postalCode || '—'}</Descriptions.Item>
-                                                <Descriptions.Item label="Host Community">{currentParticipant?.hub || '—'}</Descriptions.Item>
+                                                <Descriptions.Item label={t('Location Type')}>{currentParticipant?.locationType || '—'}</Descriptions.Item>
+                                                <Descriptions.Item label={t('Location')}>{currentParticipant?.location || '—'}</Descriptions.Item>
+                                                <Descriptions.Item label={t('Postal Code')}>{currentParticipant?.postalCode || '—'}</Descriptions.Item>
+                                                <Descriptions.Item label={t('Host Community')}>{currentParticipant?.hub || '—'}</Descriptions.Item>
                                             </Descriptions>
                                         </Card>
 
-                                        <Card size="small" title="Digital Presence">
+                                        <Card size="small" title={t('Digital Presence')}>
                                             <Descriptions bordered size="small" column={2}>
-                                                <Descriptions.Item label="Website">{currentParticipant?.websiteUrl || '—'}</Descriptions.Item>
-                                                <Descriptions.Item label="Facebook">{currentParticipant?.socialMedia?.facebook || '—'}</Descriptions.Item>
-                                                <Descriptions.Item label="Instagram">{currentParticipant?.socialMedia?.instagram || '—'}</Descriptions.Item>
+                                                <Descriptions.Item label={t('Website')}>{currentParticipant?.websiteUrl || '—'}</Descriptions.Item>
+                                                <Descriptions.Item label={t('Facebook')}>{currentParticipant?.socialMedia?.facebook || '—'}</Descriptions.Item>
+                                                <Descriptions.Item label={t('Instagram')}>{currentParticipant?.socialMedia?.instagram || '—'}</Descriptions.Item>
                                                 <Descriptions.Item label="X">{currentParticipant?.socialMedia?.x || '—'}</Descriptions.Item>
-                                                <Descriptions.Item label="LinkedIn">{currentParticipant?.socialMedia?.linkedIn || '—'}</Descriptions.Item>
-                                                <Descriptions.Item label="Other">{currentParticipant?.socialMedia?.other || '—'}</Descriptions.Item>
+                                                <Descriptions.Item label={t('LinkedIn')}>{currentParticipant?.socialMedia?.linkedIn || '—'}</Descriptions.Item>
+                                                <Descriptions.Item label={t('Other')}>{currentParticipant?.socialMedia?.other || '—'}</Descriptions.Item>
                                             </Descriptions>
                                         </Card>
 
-                                        <Card size="small" title="SWOT">
+                                        <Card size="small" title={t('SWOT')}>
                                             <Descriptions bordered size="small" column={1}>
-                                                <Descriptions.Item label="Strengths">
+                                                <Descriptions.Item label={t('Strengths')}>
                                                     {Array.isArray(currentParticipant?.swot?.strengths) && currentParticipant.swot.strengths.length ? (
                                                         <Space wrap>
                                                             {currentParticipant.swot.strengths.map((x: string) => <Tag key={x}>{x}</Tag>)}
                                                         </Space>
                                                     ) : '—'}
                                                 </Descriptions.Item>
-                                                <Descriptions.Item label="Weaknesses">
+                                                <Descriptions.Item label={t('Weaknesses')}>
                                                     {Array.isArray(currentParticipant?.swot?.weaknesses) && currentParticipant.swot.weaknesses.length ? (
                                                         <Space wrap>
                                                             {currentParticipant.swot.weaknesses.map((x: string) => <Tag key={x}>{x}</Tag>)}
                                                         </Space>
                                                     ) : '—'}
                                                 </Descriptions.Item>
-                                                <Descriptions.Item label="Opportunities">
+                                                <Descriptions.Item label={t('Opportunities')}>
                                                     {Array.isArray(currentParticipant?.swot?.opportunities) && currentParticipant.swot.opportunities.length ? (
                                                         <Space wrap>
                                                             {currentParticipant.swot.opportunities.map((x: string) => <Tag key={x}>{x}</Tag>)}
                                                         </Space>
                                                     ) : '—'}
                                                 </Descriptions.Item>
-                                                <Descriptions.Item label="Threats">
+                                                <Descriptions.Item label={t('Threats')}>
                                                     {Array.isArray(currentParticipant?.swot?.threats) && currentParticipant.swot.threats.length ? (
                                                         <Space wrap>
                                                             {currentParticipant.swot.threats.map((x: string) => <Tag key={x}>{x}</Tag>)}
@@ -1965,29 +1967,29 @@ export const ParticipantsPage: React.FC = () => {
                                 )}
 
                                 {viewSegment === 'compliance' && (
-                                    <Card size="small" title="Compliance">
+                                    <Card size="small" title={t('Compliance')}>
                                         <Descriptions bordered size="small" column={2}>
-                                            <Descriptions.Item label="Compliance Score">
+                                            <Descriptions.Item label={t('Compliance Score')}>
                                                 {typeof currentParticipant?.complianceScore === 'number' ? (
                                                     <Tag color={scoreColor(currentParticipant.complianceScore)}>
                                                         {currentParticipant.complianceScore}%
                                                     </Tag>
                                                 ) : '—'}
                                             </Descriptions.Item>
-                                            <Descriptions.Item label="Compliance Status">
+                                            <Descriptions.Item label={t('Compliance Status')}>
                                                 {currentApplication?.complianceStatus || currentParticipant?.complianceStatus || '—'}
                                             </Descriptions.Item>
-                                            <Descriptions.Item label="Risk Level">
+                                            <Descriptions.Item label={t('Risk Level')}>
                                                 {currentApplication?.riskLevel || currentParticipant?.riskLevel || currentParticipant?.risk ? (
                                                     <Tag color={riskColor(currentApplication?.riskLevel || currentParticipant?.riskLevel || currentParticipant?.risk)}>
                                                         {String(currentApplication?.riskLevel || currentParticipant?.riskLevel || currentParticipant?.risk)}
                                                     </Tag>
                                                 ) : '—'}
                                             </Descriptions.Item>
-                                            <Descriptions.Item label="Documents Count">
+                                            <Descriptions.Item label={t('Documents Count')}>
                                                 {complianceDocs.length}
                                             </Descriptions.Item>
-                                            <Descriptions.Item label="Documents" span={2}>
+                                            <Descriptions.Item label={t('Documents')} span={2}>
                                                 {complianceDocs.length ? (
                                                     <Space wrap>
                                                         {complianceDocs.map((docItem: any, idx: number) => (
@@ -2003,21 +2005,21 @@ export const ParticipantsPage: React.FC = () => {
                                 )}
 
                                 {viewSegment === 'interventions' && (
-                                    <Card size="small" title="Interventions">
+                                    <Card size="small" title={t('Interventions')}>
                                         <Descriptions bordered size="small" column={2}>
-                                            <Descriptions.Item label="Participation Rate">
+                                            <Descriptions.Item label={t('Participation Rate')}>
                                                 {currentInterventions?.participationRate ?? 0}%
                                             </Descriptions.Item>
-                                            <Descriptions.Item label="Required">
+                                            <Descriptions.Item label={t('Required')}>
                                                 {Array.isArray(currentInterventions?.required) ? currentInterventions.required.length : 0}
                                             </Descriptions.Item>
-                                            <Descriptions.Item label="Assigned">
+                                            <Descriptions.Item label={t('Assigned')}>
                                                 {Array.isArray(currentInterventions?.assigned) ? currentInterventions.assigned.length : 0}
                                             </Descriptions.Item>
-                                            <Descriptions.Item label="Completed">
+                                            <Descriptions.Item label={t('Completed')}>
                                                 {Array.isArray(currentInterventions?.completed) ? currentInterventions.completed.length : 0}
                                             </Descriptions.Item>
-                                            <Descriptions.Item label="Required List" span={2}>
+                                            <Descriptions.Item label={t('Required List')} span={2}>
                                                 {Array.isArray(currentInterventions?.required) && currentInterventions.required.length ? (
                                                     <Space wrap>
                                                         {currentInterventions.required.map((x: any, idx: number) => (
@@ -2028,7 +2030,7 @@ export const ParticipantsPage: React.FC = () => {
                                                     </Space>
                                                 ) : '—'}
                                             </Descriptions.Item>
-                                            <Descriptions.Item label="Assigned List" span={2}>
+                                            <Descriptions.Item label={t('Assigned List')} span={2}>
                                                 {Array.isArray(currentInterventions?.assigned) && currentInterventions.assigned.length ? (
                                                     <Space wrap>
                                                         {currentInterventions.assigned.map((x: any, idx: number) => (
@@ -2039,7 +2041,7 @@ export const ParticipantsPage: React.FC = () => {
                                                     </Space>
                                                 ) : '—'}
                                             </Descriptions.Item>
-                                            <Descriptions.Item label="Completed List" span={2}>
+                                            <Descriptions.Item label={t('Completed List')} span={2}>
                                                 {Array.isArray(currentInterventions?.completed) && currentInterventions.completed.length ? (
                                                     <Space wrap>
                                                         {currentInterventions.completed.map((x: any, idx: number) => (
@@ -2058,75 +2060,75 @@ export const ParticipantsPage: React.FC = () => {
                                     <Space direction="vertical" size={16} style={{ width: '100%' }}>
                                         <Row gutter={[16, 16]}>
                                             <Col xs={24} lg={12}>
-                                                <Card size="small" title="Revenue History - Monthly">
+                                                <Card size="small" title={t('Revenue History - Monthly')}>
                                                     <Table
                                                         size="small"
                                                         pagination={false}
                                                         rowKey="period"
                                                         dataSource={revenueMonthlyRows}
                                                         columns={[
-                                                            { title: 'Period', dataIndex: 'period', key: 'period' },
+                                                            { title: t('Period'), dataIndex: 'period', key: 'period' },
                                                             {
-                                                                title: 'Revenue',
+                                                                title: t('Revenue'),
                                                                 dataIndex: 'value',
                                                                 key: 'value',
                                                                 render: (value: number) => `R ${value.toLocaleString()}`
                                                             }
                                                         ]}
-                                                        locale={{ emptyText: 'No monthly revenue data' }}
+                                                        locale={{ emptyText: t('No monthly revenue data') }}
                                                     />
                                                 </Card>
                                             </Col>
 
                                             <Col xs={24} lg={12}>
-                                                <Card size="small" title="Revenue History - Annual">
+                                                <Card size="small" title={t('Revenue History - Annual')}>
                                                     <Table
                                                         size="small"
                                                         pagination={false}
                                                         rowKey="period"
                                                         dataSource={revenueAnnualRows}
                                                         columns={[
-                                                            { title: 'Year', dataIndex: 'period', key: 'period' },
+                                                            { title: t('Year'), dataIndex: 'period', key: 'period' },
                                                             {
-                                                                title: 'Revenue',
+                                                                title: t('Revenue'),
                                                                 dataIndex: 'value',
                                                                 key: 'value',
                                                                 render: (value: number) => `R ${value.toLocaleString()}`
                                                             }
                                                         ]}
-                                                        locale={{ emptyText: 'No annual revenue data' }}
+                                                        locale={{ emptyText: t('No annual revenue data') }}
                                                     />
                                                 </Card>
                                             </Col>
 
                                             <Col xs={24} lg={12}>
-                                                <Card size="small" title="Headcount History - Monthly">
+                                                <Card size="small" title={t('Headcount History - Monthly')}>
                                                     <Table
                                                         size="small"
                                                         pagination={false}
                                                         rowKey="period"
                                                         dataSource={headcountMonthlyRows}
                                                         columns={[
-                                                            { title: 'Period', dataIndex: 'period', key: 'period' },
-                                                            { title: 'Headcount', dataIndex: 'value', key: 'value' }
+                                                            { title: t('Period'), dataIndex: 'period', key: 'period' },
+                                                            { title: t('Headcount'), dataIndex: 'value', key: 'value' }
                                                         ]}
-                                                        locale={{ emptyText: 'No monthly headcount data' }}
+                                                        locale={{ emptyText: t('No monthly headcount data') }}
                                                     />
                                                 </Card>
                                             </Col>
 
                                             <Col xs={24} lg={12}>
-                                                <Card size="small" title="Headcount History - Annual">
+                                                <Card size="small" title={t('Headcount History - Annual')}>
                                                     <Table
                                                         size="small"
                                                         pagination={false}
                                                         rowKey="period"
                                                         dataSource={headcountAnnualRows}
                                                         columns={[
-                                                            { title: 'Year', dataIndex: 'period', key: 'period' },
-                                                            { title: 'Headcount', dataIndex: 'value', key: 'value' }
+                                                            { title: t('Year'), dataIndex: 'period', key: 'period' },
+                                                            { title: t('Headcount'), dataIndex: 'value', key: 'value' }
                                                         ]}
-                                                        locale={{ emptyText: 'No annual headcount data' }}
+                                                        locale={{ emptyText: t('No annual headcount data') }}
                                                     />
                                                 </Card>
                                             </Col>
@@ -2219,7 +2221,7 @@ export const ParticipantsPage: React.FC = () => {
                                             label: (
                                                 <Space size={8}>
                                                     <UserOutlined />
-                                                    Profile
+                                                    {t('Profile')}
                                                 </Space>
                                             ),
                                             value: 'profile'
@@ -2228,7 +2230,7 @@ export const ParticipantsPage: React.FC = () => {
                                             label: (
                                                 <Space size={8}>
                                                     <ShopOutlined />
-                                                    Business
+                                                    {t('Business')}
                                                 </Space>
                                             ),
                                             value: 'business'
@@ -2237,7 +2239,7 @@ export const ParticipantsPage: React.FC = () => {
                                             label: (
                                                 <Space size={8}>
                                                     <GlobalOutlined />
-                                                    Digital
+                                                    {t('Digital')}
                                                 </Space>
                                             ),
                                             value: 'digital'
@@ -2246,7 +2248,7 @@ export const ParticipantsPage: React.FC = () => {
                                             label: (
                                                 <Space size={8}>
                                                     <RadarChartOutlined />
-                                                    SWOT
+                                                    {t('SWOT')}
                                                 </Space>
                                             ),
                                             value: 'swot'
@@ -2255,85 +2257,85 @@ export const ParticipantsPage: React.FC = () => {
                                 />
 
                                 <Form form={editForm} layout="vertical">
-                                    <Card size="small" title="Edit SME Details">
+                                    <Card size="small" title={t('Edit SME Details')}>
                                         {editSegment === 'profile' && (
                                             <Row gutter={[16, 0]}>
                                                 <Col xs={24} md={12}>
-                                                    <Form.Item name="participantName" label="Owner Name" rules={[{ required: true }]}>
+                                                    <Form.Item name="participantName" label={t('Owner Name')} rules={[{ required: true }]}>
                                                         <Input />
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24} md={12}>
-                                                    <Form.Item name="businessName" label="SME Name" rules={[{ required: true }]}>
+                                                    <Form.Item name="businessName" label={t('SME Name')} rules={[{ required: true }]}>
                                                         <Input />
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24} md={12}>
-                                                    <Form.Item name="email" label="Email" rules={[{ required: true, type: 'email' }]}>
+                                                    <Form.Item name="email" label={t('Email')} rules={[{ required: true, type: 'email' }]}>
                                                         <Input />
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24} md={12}>
-                                                    <Form.Item name="phone" label="Phone">
+                                                    <Form.Item name="phone" label={t('Phone')}>
                                                         <Input />
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24} md={12}>
-                                                    <Form.Item name="gender" label="Gender">
+                                                    <Form.Item name="gender" label={t('Gender')}>
                                                         <Select allowClear>
-                                                            <Option value="Male">Male</Option>
-                                                            <Option value="Female">Female</Option>
-                                                            <Option value="Other">Other</Option>
+                                                            <Option value="Male">{t('Male')}</Option>
+                                                            <Option value="Female">{t('Female')}</Option>
+                                                            <Option value="Other">{t('Other')}</Option>
                                                         </Select>
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24} md={12}>
-                                                    <Form.Item name="idNumber" label="ID Number">
+                                                    <Form.Item name="idNumber" label={t('ID Number')}>
                                                         <Input />
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24} md={12}>
-                                                    <Form.Item name="beeLevel" label="B-BBEE Level">
+                                                    <Form.Item name="beeLevel" label={t('B-BBEE Level')}>
                                                         <Input />
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24} md={12}>
-                                                    <Form.Item name="dateOfRegistration" label="Date of Registration">
+                                                    <Form.Item name="dateOfRegistration" label={t('Date of Registration')}>
                                                         <DatePicker style={{ width: '100%' }} />
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24} md={8}>
-                                                    <Form.Item name="youthOwnedPercent" label="Youth-Owned %">
+                                                    <Form.Item name="youthOwnedPercent" label={t('Youth-Owned %')}>
                                                         <InputNumber min={0} max={100} style={{ width: '100%' }} />
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24} md={8}>
-                                                    <Form.Item name="femaleOwnedPercent" label="Female-Owned %">
+                                                    <Form.Item name="femaleOwnedPercent" label={t('Female-Owned %')}>
                                                         <InputNumber min={0} max={100} style={{ width: '100%' }} />
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24} md={8}>
-                                                    <Form.Item name="blackOwnedPercent" label="Black-Owned %">
+                                                    <Form.Item name="blackOwnedPercent" label={t('Black-Owned %')}>
                                                         <InputNumber min={0} max={100} style={{ width: '100%' }} />
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24} md={8}>
-                                                    <Form.Item name="yearsOfTrading" label="Years of Trading">
+                                                    <Form.Item name="yearsOfTrading" label={t('Years of Trading')}>
                                                         <InputNumber min={0} style={{ width: '100%' }} />
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24} md={8}>
-                                                    <Form.Item name="age" label="Age">
+                                                    <Form.Item name="age" label={t('Age')}>
                                                         <InputNumber min={0} style={{ width: '100%' }} />
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24} md={12}>
-                                                    <Form.Item name="registrationNumber" label="Registration Number">
+                                                    <Form.Item name="registrationNumber" label={t('Registration Number')}>
                                                         <Input />
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24} md={12}>
-                                                    <Form.Item name="developmentType" label="Development Type">
+                                                    <Form.Item name="developmentType" label={t('Development Type')}>
                                                         <Select allowClear>
                                                             {developmentTypes.map(type => (
                                                                 <Option key={type} value={type}>{type}</Option>
@@ -2342,7 +2344,7 @@ export const ParticipantsPage: React.FC = () => {
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24} md={12}>
-                                                    <Form.Item name="sector" label="Sector">
+                                                    <Form.Item name="sector" label={t('Sector')}>
                                                         <Select allowClear>
                                                             {sectors.map(s => (
                                                                 <Option key={s} value={s}>{s}</Option>
@@ -2351,7 +2353,7 @@ export const ParticipantsPage: React.FC = () => {
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24} md={12}>
-                                                    <Form.Item name="stage" label="Stage">
+                                                    <Form.Item name="stage" label={t('Stage')}>
                                                         <Select allowClear>
                                                             {stages.map(s => (
                                                                 <Option key={s} value={s}>{s}</Option>
@@ -2365,17 +2367,17 @@ export const ParticipantsPage: React.FC = () => {
                                         {editSegment === 'business' && (
                                             <Row gutter={[16, 0]}>
                                                 <Col xs={24}>
-                                                    <Form.Item name="natureOfBusiness" label="Nature of Business">
+                                                    <Form.Item name="natureOfBusiness" label={t('Nature of Business')}>
                                                         <TextArea rows={3} />
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24}>
-                                                    <Form.Item name="businessAddress" label="Business Address">
+                                                    <Form.Item name="businessAddress" label={t('Business Address')}>
                                                         <Input />
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24} md={12}>
-                                                    <Form.Item name="businessAddressProvince" label="Province">
+                                                    <Form.Item name="businessAddressProvince" label={t('Province')}>
                                                         <Select allowClear>
                                                             {provinces.map(p => (
                                                                 <Option key={p} value={p}>{p}</Option>
@@ -2384,31 +2386,31 @@ export const ParticipantsPage: React.FC = () => {
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24} md={12}>
-                                                    <Form.Item name="businessAddressCity" label="City">
+                                                    <Form.Item name="businessAddressCity" label={t('City')}>
                                                         <Input />
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24} md={12}>
-                                                    <Form.Item name="locationType" label="Location Type">
+                                                    <Form.Item name="locationType" label={t('Location Type')}>
                                                         <Select allowClear>
-                                                            <Option value="Urban">Urban</Option>
-                                                            <Option value="Township">Township</Option>
-                                                            <Option value="Rural">Rural</Option>
+                                                            <Option value="Urban">{t('Urban')}</Option>
+                                                            <Option value="Township">{t('Township')}</Option>
+                                                            <Option value="Rural">{t('Rural')}</Option>
                                                         </Select>
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24} md={12}>
-                                                    <Form.Item name="location" label="Location / Area Name">
+                                                    <Form.Item name="location" label={t('Location / Area Name')}>
                                                         <Input />
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24} md={12}>
-                                                    <Form.Item name="postalCode" label="Postal Code">
+                                                    <Form.Item name="postalCode" label={t('Postal Code')}>
                                                         <Input />
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24} md={12}>
-                                                    <Form.Item name="hub" label="Host Community">
+                                                    <Form.Item name="hub" label={t('Host Community')}>
                                                         <Input />
                                                     </Form.Item>
                                                 </Col>
@@ -2418,17 +2420,17 @@ export const ParticipantsPage: React.FC = () => {
                                         {editSegment === 'digital' && (
                                             <Row gutter={[16, 0]}>
                                                 <Col xs={24} md={12}>
-                                                    <Form.Item name="websiteUrl" label="Website URL">
+                                                    <Form.Item name="websiteUrl" label={t('Website URL')}>
                                                         <Input />
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24} md={12}>
-                                                    <Form.Item name="facebook" label="Facebook">
+                                                    <Form.Item name="facebook" label={t('Facebook')}>
                                                         <Input />
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24} md={12}>
-                                                    <Form.Item name="instagram" label="Instagram">
+                                                    <Form.Item name="instagram" label={t('Instagram')}>
                                                         <Input />
                                                     </Form.Item>
                                                 </Col>
@@ -2438,12 +2440,12 @@ export const ParticipantsPage: React.FC = () => {
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24} md={12}>
-                                                    <Form.Item name="linkedIn" label="LinkedIn">
+                                                    <Form.Item name="linkedIn" label={t('LinkedIn')}>
                                                         <Input />
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24} md={12}>
-                                                    <Form.Item name="other" label="Other Link">
+                                                    <Form.Item name="other" label={t('Other Link')}>
                                                         <Input />
                                                     </Form.Item>
                                                 </Col>
@@ -2453,23 +2455,23 @@ export const ParticipantsPage: React.FC = () => {
                                         {editSegment === 'swot' && (
                                             <Row gutter={[16, 0]}>
                                                 <Col xs={24} md={12}>
-                                                    <Form.Item name="swotStrengths" label="SWOT Strengths">
-                                                        <TextArea rows={6} placeholder="One item per line" />
+                                                    <Form.Item name="swotStrengths" label={t('SWOT Strengths')}>
+                                                        <TextArea rows={6} placeholder={t('One item per line')} />
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24} md={12}>
-                                                    <Form.Item name="swotWeaknesses" label="SWOT Weaknesses">
-                                                        <TextArea rows={6} placeholder="One item per line" />
+                                                    <Form.Item name="swotWeaknesses" label={t('SWOT Weaknesses')}>
+                                                        <TextArea rows={6} placeholder={t('One item per line')} />
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24} md={12}>
-                                                    <Form.Item name="swotOpportunities" label="SWOT Opportunities">
-                                                        <TextArea rows={6} placeholder="One item per line" />
+                                                    <Form.Item name="swotOpportunities" label={t('SWOT Opportunities')}>
+                                                        <TextArea rows={6} placeholder={t('One item per line')} />
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24} md={12}>
-                                                    <Form.Item name="swotThreats" label="SWOT Threats">
-                                                        <TextArea rows={6} placeholder="One item per line" />
+                                                    <Form.Item name="swotThreats" label={t('SWOT Threats')}>
+                                                        <TextArea rows={6} placeholder={t('One item per line')} />
                                                     </Form.Item>
                                                 </Col>
                                             </Row>
@@ -2498,7 +2500,7 @@ export const ParticipantsPage: React.FC = () => {
             </Modal>
 
             <Modal
-                title="Assign Program"
+                title={t('Assign Program')}
                 open={assignProgramOpen}
                 confirmLoading={assigningProgram}
                 onCancel={() => {
@@ -2506,20 +2508,20 @@ export const ParticipantsPage: React.FC = () => {
                     setSelectedProgramId(undefined)
                 }}
                 onOk={assignProgramToParticipant}
-                okText="Assign"
+                okText={t('Assign')}
             >
                 <Alert
                     type="info"
                     showIcon
-                    message="This is only available for SMEs that currently have no program."
+                    message={t('This is only available for SMEs that currently have no program.')}
                     style={{ marginBottom: 16 }}
                 />
 
-                <Text strong>Select Program</Text>
+                <Text strong>{t('Select Program')}</Text>
                 <Select
                     value={selectedProgramId}
                     onChange={setSelectedProgramId}
-                    placeholder="Select program"
+                    placeholder={t('Select program')}
                     style={{ width: '100%', marginTop: 8 }}
                     options={programOptions}
                     showSearch
@@ -2528,7 +2530,7 @@ export const ParticipantsPage: React.FC = () => {
             </Modal>
 
             <Modal
-                title="Remove SME From Program"
+                title={t('Remove SME From Program')}
                 open={removeModalOpen}
                 confirmLoading={removingParticipant}
                 onCancel={() => {
@@ -2536,22 +2538,22 @@ export const ParticipantsPage: React.FC = () => {
                     setRemovalReason('')
                 }}
                 onOk={removeFromProgram}
-                okText="Remove"
+                okText={t('Remove')}
                 okButtonProps={{ danger: true }}
             >
                 <Alert
                     type="warning"
                     showIcon
-                    message="This will remove the SME from the current program view."
-                    description="The SME profile stays in SMEs, but the application is marked as removed and a permanent removal trail is saved."
+                    message={t('This will remove the SME from the current program view.')}
+                    description={t('The SME profile stays in SMEs, but the application is marked as removed and a permanent removal trail is saved.')}
                     style={{ marginBottom: 16 }}
                 />
-                <Text strong>Reason</Text>
+                <Text strong>{t('Reason')}</Text>
                 <TextArea
                     rows={4}
                     value={removalReason}
                     onChange={e => setRemovalReason(e.target.value)}
-                    placeholder="Enter the reason for removal"
+                    placeholder={t('Enter the reason for removal')}
                     style={{ marginTop: 8 }}
                 />
             </Modal>

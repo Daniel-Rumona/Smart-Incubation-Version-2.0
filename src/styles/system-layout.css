@@ -809,53 +809,56 @@ html[data-theme='dark'] .workspace-navigation-card:hover, html[data-theme='dark'
 
 .app-account-modal-title {
     display: flex;
-    flex-direction: column;
     align-items: center;
+    justify-content: center;
 
-    gap: 10px;
+    gap: 16px;
 
-    text-align: center;
+    /* Symmetric gutters keep the centred content clear of the close icon. */
+    padding-inline: 36px;
 }
 
 .app-account-avatar {
     display: grid;
-    width: 52px;
-    height: 52px;
+    width: 88px;
+    height: 88px;
     flex: 0 0 auto;
     place-items: center;
     overflow: hidden;
 
-    border-radius: 14px;
+    border-radius: 50%;
 
     background: linear-gradient(135deg, #6d5dfb, #3b82f6);
 
     color: #fff;
-    font-size: 22px;
+    font-size: 36px;
     font-weight: 800;
 }
 
 .app-account-avatar img {
     width: 100%;
     height: 100%;
+    object-fit: cover;
+}
+
+.app-account-avatar img.is-logo {
     object-fit: contain;
 }
 
 .app-account-title-copy {
     display: grid;
-    justify-items: center;
+    justify-items: start;
     min-width: 0;
 
-    gap: 2px;
+    gap: 4px;
 }
 
 .app-account-title-copy strong {
-    max-width: 280px;
-    overflow: hidden;
+    max-width: 100%;
 
-    font-size: 15px;
-    line-height: 1.2;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    font-size: 17px;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
 }
 
 .app-account-role {

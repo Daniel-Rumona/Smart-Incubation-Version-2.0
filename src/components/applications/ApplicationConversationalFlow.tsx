@@ -24,6 +24,7 @@ import type {
     ProgramInterventionGroup,
     ProgramQuestion,
 } from '@/types/application'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 const { Title, Text, Paragraph } = Typography
 const { TextArea } = Input
@@ -61,10 +62,10 @@ const SWOT_CONFIG: Record<SwotCategory, {
     sentiment: 'positive' | 'negative'
     Icon: typeof ThunderboltOutlined
 }> = {
-    strengths: { screen: 'swotStrengths', field: 'swotStrengths', label: 'Strengths', question: 'What does your business do well?', placeholder: 'e.g. Strong customer relationships', sentiment: 'positive', Icon: ThunderboltOutlined },
-    weaknesses: { screen: 'swotWeaknesses', field: 'swotWeaknesses', label: 'Weaknesses', question: 'Where does your business struggle?', placeholder: 'e.g. Limited working capital', sentiment: 'negative', Icon: WarningOutlined },
-    opportunities: { screen: 'swotOpportunities', field: 'swotOpportunities', label: 'Opportunities', question: 'What external factors could help you grow?', placeholder: 'e.g. New export markets opening up', sentiment: 'positive', Icon: BulbOutlined },
-    threats: { screen: 'swotThreats', field: 'swotThreats', label: 'Threats', question: 'What external factors could hurt your business?', placeholder: 'e.g. New competitors entering the market', sentiment: 'negative', Icon: SafetyCertificateOutlined },
+    strengths: { screen: 'swotStrengths', field: 'swotStrengths', get label() { return tr('Strengths') }, question: 'What does your business do well?', get placeholder() { return tr('e.g. Strong customer relationships') }, sentiment: 'positive', Icon: ThunderboltOutlined },
+    weaknesses: { screen: 'swotWeaknesses', field: 'swotWeaknesses', get label() { return tr('Weaknesses') }, question: 'Where does your business struggle?', get placeholder() { return tr('e.g. Limited working capital') }, sentiment: 'negative', Icon: WarningOutlined },
+    opportunities: { screen: 'swotOpportunities', field: 'swotOpportunities', get label() { return tr('Opportunities') }, question: 'What external factors could help you grow?', get placeholder() { return tr('e.g. New export markets opening up') }, sentiment: 'positive', Icon: BulbOutlined },
+    threats: { screen: 'swotThreats', field: 'swotThreats', get label() { return tr('Threats') }, question: 'What external factors could hurt your business?', get placeholder() { return tr('e.g. New competitors entering the market') }, sentiment: 'negative', Icon: SafetyCertificateOutlined },
 }
 
 const MIN_MOTIVATION_CHARS = 80
@@ -166,6 +167,7 @@ export default function ApplicationConversationalFlow({
     programName,
     saving = false,
 }: Props) {
+    const { t } = useLanguage()
     const { token } = theme.useToken()
     const reduceMotion = useReducedMotion()
     const screens = useBreakpoint()
@@ -439,7 +441,7 @@ export default function ApplicationConversationalFlow({
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
                 {onBack && (
                     <Button size="large" icon={<ArrowLeftOutlined />} onClick={onBack} style={{ minWidth: 140, height: 48, borderRadius: 12, fontWeight: 600 }}>
-                        Back
+                        {t('Back')}
                     </Button>
                 )}
                 <Button type="primary" size="large" disabled={nextDisabled} icon={<ArrowRightOutlined />} iconPosition="end" onClick={onNext} style={{ minWidth: 180, height: 48, borderRadius: 12, fontWeight: 600 }}>
@@ -510,7 +512,7 @@ export default function ApplicationConversationalFlow({
                     <Title level={2} style={{ margin: 0 }}>{config.label}</Title>
                 </div>
                 <Paragraph type="secondary" style={{ fontSize: 15, marginBottom: 18, maxWidth: 620 }}>
-                    {config.question} Optional, but it helps reviewers understand your business at a glance.
+                    {config.question} {t('Optional, but it helps reviewers understand your business at a glance.')}
                 </Paragraph>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 10 }}>
@@ -526,14 +528,14 @@ export default function ApplicationConversationalFlow({
                         style={{ borderRadius: 12 }}
                     />
                     <Button type="primary" size="large" icon={<PlusOutlined />} disabled={!swotInputs[category].trim()} onClick={() => addSwotItem(category)} style={{ borderRadius: 12, background: accent, borderColor: accent }}>
-                        Add
+                        {t('Add')}
                     </Button>
                 </div>
 
                 <div style={{ marginTop: 18, display: 'grid', gap: 10, maxHeight: 250, overflowY: 'auto' }}>
                     {items.length === 0 ? (
                         <div style={{ padding: '24px 18px', borderRadius: 14, border: `1px dashed ${token.colorBorder}`, textAlign: 'center', color: token.colorTextSecondary }}>
-                            No {config.label.toLowerCase()} added yet.
+                            {t('No')} {config.label.toLowerCase()} {t('added yet.')}
                         </div>
                     ) : (
                         items.map((item, itemIndex) => (
@@ -575,14 +577,14 @@ export default function ApplicationConversationalFlow({
                             </Text>
                         )}
                         <Text type="secondary" style={{ display: 'block', fontSize: 11, marginTop: 4 }}>
-                            {allowedFormats.join(', ').toUpperCase()} · Max {document.maxSizeMB || 10} MB
+                            {allowedFormats.join(', ').toUpperCase()} {t('· Max')} {document.maxSizeMB || 10} {t('MB')}
                         </Text>
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '0 0 auto' }}>
                         {hasFile && (
                             <Tag color="success" icon={<CheckOutlined />} style={{ marginInlineEnd: 0 }}>
-                                Uploaded
+                                {t('Uploaded')}
                             </Tag>
                         )}
                         <Upload
@@ -599,7 +601,7 @@ export default function ApplicationConversationalFlow({
                             showUploadList={false}
                         >
                             <Button size="small" type={hasFile ? 'default' : 'primary'} icon={<UploadOutlined />}>
-                                {hasFile ? 'Replace' : 'Upload'}
+                                {hasFile ? t('Replace') : t('Upload')}
                             </Button>
                         </Upload>
                     </div>
@@ -608,7 +610,7 @@ export default function ApplicationConversationalFlow({
                 {document.requiresExpiry && (
                     <div style={{ marginTop: 12 }}>
                         <Text type="secondary" style={{ display: 'block', fontSize: 12, marginBottom: 5 }}>
-                            Expiry date
+                            {t('Expiry date')}
                         </Text>
                         <DatePicker
                             style={{ width: '100%' }}
@@ -628,8 +630,8 @@ export default function ApplicationConversationalFlow({
             return (
                 <div style={{ marginBottom: 14 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
-                        <Text type="secondary" style={{ fontSize: 13 }}>Programme questions</Text>
-                        <Text type="secondary" style={{ fontSize: 12 }}>{profileIndex + 1} of {programQuestions.length}</Text>
+                        <Text type="secondary" style={{ fontSize: 13 }}>{t('Programme questions')}</Text>
+                        <Text type="secondary" style={{ fontSize: 12 }}>{profileIndex + 1} {t('of')} {programQuestions.length}</Text>
                     </div>
                     <Progress percent={profileProgress} showInfo={false} size="small" strokeColor={token.colorPrimary} trailColor={token.colorBorderSecondary} />
                 </div>
@@ -640,8 +642,8 @@ export default function ApplicationConversationalFlow({
             return (
                 <div style={{ marginBottom: 14 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
-                        <Text type="secondary" style={{ fontSize: 13 }}>Documents</Text>
-                        <Text type="secondary" style={{ fontSize: 12 }}>{readyDocuments.length} of {documents.length} ready</Text>
+                        <Text type="secondary" style={{ fontSize: 13 }}>{t('Documents')}</Text>
+                        <Text type="secondary" style={{ fontSize: 12 }}>{readyDocuments.length} {t('of')} {documents.length} {t('ready')}</Text>
                     </div>
                     <Progress percent={documentsProgress} showInfo={false} size="small" strokeColor={requiredMissingDocuments.length ? token.colorPrimary : token.colorSuccess} trailColor={token.colorBorderSecondary} />
                 </div>
@@ -652,8 +654,8 @@ export default function ApplicationConversationalFlow({
             return (
                 <div style={{ marginBottom: 14 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                        <Text type="secondary" style={{ fontSize: 13 }}>Support needs</Text>
-                        <Text type="secondary" style={{ fontSize: 12 }}>{selectedInterventionCount} selected</Text>
+                        <Text type="secondary" style={{ fontSize: 13 }}>{t('Support needs')}</Text>
+                        <Text type="secondary" style={{ fontSize: 12 }}>{selectedInterventionCount} {t('selected')}</Text>
                     </div>
                 </div>
             )
@@ -664,8 +666,8 @@ export default function ApplicationConversationalFlow({
             return (
                 <div style={{ marginBottom: 14 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
-                        <Text type="secondary" style={{ fontSize: 13 }}>SWOT analysis</Text>
-                        <Text type="secondary" style={{ fontSize: 12 }}>{swotScreenIndex + 1} of {SWOT_ORDER.length}</Text>
+                        <Text type="secondary" style={{ fontSize: 13 }}>{t('SWOT analysis')}</Text>
+                        <Text type="secondary" style={{ fontSize: 12 }}>{swotScreenIndex + 1} {t('of')} {SWOT_ORDER.length}</Text>
                     </div>
                     <Progress percent={Math.round(((swotScreenIndex + 1) / SWOT_ORDER.length) * 100)} showInfo={false} size="small" strokeColor={token.colorPrimary} trailColor={token.colorBorderSecondary} />
                 </div>
@@ -677,7 +679,7 @@ export default function ApplicationConversationalFlow({
         return (
             <div style={{ marginBottom: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
-                    <Text type="secondary" style={{ fontSize: 13 }}>Getting to know your business</Text>
+                    <Text type="secondary" style={{ fontSize: 13 }}>{t('Getting to know your business')}</Text>
                     <Text type="secondary" style={{ fontSize: 12 }}>{stepLabels[screen]}</Text>
                 </div>
                 <Progress percent={stepPercent[screen] || 0} showInfo={false} size="small" strokeColor={token.colorPrimary} trailColor={token.colorBorderSecondary} />
@@ -702,22 +704,22 @@ export default function ApplicationConversationalFlow({
 
                     {screen === 'motivation' && (
                         <Card styles={bodyPad} style={cardStyle}>
-                            <Title level={2} style={{ marginBottom: 8 }}>Why do you want to join this programme?</Title>
+                            <Title level={2} style={{ marginBottom: 8 }}>{t('Why do you want to join this programme?')}</Title>
                             <Paragraph type="secondary" style={{ fontSize: 15, marginBottom: 18, maxWidth: 620 }}>
-                                Tell us where your business is now, what you want to achieve, and how you hope the programme can help you get there.
+                                {t('Tell us where your business is now, what you want to achieve, and how you hope the programme can help you get there.')}
                             </Paragraph>
 
                             <TextArea
                                 value={values.motivation || ''}
                                 onChange={(event) => onValuesChange({ motivation: event.target.value })}
-                                placeholder="Write your motivation here..."
+                                placeholder={t('Write your motivation here...')}
                                 style={{ height: 220, fontSize: 16, lineHeight: 1.65, borderRadius: 14, resize: 'none' }}
                             />
 
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
                                 <Progress type="circle" percent={motivationProgress} size={28} showInfo={false} strokeColor={canContinueMotivation ? token.colorSuccess : token.colorPrimary} />
-                                <Text type="secondary" style={{ fontSize: 13 }}>{motivationChars} / {MIN_MOTIVATION_CHARS} characters</Text>
-                                {saving && <Text type="secondary" style={{ fontSize: 12, marginLeft: 'auto' }}>Saving...</Text>}
+                                <Text type="secondary" style={{ fontSize: 13 }}>{motivationChars} / {MIN_MOTIVATION_CHARS} {t('characters')}</Text>
+                                {saving && <Text type="secondary" style={{ fontSize: 12, marginLeft: 'auto' }}>{t('Saving...')}</Text>}
                             </div>
 
                             {renderNavRow('Back', () => goTo('welcome', 'backward'), 'Continue', () => goTo('challenges'), !canContinueMotivation)}
@@ -726,16 +728,16 @@ export default function ApplicationConversationalFlow({
 
                     {screen === 'challenges' && (
                         <Card styles={bodyPad} style={cardStyle}>
-                            <Title level={2} style={{ marginBottom: 8 }}>What challenges are holding your business back?</Title>
+                            <Title level={2} style={{ marginBottom: 8 }}>{t('What challenges are holding your business back?')}</Title>
                             <Paragraph type="secondary" style={{ fontSize: 15, marginBottom: 18, maxWidth: 620 }}>
-                                Add one challenge at a time. This helps us understand where you need support.
+                                {t('Add one challenge at a time. This helps us understand where you need support.')}
                             </Paragraph>
 
                             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 10 }}>
                                 <Input
                                     size="large"
                                     value={challengeInput}
-                                    placeholder="e.g. Finding new customers"
+                                    placeholder={t('e.g. Finding new customers')}
                                     onChange={(event) => setChallengeInput(event.target.value)}
                                     onPressEnter={(event) => {
                                         event.preventDefault()
@@ -744,14 +746,14 @@ export default function ApplicationConversationalFlow({
                                     style={{ borderRadius: 12 }}
                                 />
                                 <Button type="primary" size="large" icon={<PlusOutlined />} disabled={!challengeInput.trim()} onClick={addChallenge} style={{ borderRadius: 12 }}>
-                                    Add
+                                    {t('Add')}
                                 </Button>
                             </div>
 
                             <div style={{ marginTop: 18, display: 'grid', gap: 10, maxHeight: 250, overflowY: 'auto' }}>
                                 {challenges.length === 0 ? (
                                     <div style={{ padding: '24px 18px', borderRadius: 14, border: `1px dashed ${token.colorBorder}`, textAlign: 'center', color: token.colorTextSecondary }}>
-                                        No challenges added yet.
+                                        {t('No challenges added yet.')}
                                     </div>
                                 ) : (
                                     challenges.map((challenge, index) => (
@@ -772,16 +774,16 @@ export default function ApplicationConversationalFlow({
 
                     {screen === 'presence' && (
                         <Card styles={bodyPad} style={cardStyle}>
-                            <Title level={2} style={{ marginBottom: 8 }}>Where does your business show up online?</Title>
+                            <Title level={2} style={{ marginBottom: 8 }}>{t('Where does your business show up online?')}</Title>
                             <Paragraph type="secondary" style={{ fontSize: 15, marginBottom: 18, maxWidth: 620 }}>
-                                This is optional, but it helps us understand how customers find you.
+                                {t('This is optional, but it helps us understand how customers find you.')}
                             </Paragraph>
 
                             <div style={{ display: 'grid', gap: 16 }}>
                                 {([
-                                    { key: 'facebook' as const, label: 'Facebook' },
-                                    { key: 'instagram' as const, label: 'Instagram' },
-                                    { key: 'linkedIn' as const, label: 'LinkedIn' },
+                                    { key: 'facebook' as const, label: t('Facebook') },
+                                    { key: 'instagram' as const, label: t('Instagram') },
+                                    { key: 'linkedIn' as const, label: t('LinkedIn') },
                                 ]).map(({ key, label }) => (
                                     <div key={key}>
                                         <Text style={{ display: 'block', marginBottom: 8, fontWeight: 600 }}>{label}</Text>
@@ -815,7 +817,7 @@ export default function ApplicationConversationalFlow({
 
                     {screen === 'profileQuestion' && activeProfileQuestion && (
                         <Card styles={bodyPad} style={cardStyle}>
-                            <Text type="secondary" style={{ display: 'block', marginBottom: 8, fontSize: 13 }}>Question {profileIndex + 1}</Text>
+                            <Text type="secondary" style={{ display: 'block', marginBottom: 8, fontSize: 13 }}>{t('Question')} {profileIndex + 1}</Text>
                             <Title level={2} style={{ marginBottom: 22 }}>{activeProfileQuestion.label || activeProfileQuestion.question}</Title>
 
                             {isChoiceType ? (
@@ -864,7 +866,7 @@ export default function ApplicationConversationalFlow({
                                                 })
                                             ) : (
                                                 <div style={{ padding: '22px 16px', textAlign: 'center', border: `1px dashed ${token.colorBorder}`, borderRadius: 12, color: token.colorTextSecondary }}>
-                                                    No options match &quot;{profileOptionSearch}&quot;.
+                                                    {t('No options match "')}{profileOptionSearch}&quot;.
                                                 </div>
                                             )}
                                         </div>
@@ -873,7 +875,7 @@ export default function ApplicationConversationalFlow({
                             ) : isLongText ? (
                                 <TextArea
                                     value={activeProfileAnswer}
-                                    placeholder={activeProfileQuestion.placeholder || 'Type your answer'}
+                                    placeholder={activeProfileQuestion.placeholder || t('Type your answer')}
                                     onChange={(event) => setProfileAnswer(event.target.value)}
                                     style={{ borderRadius: 12, minHeight: 140 }}
                                 />
@@ -881,7 +883,7 @@ export default function ApplicationConversationalFlow({
                                 <Input
                                     size="large"
                                     value={activeProfileAnswer}
-                                    placeholder={activeProfileQuestion.placeholder || 'Type your answer'}
+                                    placeholder={activeProfileQuestion.placeholder || t('Type your answer')}
                                     onChange={(event) => setProfileAnswer(event.target.value)}
                                     onPressEnter={() => {
                                         if (activeProfileAnswer.trim()) continueProfileQuestion()
@@ -891,7 +893,7 @@ export default function ApplicationConversationalFlow({
                             )}
 
                             <Text type="secondary" style={{ display: 'block', minHeight: 20, marginTop: 12, fontSize: 12 }}>
-                                {saving ? 'Saving...' : 'Your answer is saved automatically.'}
+                                {saving ? t('Saving...') : t('Your answer is saved automatically.')}
                             </Text>
 
                             {renderNavRow(
@@ -916,9 +918,9 @@ export default function ApplicationConversationalFlow({
 
                     {screen === 'documents' && (
                         <Card styles={bodyPad} style={cardStyle}>
-                            <Title level={2} style={{ marginBottom: 8 }}>Required documents</Title>
+                            <Title level={2} style={{ marginBottom: 8 }}>{t('Required documents')}</Title>
                             <Paragraph type="secondary" style={{ fontSize: 15, marginBottom: 18, maxWidth: 620 }}>
-                                Tap a document to upload it. Documents marked required must be provided before you submit.
+                                {t('Tap a document to upload it. Documents marked required must be provided before you submit.')}
                             </Paragraph>
 
                             <div style={{ display: 'grid', gap: 10 }}>
@@ -941,7 +943,7 @@ export default function ApplicationConversationalFlow({
 
                     {screen === 'supportAreas' && (
                         <Card styles={bodyPad} style={cardStyle}>
-                            <Title level={2} style={{ marginBottom: 18 }}>Choose your support areas</Title>
+                            <Title level={2} style={{ marginBottom: 18 }}>{t('Choose your support areas')}</Title>
 
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                                 {interventionGroups.map((group) => {

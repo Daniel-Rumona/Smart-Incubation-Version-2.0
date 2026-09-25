@@ -9,6 +9,7 @@ import {
 } from '@/services/agentService'
 import type { AgentProposal, AgentProposalStatus } from '@/types/agent'
 import '@/styles/agent-proposal.css'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 type Props = {
   proposal: AgentProposal
@@ -22,6 +23,7 @@ type Props = {
  * proposal id; the backend holds the validated details and performs the write on confirm.
  */
 export const AgentProposalCard = ({ proposal, status, note, onChange }: Props) => {
+  const { t } = useLanguage()
   const [now, setNow] = useState(() => Date.now())
   const expiresAt = Date.parse(proposal.expiresAt)
   const expired = status === 'pending' && Number.isFinite(expiresAt) && now >= expiresAt
@@ -69,7 +71,7 @@ export const AgentProposalCard = ({ proposal, status, note, onChange }: Props) =
         {!resolved && <ExclamationCircleFilled />}
         <strong>{proposal.title}</strong>
         <span className="agent-proposal-tag">
-          {status === 'executed' ? 'Done' : status === 'cancelled' ? 'Discarded' : status === 'failed' ? 'Not done' : expired ? 'Expired' : 'Needs your OK'}
+          {status === 'executed' ? t('Done') : status === 'cancelled' ? t('Discarded') : status === 'failed' ? t('Not done') : expired ? t('Expired') : t('Needs your OK')}
         </span>
       </div>
 
@@ -92,13 +94,13 @@ export const AgentProposalCard = ({ proposal, status, note, onChange }: Props) =
         </ul>
       )}
 
-      {expired && <p className="agent-proposal-note">This expired. Ask again and I&apos;ll prepare it afresh.</p>}
+      {expired && <p className="agent-proposal-note">{t('This expired. Ask again and I\'ll prepare it afresh.')}</p>}
       {note && !expired && <p className={`agent-proposal-note ${status === 'failed' ? 'is-error' : ''}`}>{note}</p>}
 
       {!resolved && (
         <div className="agent-proposal-actions">
-          <Button type="primary" loading={busy} disabled={busy} onClick={() => void confirm()}>Confirm</Button>
-          <Button disabled={busy} onClick={() => void cancel()}>Discard</Button>
+          <Button type="primary" loading={busy} disabled={busy} onClick={() => void confirm()}>{t('Confirm')}</Button>
+          <Button disabled={busy} onClick={() => void cancel()}>{t('Discard')}</Button>
         </div>
       )}
     </div>

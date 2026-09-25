@@ -34,6 +34,7 @@ import type {
     ProgramQuestion,
 } from '@/types/application'
 import '@/styles/program-application.css'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 const { Title } = Typography
 
@@ -43,6 +44,7 @@ type ParticipantSummary = {
 }
 
 export default function ProgramApplicationPage() {
+    const { t } = useLanguage()
     const { message } = App.useApp()
     const navigate = useNavigate()
     const screens = Grid.useBreakpoint()
@@ -219,18 +221,18 @@ export default function ProgramApplicationPage() {
                 }
             } catch (error) {
                 console.error(error)
-                message.error('Failed to load application setup')
+                message.error(t('Failed to load application setup'))
             } finally {
                 setLoading(false)
             }
         }
 
         void loadApplicationContext()
-    }, [message, programId, resolveProgramContext])
+    }, [message, programId, resolveProgramContext, t])
 
     const validateBeforeSubmit = () => {
         if (!values.motivation?.trim() || !values.challenges?.trim()) {
-            message.warning('Please complete the motivation and business challenges questions.')
+            message.warning(t('Please complete the motivation and business challenges questions.'))
             setReviewOpen(false)
             return false
         }
@@ -247,12 +249,12 @@ export default function ProgramApplicationPage() {
         }
 
         if (missingDocuments.length) {
-            message.warning('Please upload all required programme documents before submitting.')
+            message.warning(t('Please upload all required programme documents before submitting.'))
             return false
         }
 
         if (!isForcedInterventionProgram && interventionGroups.length && !selectedInterventions.length) {
-            message.warning('Please select at least one programme intervention.')
+            message.warning(t('Please select at least one programme intervention.'))
             setReviewOpen(false)
             return false
         }
@@ -275,7 +277,7 @@ export default function ProgramApplicationPage() {
 
             const nextComplianceScore = calculateComplianceScore(uploadedDocuments)
             if (nextComplianceScore < 10) {
-                message.error('Compliance must be 10% or higher before this application can be submitted.')
+                message.error(t('Compliance must be 10% or higher before this application can be submitted.'))
                 return
             }
 
@@ -298,11 +300,11 @@ export default function ProgramApplicationPage() {
             })
 
             await updateCurrentUserRoleToIncubatee()
-            message.success('Application submitted successfully')
+            message.success(t('Application submitted successfully'))
             navigate('/applicant/application-tracker')
         } catch (error) {
             console.error(error)
-            message.error('Failed to submit application')
+            message.error(t('Failed to submit application'))
         } finally {
             setSubmitting(false)
         }
@@ -311,7 +313,7 @@ export default function ProgramApplicationPage() {
     if (loading) {
         return (
             <div className="program-application-page program-application-loading">
-                <Spin tip="Loading application setup..." />
+                <Spin tip={t('Loading application setup...')} />
             </div>
         )
     }
@@ -320,10 +322,10 @@ export default function ProgramApplicationPage() {
         <div className="program-application-page">
             <Card className="program-application-header" bordered={false}>
                 <div className="program-application-heading">
-                    <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)} aria-label="Back">Back</Button>
+                    <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)} aria-label={t('Back')}>{t('Back')}</Button>
 
                     <Title level={3} className="program-application-title">
-                        {programName || 'Programme application'}
+                        {programName || t('Programme application')}
                     </Title>
 
                     <div className="program-application-progress-arc-wrap">
@@ -356,14 +358,14 @@ export default function ProgramApplicationPage() {
                         />
 
                         <Space.Compact block={isMobile} className="program-application-actions">
-                            <Button onClick={() => setReviewOpen(false)}>Back to application</Button>
+                            <Button onClick={() => setReviewOpen(false)}>{t('Back to application')}</Button>
                             <Button
                                 type="primary"
                                 icon={<SendOutlined />}
                                 loading={submitting}
                                 onClick={handleSubmit}
                             >
-                                Submit application
+                                {t('Submit application')}
                             </Button>
                         </Space.Compact>
                     </>
@@ -387,7 +389,7 @@ export default function ProgramApplicationPage() {
             <FloatButton.BackTop
                 className="program-application-back-top"
                 visibilityHeight={320}
-                tooltip="Back to top"
+                tooltip={t('Back to top')}
             />
         </div>
     )

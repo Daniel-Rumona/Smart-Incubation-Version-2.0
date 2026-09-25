@@ -771,7 +771,9 @@ service cloud.firestore {
     // UpcomingWeekCard, OperationsReportsPage) - narrowing the read would
     // break that page for the very role it exists for.
     match /appointments/{appointmentId} {
-      allow get, list: if signedIn() && resource.data.companyCode == currentUser().companyCode;
+      // A consultant can always read appointments assigned to them, even when they have no company code of their own.
+      allow get, list: if signedIn() && (resource.data.companyCode == currentUser().companyCode
+        || resource.data.assigneeId == request.auth.uid);
 
       allow create: if hasRole(interventionWorkspaceRoles())
         || (hasRole(['consultant']) && request.resource.data.assigneeId == request.auth.uid);

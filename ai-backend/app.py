@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 
 from business_plan_agent import create_business_plan_router
 from strategic_plan_agent import create_strategic_plan_router
+from report_insights import create_report_insights_router
 from pitchfy_agent import create_pitchfy_router
 from pitchfy_client import PitchfyClient
 from document_provenance import create_document_provenance_router
@@ -209,18 +210,6 @@ class ComplianceScanRequest(BaseModel):
     updateDatabase: bool = True
 
 
-class ReportInsightRequest(BaseModel):
-    reportTitle: str = Field(default="Operations Report", max_length=160)
-    periodLabel: str = Field(default="", max_length=160)
-    companyName: str | None = Field(default=None, max_length=160)
-    audience: str = Field(default="operations leadership", max_length=120)
-    metrics: dict[str, Any] = Field(default_factory=dict)
-    demandCoverage: list[dict[str, Any]] = Field(default_factory=list)
-    attentionItems: list[dict[str, Any]] = Field(default_factory=list)
-    attendance: dict[str, Any] = Field(default_factory=dict)
-    compliance: dict[str, Any] = Field(default_factory=dict)
-
-
 class InterventionMonitoringInsightRequest(BaseModel):
     companyName: str | None = Field(default=None, max_length=160)
     filters: dict[str, Any] = Field(default_factory=dict)
@@ -399,84 +388,6 @@ def _extract_json_object(text: str) -> dict[str, Any] | None:
         return json.loads(candidate[start : end + 1])
     except json.JSONDecodeError:
         return None
-
-
-def _number_metric(metrics: dict[str, Any], key: str) -> int | float:
-    value = metrics.get(key)
-    if isinstance(value, (int, float)):
-        return value
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return 0
-
-
-def _fallback_report_insights(payload: ReportInsightRequest) -> dict[str, Any]:
-    metrics = payload.metrics or {}
-    submitted = _number_metric(metrics, "submitted")
-    accepted = _number_metric(metrics, "accepted")
-    acceptance_rate = _number_metric(metrics, "acceptanceRate")
-    participants = _number_metric(metrics, "participants")
-    assigned = _number_metric(metrics, "assigned")
-    completed = _number_metric(metrics, "completed")
-    completion_rate = _number_metric(metrics, "completionRate")
-    overdue = _number_metric(metrics, "overdue")
-    compliance_risk = _number_metric(metrics, "complianceRisk")
-    appointments = _number_metric(metrics, "appointments")
-    attendance_rate = _number_metric(metrics, "attendanceRate")
-
-    executive_summary = (
-        f"This operations report covers {payload.periodLabel or 'the selected period'}. "
-        f"Application intake recorded {submitted:g} submissions and {accepted:g} acceptances, "
-        f"giving an acceptance rate of {acceptance_rate:g}%. The active participant base for the "
-        f"scope is {participants:g}. Intervention delivery recorded {assigned:g} assigned items and "
-        f"{completed:g} completions, with a completion rate of {completion_rate:g}%. "
-        f"There are {overdue:g} overdue delivery items and {compliance_risk:g} compliance items needing "
-        f"follow-up. Appointment activity includes {appointments:g} scheduled meetings, with an attendance "
-        f"rate of {attendance_rate:g}% where attendance was captured."
-    )
-
-    return {
-        "executiveSummary": executive_summary,
-        "operationalHighlights": [
-            f"{accepted:g} of {submitted:g} submitted applications were accepted.",
-            f"{completed:g} of {assigned:g} assigned interventions were completed.",
-            f"Attendance rate is {attendance_rate:g}% for captured appointment outcomes.",
-        ],
-        "risks": [
-            f"{overdue:g} overdue intervention items require follow-up.",
-            f"{compliance_risk:g} compliance items require review or remediation.",
-        ],
-        "attendanceSummary": (
-            f"{appointments:g} appointments were scheduled in the period. Attendance was captured at "
-            f"{attendance_rate:g}% for present/absent outcomes, with uncaptured appointments requiring "
-            "administrative follow-up."
-        ),
-        "actionPlan": [
-            {
-                "action": "Follow up overdue intervention delivery items",
-                "owner": "Operations",
-                "priority": "High" if overdue else "Medium",
-                "due": "Next reporting cycle",
-                "successMeasure": "All overdue items have an owner and next action recorded",
-            },
-            {
-                "action": "Resolve compliance exceptions",
-                "owner": "Compliance",
-                "priority": "High" if compliance_risk else "Medium",
-                "due": "Next reporting cycle",
-                "successMeasure": "Compliance exceptions are reduced or formally queried",
-            },
-            {
-                "action": "Capture outstanding attendance outcomes",
-                "owner": "Operations",
-                "priority": "Medium",
-                "due": "Next reporting cycle",
-                "successMeasure": "All period appointments have attendance recorded",
-            },
-        ],
-        "templateFields": {},
-    }
 
 
 def _clean_key(value: Any) -> str:
@@ -689,6 +600,10 @@ def _call_gemini(
 
     if response_mime_type:
         generation_config["responseMimeType"] = response_mime_type
+        # Gemini 2.5 Flash spends part of maxOutputTokens on hidden "thinking"; on structured JSON replies that
+        # truncates the JSON mid-way and it fails to parse. These calls don't need reasoning, so switch it off.
+        if response_mime_type == "application/json" and "2.5-flash" in GEMINI_MODEL:
+            generation_config["thinkingConfig"] = {"thinkingBudget": 0}
 
     payload = {
         "systemInstruction": {"parts": [{"text": system_prompt}]},
@@ -1897,6 +1812,7 @@ app.include_router(create_business_plan_router(_call_gemini, _require_auth))
 app.include_router(create_strategic_plan_router(_call_gemini, _require_auth))
 app.include_router(create_document_provenance_router(_require_auth))
 app.include_router(create_survey_import_router(_call_gemini, _require_auth))
+app.include_router(create_report_insights_router(_require_auth, _call_gemini, _extract_json_object, GEMINI_MODEL))
 app.include_router(
     create_pitchfy_router(
         pitchfy_client,

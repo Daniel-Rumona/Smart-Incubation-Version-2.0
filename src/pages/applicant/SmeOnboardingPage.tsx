@@ -10,6 +10,7 @@ import { getApplicantProfileBundle, isApplicantProfileComplete } from '@/service
 import { completeSmeOnboarding, skipSmeOnboarding } from '@/services/smeOnboardingService'
 import { listOpenPrograms, listProgramsForCompany, type OpenWorkspaceProgram, type WorkspaceProgram } from '@/services/workspaceProgramsService'
 import type { SmeOnboardingPath } from '@/types/smeOnboarding'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 const { Text, Paragraph } = Typography
 
@@ -25,6 +26,7 @@ const stepTitle: Record<StepKey, string> = {
 }
 
 export default function SmeOnboardingPage() {
+  const { t } = useLanguage()
   const { user } = useFullIdentity()
   const { message } = App.useApp()
   const navigate = useNavigate()
@@ -59,25 +61,25 @@ export default function SmeOnboardingPage() {
   useEffect(() => {
     listCompaniesForOnboarding()
       .then(setCompanies)
-      .catch(() => message.error('Companies could not be loaded. You can still continue without one.'))
+      .catch(() => message.error(t('Companies could not be loaded. You can still continue without one.')))
       .finally(() => setCompaniesLoading(false))
-  }, [message])
+  }, [message, t])
 
   useEffect(() => {
     if (!companyCode) return
     listProgramsForCompany(companyCode)
       .then(setCompanyPrograms)
-      .catch(() => message.error('Programmes for this company could not be loaded.'))
+      .catch(() => message.error(t('Programmes for this company could not be loaded.')))
       .finally(() => setCompanyProgramsLoading(false))
-  }, [companyCode, message])
+  }, [companyCode, message, t])
 
   useEffect(() => {
     if (currentKey !== 'openProgram') return
     listOpenPrograms()
       .then(setOpenPrograms)
-      .catch(() => message.error('Open programmes could not be loaded.'))
+      .catch(() => message.error(t('Open programmes could not be loaded.')))
       .finally(() => setOpenProgramsLoading(false))
-  }, [currentKey, message])
+  }, [currentKey, message, t])
 
   const goTo = (key: StepKey) => setCurrentKey(key)
 
@@ -138,20 +140,20 @@ export default function SmeOnboardingPage() {
         navigate('/applicant/profile')
       }
     } catch (error) {
-      message.error(error instanceof Error ? error.message : 'Your answers could not be saved.')
+      message.error(error instanceof Error ? error.message : t('Your answers could not be saved.'))
     } finally {
       setSubmitting(false)
     }
   }
 
-  if (!user) return <LoadingOverlay tip="Loading your account" />
+  if (!user) return <LoadingOverlay tip={t('Loading your account')} />
 
   return (
     <DashboardPage className="applicant-page">
       <DashboardHeader
-        title="Let's set up your workspace"
-        subtitle="A few quick questions so we can connect you with the right programme, consultants, or agents."
-        actions={<Button type="link" onClick={() => void skip()}>Skip for now</Button>}
+        title={t('Let\'s set up your workspace')}
+        subtitle={tr('A few quick questions so we can connect you with the right programme, consultants, or agents.')}
+        actions={<Button type="link" onClick={() => void skip()}>{t('Skip for now')}</Button>}
       />
       <Card className="dashboard-section-card">
         <Steps
@@ -163,24 +165,24 @@ export default function SmeOnboardingPage() {
 
         {currentKey === 'start' && (
           <Space direction="vertical" size={16} style={{ width: '100%' }}>
-            <Text strong>Does your business already belong to a company using this platform?</Text>
+            <Text strong>{t('Does your business already belong to a company using this platform?')}</Text>
             <Radio.Group
               value={hasCompany}
               onChange={(event) => { setHasCompany(event.target.value); setSelectedProgramId(undefined) }}
               optionType="button"
               buttonStyle="solid"
-              options={[{ label: 'Yes, we already use this platform', value: true }, { label: 'No, I\'m a general SME', value: false }]}
+              options={[{ label: t('Yes, we already use this platform'), value: true }, { label: t('No, I\'m a general SME'), value: false }]}
             />
           </Space>
         )}
 
         {currentKey === 'company' && (
           <Space direction="vertical" size={16} style={{ width: '100%' }}>
-            <Text strong>Which company do you belong to?</Text>
+            <Text strong>{t('Which company do you belong to?')}</Text>
             <Select
               showSearch
               loading={companiesLoading}
-              placeholder="Search for your company"
+              placeholder={t('Search for your company')}
               style={{ width: '100%' }}
               value={companyCode}
               onChange={setCompanyCode}
@@ -188,21 +190,21 @@ export default function SmeOnboardingPage() {
               options={companies.map((company) => ({ value: company.code, label: company.name }))}
             />
             <Button type="link" style={{ padding: 0 }} onClick={() => { setHasCompany(false); setCompanyCode(undefined); goTo('budget') }}>
-              My company isn't listed
+              {t('My company isn\'t listed')}
             </Button>
           </Space>
         )}
 
         {currentKey === 'program' && (
           <Space direction="vertical" size={16} style={{ width: '100%' }}>
-            <Text strong>Which programme would you like to apply to at {selectedCompany?.name}?</Text>
+            <Text strong>{t('Which programme would you like to apply to at')} {selectedCompany?.name}?</Text>
             {!companyProgramsLoading && !companyPrograms.length && (
-              <Paragraph type="secondary">No programmes are currently open at this company. You can continue and pick one later from your dashboard.</Paragraph>
+              <Paragraph type="secondary">{t('No programmes are currently open at this company. You can continue and pick one later from your dashboard.')}</Paragraph>
             )}
             <Select
               allowClear
               loading={companyProgramsLoading}
-              placeholder="Select a programme (optional)"
+              placeholder={t('Select a programme (optional)')}
               style={{ width: '100%' }}
               value={selectedProgramId}
               onChange={setSelectedProgramId}
@@ -214,24 +216,24 @@ export default function SmeOnboardingPage() {
         {currentKey === 'budget' && (
           <Space direction="vertical" size={20} style={{ width: '100%' }}>
             <div>
-              <Text strong>What's your budget for consulting support?</Text>
+              <Text strong>{t('What\'s your budget for consulting support?')}</Text>
               <Space.Compact style={{ width: '100%', marginTop: 8 }}>
                 <Select value={currency} onChange={setCurrency} style={{ width: 100 }} options={['USD', 'ZAR', 'ZWL'].map((value) => ({ value, label: value }))} />
-                <InputNumber min={0} value={consultingBudget} onChange={(value) => setConsultingBudget(Number(value) || undefined)} style={{ width: '100%' }} placeholder="e.g. 5000" />
+                <InputNumber min={0} value={consultingBudget} onChange={(value) => setConsultingBudget(Number(value) || undefined)} style={{ width: '100%' }} placeholder={t('e.g. 5000')} />
               </Space.Compact>
               <Paragraph type="secondary" style={{ marginTop: 6, marginBottom: 0 }}>
-                This helps us filter consultants and agents that fit what you can spend. You can update it anytime.
+                {t('This helps us filter consultants and agents that fit what you can spend. You can update it anytime.')}
               </Paragraph>
             </div>
             <div>
-              <Text strong>Do you need a specific programme?</Text>
+              <Text strong>{t('Do you need a specific programme?')}</Text>
               <div style={{ marginTop: 8 }}>
                 <Radio.Group
                   value={wantsSpecificProgram}
                   onChange={(event) => { setWantsSpecificProgram(event.target.value); setSelectedProgramId(undefined) }}
                   optionType="button"
                   buttonStyle="solid"
-                  options={[{ label: 'Yes', value: true }, { label: 'No, just show me consultants and agents', value: false }]}
+                  options={[{ label: t('Yes'), value: true }, { label: t('No, just show me consultants and agents'), value: false }]}
                 />
               </div>
             </div>
@@ -240,13 +242,13 @@ export default function SmeOnboardingPage() {
 
         {currentKey === 'openProgram' && (
           <Space direction="vertical" size={16} style={{ width: '100%' }}>
-            <Text strong>These programmes are open to SMEs outside their own company</Text>
+            <Text strong>{t('These programmes are open to SMEs outside their own company')}</Text>
             {!openProgramsLoading && !openPrograms.length && (
-              <Paragraph type="secondary">No open programmes are available right now. Go back and choose "No" to browse consultants and agents instead.</Paragraph>
+              <Paragraph type="secondary">{t('No open programmes are available right now. Go back and choose "No" to browse consultants and agents instead.')}</Paragraph>
             )}
             <Select
               loading={openProgramsLoading}
-              placeholder="Select an open programme"
+              placeholder={t('Select an open programme')}
               style={{ width: '100%' }}
               value={selectedProgramId}
               onChange={setSelectedProgramId}
@@ -257,21 +259,21 @@ export default function SmeOnboardingPage() {
 
         {currentKey === 'review' && (
           <Space direction="vertical" size={16} style={{ width: '100%' }}>
-            <Text strong>Review your answers</Text>
+            <Text strong>{t('Review your answers')}</Text>
             <Descriptions column={1} bordered size="small">
-              <Descriptions.Item label="Company">{hasCompany ? selectedCompany?.name || companyCode : 'General SME (no company)'}</Descriptions.Item>
-              {!hasCompany && <Descriptions.Item label="Budget">{consultingBudget ? `${currency} ${consultingBudget}` : 'Not specified'}</Descriptions.Item>}
-              <Descriptions.Item label="Programme">{selectedProgram?.name || 'None selected yet'}</Descriptions.Item>
-              {!hasCompany && !selectedProgramId && <Descriptions.Item label="Next step">Browse consultants and agents</Descriptions.Item>}
+              <Descriptions.Item label={t('Company')}>{hasCompany ? selectedCompany?.name || companyCode : t('General SME (no company)')}</Descriptions.Item>
+              {!hasCompany && <Descriptions.Item label={t('Budget')}>{consultingBudget ? `${currency} ${consultingBudget}` : t('Not specified')}</Descriptions.Item>}
+              <Descriptions.Item label={t('Programme')}>{selectedProgram?.name || t('None selected yet')}</Descriptions.Item>
+              {!hasCompany && !selectedProgramId && <Descriptions.Item label={t('Next step')}>{t('Browse consultants and agents')}</Descriptions.Item>}
             </Descriptions>
           </Space>
         )}
 
         <Space style={{ marginTop: 24 }}>
-          {stepKeys.indexOf(currentKey) > 0 && <Button onClick={goBack}>Back</Button>}
+          {stepKeys.indexOf(currentKey) > 0 && <Button onClick={goBack}>{t('Back')}</Button>}
           {currentKey !== 'review'
-            ? <Button type="primary" disabled={!canProceed()} onClick={goNext}>Continue</Button>
-            : <Button type="primary" loading={submitting} onClick={() => void finish()}>Confirm</Button>}
+            ? <Button type="primary" disabled={!canProceed()} onClick={goNext}>{t('Continue')}</Button>
+            : <Button type="primary" loading={submitting} onClick={() => void finish()}>{t('Confirm')}</Button>}
         </Space>
       </Card>
     </DashboardPage>

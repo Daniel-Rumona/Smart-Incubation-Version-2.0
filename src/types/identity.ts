@@ -37,6 +37,7 @@ export type FullIdentity = {
   branchId?: string | null
   departmentId?: string | null
   signatureURL?: string | null
+  profileImageUrl?: string | null
   assignedProgramIds: string[]
   permissions: IdentityPermission[]
   consultingBudget?: number

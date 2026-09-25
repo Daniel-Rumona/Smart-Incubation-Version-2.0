@@ -37,6 +37,7 @@ import {
     type PitchSessionMode,
 } from '@/services/pitchCoachService'
 import '@/styles/pitch-coach.css'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 const { TextArea } = Input
 
@@ -100,6 +101,7 @@ const cleanDynamicVariables = (
 }
 
 const PitchCoachPage = () => {
+    const { t } = useLanguage()
     const { message } = App.useApp()
     const { user } = useFullIdentity()
     const [searchParams] = useSearchParams()
@@ -195,9 +197,9 @@ const PitchCoachPage = () => {
         dataSummary: {
             coachingModes: {
                 guidedConversation: {
-                    label: 'Guided Conversation',
+                    label: t('Guided Conversation'),
                     description:
-                        'A collaborative coaching session where the agent and user work through the pitch together. The agent asks focused questions one at a time, adapts to each answer, probes unclear areas, and progressively helps the user build and strengthen the pitch.',
+                        t('A collaborative coaching session where the agent and user work through the pitch together. The agent asks focused questions one at a time, adapts to each answer, probes unclear areas, and progressively helps the user build and strengthen the pitch.'),
                     agentBehaviour: [
                         'Use a conversational back-and-forth approach.',
                         'Ask one focused question at a time.',
@@ -209,9 +211,9 @@ const PitchCoachPage = () => {
                 },
 
                 pitchFirst: {
-                    label: 'Pitch-First Review',
+                    label: t('Pitch-First Review'),
                     description:
-                        'The user delivers their pitch first, ideally within two minutes. The agent listens to the complete pitch before evaluating it, then provides a rating, identifies strengths and weaknesses, and asks targeted questions to refine the pitch.',
+                        t('The user delivers their pitch first, ideally within two minutes. The agent listens to the complete pitch before evaluating it, then provides a rating, identifies strengths and weaknesses, and asks targeted questions to refine the pitch.'),
                     agentBehaviour: [
                         'Do not interrupt the initial pitch with coaching questions.',
                         'Treat the first submission as the user presenting an actual pitch.',
@@ -294,14 +296,14 @@ const PitchCoachPage = () => {
     const createProject = async () => {
         if (!companyCode) {
             message.error(
-                'Your company context could not be resolved.',
+                t('Your company context could not be resolved.'),
             )
             return
         }
 
         if (!briefText.trim()) {
             message.warning(
-                'Add the pitch, interview, job, or funding brief first.',
+                t('Add the pitch, interview, job, or funding brief first.'),
             )
             return
         }
@@ -326,7 +328,7 @@ const PitchCoachPage = () => {
             setMode(newProjectMode)
 
             message.success(
-                'Pitch coaching project created.',
+                t('Pitch coaching project created.'),
             )
         } catch (error) {
             message.error(
@@ -349,7 +351,7 @@ const PitchCoachPage = () => {
             setProject((current) => current?.id === projectToDelete.id
                 ? projects.find((item) => item.id !== projectToDelete.id) || null
                 : current)
-            message.success('Pitching project deleted.')
+            message.success(t('Pitching project deleted.'))
         } catch (error) {
             message.error(errorMessageOf(error, 'The project could not be deleted.'))
         } finally {
@@ -772,7 +774,7 @@ const PitchCoachPage = () => {
                     <Typography.Text
                         type="secondary"
                     >
-                        Loading pitch coaching workspace
+                        {t('Loading pitch coaching workspace')}
                     </Typography.Text>
                 </div>
             </DashboardPage>
@@ -785,8 +787,8 @@ const PitchCoachPage = () => {
                 <Alert
                     type="error"
                     showIcon
-                    message="Company context is missing"
-                    description="Your user profile must have a company code before the Pitch Preparation Agent can be used."
+                    message={t('Company context is missing')}
+                    description={t('Your user profile must have a company code before the Pitch Preparation Agent can be used.')}
                 />
             </DashboardPage>
         )
@@ -823,13 +825,13 @@ const PitchCoachPage = () => {
                                     <Typography.Title
                                         level={4}
                                     >
-                                        Set the practice brief
+                                        {t('Set the practice brief')}
                                     </Typography.Title>
 
                                     <Typography.Text
                                         type="secondary"
                                     >
-                                        Add the funding brief, pitch requirement, job description, presentation brief, or interview context you are preparing for.
+                                        {t('Add the funding brief, pitch requirement, job description, presentation brief, or interview context you are preparing for.')}
                                     </Typography.Text>
                                 </div>
                             </div>
@@ -849,7 +851,7 @@ const PitchCoachPage = () => {
                                             .value,
                                     )
                                 }
-                                placeholder="Paste the full brief here..."
+                                placeholder={t('Paste the full brief here...')}
                                 maxLength={
                                     200000
                                 }
@@ -871,7 +873,7 @@ const PitchCoachPage = () => {
                                     void createProject()
                                 }
                             >
-                                Create pitching brief
+                                {t('Create pitching brief')}
                             </Button>
                         </Card>
                     </Col>
@@ -881,7 +883,7 @@ const PitchCoachPage = () => {
                             <Typography.Title
                                 level={5}
                             >
-                                What happens next
+                                {t('What happens next')}
                             </Typography.Title>
 
                             <ul className="pitch-coach-steps">
@@ -894,13 +896,13 @@ const PitchCoachPage = () => {
                                         <Typography.Text
                                             strong
                                         >
-                                            Set your brief
+                                            {t('Set your brief')}
                                         </Typography.Text>
 
                                         <Typography.Text
                                             type="secondary"
                                         >
-                                            The coach uses it to prepare what to ask you about.
+                                            {t('The coach uses it to prepare what to ask you about.')}
                                         </Typography.Text>
                                     </div>
                                 </li>
@@ -914,13 +916,13 @@ const PitchCoachPage = () => {
                                         <Typography.Text
                                             strong
                                         >
-                                            Practise out loud
+                                            {t('Practise out loud')}
                                         </Typography.Text>
 
                                         <Typography.Text
                                             type="secondary"
                                         >
-                                            Choose interactive interview or pitch-first mode, then start a live voice call.
+                                            {t('Choose interactive interview or pitch-first mode, then start a live voice call.')}
                                         </Typography.Text>
                                     </div>
                                 </li>
@@ -951,13 +953,13 @@ const PitchCoachPage = () => {
                             options={[
                                 {
                                     label:
-                                        'Interactive interview',
+                                        t('Interactive interview'),
                                     value:
                                         'interactive',
                                 },
                                 {
                                     label:
-                                        'Pitch first',
+                                        t('Pitch first'),
                                     value:
                                         'pitch_first',
                                 },
@@ -1032,7 +1034,7 @@ const PitchCoachPage = () => {
                                     void startCall()
                                 }
                             >
-                                Start voice practice
+                                {t('Start voice practice')}
                             </Button>
                         ) : (
                             <Button
@@ -1054,11 +1056,11 @@ const PitchCoachPage = () => {
                             >
                                 {callStatus ===
                                     'connecting'
-                                    ? 'Connecting…'
+                                    ? t('Connecting…')
                                     : callStatus ===
                                         'ending'
-                                        ? 'Ending…'
-                                        : 'End call'}
+                                        ? t('Ending…')
+                                        : t('End call')}
                             </Button>
                         )}
                     </div>
@@ -1067,11 +1069,11 @@ const PitchCoachPage = () => {
                 <aside className="pitch-coach-project-panel">
                     <Card
                         className="pitch-coach-card"
-                        title="Pitching projects"
-                        extra={<Button type="text" icon={<PlusOutlined />} onClick={() => { setNewProjectMode('interactive'); setNewProjectOpen(true) }}>New</Button>}
+                        title={t('Pitching projects')}
+                        extra={<Button type="text" icon={<PlusOutlined />} onClick={() => { setNewProjectMode('interactive'); setNewProjectOpen(true) }}>{t('New')}</Button>}
                     >
                         <Typography.Text type="secondary" className="pitch-coach-project-panel-copy">
-                            Switch between practice briefs without losing your current workspace.
+                            {t('Switch between practice briefs without losing your current workspace.')}
                         </Typography.Text>
                         <List
                             className="pitch-coach-project-list"
@@ -1079,44 +1081,44 @@ const PitchCoachPage = () => {
                             renderItem={(item, index) => (
                                 <List.Item
                                     className={item.id === project.id ? 'is-active' : ''}
-                                    actions={[<Button key="open" type="link" size="small" onClick={() => setProject(item)}>Open</Button>]}
+                                    actions={[<Button key="open" type="link" size="small" onClick={() => setProject(item)}>{t('Open')}</Button>]}
                                 >
                                     <List.Item.Meta
                                         title={item.uiTitle || `Pitch project ${index + 1}`}
-                                        description={item.status === 'active' ? 'Ready to practise' : item.status}
+                                        description={item.status === 'active' ? t('Ready to practise') : item.status}
                                     />
                                 </List.Item>
                             )}
                         />
-                        <Button block onClick={() => setProjectManagerOpen(true)}>Manage projects</Button>
+                        <Button block onClick={() => setProjectManagerOpen(true)}>{t('Manage projects')}</Button>
                     </Card>
                 </aside>
                 </div>
             )}
 
-            <Modal open={newProjectOpen} title={newProjectMode === 'pitch_first' ? 'Start a new pitch-first project' : 'Start a new pitching project'} footer={null} onCancel={() => setNewProjectOpen(false)}>
-                <Typography.Paragraph type="secondary">Add the brief you are preparing for. The coach will use it to tailor your practice.</Typography.Paragraph>
-                <Input value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="Project name (for your workspace)" maxLength={120} style={{ marginBottom: 12 }} />
-                <TextArea rows={8} value={briefText} onChange={(event) => setBriefText(event.target.value)} placeholder="Paste the full brief here..." maxLength={200000} showCount />
-                <Button block type="primary" icon={<RobotOutlined />} loading={creating} onClick={() => void createProject()} style={{ marginTop: 16 }}>Create pitching brief</Button>
+            <Modal open={newProjectOpen} title={newProjectMode === 'pitch_first' ? t('Start a new pitch-first project') : t('Start a new pitching project')} footer={null} onCancel={() => setNewProjectOpen(false)}>
+                <Typography.Paragraph type="secondary">{t('Add the brief you are preparing for. The coach will use it to tailor your practice.')}</Typography.Paragraph>
+                <Input value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder={t('Project name (for your workspace)')} maxLength={120} style={{ marginBottom: 12 }} />
+                <TextArea rows={8} value={briefText} onChange={(event) => setBriefText(event.target.value)} placeholder={t('Paste the full brief here...')} maxLength={200000} showCount />
+                <Button block type="primary" icon={<RobotOutlined />} loading={creating} onClick={() => void createProject()} style={{ marginTop: 16 }}>{t('Create pitching brief')}</Button>
             </Modal>
 
-            <Modal open={projectManagerOpen} title="Manage pitching projects" footer={null} onCancel={() => setProjectManagerOpen(false)}>
+            <Modal open={projectManagerOpen} title={t('Manage pitching projects')} footer={null} onCancel={() => setProjectManagerOpen(false)}>
                 <List
                     dataSource={projects}
-                    locale={{ emptyText: 'No pitching projects yet.' }}
+                    locale={{ emptyText: t('No pitching projects yet.') }}
                     renderItem={(item, index) => (
                         <List.Item actions={[
-                            <Button key="open" type="link" onClick={() => { setProject(item); setProjectManagerOpen(false) }}>Open</Button>,
-                            <Popconfirm key="delete" title="Delete this pitching project?" description="This also removes its provider workspace and cannot be undone." okText="Delete" okButtonProps={{ danger: true, loading: deletingProjectId === item.externalProjectId }} onConfirm={() => void deleteProject(item)}>
-                                <Button type="text" danger icon={<DeleteOutlined />} aria-label="Delete project" />
+                            <Button key="open" type="link" onClick={() => { setProject(item); setProjectManagerOpen(false) }}>{t('Open')}</Button>,
+                            <Popconfirm key="delete" title={t('Delete this pitching project?')} description={t('This also removes its provider workspace and cannot be undone.')} okText={t('Delete')} okButtonProps={{ danger: true, loading: deletingProjectId === item.externalProjectId }} onConfirm={() => void deleteProject(item)}>
+                                <Button type="text" danger icon={<DeleteOutlined />} aria-label={t('Delete project')} />
                             </Popconfirm>,
                         ]}>
-                            <List.Item.Meta title={item.uiTitle || `Pitch project ${index + 1}`} description={item.status === 'active' ? 'Ready to practise' : item.status} />
+                            <List.Item.Meta title={item.uiTitle || `Pitch project ${index + 1}`} description={item.status === 'active' ? t('Ready to practise') : item.status} />
                         </List.Item>
                     )}
                 />
-                <Button block icon={<PlusOutlined />} onClick={() => { setProjectManagerOpen(false); setNewProjectMode('interactive'); setNewProjectOpen(true) }}>Start a new project</Button>
+                <Button block icon={<PlusOutlined />} onClick={() => { setProjectManagerOpen(false); setNewProjectMode('interactive'); setNewProjectOpen(true) }}>{t('Start a new project')}</Button>
             </Modal>
         </DashboardPage>
     )

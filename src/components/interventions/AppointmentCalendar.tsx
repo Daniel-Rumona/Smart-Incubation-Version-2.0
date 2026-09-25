@@ -16,6 +16,7 @@ import {
     type CalendarView,
     type MeetingType,
 } from './appointmentSchedule'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const HOUR_HEIGHT = 56
@@ -114,6 +115,7 @@ type MonthViewProps<T extends CalendarAppointment> = {
 function MonthView<T extends CalendarAppointment>({
     byDay, days, anchorDate, selectedDate, selectedId, today, onSelectDate, onSelectAppointment, onExpandDay,
 }: MonthViewProps<T>) {
+    const { t } = useLanguage()
     const gridRef = useRef<HTMLDivElement>(null)
     const [chipLimit, setChipLimit] = useState(2)
     const weeks = days.length / 7
@@ -175,7 +177,7 @@ function MonthView<T extends CalendarAppointment>({
                                         className="apt-month-more"
                                         onClick={(event) => { event.stopPropagation(); onSelectDate(day); onExpandDay(day) }}
                                     >
-                                        +{overflow} more
+                                        +{overflow} {t('more')}
                                     </button>
                                 )}
                             </div>
@@ -362,6 +364,7 @@ function AgendaView<T extends CalendarAppointment>({ appointments, selectedId, o
     selectedId?: string
     onSelectAppointment: (appointment: T) => void
 }) {
+    const { t } = useLanguage()
     const sections = useMemo(() => {
         const byDayMap = groupByDay(appointments)
         return [...byDayMap.entries()]
@@ -369,7 +372,7 @@ function AgendaView<T extends CalendarAppointment>({ appointments, selectedId, o
             .map(([key, rows]) => ({ key, date: dayjs(key), rows }))
     }, [appointments])
 
-    if (!sections.length) return <Empty description="No appointments match this view" />
+    if (!sections.length) return <Empty description={t('No appointments match this view')} />
 
     return (
         <div className="apt-agenda">
@@ -379,7 +382,7 @@ function AgendaView<T extends CalendarAppointment>({ appointments, selectedId, o
                         <div className="apt-agenda-date"><strong>{date.format('DD')}</strong><span>{date.format('MMM')}</span></div>
                         <div className="apt-agenda-heading">
                             <span className="apt-agenda-weekday">{date.format('dddd')}</span>
-                            <span className="apt-agenda-count">{rows.length} appointment{rows.length === 1 ? '' : 's'}</span>
+                            <span className="apt-agenda-count">{rows.length} {t('appointment')}{rows.length === 1 ? '' : 's'}</span>
                         </div>
                     </header>
                     <div className="apt-agenda-rows">
@@ -393,7 +396,7 @@ function AgendaView<T extends CalendarAppointment>({ appointments, selectedId, o
                                 <span className="apt-agenda-time">{formatSpan(row)}</span>
                                 <span className="apt-agenda-body">
                                     <strong>{row.interventionTitle}</strong>
-                                    <small>{row.participantName || row.participantEmail || 'SME'}</small>
+                                    <small>{row.participantName || row.participantEmail || t('SME')}</small>
                                 </span>
                                 <span className="apt-agenda-type">{meetingTypeIcon(row.meetingType)}</span>
                             </button>

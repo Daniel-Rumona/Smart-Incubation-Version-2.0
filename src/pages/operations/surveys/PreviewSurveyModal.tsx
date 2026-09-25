@@ -4,6 +4,7 @@ import { ArrowLeftOutlined, ArrowRightOutlined, CheckOutlined, InboxOutlined, Lo
 import SurveyQuestionFrame from '@/components/surveys/SurveyQuestionFrame'
 import { PREFILL_LABELS } from '@/lib/surveyPrefill'
 import type { SurveyField } from '@/services/surveyTemplatesService'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 type PreviewSurveyModalProps = {
     open: boolean
@@ -22,6 +23,7 @@ const hasAnswer = (field: SurveyField, value: unknown) => {
 }
 
 const PreviewSurveyBody = ({ open, title, description, fields, onClose }: PreviewSurveyModalProps) => {
+    const { t } = useLanguage()
     const [index, setIndex] = useState(0)
     const [answers, setAnswers] = useState<Record<string, unknown>>({})
     // Remounting on open is simpler than resetting in an effect, and it also
@@ -82,8 +84,8 @@ const PreviewSurveyBody = ({ open, title, description, fields, onClose }: Previe
                 return (
                     <Upload.Dragger multiple={false} maxCount={1} beforeUpload={() => false} onChange={({ fileList }) => setAnswer(fileList)}>
                         <p className="ant-upload-drag-icon"><InboxOutlined /></p>
-                        <p className="ant-upload-text">Drag and drop a file here</p>
-                        <p className="ant-upload-hint">or click to browse</p>
+                        <p className="ant-upload-text">{t('Drag and drop a file here')}</p>
+                        <p className="ant-upload-hint">{t('or click to browse')}</p>
                     </Upload.Dragger>
                 )
             default:
@@ -105,8 +107,8 @@ const PreviewSurveyBody = ({ open, title, description, fields, onClose }: Previe
         >
             {questions.length === 0 ? (
                 <div className="survey-preview-empty">
-                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="This survey has no questions yet" />
-                    <Button onClick={onClose}>Close</Button>
+                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('This survey has no questions yet')} />
+                    <Button onClick={onClose}>{t('Close')}</Button>
                 </div>
             ) : (
                 <SurveyQuestionFrame
@@ -117,20 +119,20 @@ const PreviewSurveyBody = ({ open, title, description, fields, onClose }: Previe
                     answeredCount={answered}
                     surveyTitle={title || 'Untitled survey'}
                     surveySubtitle={description}
-                    extra={current.prefill ? <Tag icon={<LockOutlined />} color="blue">Prefilled · {PREFILL_LABELS[current.prefill]}</Tag> : undefined}
+                    extra={current.prefill ? <Tag icon={<LockOutlined />} color="blue">{t('Prefilled ·')} {PREFILL_LABELS[current.prefill]}</Tag> : undefined}
                     footer={
                         <div className={`survey-preview-nav${isFirst || questions.length === 1 ? ' is-single' : ''}`}>
                             {!isFirst && (
                                 <Button block size="large" icon={<ArrowLeftOutlined />} onClick={() => setIndex((value) => Math.max(0, value - 1))}>
-                                    Previous
+                                    {t('Previous')}
                                 </Button>
                             )}
 
                             {isLast ? (
-                                <Button block size="large" type="primary" icon={<CheckOutlined />} onClick={onClose}>Submit</Button>
+                                <Button block size="large" type="primary" icon={<CheckOutlined />} onClick={onClose}>{t('Submit')}</Button>
                             ) : (
                                 <Button block size="large" type="primary" onClick={() => setIndex((value) => Math.min(questions.length - 1, value + 1))}>
-                                    Next <ArrowRightOutlined />
+                                    {t('Next')} <ArrowRightOutlined />
                                 </Button>
                             )}
                         </div>

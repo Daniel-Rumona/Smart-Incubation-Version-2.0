@@ -15,6 +15,7 @@ import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { listComplianceRows } from '@/services/complianceService'
 import { matchesActiveProgram } from '@/services/workspaceProgramsService'
 import { formatStatus } from '@/utils/status'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 type Severity = 'critical' | 'high' | 'medium' | 'low'
 type Status = 'missing' | 'uploaded' | 'pending' | 'valid' | 'rejected' | 'invalid' | 'expired' | 'queried'
@@ -115,10 +116,10 @@ const summarizeByReason = (items: RiskDetailItem[]) => {
 }
 
 const getSeverityTag = (severity: Severity) => {
-    if (severity === 'critical') return <Tag color="red">Critical</Tag>
-    if (severity === 'high') return <Tag color="volcano">High</Tag>
-    if (severity === 'medium') return <Tag color="orange">Medium</Tag>
-    return <Tag color="blue">Low</Tag>
+    if (severity === 'critical') return <Tag color="red">{tr('Critical')}</Tag>
+    if (severity === 'high') return <Tag color="volcano">{tr('High')}</Tag>
+    if (severity === 'medium') return <Tag color="orange">{tr('Medium')}</Tag>
+    return <Tag color="blue">{tr('Low')}</Tag>
 }
 
 const SEVERITY_RANK: Record<Severity, number> = { critical: 0, high: 1, medium: 2, low: 3 }
@@ -169,6 +170,7 @@ const RiskCategoryRow = ({ label, count, severity, selected, onClick }: {
 }
 
 const RiskCard = ({ row, onClick }: { row: RiskRow, onClick: () => void }) => {
+    const { t } = useLanguage()
     const overdue = row.dueDate?.isValid() && row.dueDate.isBefore(dayjs(), 'day')
     const accent = SEVERITY_COLOR[row.severity]
     return (
@@ -201,10 +203,10 @@ const RiskCard = ({ row, onClick }: { row: RiskRow, onClick: () => void }) => {
             </Space>
             <Typography.Text style={{ fontSize: 13 }}>{row.issue}</Typography.Text>
             <Space size={10} wrap style={{ fontSize: 12 }}>
-                <Typography.Text type="secondary">Owner: {row.owner}</Typography.Text>
+                <Typography.Text type="secondary">{t('Owner:')} {row.owner}</Typography.Text>
                 {row.dueDate?.isValid()
                     ? <Tag color={overdue ? 'red' : undefined} style={{ marginInlineEnd: 0 }}>{row.dueDate.format('DD MMM YYYY')}</Tag>
-                    : <Tag style={{ marginInlineEnd: 0 }}>Operational follow-up</Tag>}
+                    : <Tag style={{ marginInlineEnd: 0 }}>{t('Operational follow-up')}</Tag>}
             </Space>
         </button>
     )
@@ -313,6 +315,7 @@ const buildRows = (participants: ParticipantRow[], interventions: InterventionRo
 }
 
 export default function RiskRegisterPage() {
+    const { t } = useLanguage()
     const navigate = useNavigate()
     const { activeProgramId, isAllPrograms } = useActiveProgramId()
     const { user, loading: identityLoading } = useFullIdentity()
@@ -341,12 +344,12 @@ export default function RiskRegisterPage() {
             ))
         } catch (error) {
             console.error('[RISK REGISTER] Failed loading risk register:', error)
-            message.error('Risk register could not be loaded.')
+            message.error(t('Risk register could not be loaded.'))
             setRows([])
         } finally {
             setLoading(false)
         }
-    }, [activeProgramId, identityLoading, isAllPrograms, user])
+    }, [activeProgramId, identityLoading, isAllPrograms, user, t])
 
     useEffect(() => {
         void load()
@@ -415,35 +418,35 @@ export default function RiskRegisterPage() {
         <DashboardPage className="operations-risk-register-page">
             <Row gutter={[12, 12]} className="dashboard-metrics-row">
                 <Col xs={12} lg={6}>
-                    <DashboardMetricCard loading={identityLoading || loading} icon={<ExclamationCircleOutlined />} iconClassName="dashboard-icon-red" label="Open Risks" value={metrics.total} />
+                    <DashboardMetricCard loading={identityLoading || loading} icon={<ExclamationCircleOutlined />} iconClassName="dashboard-icon-red" label={t('Open Risks')} value={metrics.total} />
                 </Col>
                 <Col xs={12} lg={6}>
-                    <DashboardMetricCard loading={identityLoading || loading} icon={<ClockCircleOutlined />} iconClassName="dashboard-icon-orange" label="Critical / High" value={metrics.urgent} />
+                    <DashboardMetricCard loading={identityLoading || loading} icon={<ClockCircleOutlined />} iconClassName="dashboard-icon-orange" label={t('Critical / High')} value={metrics.urgent} />
                 </Col>
                 <Col xs={12} lg={6}>
-                    <DashboardMetricCard loading={identityLoading || loading} icon={<FileDoneOutlined />} iconClassName="dashboard-icon-blue" label="Overdue" value={metrics.overdue} />
+                    <DashboardMetricCard loading={identityLoading || loading} icon={<FileDoneOutlined />} iconClassName="dashboard-icon-blue" label={t('Overdue')} value={metrics.overdue} />
                 </Col>
                 <Col xs={12} lg={6}>
-                    <DashboardMetricCard loading={identityLoading || loading} icon={<TeamOutlined />} iconClassName="dashboard-icon-green" label="Owners" value={metrics.owners} />
+                    <DashboardMetricCard loading={identityLoading || loading} icon={<TeamOutlined />} iconClassName="dashboard-icon-green" label={t('Owners')} value={metrics.owners} />
                 </Col>
             </Row>
 
             <FilterBar
                 primary={
                     <>
-                        <Segmented value={filter} onChange={value => setFilter(value as Filter)} options={[{ label: 'All', value: 'all' }, { label: 'Critical', value: 'critical' }, { label: 'High', value: 'high' }, { label: 'Medium', value: 'medium' }, { label: 'Low', value: 'low' }]} />
-                        <Select value={entityFilter} onChange={value => setEntityFilter(value)} options={[{ label: 'All records', value: 'all' }, { label: 'SMEs', value: 'SME' }, { label: 'Interventions', value: 'Intervention' }, { label: 'Consultants', value: 'Consultant' }]} />
-                        <Input prefix={<SearchOutlined />} value={search} onChange={event => setSearch(event.target.value)} placeholder="Search risk, owner, SME, intervention..." allowClear />
+                        <Segmented value={filter} onChange={value => setFilter(value as Filter)} options={[{ label: t('All'), value: 'all' }, { label: t('Critical'), value: 'critical' }, { label: t('High'), value: 'high' }, { label: t('Medium'), value: 'medium' }, { label: t('Low'), value: 'low' }]} />
+                        <Select value={entityFilter} onChange={value => setEntityFilter(value)} options={[{ label: t('All records'), value: 'all' }, { label: t('SMEs'), value: 'SME' }, { label: t('Interventions'), value: 'Intervention' }, { label: t('Consultants'), value: 'Consultant' }]} />
+                        <Input prefix={<SearchOutlined />} value={search} onChange={event => setSearch(event.target.value)} placeholder={t('Search risk, owner, SME, intervention...')} allowClear />
                     </>
                 }
             />
 
             <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
                 <Col xs={24} lg={5}>
-                    <Card loading={identityLoading || loading} className="dashboard-section-card motion-card" title="Risk Categories">
+                    <Card loading={identityLoading || loading} className="dashboard-section-card motion-card" title={t('Risk Categories')}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                             <RiskCategoryRow
-                                label="All categories"
+                                label={t('All categories')}
                                 count={baseFilteredRows.length}
                                 severity={null}
                                 selected={selectedCategory === 'all'}
@@ -459,7 +462,7 @@ export default function RiskRegisterPage() {
                                     onClick={() => { setSelectedCategory(summary.category); setCardPage(1) }}
                                 />
                             ))}
-                            {!categorySummaries.length && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No risks match this filter." style={{ margin: '20px 0' }} />}
+                            {!categorySummaries.length && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('No risks match this filter.')} style={{ margin: '20px 0' }} />}
                         </div>
                     </Card>
                 </Col>
@@ -467,8 +470,8 @@ export default function RiskRegisterPage() {
                     <Card
                         loading={identityLoading || loading}
                         className="dashboard-section-card motion-card"
-                        title={selectedCategory === 'all' ? 'All Risks' : selectedCategory}
-                        extra={<Typography.Text type="secondary">Click a risk for details</Typography.Text>}
+                        title={selectedCategory === 'all' ? t('All Risks') : selectedCategory}
+                        extra={<Typography.Text type="secondary">{t('Click a risk for details')}</Typography.Text>}
                     >
                         {filteredRows.length ? (
                             <>
@@ -485,7 +488,7 @@ export default function RiskRegisterPage() {
                                     </div>
                                 )}
                             </>
-                        ) : <Empty description="No risk register entries match this filter." />}
+                        ) : <Empty description={t('No risk register entries match this filter.')} />}
                     </Card>
                 </Col>
             </Row>
@@ -495,7 +498,7 @@ export default function RiskRegisterPage() {
                 onCancel={() => setSelectedRisk(null)}
                 footer={(
                     <Space>
-                        <Button onClick={() => setSelectedRisk(null)}>Close</Button>
+                        <Button onClick={() => setSelectedRisk(null)}>{t('Close')}</Button>
                         <Button
                             type="primary"
                             onClick={() => {
@@ -507,7 +510,7 @@ export default function RiskRegisterPage() {
                                 setSelectedRisk(null)
                             }}
                         >
-                            {selectedRisk?.action || 'Take action'}
+                            {selectedRisk?.action || t('Take action')}
                         </Button>
                     </Space>
                 )}
@@ -518,17 +521,17 @@ export default function RiskRegisterPage() {
                 {selectedRisk && (
                     <Space direction="vertical" size={16} style={{ width: '100%' }}>
                         <Row gutter={[16, 12]}>
-                            <Col span={12}><Typography.Text type="secondary">Category</Typography.Text><div>{selectedRisk.category}</div></Col>
-                            <Col span={12}><Typography.Text type="secondary">Severity</Typography.Text><div>{getSeverityTag(selectedRisk.severity)}</div></Col>
-                            <Col span={12}><Typography.Text type="secondary">Entity</Typography.Text><div>{selectedRisk.entityType}: {selectedRisk.entityName}</div></Col>
-                            <Col span={12}><Typography.Text type="secondary">Owner</Typography.Text><div>{selectedRisk.owner}</div></Col>
+                            <Col span={12}><Typography.Text type="secondary">{t('Category')}</Typography.Text><div>{selectedRisk.category}</div></Col>
+                            <Col span={12}><Typography.Text type="secondary">{t('Severity')}</Typography.Text><div>{getSeverityTag(selectedRisk.severity)}</div></Col>
+                            <Col span={12}><Typography.Text type="secondary">{t('Entity')}</Typography.Text><div>{selectedRisk.entityType}: {selectedRisk.entityName}</div></Col>
+                            <Col span={12}><Typography.Text type="secondary">{t('Owner')}</Typography.Text><div>{selectedRisk.owner}</div></Col>
                             <Col span={24}>
-                                <Typography.Text type="secondary">Due</Typography.Text>
-                                <div>{selectedRisk.dueDate?.isValid() ? selectedRisk.dueDate.format('DD MMM YYYY') : 'Operational follow-up'}</div>
+                                <Typography.Text type="secondary">{t('Due')}</Typography.Text>
+                                <div>{selectedRisk.dueDate?.isValid() ? selectedRisk.dueDate.format('DD MMM YYYY') : t('Operational follow-up')}</div>
                             </Col>
                         </Row>
                         <div>
-                            <Typography.Text type="secondary">Issue</Typography.Text>
+                            <Typography.Text type="secondary">{t('Issue')}</Typography.Text>
                             <Typography.Paragraph style={{ marginBottom: 0 }}>{selectedRisk.issue}</Typography.Paragraph>
                         </div>
                         {!!selectedRisk.detail?.length && (
@@ -538,9 +541,9 @@ export default function RiskRegisterPage() {
                                 pagination={false}
                                 dataSource={selectedRisk.detail}
                                 columns={[
-                                    { title: 'Document', dataIndex: 'label' },
+                                    { title: t('Document'), dataIndex: 'label' },
                                     {
-                                        title: 'Reason',
+                                        title: t('Reason'),
                                         dataIndex: 'status',
                                         width: 130,
                                         render: (status: string) => <Tag color={BLOCKING_STATUSES.includes(status) ? 'red' : 'gold'}>{formatStatus(status)}</Tag>,

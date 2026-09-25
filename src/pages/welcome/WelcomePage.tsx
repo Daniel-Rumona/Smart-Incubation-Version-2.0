@@ -270,7 +270,7 @@ export const WelcomePage = () => {
             await saveOnboardingRole(selectedRole, { name: user.displayName, email: user.email })
             goTo(resolveStepAfterRole(selectedRole))
         } catch (error) {
-            message.error(error instanceof Error ? error.message : 'Your role could not be saved.')
+            message.error(error instanceof Error ? error.message : t('Your role could not be saved.'))
         } finally {
             setSavingRole(false)
         }
@@ -362,7 +362,7 @@ export const WelcomePage = () => {
 
             goTo('consultantReview')
         } catch (error) {
-            message.error(error instanceof Error ? error.message : 'Your operating area could not be saved.')
+            message.error(error instanceof Error ? error.message : t('Your operating area could not be saved.'))
         } finally {
             setSavingConsultantSetup(false)
         }
@@ -418,7 +418,7 @@ export const WelcomePage = () => {
         <main className={`welcome-page welcome-step-${activeStep} welcome-mode-${signatureMode}`}>
             <div className="welcome-floating-actions">
                 <Dropdown trigger={['click']} placement="bottomRight" menu={{ items: languageItems, selectable: true, selectedKeys: [language] }}>
-                    <Button aria-label="Change language" title={LANGUAGES[language]} className="welcome-floating-btn" icon={<GlobalOutlined />}><span className="welcome-control-label">{LANGUAGES[language]}</span></Button>
+                    <Button aria-label={t('Change language')} title={LANGUAGES[language]} className="welcome-floating-btn" icon={<GlobalOutlined />}><span className="welcome-control-label">{LANGUAGES[language]}</span></Button>
                 </Dropdown>
                 <Button className="welcome-floating-btn" onClick={toggleTheme} icon={themeMode === 'dark' ? <SunOutlined /> : <MoonOutlined />}>
                     <span className="welcome-control-label">{themeMode === 'dark' ? t('common.lightMode', 'Light') : t('common.darkMode', 'Dark')}</span>
@@ -427,21 +427,21 @@ export const WelcomePage = () => {
             <Card className="welcome-shell" bordered={false}>
                 <section key={activeStep} className="welcome-conversation-stage">
                     <div className={`welcome-guide-message${activeStep === 'intro' ? ' is-intro' : ''}`}>
-                        <Text className="welcome-guide-label">THUSO · YOUR SETUP GUIDE</Text>
+                        <Text className="welcome-guide-label">{t('THUSO · YOUR SETUP GUIDE')}</Text>
                         <TypingMessage text={conversationText[activeStep]} onComplete={() => setMessageComplete(true)} />
                     </div>
 
                     {activeStep === 'intro' && messageComplete && (
                         <div className="welcome-reveal welcome-intro-action">
                             <Button type="primary" size="large" icon={<ArrowRightOutlined />} onClick={() => goTo('role')}>
-                                Let’s get started
+                                {t('Let’s get started')}
                             </Button>
                         </div>
                     )}
 
                     {activeStep === 'role' && messageComplete && (
                         <div className="welcome-panel welcome-role-panel welcome-reveal">
-                            <div className="welcome-role-grid" role="radiogroup" aria-label="What best describes you?">
+                            <div className="welcome-role-grid" role="radiogroup" aria-label={t('What best describes you?')}>
                                 <button
                                     type="button"
                                     role="radio"
@@ -453,9 +453,9 @@ export const WelcomePage = () => {
                                         <ShopOutlined />
                                     </span>
                                     <span className="welcome-role-copy">
-                                        <strong>SME</strong>
+                                        <strong>{t('SME')}</strong>
                                         <small>
-                                            I run or represent a business and want support, programmes, tools, or expert guidance.
+                                            {t('I run or represent a business and want support, programmes, tools, or expert guidance.')}
                                         </small>
                                     </span>
                                     <CheckCircleOutlined className="welcome-role-check" />
@@ -472,16 +472,16 @@ export const WelcomePage = () => {
                                         <SolutionOutlined />
                                     </span>
                                     <span className="welcome-role-copy">
-                                        <strong>Consultant</strong>
+                                        <strong>{t('Consultant')}</strong>
                                         <small>
-                                            I offer professional expertise and want to support SMEs through services and interventions.
+                                            {t('I offer professional expertise and want to support SMEs through services and interventions.')}
                                         </small>
                                     </span>
                                     <CheckCircleOutlined className="welcome-role-check" />
                                 </button>
                             </div>
 
-                            <div className="welcome-actions-row"><Button size="large" icon={<ArrowLeftOutlined />} onClick={back}>Back</Button><Button type="primary" size="large" icon={<ArrowRightOutlined />} loading={savingRole} disabled={!selectedRole} onClick={() => void saveRole()}>{selectedRole === 'incubatee' ? 'Continue as SME' : selectedRole === 'consultant' ? 'Continue as consultant' : 'Choose how you’ll use Smart Incubation'}</Button></div>
+                            <div className="welcome-actions-row"><Button size="large" icon={<ArrowLeftOutlined />} onClick={back}>{t('Back')}</Button><Button type="primary" size="large" icon={<ArrowRightOutlined />} loading={savingRole} disabled={!selectedRole} onClick={() => void saveRole()}>{selectedRole === 'incubatee' ? t('Continue as SME') : selectedRole === 'consultant' ? t('Continue as consultant') : t('Choose how you’ll use Smart Incubation')}</Button></div>
                         </div>
                     )}
 
@@ -625,7 +625,7 @@ export const WelcomePage = () => {
                                                     {typedName || t('welcome.signature.preview', 'Your styled signature')}
                                                 </div>
 
-                                                <div className="welcome-actions-row"><Button size="large" icon={<ArrowLeftOutlined />} onClick={back}>Back</Button><Button type="primary" size="large" icon={<SaveOutlined />} loading={savingSignature} disabled={!typedName.trim()} onClick={() => void saveTypedSignature()}>{t('welcome.signature.saveTyped', 'Save typed signature')}</Button></div>
+                                                <div className="welcome-actions-row"><Button size="large" icon={<ArrowLeftOutlined />} onClick={back}>{t('Back')}</Button><Button type="primary" size="large" icon={<SaveOutlined />} loading={savingSignature} disabled={!typedName.trim()} onClick={() => void saveTypedSignature()}>{t('welcome.signature.saveTyped', 'Save typed signature')}</Button></div>
                                             </Space>
                                         </div>
                                     )}
@@ -729,7 +729,7 @@ export const WelcomePage = () => {
                                     <EnvironmentOutlined />
                                 </span>
                                 <div>
-                                    <Title level={4}>Where are you based?</Title>
+                                    <Title level={4}>{t('Where are you based?')}</Title>
                                     <Paragraph>
                                         {t(
                                             'welcome.consultantSetup.body',
@@ -800,66 +800,66 @@ export const WelcomePage = () => {
                                     </Col>
                                 </Row>
 
-                                <div className="welcome-actions-row">{!editingFromReview && <Button size="large" icon={<ArrowLeftOutlined />} onClick={back}>Back</Button>}<Button type="primary" size="large" icon={<ArrowRightOutlined />} loading={savingConsultantSetup} disabled={!consultantSetup.country || !consultantSetup.province || !consultantSetup.physicalAddress.trim()} onClick={() => continueConsultant(editingFromReview ? 'consultantReview' : 'consultantReach')}>{editingFromReview ? 'Update' : 'Continue'}</Button></div>
+                                <div className="welcome-actions-row">{!editingFromReview && <Button size="large" icon={<ArrowLeftOutlined />} onClick={back}>{t('Back')}</Button>}<Button type="primary" size="large" icon={<ArrowRightOutlined />} loading={savingConsultantSetup} disabled={!consultantSetup.country || !consultantSetup.province || !consultantSetup.physicalAddress.trim()} onClick={() => continueConsultant(editingFromReview ? 'consultantReview' : 'consultantReach')}>{editingFromReview ? t('Update') : t('Continue')}</Button></div>
                             </Form>
                         </div>
                     )}
 
                     {activeStep === 'consultantReach' && messageComplete && (
                         <div className="welcome-panel welcome-reveal">
-                            <div className="welcome-section-heading"><span className="welcome-panel-icon"><AimOutlined /></span><div><Title level={4}>How far do you travel?</Title><Paragraph>Choose the radius that feels realistic for in-person work.</Paragraph></div></div>
-                            <div className="welcome-choice-grid" role="radiogroup" aria-label="Service radius">
-                                {[10, 25, 50, 100, 250].map((radius) => <button type="button" role="radio" aria-checked={consultantSetup.serviceRadiusKm === radius} key={radius} className={`welcome-choice-card${consultantSetup.serviceRadiusKm === radius ? ' is-selected' : ''}`} onClick={() => setConsultantSetup((current) => ({ ...current, serviceRadiusKm: radius }))}><AimOutlined /><strong>{radius === 250 ? '250+ km' : `${radius} km`}</strong><small>{radius <= 25 ? 'Nearby' : radius <= 100 ? 'Regional' : 'Wide reach'}</small></button>)}
+                            <div className="welcome-section-heading"><span className="welcome-panel-icon"><AimOutlined /></span><div><Title level={4}>{t('How far do you travel?')}</Title><Paragraph>{t('Choose the radius that feels realistic for in-person work.')}</Paragraph></div></div>
+                            <div className="welcome-choice-grid" role="radiogroup" aria-label={t('Service radius')}>
+                                {[10, 25, 50, 100, 250].map((radius) => <button type="button" role="radio" aria-checked={consultantSetup.serviceRadiusKm === radius} key={radius} className={`welcome-choice-card${consultantSetup.serviceRadiusKm === radius ? ' is-selected' : ''}`} onClick={() => setConsultantSetup((current) => ({ ...current, serviceRadiusKm: radius }))}><AimOutlined /><strong>{radius === 250 ? t('250+ km') : `${radius} km`}</strong><small>{radius <= 25 ? t('Nearby') : radius <= 100 ? t('Regional') : t('Wide reach')}</small></button>)}
                             </div>
-                            <Title level={5}>Preferred daily-rate currency</Title>
-                            <div className="welcome-choice-grid welcome-choice-grid-compact" role="radiogroup" aria-label="Currency">
+                            <Title level={5}>{t('Preferred daily-rate currency')}</Title>
+                            <div className="welcome-choice-grid welcome-choice-grid-compact" role="radiogroup" aria-label={t('Currency')}>
                                 {(consultantSetup.country === 'South Africa' ? ['ZAR'] : consultantSetup.country === 'Zimbabwe' ? ['ZWL'] : []).map((currency) => <button type="button" role="radio" aria-checked={consultantSetup.currency === currency} key={currency} className={`welcome-choice-card${consultantSetup.currency === currency ? ' is-selected' : ''}`} onClick={() => setConsultantSetup((current) => ({ ...current, currency }))}><BankOutlined /><strong>{currency}</strong><small>{consultantSetup.country}</small></button>)}
                             </div>
-                            <div className="welcome-actions-row">{!editingFromReview && <Button size="large" icon={<ArrowLeftOutlined />} onClick={back}>Back</Button>}<Button type="primary" size="large" icon={<ArrowRightOutlined />} onClick={() => continueConsultant(editingFromReview ? 'consultantReview' : 'consultantExpertise')}>{editingFromReview ? 'Update' : 'Continue'}</Button></div>
+                            <div className="welcome-actions-row">{!editingFromReview && <Button size="large" icon={<ArrowLeftOutlined />} onClick={back}>{t('Back')}</Button>}<Button type="primary" size="large" icon={<ArrowRightOutlined />} onClick={() => continueConsultant(editingFromReview ? 'consultantReview' : 'consultantExpertise')}>{editingFromReview ? t('Update') : t('Continue')}</Button></div>
                         </div>
                     )}
 
                     {activeStep === 'consultantExpertise' && messageComplete && (
                         <div className="welcome-panel welcome-reveal">
-                            <div className="welcome-section-heading"><span className="welcome-panel-icon"><RiseOutlined /></span><div><Title level={4}>What do you specialise in?</Title><Paragraph>Select all the areas where you can make a practical difference.</Paragraph></div></div>
-                            <div className="welcome-choice-grid" role="group" aria-label="Areas of expertise">
+                            <div className="welcome-section-heading"><span className="welcome-panel-icon"><RiseOutlined /></span><div><Title level={4}>{t('What do you specialise in?')}</Title><Paragraph>{t('Select all the areas where you can make a practical difference.')}</Paragraph></div></div>
+                            <div className="welcome-choice-grid" role="group" aria-label={t('Areas of expertise')}>
                                 {[['Strategy & growth', RiseOutlined], ['Finance & accounting', BankOutlined], ['Marketing & sales', TeamOutlined], ['Operations', AimOutlined], ['People & HR', TeamOutlined], ['Technology & digital', LaptopOutlined], ['Legal & compliance', SafetyCertificateOutlined], ['Procurement', ShopOutlined]].map(([label, Icon]) => { const value = String(label); const selected = consultantSetup.specialties.includes(value); return <button type="button" key={value} className={`welcome-choice-card${selected ? ' is-selected' : ''}`} aria-pressed={selected} onClick={() => setConsultantSetup((current) => ({ ...current, specialties: selected ? current.specialties.filter((item) => item !== value) : [...current.specialties, value] }))}><Icon /><strong>{value}</strong></button> })}
                             </div>
-                            <div className="welcome-actions-row">{!editingFromReview && <Button size="large" icon={<ArrowLeftOutlined />} onClick={back}>Back</Button>}<Button type="primary" size="large" icon={<ArrowRightOutlined />} disabled={!consultantSetup.specialties.length} onClick={() => continueConsultant(editingFromReview ? 'consultantReview' : 'consultantExperience')}>{editingFromReview ? 'Update' : 'Continue'}</Button></div>
+                            <div className="welcome-actions-row">{!editingFromReview && <Button size="large" icon={<ArrowLeftOutlined />} onClick={back}>{t('Back')}</Button>}<Button type="primary" size="large" icon={<ArrowRightOutlined />} disabled={!consultantSetup.specialties.length} onClick={() => continueConsultant(editingFromReview ? 'consultantReview' : 'consultantExperience')}>{editingFromReview ? t('Update') : t('Continue')}</Button></div>
                         </div>
                     )}
 
                     {activeStep === 'consultantExperience' && messageComplete && (
                         <div className="welcome-panel welcome-reveal">
-                            <div className="welcome-section-heading"><span className="welcome-panel-icon"><TrophyOutlined /></span><div><Title level={4}>Years of experience</Title><Paragraph>Choose the range that best reflects your professional journey.</Paragraph></div></div>
-                            <div className="welcome-choice-grid welcome-choice-grid-compact" role="radiogroup" aria-label="Years of experience">
-                                {[1, 3, 6, 10].map((years) => <button type="button" role="radio" aria-checked={consultantSetup.experienceYears === years} key={years} className={`welcome-choice-card${consultantSetup.experienceYears === years ? ' is-selected' : ''}`} onClick={() => setConsultantSetup((current) => ({ ...current, experienceYears: years }))}><TrophyOutlined /><strong>{years === 1 ? '0–2 years' : years === 3 ? '3–5 years' : years === 6 ? '6–9 years' : '10+ years'}</strong></button>)}
+                            <div className="welcome-section-heading"><span className="welcome-panel-icon"><TrophyOutlined /></span><div><Title level={4}>{t('Years of experience')}</Title><Paragraph>{t('Choose the range that best reflects your professional journey.')}</Paragraph></div></div>
+                            <div className="welcome-choice-grid welcome-choice-grid-compact" role="radiogroup" aria-label={t('Years of experience')}>
+                                {[1, 3, 6, 10].map((years) => <button type="button" role="radio" aria-checked={consultantSetup.experienceYears === years} key={years} className={`welcome-choice-card${consultantSetup.experienceYears === years ? ' is-selected' : ''}`} onClick={() => setConsultantSetup((current) => ({ ...current, experienceYears: years }))}><TrophyOutlined /><strong>{years === 1 ? t('0–2 years') : years === 3 ? t('3–5 years') : years === 6 ? t('6–9 years') : t('10+ years')}</strong></button>)}
                             </div>
-                            <div className="welcome-actions-row">{!editingFromReview && <Button size="large" icon={<ArrowLeftOutlined />} onClick={back}>Back</Button>}<Button type="primary" size="large" icon={<ArrowRightOutlined />} onClick={() => continueConsultant(editingFromReview ? 'consultantReview' : 'consultantAbout')}>{editingFromReview ? 'Update' : 'Continue'}</Button></div>
+                            <div className="welcome-actions-row">{!editingFromReview && <Button size="large" icon={<ArrowLeftOutlined />} onClick={back}>{t('Back')}</Button>}<Button type="primary" size="large" icon={<ArrowRightOutlined />} onClick={() => continueConsultant(editingFromReview ? 'consultantReview' : 'consultantAbout')}>{editingFromReview ? t('Update') : t('Continue')}</Button></div>
                         </div>
                     )}
 
                     {activeStep === 'consultantAbout' && messageComplete && (
                         <div className="welcome-panel welcome-reveal">
-                            <div className="welcome-section-heading"><span className="welcome-panel-icon"><EditOutlined /></span><div><Title level={4}>Tell clients a little about you</Title><Paragraph>A clear headline and short introduction make your profile feel human.</Paragraph></div></div>
+                            <div className="welcome-section-heading"><span className="welcome-panel-icon"><EditOutlined /></span><div><Title level={4}>{t('Tell clients a little about you')}</Title><Paragraph>{t('A clear headline and short introduction make your profile feel human.')}</Paragraph></div></div>
                             <Form layout="vertical" requiredMark={false} className="welcome-consultant-form">
-                                <Form.Item label="Profile headline"><Input size="large" value={consultantSetup.headline} placeholder="e.g. Growth strategist for early-stage businesses" onChange={(event) => setConsultantSetup((current) => ({ ...current, headline: event.target.value }))} /></Form.Item>
-                                <Form.Item label="About your work"><Input.TextArea rows={4} value={consultantSetup.bio} placeholder="What can a business expect when working with you?" onChange={(event) => setConsultantSetup((current) => ({ ...current, bio: event.target.value }))} /></Form.Item>
-                                <div className="welcome-actions-row">{!editingFromReview && <Button size="large" icon={<ArrowLeftOutlined />} onClick={back}>Back</Button>}<Button type="primary" size="large" icon={<ArrowRightOutlined />} loading={savingConsultantSetup} onClick={() => void saveConsultantSetupDetails()}>{editingFromReview ? 'Update' : 'Save profile and continue'}</Button></div>
+                                <Form.Item label={t('Profile headline')}><Input size="large" value={consultantSetup.headline} placeholder={t('e.g. Growth strategist for early-stage businesses')} onChange={(event) => setConsultantSetup((current) => ({ ...current, headline: event.target.value }))} /></Form.Item>
+                                <Form.Item label={t('About your work')}><Input.TextArea rows={4} value={consultantSetup.bio} placeholder={t('What can a business expect when working with you?')} onChange={(event) => setConsultantSetup((current) => ({ ...current, bio: event.target.value }))} /></Form.Item>
+                                <div className="welcome-actions-row">{!editingFromReview && <Button size="large" icon={<ArrowLeftOutlined />} onClick={back}>{t('Back')}</Button>}<Button type="primary" size="large" icon={<ArrowRightOutlined />} loading={savingConsultantSetup} onClick={() => void saveConsultantSetupDetails()}>{editingFromReview ? t('Update') : t('Save profile and continue')}</Button></div>
                             </Form>
                         </div>
                     )}
 
                     {activeStep === 'consultantReview' && messageComplete && (
                         <div className="welcome-panel welcome-reveal">
-                            <div className="welcome-section-heading"><span className="welcome-panel-icon"><CheckCircleOutlined /></span><div><Title level={4}>Review your profile</Title><Paragraph>Everything look right? You can edit these details later from your profile.</Paragraph></div></div>
+                            <div className="welcome-section-heading"><span className="welcome-panel-icon"><CheckCircleOutlined /></span><div><Title level={4}>{t('Review your profile')}</Title><Paragraph>{t('Everything look right? You can edit these details later from your profile.')}</Paragraph></div></div>
                             <div className="welcome-review-grid">
-                                <button type="button" onClick={() => beginReviewEdit('consultantLocation')}><span className="welcome-edit-icon"><EditOutlined /></span><Text type="secondary">Based in</Text><strong>{consultantSetup.province}, {consultantSetup.country}</strong></button>
-                                <button type="button" onClick={() => beginReviewEdit('consultantReach')}><span className="welcome-edit-icon"><EditOutlined /></span><Text type="secondary">Service radius</Text><strong>{consultantSetup.serviceRadiusKm} km · {consultantSetup.currency}</strong></button>
-                                <button type="button" onClick={() => beginReviewEdit('consultantExpertise')}><span className="welcome-edit-icon"><EditOutlined /></span><Text type="secondary">Expertise</Text><strong>{consultantSetup.specialties.join(', ') || 'Not selected'}</strong></button>
-                                <button type="button" onClick={() => beginReviewEdit('consultantExperience')}><span className="welcome-edit-icon"><EditOutlined /></span><Text type="secondary">Experience</Text><strong>{consultantSetup.experienceYears >= 10 ? '10+ years' : consultantSetup.experienceYears >= 6 ? '6–9 years' : consultantSetup.experienceYears >= 3 ? '3–5 years' : '0–2 years'}</strong></button>
+                                <button type="button" onClick={() => beginReviewEdit('consultantLocation')}><span className="welcome-edit-icon"><EditOutlined /></span><Text type="secondary">{t('Based in')}</Text><strong>{consultantSetup.province}, {consultantSetup.country}</strong></button>
+                                <button type="button" onClick={() => beginReviewEdit('consultantReach')}><span className="welcome-edit-icon"><EditOutlined /></span><Text type="secondary">{t('Service radius')}</Text><strong>{consultantSetup.serviceRadiusKm} {t('km ·')} {consultantSetup.currency}</strong></button>
+                                <button type="button" onClick={() => beginReviewEdit('consultantExpertise')}><span className="welcome-edit-icon"><EditOutlined /></span><Text type="secondary">{t('Expertise')}</Text><strong>{consultantSetup.specialties.join(', ') || t('Not selected')}</strong></button>
+                                <button type="button" onClick={() => beginReviewEdit('consultantExperience')}><span className="welcome-edit-icon"><EditOutlined /></span><Text type="secondary">{t('Experience')}</Text><strong>{consultantSetup.experienceYears >= 10 ? t('10+ years') : consultantSetup.experienceYears >= 6 ? t('6–9 years') : consultantSetup.experienceYears >= 3 ? t('3–5 years') : t('0–2 years')}</strong></button>
                             </div>
-                            <Button type="primary" size="large" block icon={<ArrowRightOutlined />} onClick={() => { setEditingFromReview(false); goTo(!hasSignature ? 'signature' : 'complete') }}>Looks good</Button>
+                            <Button type="primary" size="large" block icon={<ArrowRightOutlined />} onClick={() => { setEditingFromReview(false); goTo(!hasSignature ? 'signature' : 'complete') }}>{t('Looks good')}</Button>
                         </div>
                     )}
 

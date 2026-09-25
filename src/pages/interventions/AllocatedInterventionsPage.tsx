@@ -17,6 +17,7 @@ import { matchesActiveProgram } from '@/services/workspaceProgramsService'
 import AIInterventionUpdateModal from '@/components/interventions/AIInterventionUpdateModal'
 import type { AssignedInterventionLike, InterventionRow, ProgressUpdateForm, StatusFilter, UpdateMode } from '@/types/interventions'
 import { formatStatus } from '@/utils/status'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 type ViewFilter = 'active' | 'history'
 
@@ -119,6 +120,7 @@ const makeRow = (assignment: AssignedInterventionLike, localOnly = false): Inter
 }
 
 export const AllocatedInterventions = () => {
+    const { t } = useLanguage()
     const { message } = App.useApp()
     const { assignments, loading, refresh, isMine } = useAssignedInterventions()
     const { activeProgramId, isAllPrograms } = useActiveProgramId()
@@ -202,11 +204,11 @@ export const AllocatedInterventions = () => {
                 status: accepted ? 'awaiting_sme_acceptance' : 'declined',
                 updatedAt: serverTimestamp(),
             })
-            message.success(accepted ? 'Intervention accepted.' : 'Intervention declined.')
+            message.success(accepted ? t('Intervention accepted.') : t('Intervention declined.'))
             setSelected(undefined)
             await refresh()
         } catch {
-            message.error('Intervention status could not be updated.')
+            message.error(t('Intervention status could not be updated.'))
         } finally {
             setSaving(false)
         }
@@ -232,7 +234,7 @@ export const AllocatedInterventions = () => {
         const evidenceFiles = values.evidenceFiles || []
 
         if (progressAfter >= 100 && evidenceFiles.length === 0) {
-            message.error('Attach proof of evidence before marking this 100% complete.')
+            message.error(t('Attach proof of evidence before marking this 100% complete.'))
             return
         }
 
@@ -264,12 +266,12 @@ export const AllocatedInterventions = () => {
                     evidenceFiles,
                 }),
             })
-            message.success('Progress updated.')
+            message.success(t('Progress updated.'))
             setUpdateOpen(false)
             setSelected(undefined)
             await refresh()
         } catch {
-            message.error('Progress could not be updated.')
+            message.error(t('Progress could not be updated.'))
         } finally {
             setSaving(false)
         }
@@ -303,23 +305,23 @@ export const AllocatedInterventions = () => {
                     updatedAt: serverTimestamp(),
                 }),
             ])
-            message.success(approved ? 'Agent work approved.' : 'Agent work returned for changes.')
+            message.success(approved ? t('Agent work approved.') : t('Agent work returned for changes.'))
             setSelected(undefined)
             await refresh()
         } catch {
-            message.error('The agent work review could not be saved.')
+            message.error(t('The agent work review could not be saved.'))
         } finally {
             setSaving(false)
         }
     }
 
     const programColumns: NonNullable<TableProps<InterventionRow>['columns']> = isAllPrograms
-        ? [{ title: 'Program', dataIndex: 'programmeName', render: (value?: string) => value || 'Unassigned' }]
+        ? [{ title: t('Program'), dataIndex: 'programmeName', render: (value?: string) => value || t('Unassigned') }]
         : []
 
     const columns: TableProps<InterventionRow>['columns'] = [
         {
-            title: 'Intervention',
+            title: t('Intervention'),
             dataIndex: 'title',
             render: (value: string, row) => (
                 <Space direction="vertical" size={0}>
@@ -329,19 +331,19 @@ export const AllocatedInterventions = () => {
             ),
         },
         ...programColumns,
-        { title: 'Status', dataIndex: 'status', render: (value: StatusFilter) => <Tag color={statusColor(value)}>{value}</Tag> },
-        { title: 'Progress', dataIndex: 'progress', render: (value: number) => <Progress percent={value} size="small" /> },
-        { title: 'Due', dataIndex: 'dueDate', render: (value: unknown) => { const date = toDate(value); return date ? dayjs(date).format('DD MMM YYYY') : 'No due date' } },
-        { title: 'Actions', render: (_, row) => <Button icon={<EyeOutlined />} onClick={() => setSelected(row)}>View</Button> },
+        { title: t('Status'), dataIndex: 'status', render: (value: StatusFilter) => <Tag color={statusColor(value)}>{value}</Tag> },
+        { title: t('Progress'), dataIndex: 'progress', render: (value: number) => <Progress percent={value} size="small" /> },
+        { title: t('Due'), dataIndex: 'dueDate', render: (value: unknown) => { const date = toDate(value); return date ? dayjs(date).format('DD MMM YYYY') : 'No due date' } },
+        { title: t('Actions'), render: (_, row) => <Button icon={<EyeOutlined />} onClick={() => setSelected(row)}>{t('View')}</Button> },
     ]
 
     return (
         <DashboardPage className="operations-interventions-page ai-intervention-page">
             <Row gutter={[12, 12]} className="dashboard-metrics-row">
-                <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<TeamOutlined />} label="Assigned" value={metrics.assigned} /></Col>
-                <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<ClockCircleOutlined />} label="Pending" value={metrics.pending} /></Col>
-                <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<ToolOutlined />} label="In progress" value={metrics.active} /></Col>
-                <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<CheckOutlined />} label="Completed" value={metrics.completed} /></Col>
+                <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<TeamOutlined />} label={t('Assigned')} value={metrics.assigned} /></Col>
+                <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<ClockCircleOutlined />} label={t('Pending')} value={metrics.pending} /></Col>
+                <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<ToolOutlined />} label={t('In progress')} value={metrics.active} /></Col>
+                <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<CheckOutlined />} label={t('Completed')} value={metrics.completed} /></Col>
             </Row>
 
             <FilterBar
@@ -350,7 +352,7 @@ export const AllocatedInterventions = () => {
                         <Input
                             prefix={<SearchOutlined />}
                             value={search}
-                            onChange={(event) => setSearch(event.target.value)} placeholder="Search intervention or SME name"
+                            onChange={(event) => setSearch(event.target.value)} placeholder={t('Search intervention or SME name')}
                             allowClear
                         />
                         {isAllPrograms &&
@@ -371,7 +373,7 @@ export const AllocatedInterventions = () => {
                 actions={
                     <>
                         <Segmented value={view} onChange={(value) => setView(value as ViewFilter)} options={[{ value: 'active', label: `Active (${activeRows.length})` }, { value: 'history', label: `History (${historyRows.length})` }]} />
-                        <Button icon={<ReloadOutlined />} onClick={() => void refresh()}>Refresh</Button>
+                        <Button icon={<ReloadOutlined />} onClick={() => void refresh()}>{t('Refresh')}</Button>
                     </>
                 }
             />
@@ -382,13 +384,13 @@ export const AllocatedInterventions = () => {
                     rows={filteredRows}
                     columns={columns}
                     loading={loading}
-                    emptyText="No assigned interventions match the selected filters."
+                    emptyText={t('No assigned interventions match the selected filters.')}
                     renderCard={(row) => (
                         <Space direction="vertical" size={8}>
                             <Typography.Text strong>{row.title}</Typography.Text>
                             <Typography.Text type="secondary">{row.beneficiaryName}</Typography.Text>
                             <Space wrap><Tag color={statusColor(row.status)}>{row.status}</Tag><Tag>{row.progress}%</Tag></Space>
-                            <Button onClick={() => setSelected(row)}>View</Button>
+                            <Button onClick={() => setSelected(row)}>{t('View')}</Button>
                         </Space>
                     )}
                 />
@@ -398,19 +400,19 @@ export const AllocatedInterventions = () => {
                 {selected && (
                     <Space direction="vertical" size={16} style={{ width: '100%' }}>
                         <Descriptions bordered size="small" column={{ xs: 1, md: 2 }} items={[
-                            { key: 'beneficiary', label: 'SME Name', children: selected.beneficiaryName },
-                            { key: 'status', label: 'Status', children: <Tag color={statusColor(selected.status)}>{selected.status}</Tag> },
-                            { key: 'assignee', label: 'Facilitator acceptance', children: formatStatus(selected.assigneeStatus) },
-                            { key: 'participant', label: 'SME acceptance', children: formatStatus(selected.participantStatus) },
-                            { key: 'completion', label: 'Completion confirmation', children: formatStatus(selected.completionStatus) },
-                            { key: 'due', label: 'Due date', children: toDate(selected.dueDate) ? dayjs(toDate(selected.dueDate)!).format('DD MMM YYYY') : 'No due date' },
-                            { key: 'delivery', label: 'Delivery', children: selected.raw.deliveryActorType === 'agent' ? <Tag color="purple">{String((selected.raw as Record<string, unknown>).agentName || 'Agent')}</Tag> : <Tag color="blue">Human</Tag> },
-                            { key: 'review', label: 'Review status', children: formatStatus(String((selected.raw as Record<string, unknown>).reviewStatus || 'Not required')) },
+                            { key: 'beneficiary', label: t('SME Name'), children: selected.beneficiaryName },
+                            { key: 'status', label: t('Status'), children: <Tag color={statusColor(selected.status)}>{selected.status}</Tag> },
+                            { key: 'assignee', label: t('Facilitator acceptance'), children: formatStatus(selected.assigneeStatus) },
+                            { key: 'participant', label: t('SME acceptance'), children: formatStatus(selected.participantStatus) },
+                            { key: 'completion', label: t('Completion confirmation'), children: formatStatus(selected.completionStatus) },
+                            { key: 'due', label: t('Due date'), children: toDate(selected.dueDate) ? dayjs(toDate(selected.dueDate)!).format('DD MMM YYYY') : 'No due date' },
+                            { key: 'delivery', label: t('Delivery'), children: selected.raw.deliveryActorType === 'agent' ? <Tag color="purple">{String((selected.raw as Record<string, unknown>).agentName || 'Agent')}</Tag> : <Tag color="blue">{t('Human')}</Tag> },
+                            { key: 'review', label: t('Review status'), children: formatStatus(String((selected.raw as Record<string, unknown>).reviewStatus || 'Not required')) },
                         ]} />
                         <Progress percent={selected.progress} />
 
                         {(selected.raw.progressSteps?.length ?? 0) > 0 && (
-                            <Card size="small" title="Progress history">
+                            <Card size="small" title={t('Progress history')}>
                                 <Timeline
                                     items={[...selected.raw.progressSteps!].reverse().map((step, index) => ({
                                         key: index,
@@ -422,7 +424,7 @@ export const AllocatedInterventions = () => {
                                                     <Tag>{formatStatus(step.source || 'manual')}</Tag>
                                                 </Space>
                                                 <Typography.Text type="secondary">
-                                                    {toDate(step.createdAt) ? dayjs(toDate(step.createdAt)!).format('DD MMM YYYY, HH:mm') : 'Unknown date'}
+                                                    {toDate(step.createdAt) ? dayjs(toDate(step.createdAt)!).format('DD MMM YYYY, HH:mm') : t('Unknown date')}
                                                     {step.actorRole ? ` · ${formatStatus(step.actorRole)}` : ''}
                                                 </Typography.Text>
                                                 {step.notes && <Typography.Text>{step.notes}</Typography.Text>}
@@ -439,18 +441,18 @@ export const AllocatedInterventions = () => {
                         )}
 
                         <Space wrap style={{ justifyContent: 'flex-end', width: '100%' }}>
-                            <Button onClick={() => setSelected(undefined)}>Close</Button>
-                            {selected.raw.deliveryActorType !== 'agent' && !['Completed', 'Rejected'].includes(selected.status) && <Button icon={<SaveOutlined />} onClick={() => openUpdate('manual')}>Update</Button>}
+                            <Button onClick={() => setSelected(undefined)}>{t('Close')}</Button>
+                            {selected.raw.deliveryActorType !== 'agent' && !['Completed', 'Rejected'].includes(selected.status) && <Button icon={<SaveOutlined />} onClick={() => openUpdate('manual')}>{t('Update')}</Button>}
                             {selected.raw.deliveryActorType === 'agent' && (selected.raw as Record<string, unknown>).reviewerType === 'consultant' && (selected.raw as Record<string, unknown>).agentWorkStatus === 'awaiting_review' && (
                                 <>
-                                    <Button type="primary" loading={saving} onClick={() => void reviewAgentWork('approved')}>Approve agent work</Button>
-                                    <Button danger loading={saving} onClick={() => void reviewAgentWork('changes_requested')}>Request changes</Button>
+                                    <Button type="primary" loading={saving} onClick={() => void reviewAgentWork('approved')}>{t('Approve agent work')}</Button>
+                                    <Button danger loading={saving} onClick={() => void reviewAgentWork('changes_requested')}>{t('Request changes')}</Button>
                                 </>
                             )}
                             {canAcceptOrDecline(selected) && (
                                 <>
-                                    <Button icon={<CloseOutlined />} danger loading={saving} onClick={() => void updateAcceptance(selected, false)}>Decline</Button>
-                                    <Button type="primary" icon={<CheckOutlined />} loading={saving} onClick={() => void updateAcceptance(selected, true)}>Accept</Button>
+                                    <Button icon={<CloseOutlined />} danger loading={saving} onClick={() => void updateAcceptance(selected, false)}>{t('Decline')}</Button>
+                                    <Button type="primary" icon={<CheckOutlined />} loading={saving} onClick={() => void updateAcceptance(selected, true)}>{t('Accept')}</Button>
                                 </>
                             )}
                         </Space>

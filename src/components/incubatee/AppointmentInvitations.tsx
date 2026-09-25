@@ -13,6 +13,7 @@ import {
   type DeclineReasonCode,
 } from '@/services/agentService'
 import type { IncubateeWorkspace } from '@/types/incubatee'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 type Invitation = {
   id: string
@@ -26,7 +27,7 @@ type Invitation = {
 
 const CHUNK = 30 // Firestore `in` limit
 
-const OTHER_OPTION = { code: 'other' as DeclineReasonCode, label: 'Another reason', proposeTime: true }
+const OTHER_OPTION = { code: 'other' as DeclineReasonCode, get label() { return tr('Another reason') }, proposeTime: true }
 
 /**
  * Appointments that operations or a consultant has scheduled and the SME has not answered yet.
@@ -35,6 +36,7 @@ const OTHER_OPTION = { code: 'other' as DeclineReasonCode, label: 'Another reaso
  * Writes go through the backend because SMEs cannot write appointments directly.
  */
 export const AppointmentInvitations = ({ workspace, onChanged }: { workspace: IncubateeWorkspace, onChanged?: () => void }) => {
+  const { t } = useLanguage()
   const { message } = App.useApp()
   const { user } = useFullIdentity()
   const companyCode = user?.companyCode
@@ -91,11 +93,11 @@ export const AppointmentInvitations = ({ workspace, onChanged }: { workspace: In
     setBusyId(item.id)
     try {
       await respondToAppointment(item.id, { response: 'accept' })
-      message.success('Appointment confirmed.')
+      message.success(t('Appointment confirmed.'))
       await load()
       onChanged?.()
     } catch (error) {
-      message.error(error instanceof Error ? error.message : 'Your response could not be saved.')
+      message.error(error instanceof Error ? error.message : t('Your response could not be saved.'))
     } finally {
       setBusyId(undefined)
     }
@@ -105,7 +107,7 @@ export const AppointmentInvitations = ({ workspace, onChanged }: { workspace: In
 
   return (
     <>
-      <Card className="incubatee-card" style={{ marginBottom: 12 }} title={<Space><CalendarOutlined />Appointments awaiting your response</Space>}>
+      <Card className="incubatee-card" style={{ marginBottom: 12 }} title={<Space><CalendarOutlined />{t('Appointments awaiting your response')}</Space>}>
         <List
           itemLayout="vertical"
           dataSource={invitations}
@@ -115,13 +117,13 @@ export const AppointmentInvitations = ({ workspace, onChanged }: { workspace: In
               <List.Item
                 key={item.id}
                 actions={[
-                  <Button key="accept" type="primary" loading={busyId === item.id} onClick={() => void accept(item)}>Accept</Button>,
-                  <Button key="decline" danger disabled={busyId === item.id} onClick={() => setDeclining(item)}>Decline</Button>,
+                  <Button key="accept" type="primary" loading={busyId === item.id} onClick={() => void accept(item)}>{t('Accept')}</Button>,
+                  <Button key="decline" danger disabled={busyId === item.id} onClick={() => setDeclining(item)}>{t('Decline')}</Button>,
                 ]}
               >
                 <Space direction="vertical" size={2}>
                   <Typography.Text strong>{item.title}</Typography.Text>
-                  <Typography.Text>{start ? `${start.format('dddd, DD MMMM YYYY')} · ${formatSpan({ id: item.id, interventionTitle: item.title, meetingType: item.meetingType ?? 'online', status: 'pending', startTime: item.startTime, endTime: item.endTime })}` : 'Time to be confirmed'}</Typography.Text>
+                  <Typography.Text>{start ? `${start.format('dddd, DD MMMM YYYY')} · ${formatSpan({ id: item.id, interventionTitle: item.title, meetingType: item.meetingType ?? 'online', status: 'pending', startTime: item.startTime, endTime: item.endTime })}` : t('Time to be confirmed')}</Typography.Text>
                   <Space wrap size={6}>
                     <Tag>{meetingTypeLabel(item.meetingType)}</Tag>
                     {item.location && <Typography.Text type="secondary">{item.location}</Typography.Text>}
@@ -159,6 +161,7 @@ const DeclineModal = ({ invitation, onClose, onDone }: { invitation?: Invitation
 )
 
 const DeclineForm = ({ invitation, onClose, onDone }: { invitation: Invitation, onClose: () => void, onDone: () => Promise<void> }) => {
+  const { t } = useLanguage()
   const { message } = App.useApp()
   const [context, setContext] = useState<AppointmentRsvpContext>()
   const [loadError, setLoadError] = useState(false)
@@ -183,7 +186,7 @@ const DeclineForm = ({ invitation, onClose, onDone }: { invitation: Invitation, 
   const submit = async () => {
     if (!code) return
     if (code === 'other' && !detail.trim()) {
-      message.warning('Please tell us briefly why you cannot make it.')
+      message.warning(t('Please tell us briefly why you cannot make it.'))
       return
     }
     setSaving(true)
@@ -194,21 +197,21 @@ const DeclineForm = ({ invitation, onClose, onDone }: { invitation: Invitation, 
         ...(detail.trim() ? { detail: detail.trim() } : {}),
         ...(selected?.proposeTime && range ? { proposedStart: range[0].toISOString(), proposedEnd: range[1].toISOString() } : {}),
       })
-      message.success(dropping ? 'Thanks. The programme team will confirm this with you.' : 'Your response has been sent.')
+      message.success(dropping ? t('Thanks. The programme team will confirm this with you.') : t('Your response has been sent.'))
       await onDone()
     } catch (error) {
-      message.error(error instanceof Error ? error.message : 'Your response could not be saved.')
+      message.error(error instanceof Error ? error.message : t('Your response could not be saved.'))
       setSaving(false)
     }
   }
 
   return (
     <Space direction="vertical" size={14} style={{ width: '100%' }}>
-      {loadError && <Alert type="error" showIcon message="We could not load the reasons. Please try again." />}
+      {loadError && <Alert type="error" showIcon message={t('We could not load the reasons. Please try again.')} />}
       {!context && !loadError && <Skeleton active paragraph={{ rows: 3 }} />}
       {context && (
         <>
-          <Typography.Text>What is the reason?</Typography.Text>
+          <Typography.Text>{t('What is the reason?')}</Typography.Text>
           <Radio.Group value={code} onChange={(event) => setCode(event.target.value as DeclineReasonCode)}>
             <Space direction="vertical">
               {options.map((option) => <Radio key={option.code} value={option.code}>{option.label}</Radio>)}
@@ -217,7 +220,7 @@ const DeclineForm = ({ invitation, onClose, onDone }: { invitation: Invitation, 
 
           {selected?.proposeTime && (
             <div>
-              <Typography.Text type="secondary">Suggest another time (optional)</Typography.Text>
+              <Typography.Text type="secondary">{t('Suggest another time (optional)')}</Typography.Text>
               <DatePicker.RangePicker
                 showTime={{ format: 'HH:mm', minuteStep: 15 }}
                 format="DD MMM YYYY HH:mm"
@@ -235,19 +238,19 @@ const DeclineForm = ({ invitation, onClose, onDone }: { invitation: Invitation, 
               maxLength={300}
               value={detail}
               onChange={(event) => setDetail(event.target.value)}
-              placeholder={code === 'other' ? 'Tell us briefly why you cannot make it' : 'Anything else we should know? (optional)'}
+              placeholder={code === 'other' ? t('Tell us briefly why you cannot make it') : t('Anything else we should know? (optional)')}
             />
           )}
 
           {dropping && (
-            <Alert type="info" showIcon message="Your programme team will confirm this before the intervention is removed." />
+            <Alert type="info" showIcon message={t('Your programme team will confirm this before the intervention is removed.')} />
           )}
         </>
       )}
       <Space style={{ justifyContent: 'flex-end', width: '100%' }}>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>{t('Cancel')}</Button>
         <Button danger type="primary" disabled={!code || !context} loading={saving} onClick={() => void submit()}>
-          {dropping ? 'Send request' : 'Decline appointment'}
+          {dropping ? t('Send request') : t('Decline appointment')}
         </Button>
       </Space>
     </Space>

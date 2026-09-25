@@ -12,6 +12,7 @@ import {
     type CalendarAppointment,
     type MeetingType,
 } from './appointmentSchedule'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 /** Above this many appointments the day needs filtering rather than just scrolling. */
 const FILTER_THRESHOLD = 5
@@ -39,6 +40,7 @@ type AppointmentDayPanelProps<T extends CalendarAppointment> = {
 export function AppointmentDayPanel<T extends CalendarAppointment>({
     date, appointments, selected, onSelect, onCreate,
 }: AppointmentDayPanelProps<T>) {
+    const { t } = useLanguage()
     const [statusFilter, setStatusFilter] = useState<AppointmentStatus | 'all'>('all')
 
     const counts = useMemo(() => appointments.reduce((totals, appointment) => {
@@ -68,7 +70,7 @@ export function AppointmentDayPanel<T extends CalendarAppointment>({
         <aside className="apt-panel">
             <header className="apt-panel-head">
                 <div>
-                    <Typography.Text type="secondary">{date.isSame(dayjs(), 'day') ? 'Today' : date.format('dddd')}</Typography.Text>
+                    <Typography.Text type="secondary">{date.isSame(dayjs(), 'day') ? t('Today') : date.format('dddd')}</Typography.Text>
                     <Typography.Title level={4}>{date.format('DD MMMM YYYY')}</Typography.Title>
                 </div>
                 <Badge count={appointments.length} showZero color="#6d5dfb" overflowCount={99} />
@@ -89,9 +91,9 @@ export function AppointmentDayPanel<T extends CalendarAppointment>({
                 {groups.length === 0 && (
                     <Empty
                         image={Empty.PRESENTED_IMAGE_SIMPLE}
-                        description={appointments.length ? 'Nothing matches this filter' : 'No appointments on this day'}
+                        description={appointments.length ? t('Nothing matches this filter') : t('No appointments on this day')}
                     >
-                        {!appointments.length && <Button size="small" type="primary" icon={<PlusOutlined />} onClick={onCreate}>Schedule one</Button>}
+                        {!appointments.length && <Button size="small" type="primary" icon={<PlusOutlined />} onClick={onCreate}>{t('Schedule one')}</Button>}
                     </Empty>
                 )}
                 {groups.map(({ period, rows }) => (
@@ -111,7 +113,7 @@ export function AppointmentDayPanel<T extends CalendarAppointment>({
                                         <span className="apt-panel-item-type">{meetingTypeIcon(row.meetingType)}</span>
                                     </span>
                                     <span className="apt-panel-item-title">{row.interventionTitle}</span>
-                                    <small>{row.participantName || row.participantEmail || 'SME'}</small>
+                                    <small>{row.participantName || row.participantEmail || t('SME')}</small>
                                 </span>
                             </button>
                         ))}

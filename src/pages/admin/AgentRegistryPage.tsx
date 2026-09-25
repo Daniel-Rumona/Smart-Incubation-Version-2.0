@@ -50,12 +50,13 @@ import type {
   AgentStatus,
 } from '@/types/agentOrchestration'
 import '@/styles/agent-registry.css'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 const { TextArea } = Input
 
 const STATUS_OPTIONS: Array<{ value: AgentStatus; label: string }> = [
-  { value: 'active', label: 'Active' },
-  { value: 'inactive', label: 'Inactive' },
+  { value: 'active', get label() { return tr('Active') } },
+  { value: 'inactive', get label() { return tr('Inactive') } },
 ]
 
 type AgentFormValues = {
@@ -75,6 +76,7 @@ const statusColour = (status: AgentStatus) => {
 }
 
 const AgentRegistryPage = () => {
+  const { t } = useLanguage()
   const { message, modal } = App.useApp()
   const { user } = useFullIdentity()
   const [form] = Form.useForm<AgentFormValues>()
@@ -101,18 +103,18 @@ const AgentRegistryPage = () => {
     allowedActions: [
       {
         key: 'create_agent',
-        label: 'Add agent',
-        description: 'Register a supported agent implementation.',
+        label: t('Add agent'),
+        description: t('Register a supported agent implementation.'),
       },
       {
         key: 'update_agent',
-        label: 'Update agent',
-        description: 'Update agent metadata and availability status.',
+        label: t('Update agent'),
+        description: t('Update agent metadata and availability status.'),
       },
       {
         key: 'archive_agent',
-        label: 'Archive agent',
-        description: 'Prevent future assignment while retaining historical references.',
+        label: t('Archive agent'),
+        description: t('Prevent future assignment while retaining historical references.'),
         requiresConfirmation: true,
       },
     ],
@@ -125,13 +127,13 @@ const AgentRegistryPage = () => {
         setLoading(false)
       },
       () => {
-        message.error('The agent registry could not be loaded.')
+        message.error(t('The agent registry could not be loaded.'))
         setLoading(false)
       },
     )
 
     return unsubscribe
-  }, [message])
+  }, [message, t])
 
   const openCreate = () => {
     setEditing(null)
@@ -174,13 +176,13 @@ const AgentRegistryPage = () => {
 
   const save = async (values: AgentFormValues) => {
     if (!user) {
-      message.error('You must be signed in to manage agents.')
+      message.error(t('You must be signed in to manage agents.'))
       return
     }
 
     const implementation = getAgentImplementation(values.implementationKey)
     if (!implementation) {
-      message.error('The selected implementation is not supported.')
+      message.error(t('The selected implementation is not supported.'))
       return
     }
 
@@ -216,7 +218,7 @@ const AgentRegistryPage = () => {
       message.error(
         error instanceof Error
           ? error.message
-          : 'The agent could not be saved.',
+          : t('The agent could not be saved.'),
       )
     } finally {
       setSaving(false)
@@ -230,30 +232,30 @@ const AgentRegistryPage = () => {
       title: `Archive ${agent.name}?`,
       content:
         'The agent will no longer be assignable or available to companies. Historical assignments will retain their agent reference.',
-      okText: 'Archive agent',
+      okText: t('Archive agent'),
       okButtonProps: { danger: true },
-      cancelText: 'Cancel',
+      cancelText: t('Cancel'),
       onOk: async () => {
         try {
           await archiveAgent(agent.id, user)
           message.success(`${agent.name} was archived.`)
         } catch {
-          message.error('The agent could not be archived.')
+          message.error(t('The agent could not be archived.'))
         }
       },
     })
   }
 
-  if (loading) return <LoadingOverlay tip="Loading agent registry" />
+  if (loading) return <LoadingOverlay tip={t('Loading agent registry')} />
 
   return (
     <DashboardPage className="agent-registry-page">
       <DashboardHeaderCard
-        title="Agent registry"
-        subtitle="Register supported platform and outsourced agent implementations before enabling them for companies."
+        title={t('Agent registry')}
+        subtitle={tr('Register supported platform and outsourced agent implementations before enabling them for companies.')}
         extraRight={
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-            Add agent
+            {t('Add agent')}
           </Button>
         }
       />
@@ -262,32 +264,32 @@ const AgentRegistryPage = () => {
         <div>
           <RobotOutlined />
           <strong>{metrics.total}</strong>
-          <span>Registered</span>
+          <span>{t('Registered')}</span>
         </div>
         <div>
           <SafetyCertificateOutlined />
           <strong>{metrics.active}</strong>
-          <span>Active</span>
+          <span>{t('Active')}</span>
         </div>
         <div>
           <ApiOutlined />
           <strong>{metrics.external}</strong>
-          <span>External</span>
+          <span>{t('External')}</span>
         </div>
         <div>
           <DollarOutlined />
           <strong>{metrics.billable}</strong>
-          <span>Billable</span>
+          <span>{t('Billable')}</span>
         </div>
       </section>
 
       {!agents.length ? (
         <Empty
-          description="No agents have been registered."
+          description={t('No agents have been registered.')}
           image={Empty.PRESENTED_IMAGE_SIMPLE}
         >
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-            Register first agent
+            {t('Register first agent')}
           </Button>
         </Empty>
       ) : (
@@ -307,8 +309,8 @@ const AgentRegistryPage = () => {
                       </Tag>
                       <Tag color={agent.executionMode === 'external_api' ? 'blue' : 'default'}>
                         {agent.executionMode === 'external_api'
-                          ? 'External API'
-                          : 'Platform'}
+                          ? t('External API')
+                          : t('Platform')}
                       </Tag>
                       <Tag>{agent.provider}</Tag>
                     </Space>
@@ -324,21 +326,21 @@ const AgentRegistryPage = () => {
                     {agent.implementationKey}
                   </Tag>
                   {agent.supportsDocuments && (
-                    <Tag icon={<FileWordOutlined />}>Documents</Tag>
+                    <Tag icon={<FileWordOutlined />}>{t('Documents')}</Tag>
                   )}
                   {agent.supportsVoice && (
-                    <Tag icon={<SoundOutlined />}>Voice</Tag>
+                    <Tag icon={<SoundOutlined />}>{t('Voice')}</Tag>
                   )}
                   {agent.billable && (
                     <Tag color="gold" icon={<DollarOutlined />}>
-                      Billable
+                      {t('Billable')}
                     </Tag>
                   )}
                 </div>
 
                 <div className="agent-registry-capabilities">
                   <div className="agent-registry-capability-label">
-                    <ThunderboltOutlined /> Capabilities
+                    <ThunderboltOutlined /> {t('Capabilities')}
                   </div>
                   <Space size={[6, 6]} wrap>
                     {agent.capabilities.map((capability) => (
@@ -350,12 +352,12 @@ const AgentRegistryPage = () => {
                 <div className="agent-registry-card-footer">
                   <Typography.Text type="secondary">
                     {agent.status === 'active' && agent.supportsAssignment
-                      ? 'Available for company enablement and intervention assignment.'
-                      : 'Not available for new company assignments.'}
+                      ? t('Available for company enablement and intervention assignment.')
+                      : t('Not available for new company assignments.')}
                   </Typography.Text>
                   <Space>
                     <Button icon={<EditOutlined />} onClick={() => openEdit(agent)}>
-                      Edit
+                      {t('Edit')}
                     </Button>
                     {agent.status !== 'archived' && (
                       <Button
@@ -363,7 +365,7 @@ const AgentRegistryPage = () => {
                         icon={<InboxOutlined />}
                         onClick={() => confirmArchive(agent)}
                       >
-                        Archive
+                        {t('Archive')}
                       </Button>
                     )}
                   </Space>
@@ -376,7 +378,7 @@ const AgentRegistryPage = () => {
 
       <Modal
         open={open}
-        title={editing ? 'Update agent' : 'Register agent'}
+        title={editing ? t('Update agent') : t('Register agent')}
         onCancel={() => {
           if (saving) return
           setOpen(false)
@@ -397,13 +399,13 @@ const AgentRegistryPage = () => {
             <Col xs={24} md={12}>
               <Form.Item
                 name="id"
-                label="Agent key"
-                tooltip="Stable key used by assignments and company settings. It cannot be changed after creation."
+                label={t('Agent key')}
+                tooltip={t('Stable key used by assignments and company settings. It cannot be changed after creation.')}
                 rules={[
-                  { required: true, message: 'Enter an agent key.' },
+                  { required: true, message: tr('Enter an agent key.') },
                   {
                     pattern: /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
-                    message: 'Use lowercase letters, numbers, and hyphens only.',
+                    message: tr('Use lowercase letters, numbers, and hyphens only.'),
                   },
                 ]}
               >
@@ -417,12 +419,12 @@ const AgentRegistryPage = () => {
             <Col xs={24} md={12}>
               <Form.Item
                 name="implementationKey"
-                label="Implementation"
-                rules={[{ required: true, message: 'Select an implementation.' }]}
+                label={t('Implementation')}
+                rules={[{ required: true, message: tr('Select an implementation.') }]}
               >
                 <Select
                   disabled={Boolean(editing)}
-                  placeholder="Select supported implementation"
+                  placeholder={t('Select supported implementation')}
                   options={AGENT_IMPLEMENTATIONS.map((implementation) => ({
                     value: implementation.key,
                     label: implementation.label,
@@ -435,24 +437,24 @@ const AgentRegistryPage = () => {
             <Col span={24}>
               <Form.Item
                 name="name"
-                label="Agent name"
-                rules={[{ required: true, message: 'Enter the agent name.' }]}
+                label={t('Agent name')}
+                rules={[{ required: true, message: tr('Enter the agent name.') }]}
               >
-                <Input placeholder="Pitch Preparation Agent" />
+                <Input placeholder={t('Pitch Preparation Agent')} />
               </Form.Item>
             </Col>
 
             <Col span={24}>
               <Form.Item
                 name="description"
-                label="Description"
-                rules={[{ required: true, message: 'Enter a description.' }]}
+                label={t('Description')}
+                rules={[{ required: true, message: tr('Enter a description.') }]}
               >
                 <TextArea
                   rows={4}
                   maxLength={700}
                   showCount
-                  placeholder="Explain what the agent does for participants and operations."
+                  placeholder={t('Explain what the agent does for participants and operations.')}
                 />
               </Form.Item>
             </Col>
@@ -460,20 +462,20 @@ const AgentRegistryPage = () => {
             <Col span={24}>
               <Form.Item
                 name="capabilities"
-                label="Capabilities"
+                label={t('Capabilities')}
                 rules={[
                   {
                     required: true,
                     type: 'array',
                     min: 1,
-                    message: 'Add at least one capability.',
+                    message: tr('Add at least one capability.'),
                   },
                 ]}
               >
                 <Select
                   mode="tags"
                   tokenSeparators={[',']}
-                  placeholder="Type a capability and press Enter"
+                  placeholder={t('Type a capability and press Enter')}
                 />
               </Form.Item>
             </Col>
@@ -481,7 +483,7 @@ const AgentRegistryPage = () => {
             <Col xs={24} md={12}>
               <Form.Item
                 name="status"
-                label="Registry status"
+                label={t('Registry status')}
                 rules={[{ required: true }]}
               >
                 <Select options={STATUS_OPTIONS} />
@@ -491,10 +493,10 @@ const AgentRegistryPage = () => {
             <Col xs={24} md={12}>
               <Form.Item
                 name="supportsAssignment"
-                label="Allow intervention assignment"
+                label={t('Allow intervention assignment')}
                 valuePropName="checked"
               >
-                <Switch checkedChildren="Allowed" unCheckedChildren="Blocked" />
+                <Switch checkedChildren={tr('Allowed')} unCheckedChildren={tr('Blocked')} />
               </Form.Item>
             </Col>
           </Row>
@@ -504,10 +506,10 @@ const AgentRegistryPage = () => {
               onClick={() => setOpen(false)}
               disabled={saving}
             >
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button type="primary" htmlType="submit" loading={saving}>
-              {editing ? 'Save changes' : 'Register agent'}
+              {editing ? t('Save changes') : t('Register agent')}
             </Button>
           </div>
         </Form>

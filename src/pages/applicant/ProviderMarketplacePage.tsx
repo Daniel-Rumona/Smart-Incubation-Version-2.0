@@ -15,6 +15,7 @@ import type { ConsultantMarketplaceProfile } from '@/types/consultantMarketplace
 import type { AgentDefinition } from '@/types/agentOrchestration'
 import type { ConnectionRequest, ConnectionRequestDeliveryMode, ConnectionRequestStatus, ConnectionRequestUrgency } from '@/types/connectionRequest'
 import '@/styles/consultant.css'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 const { Text, Paragraph } = Typography
 const PAGE_SIZE = 6
@@ -33,16 +34,16 @@ type RequestFormValues = {
 }
 
 const deliveryModeOptions = [
-  { label: 'Online', value: 'online' },
-  { label: 'In person', value: 'in_person' },
-  { label: 'Hybrid', value: 'hybrid' },
-  { label: 'No preference', value: 'no_preference' },
+  { get label() { return tr('Online') }, value: 'online' },
+  { get label() { return tr('In person') }, value: 'in_person' },
+  { get label() { return tr('Hybrid') }, value: 'hybrid' },
+  { get label() { return tr('No preference') }, value: 'no_preference' },
 ]
 
 const urgencyOptions = [
-  { label: 'Low - within the next quarter', value: 'low' },
-  { label: 'Normal - within a month', value: 'normal' },
-  { label: 'High - as soon as possible', value: 'high' },
+  { get label() { return tr('Low - within the next quarter') }, value: 'low' },
+  { get label() { return tr('Normal - within a month') }, value: 'normal' },
+  { get label() { return tr('High - as soon as possible') }, value: 'high' },
 ]
 
 const statusColor: Record<ConnectionRequestStatus, string> = {
@@ -70,6 +71,7 @@ const targetNameOf = (target: RequestTarget) => target.type === 'consultant'
   : target.agent.name
 
 export default function ProviderMarketplacePage() {
+  const { t } = useLanguage()
   const { user } = useFullIdentity()
   const { message } = App.useApp()
   const navigate = useNavigate()
@@ -97,9 +99,9 @@ export default function ProviderMarketplacePage() {
         setAgents(agentRows)
         setMyRequests(requestRows)
       })
-      .catch(() => message.error('Consultants and agents could not be loaded right now.'))
+      .catch(() => message.error(t('Consultants and agents could not be loaded right now.')))
       .finally(() => setLoading(false))
-  }, [message, uid])
+  }, [message, uid, t])
 
   const openRequestIds = useMemo(
     () => new Set(myRequests.filter((row) => row.status === 'pending' || row.status === 'contacted').map((row) => row.targetId)),
@@ -181,12 +183,12 @@ export default function ProviderMarketplacePage() {
         currency,
         note: values.note,
       })
-      message.success('Request sent. Our operations team will follow up with you.')
+      message.success(t('Request sent. Our operations team will follow up with you.'))
       closeRequest()
       await loadRequests()
       setView('requests')
     } catch (error) {
-      message.error(error instanceof Error ? error.message : 'Your request could not be sent.')
+      message.error(error instanceof Error ? error.message : t('Your request could not be sent.'))
     } finally {
       setSubmitting(false)
     }
@@ -197,25 +199,25 @@ export default function ProviderMarketplacePage() {
   if (!isPlatformOwnerSme(user) || !user?.isApplicant) {
     return (
       <DashboardPage className="consultant-page">
-        <DashboardHeader title="Find a consultant or agent" />
+        <DashboardHeader title={t('Find a consultant or agent')} />
         <Card className="dashboard-section-card">
           <Empty
-            description="Your programme provides consultants and agents directly. Request support from your interventions page and your programme team will assign the right person."
+            description={t('Your programme provides consultants and agents directly. Request support from your interventions page and your programme team will assign the right person.')}
           >
-            <Button type="primary" onClick={() => navigate('/incubatee/interventions')}>Go to interventions</Button>
+            <Button type="primary" onClick={() => navigate('/incubatee/interventions')}>{t('Go to interventions')}</Button>
           </Empty>
         </Card>
       </DashboardPage>
     )
   }
 
-  if (loading) return <LoadingOverlay tip="Loading consultants and agents" />
+  if (loading) return <LoadingOverlay tip={t('Loading consultants and agents')} />
 
   return (
     <DashboardPage className="consultant-page">
       <DashboardHeader
-        title="Find a consultant or agent"
-        subtitle="Browse available consultants and AI agents, choose the one that fits your needs, and send your request with the support you need."
+        title={t('Find a consultant or agent')}
+        subtitle={tr('Browse available consultants and AI agents, choose the one that fits your needs, and send your request with the support you need.')}
       />
 
       <Card className="dashboard-section-card">
@@ -234,7 +236,7 @@ export default function ProviderMarketplacePage() {
               <Input
                 allowClear
                 prefix={<SearchOutlined />}
-                placeholder="Search by name, specialty, or capability"
+                placeholder={t('Search by name, specialty, or capability')}
                 value={search}
                 onChange={(event) => { setSearch(event.target.value); setPage(1) }}
                 style={{ width: 280 }}
@@ -250,22 +252,22 @@ export default function ProviderMarketplacePage() {
                     <Col xs={24} md={12} xl={8} key={profile.uid}>
                       <Card size="small" className="consultant-service-card" hoverable>
                         <Space direction="vertical" size={8} style={{ width: '100%' }}>
-                          <Space><Avatar size="small" src={profile.profileImageUrl || undefined}>{profile.name.charAt(0)}</Avatar><Text strong>{profile.headline || profile.name}</Text>{profile.verificationStatus === 'verified' && <Tag color="blue" icon={<SafetyCertificateOutlined />}>Verified</Tag>}</Space>
-                          {profile.experienceYears > 0 && <Text type="secondary">{profile.experienceYears} years experience</Text>}
-                          <Paragraph type="secondary" ellipsis={{ rows: 3 }} style={{ marginBottom: 0 }}>{profile.bio || 'No description provided yet.'}</Paragraph>
+                          <Space><Avatar size="small" src={profile.profileImageUrl || undefined}>{profile.name.charAt(0)}</Avatar><Text strong>{profile.headline || profile.name}</Text>{profile.verificationStatus === 'verified' && <Tag color="blue" icon={<SafetyCertificateOutlined />}>{t('Verified')}</Tag>}</Space>
+                          {profile.experienceYears > 0 && <Text type="secondary">{profile.experienceYears} {t('years experience')}</Text>}
+                          <Paragraph type="secondary" ellipsis={{ rows: 3 }} style={{ marginBottom: 0 }}>{profile.bio || t('No description provided yet.')}</Paragraph>
                           <Space wrap>{profile.specialties.map((specialty) => <Tag key={specialty}>{specialty}</Tag>)}</Space>
                           {profile.services.length > 0 && (
                             <Space direction="vertical" size={2}>
-                              <Text type="secondary">From {profile.currency} {profile.services[0].rate} per day</Text>
+                              <Text type="secondary">{t('From')} {profile.currency} {profile.services[0].rate} {t('per day')}</Text>
                               <Text type="secondary">{profile.services.map((service) => service.areaOfSupport).filter(Boolean).join(' · ')}</Text>
                             </Space>
                           )}
-                          {(profile.country || profile.province || profile.physicalAddress || profile.operatingLocation) && <Text type="secondary">Based in {[profile.province, profile.country].filter(Boolean).join(', ')} · {profile.serviceRadiusKm} km in person</Text>}
+                          {(profile.country || profile.province || profile.physicalAddress || profile.operatingLocation) && <Text type="secondary">{t('Based in')} {[profile.province, profile.country].filter(Boolean).join(', ')} · {profile.serviceRadiusKm} {t('km in person')}</Text>}
                           {openRequestIds.has(profile.uid) ? (
-                            <Button block disabled icon={<CheckCircleOutlined />}>Request already sent</Button>
+                            <Button block disabled icon={<CheckCircleOutlined />}>{t('Request already sent')}</Button>
                           ) : (
                             <Button type="primary" block icon={<SendOutlined />} onClick={() => openRequest({ type: 'consultant', profile })}>
-                              Choose this consultant
+                              {t('Choose this consultant')}
                             </Button>
                           )}
                         </Space>
@@ -279,7 +281,7 @@ export default function ProviderMarketplacePage() {
                   </div>
                 )}
               </>
-            ) : <Empty description="No published consultants match your search yet." />
+            ) : <Empty description={t('No published consultants match your search yet.')} />
           )}
 
           {view === 'agents' && (
@@ -293,10 +295,10 @@ export default function ProviderMarketplacePage() {
                         <Paragraph type="secondary" style={{ marginBottom: 0 }}>{agent.description}</Paragraph>
                         <Space wrap>{agent.capabilities.map((capability) => <Tag key={capability} color="purple">{capability}</Tag>)}</Space>
                         {openRequestIds.has(agent.id) ? (
-                          <Button block disabled icon={<CheckCircleOutlined />}>Request already sent</Button>
+                          <Button block disabled icon={<CheckCircleOutlined />}>{t('Request already sent')}</Button>
                         ) : (
                           <Button type="primary" block icon={<SendOutlined />} onClick={() => openRequest({ type: 'agent', agent })}>
-                            Choose this agent
+                            {t('Choose this agent')}
                           </Button>
                         )}
                       </Space>
@@ -304,7 +306,7 @@ export default function ProviderMarketplacePage() {
                   </Col>
                 ))}
               </Row>
-            ) : <Empty description="No AI agents match your search yet." />
+            ) : <Empty description={t('No AI agents match your search yet.')} />
           )}
 
           {view === 'requests' && (
@@ -316,21 +318,21 @@ export default function ProviderMarketplacePage() {
                       <Space direction="vertical" size={8} style={{ width: '100%' }}>
                         <Space wrap>
                           <Tag color={statusColor[row.status]}>{row.status.toUpperCase()}</Tag>
-                          <Tag>{row.targetType === 'agent' ? 'AI agent' : 'Consultant'}</Tag>
-                          <Text type="secondary">Sent {formatDate(row.createdAt)}</Text>
+                          <Tag>{row.targetType === 'agent' ? t('AI agent') : t('Consultant')}</Tag>
+                          <Text type="secondary">{t('Sent')} {formatDate(row.createdAt)}</Text>
                         </Space>
                         <Text strong>{row.targetName}</Text>
                         {row.areaOfSupport && <Text type="secondary">{row.areaOfSupport}</Text>}
-                        {row.preferredStartDate && <Text type="secondary">Preferred start: {row.preferredStartDate}</Text>}
-                        {typeof row.budget === 'number' && <Text type="secondary">Budget: {row.currency || 'ZAR'} {row.budget.toLocaleString()}</Text>}
+                        {row.preferredStartDate && <Text type="secondary">{t('Preferred start:')} {row.preferredStartDate}</Text>}
+                        {typeof row.budget === 'number' && <Text type="secondary">{t('Budget:')} {row.currency || t('ZAR')} {row.budget.toLocaleString()}</Text>}
                         <Text type="secondary">{statusHelp[row.status]}</Text>
-                        {row.reviewerNote && <Alert type="info" showIcon message="Operations note" description={row.reviewerNote} />}
+                        {row.reviewerNote && <Alert type="info" showIcon message={t('Operations note')} description={row.reviewerNote} />}
                       </Space>
                     </Card>
                   </Col>
                 ))}
               </Row>
-            ) : <Empty description="You have not requested a consultant or agent yet." />
+            ) : <Empty description={t('You have not requested a consultant or agent yet.')} />
           )}
         </Space>
       </Card>
@@ -341,42 +343,42 @@ export default function ProviderMarketplacePage() {
         onCancel={closeRequest}
         onOk={() => void submitRequest()}
         confirmLoading={submitting}
-        okText="Send request"
+        okText={t('Send request')}
         destroyOnHidden
         width={620}
       >
         {requestTarget && (
           <Space direction="vertical" size={12} style={{ width: '100%' }}>
             <Descriptions size="small" column={1} bordered>
-              <Descriptions.Item label="You selected">{targetNameOf(requestTarget)}</Descriptions.Item>
+              <Descriptions.Item label={t('You selected')}>{targetNameOf(requestTarget)}</Descriptions.Item>
               {requestTarget.type === 'consultant' && requestTarget.profile.services.length > 0 && (
-                <Descriptions.Item label="Day rate from">{currency} {requestTarget.profile.services[0].rate.toLocaleString()}</Descriptions.Item>
+                <Descriptions.Item label={t('Day rate from')}>{currency} {requestTarget.profile.services[0].rate.toLocaleString()}</Descriptions.Item>
               )}
             </Descriptions>
 
             <Form form={form} layout="vertical" requiredMark>
               <Form.Item
                 name="areaOfSupport"
-                label="What support do you need?"
-                rules={[{ required: true, message: 'Choose or describe the support you need.' }]}
+                label={t('What support do you need?')}
+                rules={[{ required: true, message: tr('Choose or describe the support you need.') }]}
               >
                 <Select
                   showSearch
                   allowClear
                   options={supportOptions}
-                  placeholder="Select an area of support"
+                  placeholder={t('Select an area of support')}
                   {...(supportOptions.length === 0 ? { mode: 'tags' as const } : {})}
                 />
               </Form.Item>
 
               <Row gutter={12}>
                 <Col xs={24} md={12}>
-                  <Form.Item name="deliveryMode" label="How would you like it delivered?" rules={[{ required: true, message: 'Choose a delivery mode.' }]}>
+                  <Form.Item name="deliveryMode" label={t('How would you like it delivered?')} rules={[{ required: true, message: tr('Choose a delivery mode.') }]}>
                     <Select options={deliveryModeOptions} />
                   </Form.Item>
                 </Col>
                 <Col xs={24} md={12}>
-                  <Form.Item name="urgency" label="How urgent is it?" rules={[{ required: true, message: 'Choose an urgency.' }]}>
+                  <Form.Item name="urgency" label={t('How urgent is it?')} rules={[{ required: true, message: tr('Choose an urgency.') }]}>
                     <Select options={urgencyOptions} />
                   </Form.Item>
                 </Col>
@@ -384,32 +386,32 @@ export default function ProviderMarketplacePage() {
 
               <Row gutter={12}>
                 <Col xs={24} md={8}>
-                  <Form.Item name="preferredStartDate" label="Preferred start date" rules={[{ required: true, message: 'Choose a preferred start date.' }]}>
+                  <Form.Item name="preferredStartDate" label={t('Preferred start date')} rules={[{ required: true, message: tr('Choose a preferred start date.') }]}>
                     <DatePicker style={{ width: '100%' }} disabledDate={(date) => date.isBefore(dayjs(), 'day')} />
                   </Form.Item>
                 </Col>
                 <Col xs={24} md={8}>
-                  <Form.Item name="engagementDays" label="Estimated days needed">
-                    <InputNumber min={1} max={260} style={{ width: '100%' }} placeholder="e.g. 5" />
+                  <Form.Item name="engagementDays" label={t('Estimated days needed')}>
+                    <InputNumber min={1} max={260} style={{ width: '100%' }} placeholder={t('e.g. 5')} />
                   </Form.Item>
                 </Col>
                 <Col xs={24} md={8}>
                   <Form.Item name="budget" label={`Your budget (${currency})`}>
-                    <InputNumber min={0} style={{ width: '100%' }} placeholder="Optional" />
+                    <InputNumber min={0} style={{ width: '100%' }} placeholder={t('Optional')} />
                   </Form.Item>
                 </Col>
               </Row>
 
               <Form.Item
                 name="note"
-                label="Tell the consultant what you need"
-                rules={[{ required: true, message: 'Describe what you need help with.' }, { min: 15, message: 'Please give at least a sentence of detail.' }]}
+                label={t('Tell the consultant what you need')}
+                rules={[{ required: true, message: tr('Describe what you need help with.') }, { min: 15, message: tr('Please give at least a sentence of detail.') }]}
               >
-                <Input.TextArea rows={4} placeholder="Describe your business challenge, what you have tried, and the outcome you want." showCount maxLength={800} />
+                <Input.TextArea rows={4} placeholder={t('Describe your business challenge, what you have tried, and the outcome you want.')} showCount maxLength={800} />
               </Form.Item>
             </Form>
 
-            <Text type="secondary">Your request goes to the operations team, who confirm availability and arrange the engagement.</Text>
+            <Text type="secondary">{t('Your request goes to the operations team, who confirm availability and arrange the engagement.')}</Text>
           </Space>
         )}
       </Modal>

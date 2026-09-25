@@ -14,10 +14,12 @@ import { listWorkspacePrograms, type WorkspaceProgram } from '@/services/workspa
 import SendSurveyModal from './SendSurveyModal'
 import SurveyResponsesModal from './SurveyResponsesModal'
 import '@/styles/survey-builder.css'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 type ViewKey = 'templates' | 'responses'
 
 export default function SurveysPage() {
+    const { t } = useLanguage()
     const { message } = App.useApp()
     const { user } = useFullIdentity()
     const navigate = useNavigate()
@@ -35,7 +37,7 @@ export default function SurveysPage() {
         try {
             setTemplates(await listSurveyTemplates())
         } catch {
-            message.error('Survey templates could not be loaded.')
+            message.error(t('Survey templates could not be loaded.'))
             setTemplates([])
         }
     }
@@ -79,10 +81,10 @@ export default function SurveysPage() {
         if (!templateId) return
         try {
             await deleteSurveyTemplate(templateId)
-            message.success('Survey template deleted.')
+            message.success(t('Survey template deleted.'))
             await load()
         } catch {
-            message.error('The template could not be deleted.')
+            message.error(t('The template could not be deleted.'))
         }
     }
 
@@ -92,25 +94,25 @@ export default function SurveysPage() {
                 {mainView === 'templates' ? (
                     <>
                         <Col xs={12} lg={8}>
-                            <DashboardMetricCard loading={!templates} icon={<FileTextOutlined />} label="Survey templates" value={rows.length} />
+                            <DashboardMetricCard loading={!templates} icon={<FileTextOutlined />} label={t('Survey templates')} value={rows.length} />
                         </Col>
                         <Col xs={12} lg={8}>
-                            <DashboardMetricCard loading={!templates} icon={<SendOutlined />} label="Published" value={published} />
+                            <DashboardMetricCard loading={!templates} icon={<SendOutlined />} label={t('Published')} value={published} />
                         </Col>
                         <Col xs={12} lg={8}>
-                            <DashboardMetricCard loading={!templates} icon={<EditOutlined />} label="Drafts" value={drafts} />
+                            <DashboardMetricCard loading={!templates} icon={<EditOutlined />} label={t('Drafts')} value={drafts} />
                         </Col>
                     </>
                 ) : (
                     <>
                         <Col xs={12} lg={8}>
-                            <DashboardMetricCard loading={!summaries} icon={<SendOutlined />} label="Assigned" value={totalAssigned} />
+                            <DashboardMetricCard loading={!summaries} icon={<SendOutlined />} label={t('Assigned')} value={totalAssigned} />
                         </Col>
                         <Col xs={12} lg={8}>
-                            <DashboardMetricCard loading={!summaries} icon={<EyeOutlined />} label="Completed" value={totalCompleted} />
+                            <DashboardMetricCard loading={!summaries} icon={<EyeOutlined />} label={t('Completed')} value={totalCompleted} />
                         </Col>
                         <Col xs={12} lg={8}>
-                            <DashboardMetricCard loading={!summaries} icon={<TableOutlined />} label="Completion rate" value={`${completionRate}%`} />
+                            <DashboardMetricCard loading={!summaries} icon={<TableOutlined />} label={t('Completion rate')} value={`${completionRate}%`} />
                         </Col>
                     </>
                 )}
@@ -124,7 +126,7 @@ export default function SurveysPage() {
                             prefix={<SearchOutlined />}
                             value={search}
                             onChange={(event) => setSearch(event.target.value)}
-                            placeholder="Search title, category or programme"
+                            placeholder={t('Search title, category or programme')}
                             allowClear
                         />
 
@@ -133,9 +135,9 @@ export default function SurveysPage() {
                                 value={statusFilter}
                                 onChange={setStatusFilter}
                                 options={[
-                                    { value: 'all', label: 'All statuses' },
-                                    { value: 'published', label: 'Published' },
-                                    { value: 'draft', label: 'Draft' },
+                                    { value: 'all', label: t('All statuses') },
+                                    { value: 'published', label: t('Published') },
+                                    { value: 'draft', label: t('Draft') },
                                 ]}
                             />
                         )}
@@ -147,15 +149,15 @@ export default function SurveysPage() {
                             value={mainView}
                             onChange={(value) => setMainView(value as ViewKey)}
                             options={[
-                                { label: 'Templates', value: 'templates', icon: <TableOutlined /> },
-                                { label: 'Responses', value: 'responses', icon: <AppstoreOutlined /> },
+                                { label: t('Templates'), value: 'templates', icon: <TableOutlined /> },
+                                { label: t('Responses'), value: 'responses', icon: <AppstoreOutlined /> },
                             ]}
                         />
 
                         {mainView === 'templates' ? (
-                            <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/operations/surveys/builder')}>New survey</Button>
+                            <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/operations/surveys/builder')}>{t('New survey')}</Button>
                         ) : (
-                            <Button type="primary" icon={<SendOutlined />} onClick={() => setSendOpen(true)}>Send survey</Button>
+                            <Button type="primary" icon={<SendOutlined />} onClick={() => setSendOpen(true)}>{t('Send survey')}</Button>
                         )}
                     </Space>
                 }
@@ -164,7 +166,7 @@ export default function SurveysPage() {
             <MotionCard
                 loading={!templates}
                 className="survey-list-panel"
-                title={mainView === 'templates' ? 'Survey templates' : 'Sent surveys'}
+                title={mainView === 'templates' ? t('Survey templates') : t('Sent surveys')}
                 extra={<span className="survey-list-count">{`${visible.length} of ${rows.length}`}</span>}
             >
                 {mainView === 'templates' ? (
@@ -176,29 +178,29 @@ export default function SurveysPage() {
                         scroll={{ x: 760 }}
                         onRow={(row) => ({ onDoubleClick: () => navigate(`/operations/surveys/builder/${row.id}`) })}
                         columns={[
-                            { title: 'Survey', dataIndex: 'title', render: (value: string) => <strong>{value || 'Untitled survey'}</strong> },
-                            { title: 'Category', dataIndex: 'category', width: 160 },
-                            { title: 'Programme', dataIndex: 'programId', width: 200, render: (value?: string) => programName(value) },
-                            { title: 'Questions', dataIndex: 'fields', width: 110, render: (fields: SurveyTemplate['fields']) => fields?.length || 0 },
+                            { title: t('Survey'), dataIndex: 'title', render: (value: string) => <strong>{value || t('Untitled survey')}</strong> },
+                            { title: t('Category'), dataIndex: 'category', width: 160 },
+                            { title: t('Programme'), dataIndex: 'programId', width: 200, render: (value?: string) => programName(value) },
+                            { title: t('Questions'), dataIndex: 'fields', width: 110, render: (fields: SurveyTemplate['fields']) => fields?.length || 0 },
                             {
-                                title: 'Status',
+                                title: t('Status'),
                                 dataIndex: 'status',
                                 width: 120,
-                                render: (value: string) => <Tag color={value === 'published' ? 'green' : 'default'}>{value === 'published' ? 'Published' : 'Draft'}</Tag>,
+                                render: (value: string) => <Tag color={value === 'published' ? 'green' : 'default'}>{value === 'published' ? t('Published') : t('Draft')}</Tag>,
                             },
                             {
-                                title: 'Updated',
+                                title: t('Updated'),
                                 dataIndex: 'updatedAt',
                                 width: 140,
                                 render: (value?: string) => (value ? dayjs(value).format('DD MMM YYYY') : '—'),
                             },
                             {
-                                title: 'Actions',
+                                title: t('Actions'),
                                 width: 140,
                                 render: (_, row) => (
                                     <Space size={4}>
-                                        <Button size="small" icon={<EditOutlined />} onClick={() => navigate(`/operations/surveys/builder/${row.id}`)}>Edit</Button>
-                                        <Popconfirm title="Delete this template?" okText="Delete" okButtonProps={{ danger: true }} onConfirm={() => void remove(row.id)}>
+                                        <Button size="small" icon={<EditOutlined />} onClick={() => navigate(`/operations/surveys/builder/${row.id}`)}>{t('Edit')}</Button>
+                                        <Popconfirm title={t('Delete this template?')} okText={t('Delete')} okButtonProps={{ danger: true }} onConfirm={() => void remove(row.id)}>
                                             <Button size="small" danger icon={<DeleteOutlined />} />
                                         </Popconfirm>
                                     </Space>
@@ -215,25 +217,25 @@ export default function SurveysPage() {
                         pagination={{ pageSize: 8, size: 'small', hideOnSinglePage: true }}
                         scroll={{ x: 760 }}
                         columns={[
-                            { title: 'Survey', dataIndex: 'title', render: (value: string) => <strong>{value || 'Untitled survey'}</strong> },
-                            { title: 'Programme', dataIndex: 'programId', width: 200, render: (value?: string) => programName(value) },
-                            { title: 'Assigned', width: 110, align: 'center', render: (_, row) => summaryOf(row.id).assigned },
-                            { title: 'Completed', width: 120, align: 'center', render: (_, row) => summaryOf(row.id).completed },
+                            { title: t('Survey'), dataIndex: 'title', render: (value: string) => <strong>{value || t('Untitled survey')}</strong> },
+                            { title: t('Programme'), dataIndex: 'programId', width: 200, render: (value?: string) => programName(value) },
+                            { title: t('Assigned'), width: 110, align: 'center', render: (_, row) => summaryOf(row.id).assigned },
+                            { title: t('Completed'), width: 120, align: 'center', render: (_, row) => summaryOf(row.id).completed },
                             {
-                                title: 'Status',
+                                title: t('Status'),
                                 width: 120,
                                 render: (_, row) => {
                                     const { assigned, completed } = summaryOf(row.id)
                                     const complete = assigned > 0 && completed >= assigned
-                                    return complete ? <Tag color="green">Completed</Tag> : <Tag color="orange">Pending</Tag>
+                                    return complete ? <Tag color="green">{t('Completed')}</Tag> : <Tag color="orange">{t('Pending')}</Tag>
                                 },
                             },
                             {
-                                title: 'Action',
+                                title: t('Action'),
                                 width: 110,
                                 render: (_, row) => (
                                     <Button size="small" icon={<EyeOutlined />} disabled={!summaryOf(row.id).assigned} onClick={() => setResponsesTemplate(row)}>
-                                        View
+                                        {t('View')}
                                     </Button>
                                 ),
                             },

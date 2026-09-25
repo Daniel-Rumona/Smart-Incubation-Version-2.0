@@ -5,6 +5,7 @@ import dayjs from 'dayjs'
 import SurveyResponseViewer from '@/components/surveys/SurveyResponseViewer'
 import { listResponsesForTemplate, type SurveyResponseRow } from '@/services/surveyResponsesService'
 import type { SurveyTemplate } from '@/services/surveyTemplatesService'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 const STATUS_TONE: Record<SurveyResponseRow['status'], string> = {
     'not started': 'default',
@@ -25,6 +26,7 @@ type SurveyResponsesModalProps = {
 
 /** Who a survey went to, where each one stands, and their answers once submitted. */
 export const SurveyResponsesModal = ({ template, onClose }: SurveyResponsesModalProps) => {
+    const { t } = useLanguage()
     const { message } = App.useApp()
     const [rows, setRows] = useState<SurveyResponseRow[]>()
     const [selected, setSelected] = useState<SurveyResponseRow | null>(null)
@@ -39,7 +41,7 @@ export const SurveyResponsesModal = ({ template, onClose }: SurveyResponsesModal
         void listResponsesForTemplate(template.id)
             .then(setRows)
             .catch(() => {
-                message.error('Responses could not be loaded.')
+                message.error(t('Responses could not be loaded.'))
                 setRows([])
             })
     }, [template]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -56,7 +58,7 @@ export const SurveyResponsesModal = ({ template, onClose }: SurveyResponsesModal
             {selected ? (
                 <>
                     <Button icon={<ArrowLeftOutlined />} onClick={() => setSelected(null)} style={{ marginBottom: 16 }}>
-                        Back to participants
+                        {t('Back to participants')}
                     </Button>
                     <SurveyResponseViewer fields={template?.fields || []} answers={selected.answers || {}} />
                 </>
@@ -68,15 +70,15 @@ export const SurveyResponsesModal = ({ template, onClose }: SurveyResponsesModal
                     dataSource={rows}
                     pagination={{ pageSize: 8, size: 'small', hideOnSinglePage: true }}
                     columns={[
-                        { title: 'Participant', dataIndex: 'participantName' },
+                        { title: t('Participant'), dataIndex: 'participantName' },
                         {
-                            title: 'Status',
+                            title: t('Status'),
                             dataIndex: 'status',
                             width: 130,
                             render: (status: SurveyResponseRow['status']) => <Tag color={STATUS_TONE[status]}>{STATUS_LABEL[status]}</Tag>,
                         },
                         {
-                            title: 'Last update',
+                            title: t('Last update'),
                             width: 130,
                             render: (_, row) => {
                                 const value = row.submittedAt || row.updatedAt
@@ -84,11 +86,11 @@ export const SurveyResponsesModal = ({ template, onClose }: SurveyResponsesModal
                             },
                         },
                         {
-                            title: 'Action',
+                            title: t('Action'),
                             width: 130,
                             render: (_, row) => (
                                 <Button size="small" icon={<EyeOutlined />} disabled={row.status !== 'submitted'} onClick={() => setSelected(row)}>
-                                    View
+                                    {t('View')}
                                 </Button>
                             ),
                         },

@@ -1,5 +1,6 @@
 import { Card, Empty, Grid, List, Space, Table as AntTable, Typography, type TableProps } from 'antd'
 import type { ReactNode } from 'react'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 const readValue = <T extends object>(row: T, dataIndex: unknown) => {
   if (Array.isArray(dataIndex)) return dataIndex.reduce<unknown>((value, key) => value && typeof value === 'object' ? (value as Record<string, unknown>)[String(key)] : undefined, row)
@@ -7,6 +8,7 @@ const readValue = <T extends object>(row: T, dataIndex: unknown) => {
 }
 
 export const ResponsiveTable = <T extends object>(props: TableProps<T>) => {
+  const { t } = useLanguage()
   const isMobile = !Grid.useBreakpoint().md
   if (!isMobile) {
     const pagination = props.pagination === false
@@ -31,7 +33,7 @@ export const ResponsiveTable = <T extends object>(props: TableProps<T>) => {
         const title = 'title' in column && typeof column.title !== 'function' ? column.title : undefined
         return <div className="responsive-table-field" key={String(('key' in column && column.key) || ('dataIndex' in column && column.dataIndex) || columnIndex)}>
           {title && <Typography.Text type="secondary">{title as ReactNode}</Typography.Text>}
-          <div>{(content as ReactNode) || 'N/A'}</div>
+          <div>{(content as ReactNode) || t('N/A')}</div>
         </div>
       })}
     </Space></Card></List.Item>}

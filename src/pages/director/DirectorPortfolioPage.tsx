@@ -40,6 +40,7 @@ import { listDirectorPortfolio } from '@/services/directorPortfolioService'
 import { useRegisterAgentPageContext } from '@/shared/hooks/useRegisterAgentPageContext'
 import type { DirectorPortfolioSme, DirectorRisk, DirectorStage } from '@/types/director'
 import '@/styles/director.css'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 const { useBreakpoint } = Grid
 const DESKTOP_PAGE_SIZE = 8
@@ -90,6 +91,7 @@ const SmeAvatar = ({ sme, size }: { sme: DirectorPortfolioSme, size?: number }) 
 )
 
 export const DirectorPortfolioPage = () => {
+  const { t } = useLanguage()
   const { message } = App.useApp()
   const screens = useBreakpoint()
   const isMobile = !screens.md
@@ -116,7 +118,7 @@ export const DirectorPortfolioPage = () => {
         if (mounted) setRows(data)
       } catch (error) {
         console.error(error)
-        message.error('Portfolio data could not be loaded.')
+        message.error(t('Portfolio data could not be loaded.'))
         if (mounted) setRows([])
       } finally {
         if (mounted) setLoading(false)
@@ -126,7 +128,7 @@ export const DirectorPortfolioPage = () => {
     return () => {
       mounted = false
     }
-  }, [activeProgramId, message, user])
+  }, [activeProgramId, message, user, t])
 
   const sectors = useMemo(() => Array.from(new Set(rows.map(item => item.sector))).sort(), [rows])
 
@@ -173,14 +175,14 @@ export const DirectorPortfolioPage = () => {
     const trend = selected.trend
     return {
       chart: { type: 'column', height: 300 },
-      title: { text: 'Growth Trend' },
+      title: { text: tr('Growth Trend') },
       xAxis: { categories: trend.map(item => item.month) },
-      yAxis: [{ title: { text: 'Revenue (ZAR)' } }, { title: { text: 'Employees' }, opposite: true, allowDecimals: false }],
+      yAxis: [{ title: { text: tr('Revenue (ZAR)') } }, { title: { text: tr('Employees') }, opposite: true, allowDecimals: false }],
       tooltip: { shared: true },
       plotOptions: { column: { borderRadius: 6 } },
       series: [
-        { name: 'Revenue', type: 'column', data: trend.map(item => item.revenue), yAxis: 0 },
-        { name: 'Employees', type: 'line', data: trend.map(item => item.employees), yAxis: 1 },
+        { name: tr('Revenue'), type: 'column', data: trend.map(item => item.revenue), yAxis: 0 },
+        { name: tr('Employees'), type: 'line', data: trend.map(item => item.employees), yAxis: 1 },
       ],
     }
   }, [selected])
@@ -190,7 +192,7 @@ export const DirectorPortfolioPage = () => {
 
   const columns: ColumnsType<DirectorPortfolioSme> = [
     {
-      title: 'SME',
+      title: t('SME'),
       key: 'name',
       render: (_, row) => (
         <Space>
@@ -203,10 +205,10 @@ export const DirectorPortfolioPage = () => {
       ),
       sorter: (a, b) => a.name.localeCompare(b.name),
     },
-    { title: 'Stage', dataIndex: 'stage', key: 'stage', width: 140, render: value => <Tag color={stageColor(value)}>{value}</Tag> },
-    { title: 'Risk', dataIndex: 'risk', key: 'risk', width: 110, render: value => <Tag color={riskColor(value)}>{value}</Tag> },
+    { title: t('Stage'), dataIndex: 'stage', key: 'stage', width: 140, render: value => <Tag color={stageColor(value)}>{value}</Tag> },
+    { title: t('Risk'), dataIndex: 'risk', key: 'risk', width: 110, render: value => <Tag color={riskColor(value)}>{value}</Tag> },
     {
-      title: 'Progress',
+      title: t('Progress'),
       dataIndex: 'progress',
       key: 'progress',
       width: 190,
@@ -215,9 +217,9 @@ export const DirectorPortfolioPage = () => {
       ),
       sorter: (a, b) => a.progress - b.progress,
     },
-    { title: 'Revenue', key: 'revenue', width: 160, render: (_, row) => <span>{formatCurrency(row.metrics.revenue)}</span>, sorter: (a, b) => a.metrics.revenue - b.metrics.revenue },
-    { title: 'Employees', key: 'employees', width: 120, align: 'right', render: (_, row) => row.metrics.employees, sorter: (a, b) => a.metrics.employees - b.metrics.employees },
-    { title: 'Status', dataIndex: 'status', key: 'status', width: 130, render: value => <Tag color={statusColor(value)}>{value}</Tag> },
+    { title: t('Revenue'), key: 'revenue', width: 160, render: (_, row) => <span>{formatCurrency(row.metrics.revenue)}</span>, sorter: (a, b) => a.metrics.revenue - b.metrics.revenue },
+    { title: t('Employees'), key: 'employees', width: 120, align: 'right', render: (_, row) => row.metrics.employees, sorter: (a, b) => a.metrics.employees - b.metrics.employees },
+    { title: t('Status'), dataIndex: 'status', key: 'status', width: 130, render: value => <Tag color={statusColor(value)}>{value}</Tag> },
     {
       title: '',
       key: 'action',
@@ -225,7 +227,7 @@ export const DirectorPortfolioPage = () => {
       align: 'right',
       render: (_, row) => (
         <Button icon={<EyeOutlined />} type="primary" onClick={() => openPerformance(row)}>
-          View Performance
+          {t('View Performance')}
         </Button>
       ),
     },
@@ -250,11 +252,11 @@ export const DirectorPortfolioPage = () => {
       </Space>
       <Progress percent={row.progress} size="small" status={row.risk === 'High' ? 'exception' : row.progress >= 80 ? 'success' : 'active'} />
       <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-        <span className="director-muted">Revenue</span>
+        <span className="director-muted">{t('Revenue')}</span>
         <strong>{formatCurrency(row.metrics.revenue)}</strong>
       </Space>
       <Button block icon={<EyeOutlined />} type="primary" onClick={() => openPerformance(row)}>
-        View Performance
+        {t('View Performance')}
       </Button>
     </Space>
   )
@@ -263,19 +265,19 @@ export const DirectorPortfolioPage = () => {
     <div className="director-page director-portfolio-page">
       <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
         <Col xs={12} md={6}>
-          <DashboardMetricCard loading={loading} icon={<TeamOutlined />} iconClassName="is-users" label="Portfolio SMEs" value={kpis.total} />
+          <DashboardMetricCard loading={loading} icon={<TeamOutlined />} iconClassName="is-users" label={t('Portfolio SMEs')} value={kpis.total} />
         </Col>
 
         <Col xs={12} md={6}>
-          <DashboardMetricCard loading={loading} icon={<WarningOutlined />} iconClassName="is-attention" label="High Risk" value={kpis.highRisk} />
+          <DashboardMetricCard loading={loading} icon={<WarningOutlined />} iconClassName="is-attention" label={t('High Risk')} value={kpis.highRisk} />
         </Col>
 
         <Col xs={12} md={6}>
-          <DashboardMetricCard loading={loading} icon={<RiseOutlined />} iconClassName="is-delivery" label="Avg Progress" value={`${kpis.avgProgress}%`} />
+          <DashboardMetricCard loading={loading} icon={<RiseOutlined />} iconClassName="is-delivery" label={t('Avg Progress')} value={`${kpis.avgProgress}%`} />
         </Col>
 
         <Col xs={12} md={6}>
-          <DashboardMetricCard loading={loading} icon={<DollarOutlined />} iconClassName="is-participants" label="Portfolio Revenue" value={formatCurrency(kpis.totalValue)} />
+          <DashboardMetricCard loading={loading} icon={<DollarOutlined />} iconClassName="is-participants" label={t('Portfolio Revenue')} value={formatCurrency(kpis.totalValue)} />
         </Col>
       </Row>
 
@@ -285,7 +287,7 @@ export const DirectorPortfolioPage = () => {
             <Input
               allowClear
               prefix={<SearchOutlined />}
-              placeholder="Search SME or sector..."
+              placeholder={t('Search SME or sector...')}
               value={queryText}
               onChange={event => {
                 setQueryText(event.target.value)
@@ -294,7 +296,7 @@ export const DirectorPortfolioPage = () => {
             />
             <Select
               allowClear
-              placeholder="Sector"
+              placeholder={t('Sector')}
               value={sector}
               onChange={value => {
                 setSector(value)
@@ -304,32 +306,32 @@ export const DirectorPortfolioPage = () => {
             />
             <Select
               allowClear
-              placeholder="Risk"
+              placeholder={t('Risk')}
               value={risk}
               onChange={value => {
                 setRisk(value)
                 setPage(1)
               }}
               options={[
-                { value: 'Low', label: 'Low' },
-                { value: 'Medium', label: 'Medium' },
-                { value: 'High', label: 'High' },
+                { value: 'Low', label: t('Low') },
+                { value: 'Medium', label: t('Medium') },
+                { value: 'High', label: t('High') },
               ]}
             />
             <Select
               allowClear
-              placeholder="Stage"
+              placeholder={t('Stage')}
               value={stage}
               onChange={value => {
                 setStage(value)
                 setPage(1)
               }}
               options={[
-                { value: 'Seed', label: 'Seed' },
-                { value: 'Startup', label: 'Startup' },
-                { value: 'Early Growth', label: 'Early Growth' },
-                { value: 'Growth', label: 'Growth' },
-                { value: 'Mature', label: 'Mature' },
+                { value: 'Seed', label: t('Seed') },
+                { value: 'Startup', label: t('Startup') },
+                { value: 'Early Growth', label: t('Early Growth') },
+                { value: 'Growth', label: t('Growth') },
+                { value: 'Mature', label: t('Mature') },
               ]}
             />
           </>
@@ -370,7 +372,7 @@ export const DirectorPortfolioPage = () => {
             )}
           </>
         ) : (
-          <Empty description="No SMEs match the current portfolio filters." />
+          <Empty description={t('No SMEs match the current portfolio filters.')} />
         )}
       </Card>
 
@@ -387,35 +389,35 @@ export const DirectorPortfolioPage = () => {
               {[selected.sector, selected.programName].filter(Boolean).join(' · ')}
             </div>
           </div>
-        ) : 'SME Performance'}
+        ) : t('SME Performance')}
       >
         {selected && (
           <>
             <Row gutter={[12, 12]}>
               <Col xs={12} md={6}>
-                <DashboardMetricCard icon={<DollarOutlined />} iconClassName="is-participants" label="Revenue" value={formatCurrency(selected.metrics.revenue)} />
+                <DashboardMetricCard icon={<DollarOutlined />} iconClassName="is-participants" label={t('Revenue')} value={formatCurrency(selected.metrics.revenue)} />
               </Col>
               <Col xs={12} md={6}>
-                <DashboardMetricCard icon={<TeamOutlined />} iconClassName="is-users" label="Employees" value={selected.metrics.employees} />
+                <DashboardMetricCard icon={<TeamOutlined />} iconClassName="is-users" label={t('Employees')} value={selected.metrics.employees} />
               </Col>
               <Col xs={12} md={6}>
-                <DashboardMetricCard icon={<ThunderboltOutlined />} iconClassName="is-delivery" label="Growth Rate" value={`${selected.metrics.growthRate}%`} />
+                <DashboardMetricCard icon={<ThunderboltOutlined />} iconClassName="is-delivery" label={t('Growth Rate')} value={`${selected.metrics.growthRate}%`} />
               </Col>
               <Col xs={12} md={6}>
-                <DashboardMetricCard icon={<CheckCircleOutlined />} iconClassName="is-participants" label="Progress" value={`${selected.progress}%`} />
+                <DashboardMetricCard icon={<CheckCircleOutlined />} iconClassName="is-participants" label={t('Progress')} value={`${selected.progress}%`} />
               </Col>
             </Row>
 
             <Row gutter={[12, 12]} style={{ marginTop: 12 }}>
               <Col xs={24} md={14}>
                 <Card style={{ borderRadius: 16 }}>
-                  {revenueEmployeesChart ? <ThemedHighcharts options={revenueEmployeesChart} /> : <Empty description="No revenue history recorded for this SME yet." />}
+                  {revenueEmployeesChart ? <ThemedHighcharts options={revenueEmployeesChart} /> : <Empty description={t('No revenue history recorded for this SME yet.')} />}
                 </Card>
               </Col>
 
               <Col xs={24} md={10}>
                 <Card style={{ borderRadius: 16 }}>
-                  <div style={{ fontWeight: 600, marginBottom: 12 }}>Execution (Required vs Completed)</div>
+                  <div style={{ fontWeight: 600, marginBottom: 12 }}>{t('Execution (Required vs Completed)')}</div>
                   <Space direction="vertical" size={14} style={{ width: '100%' }}>
                     {[
                       { name: `Completed (${selected.execution.completed}/${selected.execution.required})`, value: percent(selected.execution.completed, selected.execution.required), color: '#16a34a' },
@@ -433,16 +435,16 @@ export const DirectorPortfolioPage = () => {
                   <Divider style={{ margin: '10px 0' }} />
                   <Row gutter={[10, 10]}>
                     <Col span={12}>
-                      <DashboardMetricCard icon={<WarningOutlined />} iconClassName="is-attention" label="Overdue" value={selected.execution.overdue} hint="Past due, not completed" />
+                      <DashboardMetricCard icon={<WarningOutlined />} iconClassName="is-attention" label={t('Overdue')} value={selected.execution.overdue} hint={t('Past due, not completed')} />
                     </Col>
                     <Col span={12}>
-                      <DashboardMetricCard icon={<FundOutlined />} iconClassName="is-users" label="Unresponsive" value={selected.execution.unresponsive} hint="Pending SME acceptance 7+ days" />
+                      <DashboardMetricCard icon={<FundOutlined />} iconClassName="is-users" label={t('Unresponsive')} value={selected.execution.unresponsive} hint={t('Pending SME acceptance 7+ days')} />
                     </Col>
                     <Col span={12}>
-                      <DashboardMetricCard icon={<RiseOutlined />} iconClassName="is-participants" label="Upcoming" value={selected.execution.upcoming} hint="Due within 14 days" />
+                      <DashboardMetricCard icon={<RiseOutlined />} iconClassName="is-participants" label={t('Upcoming')} value={selected.execution.upcoming} hint={t('Due within 14 days')} />
                     </Col>
                     <Col span={12}>
-                      <DashboardMetricCard icon={<CheckCircleOutlined />} iconClassName="is-delivery" label="Required" value={selected.execution.required} hint={`${selected.execution.completed} completed`} />
+                      <DashboardMetricCard icon={<CheckCircleOutlined />} iconClassName="is-delivery" label={t('Required')} value={selected.execution.required} hint={`${selected.execution.completed} completed`} />
                     </Col>
                   </Row>
                 </Card>

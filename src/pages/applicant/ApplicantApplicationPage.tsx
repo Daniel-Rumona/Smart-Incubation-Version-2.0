@@ -80,7 +80,7 @@ export const ApplicantApplicationPage = () => {
     return <Form.Item key={question.id} name={['profile', question.id]} label={label} rules={rules}>
       {question.type === 'multi_select' ? <Select mode="multiple" maxCount={maxSelections || undefined} options={options.map((value) => ({ value, label: value }))} />
         : ['dropdown', 'single_select', 'select'].includes(question.type || '') ? <Select options={options.map((value) => ({ value, label: value }))} />
-          : question.type === 'yes_no' ? <Select options={[{ value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }]} />
+          : question.type === 'yes_no' ? <Select options={[{ value: 'yes', label: t('Yes') }, { value: 'no', label: t('No') }]} />
             : ['long_text', 'longText', 'textarea'].includes(question.type || '') ? <Input.TextArea rows={4} /> : <Input type={question.type === 'number' ? 'number' : 'text'} />}
     </Form.Item>
   }

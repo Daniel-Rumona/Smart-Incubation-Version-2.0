@@ -19,6 +19,7 @@ import {
     RobotOutlined,
     AppstoreOutlined,
     ArrowLeftOutlined,
+    IdcardOutlined,
     SunOutlined,
     UserOutlined,
 } from '@ant-design/icons'
@@ -27,7 +28,7 @@ import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { doc, getDoc } from 'firebase/firestore'
 import { appRoutes } from '@/config/routes'
 import { hasRolePermission } from '@/config/permissions'
-import { useLanguage } from '@/providers/LanguageProvider'
+import { tr, useLanguage } from '@/providers/LanguageProvider'
 import { useThemeMode } from '@/providers/ThemeProvider'
 import { LANGUAGES, type LanguageCode } from '@/config/languages'
 import { USER_ROLES, type UserRole } from '@/config/roles'
@@ -35,6 +36,7 @@ import { useFullIdentity } from '@/hooks/useFullIdentity'
 import type { AppRoute } from '@/types/routes'
 import type { FullIdentity, IdentityPermission, WorkspaceAudience } from '@/types/identity'
 import { logoutUser } from '@/services/authService'
+import { profilePathForUser } from '@/services/companiesService'
 import { getFirebaseDb, isFirebaseConfigured } from '@/config/firebase'
 import { LoadingOverlay } from '@/components/shared/LoadingOverlay'
 import { AgentFab } from '@/components/agent/AgentFab'
@@ -149,7 +151,10 @@ const NAVIGATION_DESCRIPTIONS: Record<string, string> = {
     '/admin/agent-ratings': 'Review ratings and feedback for AI-assisted support.',
 }
 
-const navigationDescription = (route: AppRoute, label: string) => NAVIGATION_DESCRIPTIONS[route.path] || `Review and manage ${label.toLowerCase()} for this workspace.`
+const navigationDescription = (route: AppRoute, label: string) => {
+    const description = NAVIGATION_DESCRIPTIONS[route.path]
+    return description ? tr(description) : tr('Review and manage {label} for this workspace.', undefined, { label: label.toLowerCase() })
+}
 
 /** The 3 highest-value pages per role, surfaced as one-click topbar shortcuts. */
 const QUICK_LINK_PATHS: Partial<Record<UserRole, string[]>> = {
@@ -373,7 +378,7 @@ export const SystemLayout = () => {
         const byPath = new Map(flattenRoutes(visibleRoutes).map((route) => [route.path, route]))
         const homePath = workspaceDashboardPath(user)
         const homeRoute = byPath.get(homePath)
-        const home: QuickLink[] = homeRoute ? [{ path: homeRoute.path, label: 'Home', icon: homeRoute.icon }] : []
+        const home: QuickLink[] = homeRoute ? [{ path: homeRoute.path, label: t('Home'), icon: homeRoute.icon }] : []
 
         const candidatePaths = user?.role === 'incubatee' && user.isApplicant
             ? APPLICANT_QUICK_LINK_PATHS
@@ -490,8 +495,8 @@ export const SystemLayout = () => {
             value={shellMode}
             onChange={(value) => handleShellModeChange(value as 'agentic' | 'workspace')}
             options={[
-                { value: 'agentic', label: 'Agentic', icon: <RobotOutlined /> },
-                { value: 'workspace', label: 'Workspace', icon: <AppstoreOutlined /> },
+                { value: 'agentic', label: t('Agentic'), icon: <RobotOutlined /> },
+                { value: 'workspace', label: t('Workspace'), icon: <AppstoreOutlined /> },
             ]}
         />
     )
@@ -522,11 +527,11 @@ export const SystemLayout = () => {
             setNavigationOpen(false)
             navigate('/auth', { replace: true })
         } catch {
-            message.error('You could not be logged out. Please try again.')
+            message.error(t('You could not be logged out. Please try again.'))
         }
     }
 
-    if (isFirebaseConfigured && identityLoading) return <LoadingOverlay tip="Loading workspace" />
+    if (isFirebaseConfigured && identityLoading) return <LoadingOverlay tip={t('Loading workspace')} />
     if (isFirebaseConfigured && !user) return <Navigate to="/auth" replace />
     if (isFirebaseConfigured && user && !user.emailVerified) return <Navigate to="/email-verification" replace />
 
@@ -569,14 +574,14 @@ export const SystemLayout = () => {
                                             icon={<ArrowLeftOutlined />}
                                             onClick={handleTopbarBack}
                                             className="app-icon-btn"
-                                            aria-label="Go back"
+                                            aria-label={t('Go back')}
                                         />
                                     )}
 
                                     {isMobile ? (
                                         <div className="app-brand-lockup">
                                             <span className="app-brand-copy">
-                                                <strong id="guide-app-name" className="app-page-title">{showLocationCrumb ? currentLocationLabel : 'Smart Incubation'}</strong>
+                                                <strong id="guide-app-name" className="app-page-title">{showLocationCrumb ? currentLocationLabel : t('Smart Incubation')}</strong>
                                             </span>
                                         </div>
                                     ) : modeSwitch}
@@ -605,7 +610,7 @@ export const SystemLayout = () => {
                                             icon={<UserOutlined />}
                                             onClick={() => setAccountOpen(true)}
                                             className="app-icon-btn"
-                                            aria-label="Account and settings"
+                                            aria-label={t('Account and settings')}
                                         />
 
                                         <Button
@@ -614,12 +619,12 @@ export const SystemLayout = () => {
                                             icon={<LogoutOutlined />}
                                             onClick={() => void handleLogout()}
                                             className="app-icon-btn app-logout-topbar-btn"
-                                            aria-label="Logout"
+                                            aria-label={t('Logout')}
                                         />
                                     </Space>
                                 ) : (
                                     <Space size={8} className="app-topbar-actions">
-                                        {shellMode === 'workspace' && <Button icon={<MenuOutlined />} onClick={() => setNavigationOpen(true)} className="app-menu-button">Menu</Button>}
+                                        {shellMode === 'workspace' && <Button icon={<MenuOutlined />} onClick={() => setNavigationOpen(true)} className="app-menu-button">{t('Menu')}</Button>}
 
                                         {projectSelector}
 
@@ -639,7 +644,7 @@ export const SystemLayout = () => {
                                             icon={<UserOutlined />}
                                             onClick={() => setAccountOpen(true)}
                                             className="app-icon-btn"
-                                            aria-label="Account and settings"
+                                            aria-label={t('Account and settings')}
                                         />
                                     </Space>
                                 )}
@@ -657,7 +662,7 @@ export const SystemLayout = () => {
                             </Content>
 
                             {isMobile && !pageChrome.hideChrome && (
-                                <nav className="app-bottom-bar" aria-label="Primary">
+                                <nav className="app-bottom-bar" aria-label={t('Primary')}>
                                     {modeSwitch}
 
                                     {shellMode === 'workspace' && (
@@ -666,7 +671,7 @@ export const SystemLayout = () => {
                                             onClick={() => setNavigationOpen(true)}
                                             className="app-menu-button"
                                         >
-                                            Menu
+                                            {t('Menu')}
                                         </Button>
                                     )}
                                 </nav>
@@ -679,23 +684,25 @@ export const SystemLayout = () => {
                         title={
                             <div className="app-account-modal-title">
                                 <span className="app-account-avatar">
-                                    {companyLogoUrl ? <img src={companyLogoUrl} alt="Company logo" /> : <UserOutlined />}
+                                    {user?.profileImageUrl
+                                        ? <img src={user.profileImageUrl} alt={t('Profile')} />
+                                        : companyLogoUrl ? <img className="is-logo" src={companyLogoUrl} alt={t('Company logo')} /> : <UserOutlined />}
                                 </span>
                                 <span className="app-account-title-copy">
-                                    <strong>{user?.displayName || user?.name || 'Account'}</strong>
-                                    {user?.role && <span className="app-account-role">{ROLE_LABELS[user.role] || user.role}</span>}
+                                    <strong>{user?.displayName || user?.name || t('Account')}</strong>
+                                    {user?.role && <span className="app-account-role">{ROLE_LABELS[user.role] ? t(ROLE_LABELS[user.role]!) : user.role}</span>}
                                 </span>
                             </div>
                         }
                         footer={null}
-                        width={360}
+                        width={420}
                         onCancel={() => setAccountOpen(false)}
                         className="app-account-modal"
                     >
                         {isMobile && projectSelector && (
                             <div className="app-account-section">
                                 <div className="app-account-row">
-                                    <span className="app-account-row-label"><ProjectOutlined /> Programme</span>
+                                    <span className="app-account-row-label"><ProjectOutlined /> {t('Programme')}</span>
                                     {projectSelector}
                                 </div>
                             </div>
@@ -703,7 +710,7 @@ export const SystemLayout = () => {
 
                         <div className="app-account-section">
                             <div className="app-account-row">
-                                <span className="app-account-row-label"><GlobalOutlined /> Language</span>
+                                <span className="app-account-row-label"><GlobalOutlined /> {t('Language')}</span>
                                 <Segmented
                                     value={language}
                                     onChange={(value) => setLanguage(value as LanguageCode)}
@@ -712,12 +719,12 @@ export const SystemLayout = () => {
                             </div>
 
                             <div className="app-account-row">
-                                <span className="app-account-row-label">{mode === 'dark' ? <MoonOutlined /> : <SunOutlined />} Appearance</span>
+                                <span className="app-account-row-label">{mode === 'dark' ? <MoonOutlined /> : <SunOutlined />} {t('Appearance')}</span>
                                 <Button
                                     icon={mode === 'dark' ? <SunOutlined /> : <MoonOutlined />}
                                     onClick={toggleTheme}
                                 >
-                                    {mode === 'dark' ? 'Light mode' : 'Dark mode'}
+                                    {mode === 'dark' ? t('Light mode') : t('Dark mode')}
                                 </Button>
                             </div>
                         </div>
@@ -729,9 +736,11 @@ export const SystemLayout = () => {
                                     icon={<CompassOutlined />}
                                     onClick={() => { setAccountOpen(false); setGuideOpen(true) }}
                                 >
-                                    Guide me
+                                    {t('Guide me')}
                                 </Button>
                             )}
+
+                            <Button block icon={<IdcardOutlined />} onClick={() => { setAccountOpen(false); navigate(profilePathForUser(user)) }}>{t('My profile')}</Button>
 
                             <Button
                                 block
@@ -739,14 +748,14 @@ export const SystemLayout = () => {
                                 icon={<LogoutOutlined />}
                                 onClick={() => void handleLogout()}
                             >
-                                Logout
+                                {t('Logout')}
                             </Button>
                         </div>
                     </Modal>
                     <Modal
                         open={navigationOpen}
                         centered
-                        title="Explore your workspace"
+                        title={t('Explore your workspace')}
                         footer={null}
                         width={navigationWidth}
                         destroyOnHidden
@@ -754,7 +763,7 @@ export const SystemLayout = () => {
                         className="workspace-navigation-modal"
                     >
                         <div className="workspace-navigation-intro">
-                            <Typography.Text type="secondary">Choose an area to continue. Pages are grouped by the work they support.</Typography.Text>
+                            <Typography.Text type="secondary">{t('Choose an area to continue. Pages are grouped by the work they support.')}</Typography.Text>
                         </div>
                         {navigationIsGrouped && <Segmented
                             block

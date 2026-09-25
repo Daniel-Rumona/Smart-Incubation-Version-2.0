@@ -91,6 +91,7 @@ import ConsultantDashboardPage from '@/pages/consultant/ConsultantDashboardPage'
 import ConsultantFeedbackPage from '@/pages/consultant/ConsultantFeedbackPage'
 import ConsultantReportsPage from '@/pages/consultant/ConsultantReportsPage'
 import ConsultantProfilePage from '@/pages/consultant/ConsultantProfilePage'
+import UserProfilePage from '@/pages/profile/UserProfilePage'
 import ConsultantSmesPage from '@/pages/consultant/ConsultantSmesPage'
 import SmeOnboardingPage from '@/pages/applicant/SmeOnboardingPage'
 import ProviderMarketplacePage from '@/pages/applicant/ProviderMarketplacePage'
@@ -156,6 +157,7 @@ export const appRoutes: AppRoute[] = [
         icon: <DashboardOutlined />,
         element: <DashboardPage />,
         allowedRoles: dashboardRoles,
+        requiredPermission: 'view_dashboard',
         audiences: ['platform'],
         showInNav: true,
         agentEnabled: true,
@@ -239,19 +241,19 @@ export const appRoutes: AppRoute[] = [
     { path: '/incubatee/lms', labelKey: 'nav.courses', icon: <ReadOutlined />, element: <IncubateeCoursesPage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], showInNav: true },
     { path: '/incubatee/lms/:id', labelKey: 'nav.courses', icon: <ReadOutlined />, element: <CourseLessonPage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], showInNav: false },
     { path: '/incubatee/compliance', labelKey: 'nav.compliance', icon: <SafetyCertificateOutlined />, element: <IncubateeCompliancePage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], showInNav: true },
-    { path: '/consultant', labelKey: 'nav.dashboard', icon: <DashboardOutlined />, element: <ConsultantDashboardPage />, allowedRoles: consultantRoles, audiences: ['operations'], showInNav: true },
+    { path: '/consultant', labelKey: 'nav.dashboard', icon: <DashboardOutlined />, element: <ConsultantDashboardPage />, allowedRoles: consultantRoles, requiredPermission: 'view_dashboard', audiences: ['operations'], showInNav: true },
     { path: '/consultant/profile', labelKey: 'nav.consultantProfile', icon: <UserOutlined />, element: <ConsultantProfilePage />, allowedRoles: consultantRoles, audiences: ['operations'], showInNav: true },
-    { path: '/consultant/smes', labelKey: 'nav.mySmes', icon: <TeamOutlined />, element: <ConsultantSmesPage />, allowedRoles: consultantRoles, audiences: ['operations'], showInNav: true },
+    { path: '/consultant/smes', labelKey: 'nav.mySmes', icon: <TeamOutlined />, element: <ConsultantSmesPage />, allowedRoles: consultantRoles, requiredPermission: 'track_interventions', audiences: ['operations'], showInNav: true },
     { path: '/consultant/interventions', labelKey: 'nav.assignedInterventions', icon: <FormOutlined />, element: <AllocatedInterventions />, allowedRoles: consultantRoles, requiredPermission: 'track_interventions', audiences: ['operations'], showInNav: true },
     { path: '/consultant/allocated', labelKey: 'nav.assignedInterventions', icon: <FormOutlined />, element: <AllocatedInterventions />, allowedRoles: consultantRoles, requiredPermission: 'track_interventions', audiences: ['operations'], showInNav: false },
     { path: '/consultant/appointments', labelKey: 'nav.appointments', icon: <CalendarOutlined />, element: <InterventionAppointmentsPage />, allowedRoles: consultantRoles, requiredPermission: 'track_interventions', audiences: ['operations'], showInNav: true },
-    { path: '/consultant/feedback', labelKey: 'nav.feedback', icon: <MessageOutlined />, element: <ConsultantFeedbackPage />, allowedRoles: consultantRoles, audiences: ['operations'], showInNav: true },
-    { path: '/consultant/reports', labelKey: 'nav.reports', icon: <BarChartOutlined />, element: <ConsultantReportsPage />, allowedRoles: consultantRoles, audiences: ['operations'], showInNav: true },
+    { path: '/consultant/feedback', labelKey: 'nav.feedback', icon: <MessageOutlined />, element: <ConsultantFeedbackPage />, allowedRoles: consultantRoles, requiredPermission: 'track_interventions', audiences: ['operations'], showInNav: true },
+    { path: '/consultant/reports', labelKey: 'nav.reports', icon: <BarChartOutlined />, element: <ConsultantReportsPage />, allowedRoles: consultantRoles, requiredPermission: 'track_interventions', audiences: ['operations'], showInNav: true },
     { path: '/projectadmin', labelKey: 'nav.dashboard', icon: <DashboardOutlined />, element: <ProjectAdminDashboardPage />, allowedRoles: projectAdminRoles, requiredPermission: 'view_dashboard', audiences: ['operations'], showInNav: true },
     { path: '/projectadmin/reports', labelKey: 'nav.reports', icon: <BarChartOutlined />, element: <ProjectAdminReportsPage />, allowedRoles: projectAdminRoles, requiredPermission: 'view_reports', audiences: ['operations'], showInNav: true },
     { path: '/projectadmin/esg', labelKey: 'nav.esgScorecard', icon: <FundProjectionScreenOutlined />, element: <ProjectAdminEsgPage />, allowedRoles: projectAdminRoles, requiredPermission: 'view_reports', audiences: ['operations'], showInNav: true },
     { path: '/projectadmin/esg/performance', labelKey: 'nav.esgPerformance', icon: <TeamOutlined />, element: <ProjectAdminEsgPerformancePage />, allowedRoles: projectAdminRoles, requiredPermission: 'view_reports', audiences: ['operations'], showInNav: false },
-    { path: '/operations', labelKey: 'nav.dashboard', icon: <DashboardOutlined />, element: <OperationsDashboardPage />, allowedRoles: operationsDashboardRoles, audiences: ['operations'], showInNav: true },
+    { path: '/operations', labelKey: 'nav.dashboard', icon: <DashboardOutlined />, element: <OperationsDashboardPage />, allowedRoles: operationsDashboardRoles, requiredPermission: 'view_dashboard', audiences: ['operations'], showInNav: true },
     { path: '/operations/programs', labelKey: 'nav.programs', icon: <ProjectOutlined />, element: <ProgramsPage />, allowedRoles: [USER_ROLES.PROJECT_ADMIN, USER_ROLES.OPERATIONS], requiredPermission: 'manage_programs', audiences: ['operations'], showInNav: true },
     // Compatibility path for older links. The visible task entry lives under Staff > Tasks.
     { path: '/operations/tasks', labelKey: 'nav.tasks', icon: <CalendarOutlined />, element: <OperationsTasksPage />, allowedRoles: operationsRoles, audiences: ['operations'], showInNav: false },
@@ -287,8 +289,8 @@ export const appRoutes: AppRoute[] = [
         ],
     },
     { path: '/operations/connection-requests', labelKey: 'nav.connectionRequests', icon: <TeamOutlined />, element: <ConsultantConnectionRequestsPage />, allowedRoles: operationsRoles, audiences: ['operations'], platformOwnerOnly: true, showInNav: true },
-    { path: '/operations/risk-register', labelKey: 'nav.riskRegister', icon: <ExclamationCircleOutlined />, element: <RiskRegisterPage />, allowedRoles: operationsRoles, audiences: ['operations'], showInNav: true },
-    { path: '/operations/impact-analysis', labelKey: 'nav.impactAnalysis', icon: <FundProjectionScreenOutlined />, element: <ImpactAnalysisPage />, allowedRoles: operationsRoles, audiences: ['operations'], showInNav: true },
+    { path: '/operations/risk-register', labelKey: 'nav.riskRegister', icon: <ExclamationCircleOutlined />, element: <RiskRegisterPage />, allowedRoles: operationsRoles, requiredPermission: 'view_reports', audiences: ['operations'], showInNav: true },
+    { path: '/operations/impact-analysis', labelKey: 'nav.impactAnalysis', icon: <FundProjectionScreenOutlined />, element: <ImpactAnalysisPage />, allowedRoles: operationsRoles, requiredPermission: 'view_reports', audiences: ['operations'], showInNav: true },
     {
         path: '/operations/interventions',
         labelKey: 'nav.interventions',
@@ -367,19 +369,19 @@ export const appRoutes: AppRoute[] = [
     { path: '/operations/lms', labelKey: 'nav.courses', icon: <ReadOutlined />, element: <LmsPage />, allowedRoles: operationsRoles, audiences: ['operations'], showInNav: true },
     { path: '/operations/lms/builder', labelKey: 'nav.courseBuilder', icon: <ReadOutlined />, element: <CourseBuilderPage />, allowedRoles: operationsRoles, audiences: ['operations'], showInNav: false },
     { path: '/operations/lms/builder/:id', labelKey: 'nav.courseBuilder', icon: <ReadOutlined />, element: <CourseBuilderPage />, allowedRoles: operationsRoles, audiences: ['operations'], showInNav: false },
-    { path: '/operations/reports', labelKey: 'nav.reports', icon: <BarChartOutlined />, element: <OperationsReportsPage />, allowedRoles: operationsDashboardRoles, audiences: ['operations'], showInNav: true },
-    { path: '/director', labelKey: 'nav.dashboard', icon: <DashboardOutlined />, element: <DirectorDashboardPage />, allowedRoles: directorRoles, audiences: ['platform'], showInNav: true },
-    { path: '/director/programs', labelKey: 'nav.programPerformance', icon: <ProjectOutlined />, element: <DirectorProgramsPage />, allowedRoles: directorRoles, audiences: ['platform'], showInNav: true },
-    { path: '/director/portfolio', labelKey: 'nav.portfolio', icon: <FundProjectionScreenOutlined />, element: <DirectorPortfolioPage />, allowedRoles: directorRoles, audiences: ['platform'], showInNav: true },
-    { path: '/director/sectors', labelKey: 'nav.sectors', icon: <PieChartOutlined />, element: <DirectorSectorsPage />, allowedRoles: directorRoles, audiences: ['platform'], showInNav: true },
+    { path: '/operations/reports', labelKey: 'nav.reports', icon: <BarChartOutlined />, element: <OperationsReportsPage />, allowedRoles: operationsDashboardRoles, requiredPermission: 'view_reports', audiences: ['operations'], showInNav: true },
+    { path: '/director', labelKey: 'nav.dashboard', icon: <DashboardOutlined />, element: <DirectorDashboardPage />, allowedRoles: directorRoles, requiredPermission: 'view_dashboard', audiences: ['platform'], showInNav: true },
+    { path: '/director/programs', labelKey: 'nav.programPerformance', icon: <ProjectOutlined />, element: <DirectorProgramsPage />, allowedRoles: directorRoles, requiredPermission: 'view_reports', audiences: ['platform'], showInNav: true },
+    { path: '/director/portfolio', labelKey: 'nav.portfolio', icon: <FundProjectionScreenOutlined />, element: <DirectorPortfolioPage />, allowedRoles: directorRoles, requiredPermission: 'view_reports', audiences: ['platform'], showInNav: true },
+    { path: '/director/sectors', labelKey: 'nav.sectors', icon: <PieChartOutlined />, element: <DirectorSectorsPage />, allowedRoles: directorRoles, requiredPermission: 'view_reports', audiences: ['platform'], showInNav: true },
     { path: '/director/structure', labelKey: 'nav.structure', icon: <ApartmentOutlined />, element: <DirectorStructurePage />, allowedRoles: directorRoles, audiences: ['platform'], showInNav: true, showInNavWhenAnySetting: ['hasDepartments', 'hasBranches'] },
     { path: '/director/settings', labelKey: 'nav.companySettings', icon: <SettingOutlined />, element: <CompanySettingsPage />, allowedRoles: directorRoles, audiences: ['platform'], showInNav: true },
-    { path: '/director/reports', labelKey: 'nav.reports', icon: <BarChartOutlined />, element: <DirectorReportsPage />, allowedRoles: directorRoles, audiences: ['platform'], showInNav: true },
+    { path: '/director/reports', labelKey: 'nav.reports', icon: <BarChartOutlined />, element: <DirectorReportsPage />, allowedRoles: directorRoles, requiredPermission: 'view_reports', audiences: ['platform'], showInNav: true },
     { path: '/admin/users', labelKey: 'nav.users', icon: <UserOutlined />, element: <UserManagementPage />, allowedRoles: adminRoles, requiredPermission: 'manage_users', audiences: ['platform'], showInNav: true },
     { path: '/admin/consultant-verification', labelKey: 'nav.consultantVerification', icon: <SafetyCertificateOutlined />, element: <ConsultantVerificationPage />, allowedRoles: [USER_ROLES.SYSTEM_ADMIN], requiredPermission: 'manage_users', audiences: ['platform'], showInNav: true },
-    { path: '/admin/usage', labelKey: 'nav.usageAnalytics', icon: <BarChartOutlined />, element: <UsageAnalyticsPage />, allowedRoles: adminRoles, audiences: ['platform'], showInNav: true },
-    { path: '/admin/email-operations', labelKey: 'nav.emailOperations', icon: <MailOutlined />, element: <EmailOperationsPage />, allowedRoles: adminRoles, audiences: ['platform'], showInNav: true },
-    { path: '/admin/company-change-requests', labelKey: 'nav.changeRequests', icon: <ExclamationCircleOutlined />, element: <SystemSettingsChangeRequestsPage />, allowedRoles: adminRoles, audiences: ['platform'], showInNav: true },
+    { path: '/admin/usage', labelKey: 'nav.usageAnalytics', icon: <BarChartOutlined />, element: <UsageAnalyticsPage />, allowedRoles: adminRoles, requiredPermission: 'view_usage_analytics', audiences: ['platform'], showInNav: true },
+    { path: '/admin/email-operations', labelKey: 'nav.emailOperations', icon: <MailOutlined />, element: <EmailOperationsPage />, allowedRoles: adminRoles, requiredPermission: 'view_email_operations', audiences: ['platform'], showInNav: true },
+    { path: '/admin/company-change-requests', labelKey: 'nav.changeRequests', icon: <ExclamationCircleOutlined />, element: <SystemSettingsChangeRequestsPage />, allowedRoles: adminRoles, requiredPermission: 'manage_users', audiences: ['platform'], showInNav: true },
     {
         path: '/admin/agent-registry',
         labelKey: 'nav.agentRegistry',
@@ -397,5 +399,6 @@ export const appRoutes: AppRoute[] = [
         audiences: ['platform'], showInNav: true
     },
     { path: '/admin/agent-ratings', labelKey: 'nav.agentRatings', icon: <StarOutlined />, element: <AgentRatingsPage />, allowedRoles: [USER_ROLES.SYSTEM_ADMIN, USER_ROLES.ADMIN], audiences: ['platform'], showInNav: true },
+    { path: '/profile', labelKey: 'nav.profile', icon: <ProfileOutlined />, element: <UserProfilePage />, allowedRoles: allRoles.filter(role => role !== USER_ROLES.INCUBATEE), audiences: ['platform'], showInNav: false },
     { path: '/settings', labelKey: 'nav.companySettings', icon: <SettingOutlined />, element: <CompanySettingsPage />, allowedRoles: allRoles, audiences: ['platform'], showInNav: false },
 ]

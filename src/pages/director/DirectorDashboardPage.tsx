@@ -42,6 +42,7 @@ import {
     ArrowRightOutlined
 } from '@ant-design/icons'
 import '@/styles/director.css'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 const { Text } = Typography
 
@@ -174,6 +175,7 @@ const prettyBottleneck = (k: BottleneckKey) => {
 const percent = (num: number, den: number) => (den <= 0 ? 0 : Math.round((num / den) * 100))
 
 const DirectorDashboard: React.FC = () => {
+    const { t } = useLanguage()
     const navigate = useNavigate()
 
     const { user } = useFullIdentity()
@@ -225,7 +227,7 @@ const DirectorDashboard: React.FC = () => {
         if (!companyCode) return
         getDoc(doc(db, 'companies', companyCode))
             .then(snap => setSystemSettings(snap.exists() ? (snap.data() as SystemSettingsDoc) : null))
-            .catch(e => message.error(e?.message || 'Failed to load system settings'))
+            .catch(e => message.error(e?.message || t('Failed to load system settings')))
     }, [companyCode])
 
     const modeHasDepartments = !!systemSettings?.hasDepartments
@@ -258,7 +260,7 @@ const DirectorDashboard: React.FC = () => {
                 })
                 setInterventionMetaById(map)
             },
-            err => message.error(err?.message || 'Failed to load interventions')
+            err => message.error(err?.message || t('Failed to load interventions'))
         )
 
         return () => unsub()
@@ -292,7 +294,7 @@ const DirectorDashboard: React.FC = () => {
                 setAcceptedParticipantIds(pidSet)
                 setAcceptedEmails(emailSet)
             },
-            err => message.error(err?.message || 'Failed to read accepted applications')
+            err => message.error(err?.message || t('Failed to read accepted applications'))
         )
 
         return () => unsub()
@@ -315,7 +317,7 @@ const DirectorDashboard: React.FC = () => {
                 })
                 setCompliance({ total: snap.size, attention })
             },
-            err => message.error(err?.message || 'Failed to load compliance documents')
+            err => message.error(err?.message || t('Failed to load compliance documents'))
         )
         return () => unsub()
     }, [companyCode])
@@ -352,7 +354,7 @@ const DirectorDashboard: React.FC = () => {
 
                 setRequiredByScope(req)
             },
-            err => message.error(err?.message || 'Failed to load required interventions')
+            err => message.error(err?.message || t('Failed to load required interventions'))
         )
 
         return () => unsub()
@@ -485,7 +487,7 @@ const DirectorDashboard: React.FC = () => {
                     unresponsive: unresponsive.slice(0, 20)
                 })
             },
-            err => message.error(err?.message || 'Failed to load assigned interventions')
+            err => message.error(err?.message || t('Failed to load assigned interventions'))
         )
 
         return () => unsub()
@@ -521,19 +523,19 @@ const DirectorDashboard: React.FC = () => {
                 {/* Metrics */}
                 <Row gutter={[12, 12]} className="dashboard-metrics-row director-dashboard-metrics">
                     <Col xs={12} md={6}>
-                        <DashboardMetricCard icon={<ShopOutlined />} iconClassName="is-participants" label="SMEs" value={smesCount} hint="Accepted SMEs" />
+                        <DashboardMetricCard icon={<ShopOutlined />} iconClassName="is-participants" label={t('SMEs')} value={smesCount} hint={t('Accepted SMEs')} />
                     </Col>
 
                     <Col xs={12} md={6}>
-                        <DashboardMetricCard icon={<SolutionOutlined />} iconClassName="is-delivery" label="Required Interventions" mobileTitle="Required" value={totals.totalRequiredInRange} hint="All accepted SMEs" />
+                        <DashboardMetricCard icon={<SolutionOutlined />} iconClassName="is-delivery" label={t('Required Interventions')} mobileTitle={tr('Required')} value={totals.totalRequiredInRange} hint={t('All accepted SMEs')} />
                     </Col>
 
                     <Col xs={12} md={6}>
-                        <DashboardMetricCard icon={<CheckCircleOutlined />} iconClassName="is-users" label="Completion" value={`${totals.completionRateInRange}%`} hint={`${totals.totalCompletedInRange} of ${totals.totalRequiredInRange} completed`} />
+                        <DashboardMetricCard icon={<CheckCircleOutlined />} iconClassName="is-users" label={t('Completion')} value={`${totals.completionRateInRange}%`} hint={`${totals.totalCompletedInRange} of ${totals.totalRequiredInRange} completed`} />
                     </Col>
 
                     <Col xs={12} md={6}>
-                        <DashboardMetricCard icon={<FileProtectOutlined />} iconClassName="is-attention" label="Compliance" value={`${percent(compliance.total - compliance.attention, compliance.total)}%`} hint={`${compliance.attention} of ${compliance.total} need attention`} />
+                        <DashboardMetricCard icon={<FileProtectOutlined />} iconClassName="is-attention" label={t('Compliance')} value={`${percent(compliance.total - compliance.attention, compliance.total)}%`} hint={`${compliance.attention} of ${compliance.total} need attention`} />
                     </Col>
                 </Row>
 
@@ -543,9 +545,9 @@ const DirectorDashboard: React.FC = () => {
                         <Card style={{ borderRadius: 16, height: '100%' }}>
                             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
                                 <div>
-                                    <Text strong style={{ fontSize: 16 }}>Risk Assessment</Text>
+                                    <Text strong style={{ fontSize: 16 }}>{t('Risk Assessment')}</Text>
                                     <div style={{ marginTop: 4 }}>
-                                        <Text type='secondary'>Fast signals: overdue, unresponsive SMEs, upcoming deadlines.</Text>
+                                        <Text type='secondary'>{t('Fast signals: overdue, unresponsive SMEs, upcoming deadlines.')}</Text>
                                     </div>
                                 </div>
                                 <Button
@@ -553,7 +555,7 @@ const DirectorDashboard: React.FC = () => {
                                     icon={<ArrowRightOutlined />}
                                     onClick={() => navigate('/director')}
                                 >
-                                    View
+                                    {t('View')}
                                 </Button>
                             </div>
 
@@ -563,7 +565,7 @@ const DirectorDashboard: React.FC = () => {
                                         <Space align="start">
                                             <WarningOutlined style={{ color: '#ff4d4f', marginTop: 2 }} />
                                             <div>
-                                                <Text strong>Overdue</Text>
+                                                <Text strong>{t('Overdue')}</Text>
                                                 <div style={{ fontSize: 22, fontWeight: 700 }}>{riskCounts.overdue}</div>
                                                 <Button
                                                     size='small'
@@ -571,7 +573,7 @@ const DirectorDashboard: React.FC = () => {
                                                     style={{ padding: 0 }}
                                                     onClick={() => openRiskModal('Overdue Interventions', riskLists.overdue)}
                                                 >
-                                                    View list
+                                                    {t('View list')}
                                                 </Button>
                                             </div>
                                         </Space>
@@ -583,7 +585,7 @@ const DirectorDashboard: React.FC = () => {
                                         <Space align="start">
                                             <ExclamationCircleOutlined style={{ color: '#faad14', marginTop: 2 }} />
                                             <div>
-                                                <Text strong>Unresponsive SMEs</Text>
+                                                <Text strong>{t('Unresponsive SMEs')}</Text>
                                                 <div style={{ fontSize: 22, fontWeight: 700 }}>{riskCounts.unresponsiveSMEs}</div>
                                                 <Button
                                                     size='small'
@@ -591,7 +593,7 @@ const DirectorDashboard: React.FC = () => {
                                                     style={{ padding: 0 }}
                                                     onClick={() => openRiskModal('Unresponsive SMEs (≥7 days pending acceptance)', riskLists.unresponsive)}
                                                 >
-                                                    View list
+                                                    {t('View list')}
                                                 </Button>
                                             </div>
                                         </Space>
@@ -603,7 +605,7 @@ const DirectorDashboard: React.FC = () => {
                                         <Space align="start">
                                             <ClockCircleOutlined style={{ color: '#1677ff', marginTop: 2 }} />
                                             <div>
-                                                <Text strong>Due in 7 days</Text>
+                                                <Text strong>{t('Due in 7 days')}</Text>
                                                 <div style={{ fontSize: 22, fontWeight: 700 }}>{riskCounts.upcoming7}</div>
                                                 <Button
                                                     size='small'
@@ -611,7 +613,7 @@ const DirectorDashboard: React.FC = () => {
                                                     style={{ padding: 0 }}
                                                     onClick={() => openRiskModal('Upcoming Deadlines (≤14 days)', riskLists.upcoming)}
                                                 >
-                                                    View list
+                                                    {t('View list')}
                                                 </Button>
                                             </div>
                                         </Space>
@@ -623,10 +625,10 @@ const DirectorDashboard: React.FC = () => {
                                         <Space align="start">
                                             <ClockCircleOutlined style={{ color: '#52c41a', marginTop: 2 }} />
                                             <div>
-                                                <Text strong>Due in 14 days</Text>
+                                                <Text strong>{t('Due in 14 days')}</Text>
                                                 <div style={{ fontSize: 22, fontWeight: 700 }}>{riskCounts.upcoming14}</div>
                                                 <div style={{ marginTop: 2 }}>
-                                                    <Text type='secondary' style={{ fontSize: 12 }}>Includes 7-day count</Text>
+                                                    <Text type='secondary' style={{ fontSize: 12 }}>{t('Includes 7-day count')}</Text>
                                                 </div>
                                             </div>
                                         </Space>
@@ -639,8 +641,8 @@ const DirectorDashboard: React.FC = () => {
                     <Col xs={24} lg={14}>
                         <Card
                             style={{ borderRadius: 16, height: '100%' }}
-                            title={modeHasDepartments ? 'Department Efficiency' : 'Area Efficiency'}
-                            extra={<Text type='secondary'>Completed vs required</Text>}
+                            title={modeHasDepartments ? t('Department Efficiency') : t('Area Efficiency')}
+                            extra={<Text type='secondary'>{t('Completed vs required')}</Text>}
                         >
                             {efficiencyRows.length ? (
                                 <div style={{ maxHeight: 330, overflowY: 'auto', paddingRight: 6 }}>
@@ -661,7 +663,7 @@ const DirectorDashboard: React.FC = () => {
                                     </Space>
                                 </div>
                             ) : (
-                                <Empty description='No required interventions found yet' />
+                                <Empty description={t('No required interventions found yet')} />
                             )}
                         </Card>
                     </Col>
@@ -681,7 +683,7 @@ const DirectorDashboard: React.FC = () => {
                 >
                     <List
                         dataSource={riskModal.items}
-                        locale={{ emptyText: 'Nothing to show 🎉' }}
+                        locale={{ emptyText: t('Nothing to show 🎉') }}
                         renderItem={(item: any) => (
                             <List.Item>
                                 <List.Item.Meta
@@ -689,8 +691,8 @@ const DirectorDashboard: React.FC = () => {
                                     description={
                                         <Space wrap>
                                             {item.scope && <Tag>{item.scope}</Tag>}
-                                            {item.dueDate && <Tag color="blue">Due: {item.dueDate}</Tag>}
-                                            {typeof item.ageDays === 'number' && <Tag color="orange">{item.ageDays} days</Tag>}
+                                            {item.dueDate && <Tag color="blue">{t('Due:')} {item.dueDate}</Tag>}
+                                            {typeof item.ageDays === 'number' && <Tag color="orange">{item.ageDays} {t('days')}</Tag>}
                                             {item.reason && <Tag color="volcano">{item.reason}</Tag>}
                                         </Space>
                                     }

@@ -2,7 +2,14 @@
   background: linear-gradient(135deg, rgba(59, 130, 246, .1), rgba(20, 184, 166, .06));
 }
 
-.consultant-page { height: 100%; min-height: 0; overflow: hidden; }
+/* Only the profile editor is a fixed-height, internally scrolling layout; every other consultant page scrolls normally. */
+.consultant-page:has(.consultant-profile-layout) { height: 100%; min-height: 0; overflow: hidden; }
+
+/* FilterBar controls share the row equally. */
+.consultant-page .filter-bar-controls > .ant-segmented,
+.consultant-page .filter-bar-controls > .ant-btn { flex: 1 1 0; }
+.consultant-page .filter-bar-controls > .ant-segmented .ant-segmented-group { width: 100%; }
+.consultant-page .filter-bar-controls > .ant-segmented .ant-segmented-item { flex: 1; }
 .consultant-profile-layout { height: 100%; min-height: 0; display: grid; grid-template-columns: minmax(220px, 280px) minmax(0, 1fr); gap: 16px; align-items: stretch; }
 .consultant-profile-identity-card { position: relative; height: 100%; min-height: 0; overflow: hidden; }
 .consultant-profile-identity-card .ant-card-body { display: flex; flex-direction: column; height: 100%; min-height: 0; padding: 14px; overflow: hidden; }
@@ -254,7 +261,7 @@ html[data-theme='dark'] .consultant-weekday-card, html[data-theme='dark'] .consu
 html[data-theme='dark'] .consultant-weekday-card.is-selected, html[data-theme='dark'] .consultant-special-options button.is-selected { color: #e7e0ff; background: rgba(109, 93, 251, .2); }
 
 @media (max-width: 767px) {
-  .consultant-page { height: auto; overflow: visible; }
+  .consultant-page:has(.consultant-profile-layout) { height: auto; overflow: visible; }
   .consultant-profile-layout { height: auto; grid-template-columns: 1fr; }
   .consultant-profile-identity-card { position: static; }
   .consultant-profile-identity-card, .consultant-profile-editor-card { height: auto; min-height: 0; overflow: visible; }
@@ -302,3 +309,5 @@ html[data-theme='dark'] .consultant-weekday-card.is-selected, html[data-theme='d
   }
 }
 .consultant-scroll-top { right: 20px !important; bottom: 88px !important; z-index: 901 !important; }
+
+.consultant-page .ant-row.consultant-sme-grid { row-gap: 18px !important; }

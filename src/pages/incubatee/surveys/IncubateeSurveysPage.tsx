@@ -10,6 +10,7 @@ import { MotionCard } from '@/components/shared/MotionCard'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { listSurveysForParticipant, type SurveyToAnswer } from '@/services/surveyResponsesService'
 import '@/styles/survey-response.css'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 const STATUS_TONE: Record<SurveyToAnswer['status'], string> = {
     'not started': 'gold',
@@ -18,6 +19,7 @@ const STATUS_TONE: Record<SurveyToAnswer['status'], string> = {
 }
 
 export default function IncubateeSurveysPage() {
+    const { t } = useLanguage()
     const { message } = App.useApp()
     const { user } = useFullIdentity()
     const navigate = useNavigate()
@@ -31,7 +33,7 @@ export default function IncubateeSurveysPage() {
             void listSurveysForParticipant(user)
                 .then(setSurveys)
                 .catch(() => {
-                    message.error('Your surveys could not be loaded.')
+                    message.error(t('Your surveys could not be loaded.'))
                     setSurveys([])
                 })
         }, 0)
@@ -54,13 +56,13 @@ export default function IncubateeSurveysPage() {
         <DashboardPage className="incubatee-page incubatee-surveys-page">
             <Row gutter={[12, 12]} className="dashboard-metrics-row">
                 <Col xs={12} lg={8}>
-                    <DashboardMetricCard loading={!surveys} icon={<FormOutlined />} label="Not started" value={notStarted} />
+                    <DashboardMetricCard loading={!surveys} icon={<FormOutlined />} label={t('Not started')} value={notStarted} />
                 </Col>
                 <Col xs={12} lg={8}>
-                    <DashboardMetricCard loading={!surveys} icon={<ClockCircleOutlined />} label="In progress" value={inProgress} />
+                    <DashboardMetricCard loading={!surveys} icon={<ClockCircleOutlined />} label={t('In progress')} value={inProgress} />
                 </Col>
                 <Col xs={12} lg={8}>
-                    <DashboardMetricCard loading={!surveys} icon={<CheckCircleOutlined />} label="Submitted" value={submitted} />
+                    <DashboardMetricCard loading={!surveys} icon={<CheckCircleOutlined />} label={t('Submitted')} value={submitted} />
                 </Col>
             </Row>
 
@@ -71,16 +73,16 @@ export default function IncubateeSurveysPage() {
                         value={statusFilter}
                         onChange={setStatusFilter}
                         options={[
-                            { value: 'open', label: 'Still to do' },
-                            { value: 'in progress', label: 'Started' },
-                            { value: 'submitted', label: 'Submitted' },
-                            { value: 'all', label: 'All surveys' },
+                            { value: 'open', label: t('Still to do') },
+                            { value: 'in progress', label: t('Started') },
+                            { value: 'submitted', label: t('Submitted') },
+                            { value: 'all', label: t('All surveys') },
                         ]}
                     />
                 }
             />
 
-            <MotionCard loading={!surveys} className="survey-answer-panel" title="Your surveys">
+            <MotionCard loading={!surveys} className="survey-answer-panel" title={t('Your surveys')}>
                 {visible.length ? (
                     <ul className="survey-answer-list">
                         {visible.map((row) => (
@@ -101,7 +103,7 @@ export default function IncubateeSurveysPage() {
                                 </span>
 
                                 <Tag color={STATUS_TONE[row.status]} className="survey-answer-status">
-                                    {row.status === 'not started' ? 'Not started' : row.status === 'in progress' ? 'In progress' : 'Submitted'}
+                                    {row.status === 'not started' ? t('Not started') : row.status === 'in progress' ? t('In progress') : t('Submitted')}
                                 </Tag>
 
                                 <Button
@@ -111,13 +113,13 @@ export default function IncubateeSurveysPage() {
                                     iconPosition="end"
                                     onClick={() => navigate(`/incubatee/surveys/${row.templateId}`)}
                                 >
-                                    {row.status === 'not started' ? 'Start' : row.status === 'in progress' ? 'Continue' : 'View'}
+                                    {row.status === 'not started' ? t('Start') : row.status === 'in progress' ? t('Continue') : t('View')}
                                 </Button>
                             </li>
                         ))}
                     </ul>
                 ) : (
-                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Nothing to complete right now." />
+                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('Nothing to complete right now.')} />
                 )}
             </MotionCard>
         </DashboardPage>

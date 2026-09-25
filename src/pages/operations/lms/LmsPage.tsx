@@ -13,10 +13,12 @@ import { listCourseProgressSummaries, type CourseProgressSummary } from '@/servi
 import { listWorkspacePrograms, type WorkspaceProgram } from '@/services/workspaceProgramsService'
 import '@/styles/survey-builder.css'
 import '@/styles/course-lesson.css'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 type ViewKey = 'courses' | 'progress'
 
 export default function LmsPage() {
+    const { t } = useLanguage()
     const { message } = App.useApp()
     const { user } = useFullIdentity()
     const navigate = useNavigate()
@@ -32,7 +34,7 @@ export default function LmsPage() {
         try {
             setCourses(await listCourseTemplates())
         } catch {
-            message.error('Courses could not be loaded.')
+            message.error(t('Courses could not be loaded.'))
             setCourses([])
         }
     }
@@ -76,10 +78,10 @@ export default function LmsPage() {
         if (!courseId) return
         try {
             await deleteCourseTemplate(courseId)
-            message.success('Course deleted.')
+            message.success(t('Course deleted.'))
             await load()
         } catch {
-            message.error('The course could not be deleted.')
+            message.error(t('The course could not be deleted.'))
         }
     }
 
@@ -89,25 +91,25 @@ export default function LmsPage() {
                 {mainView === 'courses' ? (
                     <>
                         <Col xs={12} lg={8}>
-                            <DashboardMetricCard loading={!courses} icon={<ReadOutlined />} label="Courses" value={rows.length} />
+                            <DashboardMetricCard loading={!courses} icon={<ReadOutlined />} label={t('Courses')} value={rows.length} />
                         </Col>
                         <Col xs={12} lg={8}>
-                            <DashboardMetricCard loading={!courses} icon={<SendOutlined />} label="Published" value={published} />
+                            <DashboardMetricCard loading={!courses} icon={<SendOutlined />} label={t('Published')} value={published} />
                         </Col>
                         <Col xs={12} lg={8}>
-                            <DashboardMetricCard loading={!courses} icon={<EditOutlined />} label="Drafts" value={drafts} />
+                            <DashboardMetricCard loading={!courses} icon={<EditOutlined />} label={t('Drafts')} value={drafts} />
                         </Col>
                     </>
                 ) : (
                     <>
                         <Col xs={12} lg={8}>
-                            <DashboardMetricCard loading={!summaries} icon={<SendOutlined />} label="Assigned" value={totalAssigned} />
+                            <DashboardMetricCard loading={!summaries} icon={<SendOutlined />} label={t('Assigned')} value={totalAssigned} />
                         </Col>
                         <Col xs={12} lg={8}>
-                            <DashboardMetricCard loading={!summaries} icon={<BookOutlined />} label="Completed" value={totalCompleted} />
+                            <DashboardMetricCard loading={!summaries} icon={<BookOutlined />} label={t('Completed')} value={totalCompleted} />
                         </Col>
                         <Col xs={12} lg={8}>
-                            <DashboardMetricCard loading={!summaries} icon={<TableOutlined />} label="Completion rate" value={`${completionRate}%`} />
+                            <DashboardMetricCard loading={!summaries} icon={<TableOutlined />} label={t('Completion rate')} value={`${completionRate}%`} />
                         </Col>
                     </>
                 )}
@@ -121,7 +123,7 @@ export default function LmsPage() {
                             prefix={<SearchOutlined />}
                             value={search}
                             onChange={(event) => setSearch(event.target.value)}
-                            placeholder="Search title, category or programme"
+                            placeholder={t('Search title, category or programme')}
                             allowClear
                         />
 
@@ -130,9 +132,9 @@ export default function LmsPage() {
                                 value={statusFilter}
                                 onChange={setStatusFilter}
                                 options={[
-                                    { value: 'all', label: 'All statuses' },
-                                    { value: 'published', label: 'Published' },
-                                    { value: 'draft', label: 'Draft' },
+                                    { value: 'all', label: t('All statuses') },
+                                    { value: 'published', label: t('Published') },
+                                    { value: 'draft', label: t('Draft') },
                                 ]}
                             />
                         )}
@@ -145,13 +147,13 @@ export default function LmsPage() {
                             value={mainView}
                             onChange={(value) => setMainView(value as ViewKey)}
                             options={[
-                                { label: 'Courses', value: 'courses', icon: <TableOutlined /> },
-                                { label: 'Progress', value: 'progress', icon: <AppstoreOutlined /> },
+                                { label: t('Courses'), value: 'courses', icon: <TableOutlined /> },
+                                { label: t('Progress'), value: 'progress', icon: <AppstoreOutlined /> },
                             ]}
                         />
 
                         {mainView === 'courses' && (
-                            <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/operations/lms/builder')}>New course</Button>
+                            <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/operations/lms/builder')}>{t('New course')}</Button>
                         )}
                     </>
                 }
@@ -160,7 +162,7 @@ export default function LmsPage() {
             <MotionCard
                 loading={!courses}
                 className="survey-list-panel"
-                title={mainView === 'courses' ? 'Courses' : 'Course progress'}
+                title={mainView === 'courses' ? t('Courses') : t('Course progress')}
                 extra={<span className="survey-list-count">{`${visible.length} of ${rows.length}`}</span>}
             >
                 {mainView === 'courses' ? (
@@ -172,33 +174,33 @@ export default function LmsPage() {
                         scroll={{ x: 760 }}
                         onRow={(row) => ({ onDoubleClick: () => navigate(`/operations/lms/builder/${row.id}`) })}
                         columns={[
-                            { title: 'Course', dataIndex: 'title', render: (value: string) => <strong>{value || 'Untitled course'}</strong> },
-                            { title: 'Category', dataIndex: 'category', width: 150 },
-                            { title: 'Programme', dataIndex: 'programId', width: 180, render: (value?: string) => programName(value) },
-                            { title: 'Lessons', dataIndex: 'lessons', width: 90, render: (lessons: CourseTemplate['lessons']) => lessons?.length || 0 },
+                            { title: t('Course'), dataIndex: 'title', render: (value: string) => <strong>{value || t('Untitled course')}</strong> },
+                            { title: t('Category'), dataIndex: 'category', width: 150 },
+                            { title: t('Programme'), dataIndex: 'programId', width: 180, render: (value?: string) => programName(value) },
+                            { title: t('Lessons'), dataIndex: 'lessons', width: 90, render: (lessons: CourseTemplate['lessons']) => lessons?.length || 0 },
                             {
-                                title: 'Status',
+                                title: t('Status'),
                                 dataIndex: 'status',
                                 width: 110,
-                                render: (value: string) => <Tag color={value === 'published' ? 'green' : 'default'}>{value === 'published' ? 'Published' : 'Draft'}</Tag>,
+                                render: (value: string) => <Tag color={value === 'published' ? 'green' : 'default'}>{value === 'published' ? t('Published') : t('Draft')}</Tag>,
                             },
                             {
-                                title: 'Updated',
+                                title: t('Updated'),
                                 dataIndex: 'updatedAt',
                                 width: 130,
                                 render: (value?: string) => (value ? dayjs(value).format('DD MMM YYYY') : '—'),
                             },
                             {
-                                title: 'Actions',
+                                title: t('Actions'),
                                 width: 90,
                                 render: (_, row) => (
                                     <div className="lms-row-actions">
-                                        <Tooltip title="Edit course">
-                                            <Button shape="circle" size="small" icon={<EditOutlined />} aria-label="Edit course" onClick={() => navigate(`/operations/lms/builder/${row.id}`)} />
+                                        <Tooltip title={t('Edit course')}>
+                                            <Button shape="circle" size="small" icon={<EditOutlined />} aria-label={t('Edit course')} onClick={() => navigate(`/operations/lms/builder/${row.id}`)} />
                                         </Tooltip>
-                                        <Popconfirm title="Delete this course?" okText="Delete" okButtonProps={{ danger: true }} onConfirm={() => void remove(row.id)}>
-                                            <Tooltip title="Delete course">
-                                                <Button shape="circle" size="small" danger icon={<DeleteOutlined />} aria-label="Delete course" />
+                                        <Popconfirm title={t('Delete this course?')} okText={t('Delete')} okButtonProps={{ danger: true }} onConfirm={() => void remove(row.id)}>
+                                            <Tooltip title={t('Delete course')}>
+                                                <Button shape="circle" size="small" danger icon={<DeleteOutlined />} aria-label={t('Delete course')} />
                                             </Tooltip>
                                         </Popconfirm>
                                     </div>
@@ -215,17 +217,17 @@ export default function LmsPage() {
                         pagination={{ pageSize: 8, size: 'small', hideOnSinglePage: true }}
                         scroll={{ x: 760 }}
                         columns={[
-                            { title: 'Course', dataIndex: 'title', render: (value: string) => <strong>{value || 'Untitled course'}</strong> },
-                            { title: 'Programme', dataIndex: 'programId', width: 180, render: (value?: string) => programName(value) },
-                            { title: 'Assigned', width: 100, align: 'center', render: (_, row) => summaryOf(row.id).assigned },
-                            { title: 'Completed', width: 110, align: 'center', render: (_, row) => summaryOf(row.id).completed },
+                            { title: t('Course'), dataIndex: 'title', render: (value: string) => <strong>{value || t('Untitled course')}</strong> },
+                            { title: t('Programme'), dataIndex: 'programId', width: 180, render: (value?: string) => programName(value) },
+                            { title: t('Assigned'), width: 100, align: 'center', render: (_, row) => summaryOf(row.id).assigned },
+                            { title: t('Completed'), width: 110, align: 'center', render: (_, row) => summaryOf(row.id).completed },
                             {
-                                title: 'Completion',
+                                title: t('Completion'),
                                 width: 130,
                                 render: (_, row) => {
                                     const { assigned, completed } = summaryOf(row.id)
                                     const rate = assigned ? Math.round((completed / assigned) * 100) : 0
-                                    return <Tag color={assigned && completed >= assigned ? 'green' : assigned ? 'orange' : 'default'}>{assigned ? `${rate}%` : 'Not assigned'}</Tag>
+                                    return <Tag color={assigned && completed >= assigned ? 'green' : assigned ? 'orange' : 'default'}>{assigned ? `${rate}%` : t('Not assigned')}</Tag>
                                 },
                             },
                         ]}

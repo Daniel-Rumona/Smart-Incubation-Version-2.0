@@ -10,7 +10,7 @@ import MetricsGrid from '@/components/shared/MetricsGrid'
 import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
 import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
-import { useLanguage } from '@/providers/LanguageProvider'
+import { useLanguage, tEnglish } from '@/providers/LanguageProvider'
 import { guideTarget, useRegisterPageGuide, type PageGuideRegistration } from '@/components/guide/PageGuideContext'
 import { meetingTypeLabel, toDayjs } from '@/components/interventions/appointmentSchedule'
 import {
@@ -110,7 +110,7 @@ export const IncubateeInterventionsPage = () => {
     const openAgentWorkspace = async (agentId: string, assignmentId: string) => {
         const workspaceUrl = await getAgentWorkspaceUrl(agentId, assignmentId)
         if (workspaceUrl) navigate(workspaceUrl)
-        else message.error('This agent workspace is not currently available.')
+        else message.error(t('This agent workspace is not currently available.'))
     }
 
     const load = async () => {
@@ -163,46 +163,46 @@ export const IncubateeInterventionsPage = () => {
         pageTitle: 'Interventions Tracker',
         guides: [
             {
-                id: 'interventions-overview', title: 'Quick tour', description: 'Understand the views, counts and filters on this tracker.', kind: 'page', order: 1,
+                id: 'interventions-overview', title: t('Quick tour'), description: t('Understand the views, counts and filters on this tracker.'), kind: 'page', order: 1,
                 steps: [
-                    { element: guideTarget('intervention-metrics'), popover: { title: 'Your current workload', description: 'These counts separate required, active, awaiting-confirmation and completed interventions so you can prioritise the next action.', side: 'bottom' } },
-                    { element: guideTarget('intervention-view-switch'), popover: { title: 'Interventions and requests', description: 'Switch between assigned work and your submitted support requests.', side: 'bottom' } },
-                    { element: guideTarget('intervention-table-filters'), popover: { title: 'Find the right intervention', description: 'Search by name, area or facilitator, then narrow the table by status.', side: 'bottom' } },
-                    { element: guideTarget('intervention-records'), popover: { title: 'Your intervention records', description: 'Each row shows the support area, delivery owner, current status and actions that are available to you.', side: 'top' } },
+                    { element: guideTarget('intervention-metrics'), popover: { title: t('Your current workload'), description: t('These counts separate required, active, awaiting-confirmation and completed interventions so you can prioritise the next action.'), side: 'bottom' } },
+                    { element: guideTarget('intervention-view-switch'), popover: { title: t('Interventions and requests'), description: t('Switch between assigned work and your submitted support requests.'), side: 'bottom' } },
+                    { element: guideTarget('intervention-table-filters'), popover: { title: t('Find the right intervention'), description: t('Search by name, area or facilitator, then narrow the table by status.'), side: 'bottom' } },
+                    { element: guideTarget('intervention-records'), popover: { title: t('Your intervention records'), description: t('Each row shows the support area, delivery owner, current status and actions that are available to you.'), side: 'top' } },
                 ],
             },
             {
-                id: 'interventions-review-work', title: 'Review my work', description: 'Open an intervention and understand the details shown there.', kind: 'task', order: 2,
+                id: 'interventions-review-work', title: t('Review my work'), description: t('Open an intervention and understand the details shown there.'), kind: 'task', order: 2,
                 steps: [
-                    { element: '[data-guide="incubatee-intervention-review"]', waitForElement: 1200, popover: { title: 'Review an intervention', description: 'Use Open to inspect this intervention without leaving the guide.', side: 'left', nextBtnText: 'Open', onNextClick: openGuideTargetThenContinue('[data-guide="incubatee-intervention-review"]') } },
-                    { element: guideTarget('intervention-detail-summary'), waitForElement: 5000, popover: { title: 'Intervention details', description: 'Confirm the support area, delivery owner and status before deciding what to do next.', side: 'left' } },
-                    { element: guideTarget('intervention-detail-progress'), waitForElement: 5000, popover: { title: 'Progress and supporting material', description: 'Track completion here, then use any linked resources or feedback to continue the work.', side: 'left' } },
+                    { element: '[data-guide="incubatee-intervention-review"]', waitForElement: 1200, popover: { title: t('Review an intervention'), description: t('Use Open to inspect this intervention without leaving the guide.'), side: 'left', nextBtnText: 'Open', onNextClick: openGuideTargetThenContinue('[data-guide="incubatee-intervention-review"]') } },
+                    { element: guideTarget('intervention-detail-summary'), waitForElement: 5000, popover: { title: t('Intervention details'), description: t('Confirm the support area, delivery owner and status before deciding what to do next.'), side: 'left' } },
+                    { element: guideTarget('intervention-detail-progress'), waitForElement: 5000, popover: { title: t('Progress and supporting material'), description: t('Track completion here, then use any linked resources or feedback to continue the work.'), side: 'left' } },
                 ],
             },
             {
-                id: 'interventions-request', title: 'Request intervention', description: 'Request the right support by area, intervention and reason.', kind: 'task', order: 3,
+                id: 'interventions-request', title: t('Request intervention'), description: t('Request the right support by area, intervention and reason.'), kind: 'task', order: 3,
                 steps: [
-                    { element: guideTarget('request-intervention'), popover: { title: 'Request support', description: 'Choose Open to start a new intervention request.', side: 'bottom', nextBtnText: 'Open', onNextClick: openGuideTargetThenContinue(guideTarget('request-intervention')) } },
-                    { element: guideTarget('request-intervention-form'), waitForElement: 5000, popover: { title: 'Choose support', description: 'This form keeps the request focused: area first, then its available interventions.', side: 'left' } },
-                    { element: guideTarget('request-intervention-area'), waitForElement: 5000, popover: { title: '1. Choose an area', description: 'Select the support area that best matches what you need.', side: 'left' } },
-                    { element: guideTarget('request-intervention-title'), waitForElement: 5000, popover: { title: '2. Select an intervention', description: 'Only interventions available for the selected area are shown here.', side: 'left' } },
-                    { element: guideTarget('request-intervention-reason'), waitForElement: 5000, popover: { title: '3. Explain the request', description: 'Add the context that helps the team assess and route your request.', side: 'left' } },
-                    { element: guideTarget('request-intervention-submit'), waitForElement: 5000, popover: { title: 'Submit when ready', description: 'Review the area, intervention and reason, then submit the request.', side: 'top' } },
+                    { element: guideTarget('request-intervention'), popover: { title: t('Request support'), description: t('Choose Open to start a new intervention request.'), side: 'bottom', nextBtnText: 'Open', onNextClick: openGuideTargetThenContinue(guideTarget('request-intervention')) } },
+                    { element: guideTarget('request-intervention-form'), waitForElement: 5000, popover: { title: t('Choose support'), description: t('This form keeps the request focused: area first, then its available interventions.'), side: 'left' } },
+                    { element: guideTarget('request-intervention-area'), waitForElement: 5000, popover: { title: t('1. Choose an area'), description: t('Select the support area that best matches what you need.'), side: 'left' } },
+                    { element: guideTarget('request-intervention-title'), waitForElement: 5000, popover: { title: t('2. Select an intervention'), description: t('Only interventions available for the selected area are shown here.'), side: 'left' } },
+                    { element: guideTarget('request-intervention-reason'), waitForElement: 5000, popover: { title: t('3. Explain the request'), description: t('Add the context that helps the team assess and route your request.'), side: 'left' } },
+                    { element: guideTarget('request-intervention-submit'), waitForElement: 5000, popover: { title: t('Submit when ready'), description: t('Review the area, intervention and reason, then submit the request.'), side: 'top' } },
                 ],
             },
             ...(rows.some((item) => item.agentId && item.status === 'In Progress') ? [{
-                id: 'interventions-agent-work', title: 'Continue with an agent', description: 'Open the agent-led workspace for the selected intervention.', kind: 'task' as const, order: 4,
-                steps: [{ element: '[data-guide-agent-intervention]', waitForElement: 1200, popover: { title: 'Open the agent workspace', description: 'Use this for agent-led interventions. The agent workspace has its own focused guide menu.', side: 'left' as const } }],
+                id: 'interventions-agent-work', title: t('Continue with an agent'), description: t('Open the agent-led workspace for the selected intervention.'), kind: 'task' as const, order: 4,
+                steps: [{ element: '[data-guide-agent-intervention]', waitForElement: 1200, popover: { title: t('Open the agent workspace'), description: t('Use this for agent-led interventions. The agent workspace has its own focused guide menu.'), side: 'left' as const } }],
             }] : []),
         ],
-    }), [rows])
+    }), [rows, t])
 
     useRegisterPageGuide(guideRegistration)
 
     useRegisterAgentPageContext({
         pageKey: 'incubatee-intervention-tracker',
-        pageName: t('incubatee.tracker.title'),
-        purpose: t('incubatee.tracker.subtitle'),
+        pageName: tEnglish('incubatee.tracker.title'),
+        purpose: tEnglish('incubatee.tracker.subtitle'),
         filters: { search, status },
         metrics,
         tables: { visibleInterventions: rows.length },
@@ -426,7 +426,7 @@ export const IncubateeInterventionsPage = () => {
             <Button data-guide="incubatee-intervention-review" onClick={() => { setSelected(item); setAction(undefined) }}>{t('common.review')}</Button>
             {agentId && item.status === 'In Progress' && (
                 <Button data-guide-agent-intervention type="primary" icon={<RobotOutlined />} onClick={() => void openAgentWorkspace(agentId, item.id)}>
-                    Open {item.agentName || agentNameFor(agentId) || 'agent'}
+                    {t('Open')} {item.agentName || agentNameFor(agentId) || 'agent'}
                 </Button>
             )}
             {canAcceptIncubateeIntervention(item) && (
@@ -447,7 +447,7 @@ export const IncubateeInterventionsPage = () => {
     const columns: TableProps<IncubateeIntervention>['columns'] = [
         { title: t('incubatee.tracker.intervention'), dataIndex: 'title' },
         { title: t('incubatee.tracker.area'), dataIndex: 'areaOfSupport', render: (value?: string) => value || t('common.unassigned') },
-        { title: 'Delivery', render: (_, item) => item.agentId ? <Space direction="vertical" size={0}><Tag icon={<RobotOutlined />} color="purple">{item.agentName || agentNameFor(item.agentId) || 'Agent'}</Tag>{item.reviewRequired && <Typography.Text type="secondary">{item.reviewerType === 'consultant' ? 'Consultant review' : 'Operations review'}</Typography.Text>}</Space> : <Tag color="blue">{item.assigneeName || t('common.unassigned')}</Tag> },
+        { title: t('Delivery'), render: (_, item) => item.agentId ? <Space direction="vertical" size={0}><Tag icon={<RobotOutlined />} color="purple">{item.agentName || agentNameFor(item.agentId) || t('Agent')}</Tag>{item.reviewRequired && <Typography.Text type="secondary">{item.reviewerType === 'consultant' ? t('Consultant review') : t('Operations review')}</Typography.Text>}</Space> : <Tag color="blue">{item.assigneeName || t('common.unassigned')}</Tag> },
         { title: t('common.status'), dataIndex: 'status', render: (value: string) => <Tag color={statusColor(value)}>{value}</Tag> },
         { title: t('common.actions'), render: (_, item) => actions(item) },
     ]
@@ -472,7 +472,7 @@ export const IncubateeInterventionsPage = () => {
                                 message.success(t('incubatee.tracker.planConfirmed'))
                                 await load()
                             } catch (error) {
-                                message.error(error instanceof Error && error.message === 'missing-signature' ? 'Set up your signature before acknowledging the growth plan.' : t('incubatee.tracker.updateError'))
+                                message.error(error instanceof Error && error.message === 'missing-signature' ? t('Set up your signature before acknowledging the growth plan.') : t('incubatee.tracker.updateError'))
                             }
                         }}
                     >
@@ -502,8 +502,8 @@ export const IncubateeInterventionsPage = () => {
                     value={trackerView}
                     onChange={(value) => setTrackerView(value as 'interventions' | 'requests')}
                     options={[
-                        { value: 'interventions', label: <Space size={6}><FileSearchOutlined />Interventions <Tag>{workspace.assignedInterventions.length}</Tag></Space> },
-                        { value: 'requests', label: <Space size={6}><SendOutlined />Requests <Tag>{workspace.requests.length}</Tag></Space> },
+                        { value: 'interventions', label: <Space size={6}><FileSearchOutlined />{t('Interventions')} <Tag>{workspace.assignedInterventions.length}</Tag></Space> },
+                        { value: 'requests', label: <Space size={6}><SendOutlined />{t('Requests')} <Tag>{workspace.requests.length}</Tag></Space> },
                     ]}
                 />
                 <Button id="guide-request-intervention" data-guide-target="request-intervention" data-guide-request-intervention block type="primary" icon={<PlusOutlined />} onClick={() => { setRequestedArea(''); requestForm.resetFields(); setRequestOpen(true) }}>{t('incubatee.tracker.request')}</Button>
@@ -519,7 +519,7 @@ export const IncubateeInterventionsPage = () => {
                 <ResponsiveDataView rowKey="id" rows={rows} columns={columns} emptyText={t('incubatee.tracker.empty')} renderCard={(item) => (
                     <Space direction="vertical" size={8} style={{ width: '100%' }}>
                         <Typography.Text strong>{item.title}</Typography.Text>
-                        <Space wrap><Tag color={statusColor(item.status)}>{item.status}</Tag>{item.agentId && <Tag icon={<RobotOutlined />} color="purple">{item.agentName || agentNameFor(item.agentId) || 'Agent'}</Tag>}<Typography.Text type="secondary">{item.areaOfSupport || t('common.unassigned')}</Typography.Text></Space>
+                        <Space wrap><Tag color={statusColor(item.status)}>{item.status}</Tag>{item.agentId && <Tag icon={<RobotOutlined />} color="purple">{item.agentName || agentNameFor(item.agentId) || t('Agent')}</Tag>}<Typography.Text type="secondary">{item.areaOfSupport || t('common.unassigned')}</Typography.Text></Space>
                         <Progress percent={item.progress} size="small" />
                         {actions(item)}
                     </Space>
@@ -540,7 +540,7 @@ export const IncubateeInterventionsPage = () => {
                         column={1}
                         items={[
                             { key: 'area', label: t('incubatee.tracker.area'), children: selected.areaOfSupport || t('common.unassigned') },
-                            { key: 'facilitator', label: selected.agentId ? 'Agent and reviewer' : t('incubatee.tracker.facilitator'), children: selected.agentId ? `${selected.agentName || agentNameFor(selected.agentId) || 'Agent'}${selected.reviewRequired ? ` · ${selected.reviewerType === 'consultant' ? 'Consultant' : 'Operations'} review` : ''}` : selected.assigneeName || t('common.unassigned') },
+                            { key: 'facilitator', label: selected.agentId ? t('Agent and reviewer') : t('incubatee.tracker.facilitator'), children: selected.agentId ? `${selected.agentName || agentNameFor(selected.agentId) || 'Agent'}${selected.reviewRequired ? ` · ${selected.reviewerType === 'consultant' ? 'Consultant' : 'Operations'} review` : ''}` : selected.assigneeName || t('common.unassigned') },
                             { key: 'status', label: t('common.status'), children: <Tag color={statusColor(selected.status)}>{selected.status}</Tag> },
                         ]}
                     />
@@ -581,8 +581,8 @@ export const IncubateeInterventionsPage = () => {
                     await load()
                 }}
             >
-                <div data-guide-target="request-intervention-area"><Form.Item name="areaOfSupport" label={t('incubatee.tracker.area')} rules={[{ required: true }]}><Select placeholder="Choose an area of support" options={areas.map((value) => ({ value, label: value }))} onChange={(value) => { setRequestedArea(value); requestForm.setFieldValue('interventionTitle', undefined) }} /></Form.Item></div>
-                <div data-guide-target="request-intervention-title"><Form.Item name="interventionTitle" label={t('incubatee.tracker.intervention')} rules={[{ required: true }]}><Select placeholder={requestedArea ? 'Choose an intervention' : 'Choose an area first'} disabled={!requestedArea} options={interventionOptionsByArea.get(requestedArea) || []} /></Form.Item></div>
+                <div data-guide-target="request-intervention-area"><Form.Item name="areaOfSupport" label={t('incubatee.tracker.area')} rules={[{ required: true }]}><Select placeholder={t('Choose an area of support')} options={areas.map((value) => ({ value, label: value }))} onChange={(value) => { setRequestedArea(value); requestForm.setFieldValue('interventionTitle', undefined) }} /></Form.Item></div>
+                <div data-guide-target="request-intervention-title"><Form.Item name="interventionTitle" label={t('incubatee.tracker.intervention')} rules={[{ required: true }]}><Select placeholder={requestedArea ? t('Choose an intervention') : t('Choose an area first')} disabled={!requestedArea} options={interventionOptionsByArea.get(requestedArea) || []} /></Form.Item></div>
                 <div data-guide-target="request-intervention-reason"><Form.Item name="reason" label={t('incubatee.tracker.reason')} rules={[{ required: true }]}><Input.TextArea rows={4} /></Form.Item></div>
                 <div data-guide-target="request-intervention-submit"><Button block type="primary" htmlType="submit">{t('incubatee.tracker.submitRequest')}</Button></div>
             </Form>

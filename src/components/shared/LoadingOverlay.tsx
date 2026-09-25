@@ -1,3 +1,6 @@
+
+import { tr } from '@/providers/LanguageProvider'
+
 export const LoadingOverlay = ({ tip = 'Loading...' }: { tip?: string }) => (
   <div className="loading-overlay" role="status" aria-live="polite" aria-busy="true">
     <div className="loading-overlay-card">
@@ -24,7 +27,7 @@ export const LoadingOverlay = ({ tip = 'Loading...' }: { tip?: string }) => (
       </svg>
       <div className="loading-overlay-copy">
         <strong>{tip}</strong>
-        <span>Preparing your workspace</span>
+        <span>{tr('Preparing your workspace')}</span>
       </div>
       <span className="loading-overlay-progress" aria-hidden="true"><i /></span>
     </div>

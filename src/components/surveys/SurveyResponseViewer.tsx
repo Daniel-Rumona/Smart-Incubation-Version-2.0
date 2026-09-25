@@ -3,12 +3,14 @@ import dayjs from 'dayjs'
 import type { SurveyAnswers } from '@/services/surveyResponsesService'
 import type { SurveyField } from '@/services/surveyTemplatesService'
 import '@/styles/survey-response.css'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 type AnswerValueProps = { field: SurveyField; value: unknown }
 
 const AnswerValue = ({ field, value }: AnswerValueProps) => {
+    const { t } = useLanguage()
     if (value === undefined || value === null || value === '') {
-        return <Typography.Text type="secondary">Not answered</Typography.Text>
+        return <Typography.Text type="secondary">{t('Not answered')}</Typography.Text>
     }
 
     if (field.type === 'checkbox') {
@@ -39,7 +41,7 @@ const AnswerValue = ({ field, value }: AnswerValueProps) => {
         return (
             <Space direction="vertical" size={2}>
                 {urls.map((url, index) => (
-                    <a key={index} href={String(url)} target="_blank" rel="noreferrer">Attachment {index + 1}</a>
+                    <a key={index} href={String(url)} target="_blank" rel="noreferrer">{t('Attachment')} {index + 1}</a>
                 ))}
             </Space>
         )
@@ -55,8 +57,9 @@ type SurveyResponseViewerProps = {
 
 /** Read-only playback of a submitted response, in the same question order as the builder. */
 export const SurveyResponseViewer = ({ fields, answers }: SurveyResponseViewerProps) => {
+    const { t } = useLanguage()
     if (!fields.length) {
-        return <Typography.Text type="secondary">This survey has no questions.</Typography.Text>
+        return <Typography.Text type="secondary">{t('This survey has no questions.')}</Typography.Text>
     }
 
     return (
@@ -65,7 +68,7 @@ export const SurveyResponseViewer = ({ fields, answers }: SurveyResponseViewerPr
                 if (field.type === 'heading') {
                     return (
                         <Typography.Title key={field.id} level={5} className="survey-review-heading">
-                            {field.label || 'Section'}
+                            {field.label || t('Section')}
                         </Typography.Title>
                     )
                 }
@@ -73,7 +76,7 @@ export const SurveyResponseViewer = ({ fields, answers }: SurveyResponseViewerPr
                 return (
                     <div key={field.id} className="survey-review-row">
                         <Typography.Text strong className="survey-review-question">
-                            {field.label || 'Untitled question'}
+                            {field.label || t('Untitled question')}
                             {field.required && <span className="survey-frame-required"> *</span>}
                         </Typography.Text>
                         <div className="survey-review-answer"><AnswerValue field={field} value={answers[field.id]} /></div>

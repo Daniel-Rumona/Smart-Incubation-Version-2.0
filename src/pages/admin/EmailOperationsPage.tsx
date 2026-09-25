@@ -65,18 +65,18 @@ export const EmailOperationsPage = () => {
     <Segmented block value={section} onChange={setSection} options={[{ value: 'delivery', label: t('emailOps.delivery') }, { value: 'suppressed', label: t('emailOps.suppressed') }]} style={{ marginBottom: 14 }} />
     {section === 'delivery' ? <Card bordered={false}>
       <ResponsiveDataView rowKey="id" loading={loading} rows={data?.logs || []} emptyText={t('usage.noData')} columns={[
-        { title: t('emailOps.recipient'), dataIndex: 'recipients', render: (value: string[]) => value.join(', ') || 'N/A' },
+        { title: t('emailOps.recipient'), dataIndex: 'recipients', render: (value: string[]) => value.join(', ') || t('N/A') },
         { title: t('emailOps.source'), dataIndex: 'source' },
         { title: t('common.status'), dataIndex: 'status', render: (value: string) => <Tag color={value === 'sent' ? 'green' : value === 'failed' ? 'red' : 'orange'}>{value}</Tag> },
-        { title: t('emailOps.detail'), render: (_, row) => row.error || row.reason || row.rejected.join(', ') || 'N/A' },
-        { title: t('emailOps.recorded'), dataIndex: 'createdAt', render: (value?: string) => value ? dateFormatter.format(new Date(value)) : 'N/A' },
-      ]} renderCard={(row) => <Space orientation="vertical"><Typography.Text strong>{row.recipients.join(', ') || 'N/A'}</Typography.Text><Tag color={row.status === 'sent' ? 'green' : row.status === 'failed' ? 'red' : 'orange'}>{row.status}</Tag><Typography.Text type="secondary">{row.error || row.reason || row.source}</Typography.Text></Space>} />
+        { title: t('emailOps.detail'), render: (_, row) => row.error || row.reason || row.rejected.join(', ') || t('N/A') },
+        { title: t('emailOps.recorded'), dataIndex: 'createdAt', render: (value?: string) => value ? dateFormatter.format(new Date(value)) : t('N/A') },
+      ]} renderCard={(row) => <Space orientation="vertical"><Typography.Text strong>{row.recipients.join(', ') || t('N/A')}</Typography.Text><Tag color={row.status === 'sent' ? 'green' : row.status === 'failed' ? 'red' : 'orange'}>{row.status}</Tag><Typography.Text type="secondary">{row.error || row.reason || row.source}</Typography.Text></Space>} />
     </Card> : <Card bordered={false}>
       <ResponsiveDataView rowKey="id" loading={loading} rows={data?.suppressions || []} emptyText={t('usage.noData')} columns={[
         { title: t('common.email'), dataIndex: 'email' },
         { title: t('emailOps.reason'), dataIndex: 'reason' },
         { title: t('emailOps.failures'), dataIndex: 'failureCount' },
-        { title: t('emailOps.recorded'), dataIndex: 'updatedAt', render: (value?: string) => value ? dateFormatter.format(new Date(value)) : 'N/A' },
+        { title: t('emailOps.recorded'), dataIndex: 'updatedAt', render: (value?: string) => value ? dateFormatter.format(new Date(value)) : t('N/A') },
       ]} renderCard={(row) => <Space orientation="vertical"><Typography.Text strong>{row.email}</Typography.Text><Tag color="orange">{row.reason}</Tag><Typography.Text type="secondary">{t('emailOps.failures')}: {row.failureCount}</Typography.Text></Space>} />
     </Card>}
     <Modal open={modalOpen} title={t('emailOps.send')} footer={null} onCancel={() => setModalOpen(false)}>

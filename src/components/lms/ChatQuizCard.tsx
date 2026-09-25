@@ -1,6 +1,7 @@
 import { Button } from 'antd'
 import { CheckCircleFilled, CloseCircleFilled } from '@ant-design/icons'
 import type { ChatQuiz } from '@/lib/lessonQuiz'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 type ChatQuizCardProps = {
     quiz: ChatQuiz
@@ -12,6 +13,7 @@ type ChatQuizCardProps = {
 
 /** A multiple-choice question inside the chat: tap an option, get instant feedback, then move to the next. */
 export const ChatQuizCard = ({ quiz, picked, onPick, onNext }: ChatQuizCardProps) => {
+    const { t } = useLanguage()
     const answered = picked !== undefined
 
     return (
@@ -35,7 +37,7 @@ export const ChatQuizCard = ({ quiz, picked, onPick, onNext }: ChatQuizCardProps
 
             {answered && (
                 <div className="chat-quiz-feedback">
-                    <Button size="small" type="primary" shape="round" onClick={onNext}>Next question</Button>
+                    <Button size="small" type="primary" shape="round" onClick={onNext}>{t('Next question')}</Button>
                 </div>
             )}
         </div>

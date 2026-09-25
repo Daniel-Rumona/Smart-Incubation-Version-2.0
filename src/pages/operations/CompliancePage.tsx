@@ -219,7 +219,7 @@ export const CompliancePage = () => {
         { title: t('common.document'), dataIndex: 'documentName' },
         { title: t('common.status'), dataIndex: 'currentStatus', render: (value: ComplianceStatus) => <Tag color={statusColor(value)}>{titleCase(value)}</Tag> },
         { title: t('common.verification'), dataIndex: 'verificationStatus', render: (value: string) => <Tag>{titleCase(value || 'pending')}</Tag> },
-        { title: t('common.expiry'), dataIndex: 'expiryDate', render: (value?: string) => value ? dayjs(value).format('DD MMM YYYY') : 'N/A' },
+        { title: t('common.expiry'), dataIndex: 'expiryDate', render: (value?: string) => value ? dayjs(value).format('DD MMM YYYY') : t('N/A') },
         { title: '', render: (_, document) => <Space><Button type="text" icon={<EditOutlined />} onClick={() => openDocumentModal(active, document)} /><Button type="text" icon={<CheckCircleOutlined />} onClick={() => setVerifyDocument(document)} /></Space> },
     ]
     const uploadProps: UploadProps = { beforeUpload: (nextFile) => { setFile(nextFile); return false }, maxCount: 1, onRemove: () => { setFile(undefined) } }

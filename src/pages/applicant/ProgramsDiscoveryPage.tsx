@@ -7,7 +7,7 @@ import DashboardPageShell from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
 import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
-import { useLanguage } from '@/providers/LanguageProvider'
+import { useLanguage, tEnglish } from '@/providers/LanguageProvider'
 import { getApplicantProfileBundle, isApplicantProfileComplete, listApplicantApplications, listApplicantPrograms } from '@/services/applicantService'
 import type { ApplicantProgram } from '@/types/applicant'
 import '@/styles/applicant.css'
@@ -65,8 +65,8 @@ export const ProgramsDiscoveryPage = () => {
 
     useRegisterAgentPageContext({
         pageKey: 'applicant-programs',
-        pageName: t('applicant.programs.title'),
-        purpose: t('applicant.programs.subtitle'),
+        pageName: tEnglish('applicant.programs.title'),
+        purpose: tEnglish('applicant.programs.subtitle'),
         filters: { search, type, view },
         metrics: { available: programs.length, suggested: suggestedPrograms.length, applied: appliedProgramIds.size },
         tables: { visiblePrograms: displayedPrograms.length },

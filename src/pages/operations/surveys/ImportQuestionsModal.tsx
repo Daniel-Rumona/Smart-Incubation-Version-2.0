@@ -10,6 +10,7 @@ import {
 } from '@/services/surveyQuestionExtractionService'
 import { SURVEY_FIELD_TYPES, type SurveyField } from '@/services/surveyTemplatesService'
 import { isAgentApiConfigured } from '@/config/agent'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 export type ImportOptions = { replace: boolean, applyMeta: boolean }
 
@@ -28,6 +29,7 @@ const typeLabel = (type: string) => SURVEY_FIELD_TYPES.find((item) => item.value
 const megabytes = MAX_SURVEY_DOCUMENT_BYTES / (1024 * 1024)
 
 export const ImportQuestionsModal = ({ open, category, hasExistingFields, onClose, onImport }: ImportQuestionsModalProps) => {
+    const { t } = useLanguage()
     const { message } = App.useApp()
     const [file, setFile] = useState<File | null>(null)
     const [analysing, setAnalysing] = useState(false)
@@ -88,14 +90,14 @@ export const ImportQuestionsModal = ({ open, category, hasExistingFields, onClos
         <Modal
             open={open}
             onCancel={close}
-            title="Import questions from a document"
+            title={t('Import questions from a document')}
             width={720}
             maskClosable={!analysing}
             className="survey-import-modal"
             footer={[
-                <Button key="cancel" onClick={close} disabled={analysing}>Cancel</Button>,
+                <Button key="cancel" onClick={close} disabled={analysing}>{t('Cancel')}</Button>,
                 <Button key="apply" type="primary" disabled={!result || !selected.length} onClick={apply}>
-                    {selected.length ? `Add ${selected.length} question${selected.length === 1 ? '' : 's'}` : 'Add questions'}
+                    {selected.length ? `Add ${selected.length} question${selected.length === 1 ? '' : 's'}` : t('Add questions')}
                 </Button>,
             ]}
         >
@@ -104,8 +106,8 @@ export const ImportQuestionsModal = ({ open, category, hasExistingFields, onClos
                     <Alert
                         type="warning"
                         showIcon
-                        message="The AI service is not configured for this environment"
-                        description="Set VITE_AGENT_API_BASE_URL to enable importing."
+                        message={t('The AI service is not configured for this environment')}
+                        description={t('Set VITE_AGENT_API_BASE_URL to enable importing.')}
                     />
                 )}
 
@@ -127,14 +129,14 @@ export const ImportQuestionsModal = ({ open, category, hasExistingFields, onClos
                     }}
                 >
                     <p className="ant-upload-drag-icon"><InboxOutlined /></p>
-                    <p className="ant-upload-text">{file ? file.name : 'Click or drag a questionnaire here'}</p>
-                    <p className="ant-upload-hint">Word, PDF, text, Markdown or CSV, up to {megabytes}MB.</p>
+                    <p className="ant-upload-text">{file ? file.name : t('Click or drag a questionnaire here')}</p>
+                    <p className="ant-upload-hint">{t('Word, PDF, text, Markdown or CSV, up to')} {megabytes}{t('MB.')}</p>
                 </Upload.Dragger>
 
                 {analysing && (
                     <div className="survey-import-busy">
                         <Spin />
-                        <Typography.Text type="secondary">Reading the document…</Typography.Text>
+                        <Typography.Text type="secondary">{t('Reading the document…')}</Typography.Text>
                     </div>
                 )}
 
@@ -142,9 +144,9 @@ export const ImportQuestionsModal = ({ open, category, hasExistingFields, onClos
                     <Alert
                         type="error"
                         showIcon
-                        message="Import failed"
+                        message={t('Import failed')}
                         description={error}
-                        action={file ? <Button size="small" onClick={() => void analyse(file)}>Retry</Button> : null}
+                        action={file ? <Button size="small" onClick={() => void analyse(file)}>{t('Retry')}</Button> : null}
                     />
                 )}
 
@@ -160,15 +162,15 @@ export const ImportQuestionsModal = ({ open, category, hasExistingFields, onClos
 
                         {(result.meta.title || result.meta.description) && (
                             <Checkbox checked={applyMeta} onChange={(event) => setApplyMeta(event.target.checked)}>
-                                Also use the document's title{result.meta.description ? ' and description' : ''}
+                                {t('Also use the document\'s title')}{result.meta.description ? t(' and description') : ''}
                                 {result.meta.title ? ` (“${result.meta.title}”)` : ''}
                             </Checkbox>
                         )}
 
                         {hasExistingFields && (
                             <Radio.Group value={replace ? 'replace' : 'append'} onChange={(event) => setReplace(event.target.value === 'replace')}>
-                                <Radio value="append">Add to existing questions</Radio>
-                                <Radio value="replace">Replace all existing questions</Radio>
+                                <Radio value="append">{t('Add to existing questions')}</Radio>
+                                <Radio value="replace">{t('Replace all existing questions')}</Radio>
                             </Radio.Group>
                         )}
 
@@ -189,7 +191,7 @@ export const ImportQuestionsModal = ({ open, category, hasExistingFields, onClos
 
                                             <Space size={6} wrap className="survey-import-review-meta">
                                                 <Tag>{typeLabel(field.type)}</Tag>
-                                                {field.required && <Tag color="red">Required</Tag>}
+                                                {field.required && <Tag color="red">{t('Required')}</Tag>}
                                                 {field.options?.length ? (
                                                     <Typography.Text type="secondary">{field.options.join(' · ')}</Typography.Text>
                                                 ) : null}

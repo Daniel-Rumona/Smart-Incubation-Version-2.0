@@ -11,6 +11,7 @@ import {
     UserOutlined,
 } from '@ant-design/icons'
 import type { ApplicantProfileFormValues } from '@/pages/applicant/ApplicantProfilePage'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 const { Text, Paragraph } = Typography
 
@@ -235,6 +236,7 @@ export default function ApplicantProfileAIAssist({
     onRawDumpChange,
     onApplyExtractedFields,
 }: ApplicantProfileAIAssistProps) {
+    const { t } = useLanguage()
     const [loading, setLoading] = useState(false)
     const [isListening, setIsListening] = useState(false)
     const [conversation, setConversation] = useState<ConversationMessage[]>([
@@ -294,7 +296,7 @@ export default function ApplicantProfileAIAssist({
 
     const handleExtract = async () => {
         if (!rawDump.trim()) {
-            message.warning('Paste or dictate applicant details first')
+            message.warning(t('Paste or dictate applicant details first'))
             return
         }
 
@@ -318,9 +320,9 @@ export default function ApplicantProfileAIAssist({
             const errorMessage = error instanceof Error ? error.message : ''
 
             if (errorMessage.includes('503') || errorMessage.toLowerCase().includes('busy') || errorMessage.toLowerCase().includes('high demand')) {
-                message.warning('The AI model is temporarily busy. Please try again in a moment.')
+                message.warning(t('The AI model is temporarily busy. Please try again in a moment.'))
             } else {
-                message.error('AI mapping failed. Please try again.')
+                message.error(t('AI mapping failed. Please try again.'))
             }
         } finally {
             setLoading(false)
@@ -383,7 +385,7 @@ export default function ApplicantProfileAIAssist({
         } catch (error) {
             console.error(error)
 
-            message.warning('Your answer was applied, but AI could not refresh the next question. Please continue manually or try again.')
+            message.warning(t('Your answer was applied, but AI could not refresh the next question. Please continue manually or try again.'))
         } finally {
             setLoading(false)
         }
@@ -393,7 +395,7 @@ export default function ApplicantProfileAIAssist({
         const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition
 
         if (!Recognition) {
-            message.warning('Voice capture is not supported in this browser')
+            message.warning(t('Voice capture is not supported in this browser'))
             return
         }
 
@@ -418,7 +420,7 @@ export default function ApplicantProfileAIAssist({
 
         recognition.onerror = () => {
             setIsListening(false)
-            message.error('Voice capture stopped unexpectedly')
+            message.error(t('Voice capture stopped unexpectedly'))
         }
 
         recognition.onend = () => setIsListening(false)
@@ -434,14 +436,14 @@ export default function ApplicantProfileAIAssist({
                     <Space>
                         <Avatar icon={<RobotOutlined />} />
                         <div>
-                            <Text strong>AI profile assist</Text>
+                            <Text strong>{t('AI profile assist')}</Text>
                             <Paragraph type="secondary" style={{ margin: 0 }}>
-                                Paste a rough profile, dictate notes, then review the AI-mapped fields manually before saving.
+                                {t('Paste a rough profile, dictate notes, then review the AI-mapped fields manually before saving.')}
                             </Paragraph>
                         </div>
                     </Space>
                     <Tag icon={<ThunderboltOutlined />} color="processing">
-                        AI engine
+                        {t('AI engine')}
                     </Tag>
                 </div>
 
@@ -449,15 +451,15 @@ export default function ApplicantProfileAIAssist({
                     value={rawDump}
                     onChange={(event) => onRawDumpChange(event.target.value)}
                     autoSize={{ minRows: 6, maxRows: 12 }}
-                    placeholder="Example: My name is Daniel, my business is Smart Foods, we are in retail in Gauteng, trading for 2 years..."
+                    placeholder={t('Example: My name is Daniel, my business is Smart Foods, we are in retail in Gauteng, trading for 2 years...')}
                 />
 
                 <div className="applicant-profile-ai-actions">
                     <Button icon={isListening ? <PauseCircleOutlined /> : <AudioOutlined />} onClick={toggleListening}>
-                        {isListening ? 'Stop voice' : 'Voice input'}
+                        {isListening ? t('Stop voice') : t('Voice input')}
                     </Button>
                     <Button type="primary" icon={<ThunderboltOutlined />} loading={loading} onClick={handleExtract}>
-                        Map with AI
+                        {t('Map with AI')}
                     </Button>
                 </div>
             </Card>
@@ -476,7 +478,7 @@ export default function ApplicantProfileAIAssist({
 
                 {followUps.length ? (
                     <div className="applicant-profile-followups">
-                        <Text strong>Next missing detail</Text>
+                        <Text strong>{t('Next missing detail')}</Text>
                         <Card size="small" className="applicant-profile-followup-card">
                             <Space direction="vertical" size={10} style={{ width: '100%' }}>
                                 <Tag icon={<EditOutlined />}>{formatFieldLabel(followUps[0].field)}</Tag>
@@ -486,10 +488,10 @@ export default function ApplicantProfileAIAssist({
                                         value={answerDraft}
                                         onChange={(event) => setAnswerDraft(event.target.value)}
                                         onPressEnter={handleAnswerFollowUp}
-                                        placeholder="Type the answer"
+                                        placeholder={t('Type the answer')}
                                     />
                                     <Button type="primary" icon={<SendOutlined />} loading={loading} onClick={handleAnswerFollowUp}>
-                                        Send
+                                        {t('Send')}
                                     </Button>
                                 </Space.Compact>
                             </Space>
@@ -498,7 +500,7 @@ export default function ApplicantProfileAIAssist({
                 ) : (
                     <div className="applicant-profile-ai-done">
                         <CheckCircleOutlined />
-                        <Text>No AI follow-up questions pending. Switch to Manual to review fields before saving.</Text>
+                        <Text>{t('No AI follow-up questions pending. Switch to Manual to review fields before saving.')}</Text>
                     </div>
                 )}
             </Card>

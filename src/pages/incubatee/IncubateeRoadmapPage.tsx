@@ -71,6 +71,7 @@ import { useActiveProgramId } from "@/lib/useActiveProgramId";
 import { useFullIdentity } from "@/hooks/useFullIdentity";
 import { loadIncubateeWorkspace } from "@/services/incubateeWorkspaceService";
 import type { IncubateeIntervention, IncubateeWorkspace } from "@/types/incubatee";
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -622,6 +623,7 @@ const normalizeSupportAgent = (value: Partial<SupportAgent>, index: number): Sup
 };
 
 const SMEIntakeRoadmapPage: React.FC = () => {
+    const { t } = useLanguage()
     const screens = useBreakpoint();
     const { activeProgramId, isAllPrograms } = useActiveProgramId();
     const { user } = useFullIdentity();
@@ -728,7 +730,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                 setSelectedSubmissionId((current) => current || list[0]?.id);
             } catch (error) {
                 console.error("Failed to load SME intake submissions:", error);
-                message.error("Failed to load AI intake roadmap.");
+                message.error(t('Failed to load AI intake roadmap.'));
                 setRows([]);
             } finally {
                 setLoading(false);
@@ -736,7 +738,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
         };
 
         loadSubmissions();
-    }, [activeProgramId, companyCode, isAllPrograms, userEmail]);
+    }, [activeProgramId, companyCode, isAllPrograms, userEmail, t]);
 
     useEffect(() => {
         let cancelled = false;
@@ -931,7 +933,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
 
     const handleAgentDocumentUpload = async (file: File, type: string) => {
         if (!selectedSubmission && !user) {
-            message.error("Cannot upload without an active profile.");
+            message.error(t('Cannot upload without an active profile.'));
             return false;
         }
 
@@ -981,7 +983,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
             message.success(`Uploaded ${type}`);
         } catch (error) {
             console.error("Failed to upload roadmap agent document:", error);
-            message.error("Document upload failed.");
+            message.error(t('Document upload failed.'));
         } finally {
             setDocumentUploading(false);
         }
@@ -1002,7 +1004,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
             yAxis: {
                 min: 0,
                 max: 100,
-                title: { text: "Expected Impact / Progress" },
+                title: { text: tr('Expected Impact / Progress') },
                 labels: { format: "{value}%" },
             },
             tooltip: { pointFormat: "<b>{point.y}%</b>" },
@@ -1019,7 +1021,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
             series: [
                 {
                     type: "column",
-                    name: "Impact",
+                    name: tr('Impact'),
                     data: roadmap.map((item) =>
                         Math.max(
                             35,
@@ -1062,7 +1064,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
             yAxis: {
                 min: 0,
                 max: 100,
-                title: { text: "Projected Readiness" },
+                title: { text: tr('Projected Readiness') },
                 labels: { format: "{value}%" },
             },
             tooltip: {
@@ -1085,7 +1087,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
             series: [
                 {
                     type: "spline",
-                    name: "Projected Readiness",
+                    name: tr('Projected Readiness'),
                     data: cumulative,
                 },
             ],
@@ -1134,7 +1136,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
             series: [
                 {
                     type: "line",
-                    name: "Impact Strength",
+                    name: tr('Impact Strength'),
                     data: roadmap.map(item =>
                         item.urgency === "urgent" ? 95 :
                             item.urgency === "high" ? 82 :
@@ -1144,7 +1146,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                 },
                 {
                     type: "line",
-                    name: "Current Progress",
+                    name: tr('Current Progress'),
                     data: roadmap.map(item => item.progress || 0),
                     pointPlacement: "on",
                 },
@@ -1163,11 +1165,11 @@ const SMEIntakeRoadmapPage: React.FC = () => {
         credits: { enabled: false },
         exporting: { enabled: false },
         xAxis: {
-            title: { text: "Estimated Weeks" },
+            title: { text: tr('Estimated Weeks') },
             min: 0,
         },
         yAxis: {
-            title: { text: "Impact Score" },
+            title: { text: tr('Impact Score') },
             min: 0,
             max: 100,
             labels: { format: "{value}%" },
@@ -1193,7 +1195,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
         series: [
             {
                 type: "bubble",
-                name: "Intervention Weight",
+                name: tr('Intervention Weight'),
                 data: roadmap.map((item, index) => {
                     const impact =
                         item.urgency === "urgent" ? 95 :
@@ -1220,7 +1222,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
             xAxis: { categories: roadmap.map((item) => item.title) },
             yAxis: {
                 min: 0,
-                title: { text: "Estimated Weeks" },
+                title: { text: tr('Estimated Weeks') },
                 allowDecimals: false,
             },
             tooltip: { pointFormat: "<b>{point.y} weeks</b>" },
@@ -1237,7 +1239,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
             series: [
                 {
                     type: "bar",
-                    name: "Timeline",
+                    name: tr('Timeline'),
                     data: roadmap.map((item) => item.estimatedWeeks || 0),
                 },
             ],
@@ -1324,9 +1326,9 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                 createdAt: serverTimestamp(),
             });
             setChatMessages((current) => current.map((messageItem) => messageItem.id === item.id ? { ...messageItem, rating } : messageItem));
-            message.success('Agent conversation rated.');
+            message.success(t('Agent conversation rated.'));
         } catch {
-            message.error('The agent rating could not be saved.');
+            message.error(t('The agent rating could not be saved.'));
         } finally {
             setRatingMessageId(undefined);
         }
@@ -1334,7 +1336,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
 
     const closeAgent = () => {
         if (chatMessages.some((item) => item.requiresRating && !item.rating)) {
-            message.warning('Rate the latest agent conversation before closing.');
+            message.warning(t('Rate the latest agent conversation before closing.'));
             return;
         }
         setSelectedAgent(null);
@@ -1372,7 +1374,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
         const value = chatInput.trim();
         if (!value || !selectedAgent) return;
         if (chatMessages.some((item) => item.requiresRating && !item.rating)) {
-            message.warning('Rate the previous agent conversation before continuing.');
+            message.warning(t('Rate the previous agent conversation before continuing.'));
             return;
         }
         const isGreeting = /^(hi|hie|hello|hey|sawubona|dumelang|avuxeni)\b/i.test(value);
@@ -1463,7 +1465,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
             <Space wrap>
                 <Text strong>{item.title}</Text>
                 <Tag color={urgencyColor(item.urgency)}>{item.urgency || "medium"}</Tag>
-                <Tag>{item.department || "General Support"}</Tag>
+                <Tag>{item.department || t('General Support')}</Tag>
             </Space>
         ),
         children: (
@@ -1471,11 +1473,11 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                 <Paragraph style={{ marginBottom: 0 }}>{item.reason}</Paragraph>
                 <Progress percent={item.progress || 0} />
                 <Text type="secondary">
-                    Estimated duration: {item.estimatedWeeks || 0} weeks
+                    {t('Estimated duration:')} {item.estimatedWeeks || 0} {t('weeks')}
                 </Text>
                 <Text type="secondary">
-                    Expected impact:{" "}
-                    {item.expectedImpact || "Improve business readiness."}
+                    {t('Expected impact:')}{" "}
+                    {item.expectedImpact || t('Improve business readiness.')}
                 </Text>
             </Space>
         ),
@@ -1484,7 +1486,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
     if (loading) {
         return (
             <div style={{ minHeight: '100vh' }}>
-                <LoadingOverlay tip="Loading AI roadmap" />
+                <LoadingOverlay tip={t('Loading AI roadmap')} />
             </div>
         )
 
@@ -1493,18 +1495,18 @@ const SMEIntakeRoadmapPage: React.FC = () => {
     return (
         <div className="sme-roadmap-page">
             <Helmet>
-                <title>AI Roadmap | Smart Incubation</title>
+                <title>{t('AI Roadmap | Smart Incubation')}</title>
             </Helmet>
 
             <DashboardHeader
                 title={`${selectedSubmission?.contactName || "SME"} Support Roadmap`}
-                subtitle="Review AI intake recommendations, support projections, matched agents, and intake history."
+                subtitle={tr('Review AI intake recommendations, support projections, matched agents, and intake history.')}
                 actions={
                     <Select
                         value={selectedSubmission?.id}
                         onChange={(value) => setSelectedSubmissionId(value)}
                         style={{ width: isMobile ? "100%" : 320 }}
-                        placeholder="Select intake"
+                        placeholder={t('Select intake')}
                         showSearch
                         optionFilterProp="label"
                         options={rows.slice(0, 20).map(item => ({
@@ -1518,7 +1520,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                 <Col xs={12} md={6}>
                     <MotionCard style={{ borderRadius: 18 }}>
                         <Statistic
-                            title="Roadmap Progress"
+                            title={t('Roadmap Progress')}
                             value={averageProgress}
                             suffix="%"
                             prefix={<RiseOutlined />}
@@ -1528,7 +1530,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                 <Col xs={12} md={6}>
                     <MotionCard style={{ borderRadius: 18 }}>
                         <Statistic
-                            title="Interventions"
+                            title={t('Interventions')}
                             value={roadmap.length}
                             prefix={<ProjectOutlined />}
                         />
@@ -1537,7 +1539,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                 <Col xs={12} md={6}>
                     <MotionCard style={{ borderRadius: 18 }}>
                         <Statistic
-                            title="Completed"
+                            title={t('Completed')}
                             value={completedCount}
                             prefix={<CheckCircleOutlined />}
                         />
@@ -1546,7 +1548,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                 <Col xs={12} md={6}>
                     <MotionCard style={{ borderRadius: 18 }}>
                         <Statistic
-                            title="Projected Finish"
+                            title={t('Projected Finish')}
                             value={estimatedFinishDate}
                             prefix={<ClockCircleOutlined />}
                             valueStyle={{ fontSize: 18 }}
@@ -1563,10 +1565,10 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                             value={view}
                             onChange={(value) => setView(value as ViewMode)}
                             options={[
-                                { label: "Roadmap", value: "roadmap" },
-                                { label: "Projections", value: "projections" },
-                                { label: "Agents", value: "agents" },
-                                { label: "History", value: "history" },
+                                { label: t('Roadmap'), value: "roadmap" },
+                                { label: t('Projections'), value: "projections" },
+                                { label: t('Agents'), value: "agents" },
+                                { label: t('History'), value: "history" },
                             ]}
                         />
                     </Col>
@@ -1574,7 +1576,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                         <Input
                             allowClear
                             prefix={<SearchOutlined />}
-                            placeholder="Search agents, interventions or departments"
+                            placeholder={t('Search agents, interventions or departments')}
                             value={search}
                             onChange={(event) => setSearch(event.target.value)}
                         />
@@ -1584,14 +1586,14 @@ const SMEIntakeRoadmapPage: React.FC = () => {
 
             {!selectedSubmission ? (
                 <MotionCard style={{ marginTop: 16, borderRadius: 20 }}>
-                    <Empty description="No AI intake submission found for this SME." />
+                    <Empty description={t('No AI intake submission found for this SME.')} />
                 </MotionCard>
             ) : null}
 
             {selectedSubmission && view === "roadmap" && (
                 <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
                     <Col xs={24} lg={14}>
-                        <MotionCard title="Roadmap Timeline" style={{ borderRadius: 20 }}>
+                        <MotionCard title={t('Roadmap Timeline')} style={{ borderRadius: 20 }}>
                             {roadmap.length ? (
                                 isMobile ? (
                                     <Collapse
@@ -1619,21 +1621,21 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                                                                         {item.urgency || "medium"}
                                                                     </Tag>
                                                                     <Tag>
-                                                                        {item.department || "General Support"}
+                                                                        {item.department || t('General Support')}
                                                                     </Tag>
                                                                 </Space>
                                                                 <Text type="secondary">{item.reason}</Text>
                                                                 <Text type="secondary">
-                                                                    Expected impact:{" "}
+                                                                    {t('Expected impact:')}{" "}
                                                                     {item.expectedImpact ||
-                                                                        "Improve business readiness."}
+                                                                        t('Improve business readiness.')}
                                                                 </Text>
                                                             </Space>
                                                         </Col>
                                                         <Col xs={24} md={8}>
                                                             <Progress percent={item.progress || 0} />
                                                             <Text type="secondary">
-                                                                {item.estimatedWeeks || 0} weeks estimated
+                                                                {item.estimatedWeeks || 0} {t('weeks estimated')}
                                                             </Text>
                                                         </Col>
                                                     </Row>
@@ -1643,32 +1645,32 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                                     />
                                 )
                             ) : (
-                                <Empty description="No AI recommended interventions found on this intake." />
+                                <Empty description={t('No AI recommended interventions found on this intake.')} />
                             )}
                         </MotionCard>
                     </Col>
 
                     <Col xs={24} lg={10}>
                         <Space direction="vertical" size={16} style={{ width: "100%" }}>
-                            <MotionCard title="AI Summary" style={{ borderRadius: 20 }}>
+                            <MotionCard title={t('AI Summary')} style={{ borderRadius: 20 }}>
                                 <Space direction="vertical" size={10} style={{ width: "100%" }}>
                                     <Paragraph style={{ marginBottom: 0 }}>
-                                        {decision?.summary || "No AI summary was saved."}
+                                        {decision?.summary || t('No AI summary was saved.')}
                                     </Paragraph>
                                     <Space wrap>
                                         <Tag color="blue">{stageLabel(decision?.stage)}</Tag>
                                         <Tag color={urgencyColor(decision?.urgencyLevel)}>
-                                            Urgency: {decision?.urgencyLevel || "unknown"}
+                                            {t('Urgency:')} {decision?.urgencyLevel || "unknown"}
                                         </Tag>
                                         <Tag color={riskColor(decision?.riskLevel)}>
-                                            Risk: {decision?.riskLevel || "unknown"}
+                                            {t('Risk:')} {decision?.riskLevel || "unknown"}
                                         </Tag>
                                     </Space>
                                     {decision?.recommendedProgramName ? (
                                         <Alert
                                             type="info"
                                             showIcon
-                                            message="Recommended Programme"
+                                            message={t('Recommended Programme')}
                                             description={decision.recommendedProgramName}
                                         />
                                     ) : null}
@@ -1676,13 +1678,13 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                             </MotionCard>
 
                             <MotionCard
-                                title="Roadmap Projection"
+                                title={t('Roadmap Projection')}
                                 style={{ borderRadius: 20 }}
                             >
                                 <Space direction="vertical" size={12} style={{ width: "100%" }}>
                                     <Progress percent={averageProgress} />
-                                    <Text>Total estimated duration: {totalWeeks || 0} weeks</Text>
-                                    <Text>Projected finish: {estimatedFinishDate}</Text>
+                                    <Text>{t('Total estimated duration:')} {totalWeeks || 0} {t('weeks')}</Text>
+                                    <Text>{t('Projected finish:')} {estimatedFinishDate}</Text>
                                 </Space>
                             </MotionCard>
                         </Space>
@@ -1693,24 +1695,24 @@ const SMEIntakeRoadmapPage: React.FC = () => {
             {selectedSubmission && view === "projections" && (
                 <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
                     <Col xs={24} lg={8}>
-                        <MotionCard title="Projection Summary" style={{ borderRadius: 20 }}>
+                        <MotionCard title={t('Projection Summary')} style={{ borderRadius: 20 }}>
                             <Space direction="vertical" size={14} style={{ width: "100%" }}>
                                 <Statistic
-                                    title="Projected Readiness"
+                                    title={t('Projected Readiness')}
                                     value={Math.min(100, averageProgress + roadmap.length * 12)}
                                     suffix="%"
                                     prefix={<RiseOutlined />}
                                 />
 
                                 <Statistic
-                                    title="Estimated Duration"
+                                    title={t('Estimated Duration')}
                                     value={totalWeeks || 0}
                                     suffix="weeks"
                                     prefix={<ClockCircleOutlined />}
                                 />
 
                                 <Statistic
-                                    title="Projected Finish"
+                                    title={t('Projected Finish')}
                                     value={estimatedFinishDate}
                                     prefix={<FundProjectionScreenOutlined />}
                                     valueStyle={{ fontSize: 18 }}
@@ -1720,26 +1722,26 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                     </Col>
 
                     <Col xs={24} lg={16}>
-                        <MotionCard title="Readiness Growth Projection" style={{ borderRadius: 20 }}>
+                        <MotionCard title={t('Readiness Growth Projection')} style={{ borderRadius: 20 }}>
                             <ThemedHighcharts options={projectionSplineOptions} />
                         </MotionCard>
                     </Col>
 
                     <Col xs={24} lg={12}>
-                        <MotionCard title="Department Impact Radar" style={{ borderRadius: 20 }}>
+                        <MotionCard title={t('Department Impact Radar')} style={{ borderRadius: 20 }}>
                             <ThemedHighcharts options={radarOptions} />
                         </MotionCard>
                     </Col>
 
                     <Col xs={24} lg={12}>
-                        <MotionCard title="Impact vs Timeline Bubble Map" style={{ borderRadius: 20 }}>
+                        <MotionCard title={t('Impact vs Timeline Bubble Map')} style={{ borderRadius: 20 }}>
                             <ThemedHighcharts options={bubbleOptions} />
                         </MotionCard>
                     </Col>
 
                     <Col xs={24} lg={12}>
                         <MotionCard
-                            title="Expected Impact by Intervention"
+                            title={t('Expected Impact by Intervention')}
                             style={{ borderRadius: 20 }}
                         >
                             <ThemedHighcharts options={impactChartOptions} />
@@ -1747,7 +1749,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                     </Col>
                     <Col xs={24} lg={12}>
                         <MotionCard
-                            title="Estimated Timeline by Intervention"
+                            title={t('Estimated Timeline by Intervention')}
                             style={{ borderRadius: 20 }}
                         >
                             <ThemedHighcharts options={timelineChartOptions} />
@@ -1791,7 +1793,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                                 </Space>
                                 <div className="agent-card-footer">
                                     <Text type="secondary">
-                                        Matched to: {(agent.matchedInterventionTitles || [agent.matchedInterventionTitle]).filter(Boolean).slice(0, 2).join(", ")}
+                                        {t('Matched to:')} {(agent.matchedInterventionTitles || [agent.matchedInterventionTitle]).filter(Boolean).slice(0, 2).join(", ")}
                                         {(agent.matchedInterventionTitles?.length || 0) > 2 ? ` +${(agent.matchedInterventionTitles?.length || 0) - 2} more` : ""}
                                     </Text>
                                     <Button
@@ -1799,7 +1801,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                                         shape="round"
                                         icon={<MessageOutlined />}
                                     >
-                                        Open Chat
+                                        {t('Open Chat')}
                                     </Button>
                                 </div>
                             </div>
@@ -1809,7 +1811,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                     {!filteredAgents.length && (
                         <Col span={24}>
                             <MotionCard style={{ borderRadius: 20 }}>
-                                <Empty description="No agents matched this AI roadmap." />
+                                <Empty description={t('No agents matched this AI roadmap.')} />
                             </MotionCard>
                         </Col>
                     )}
@@ -1819,14 +1821,14 @@ const SMEIntakeRoadmapPage: React.FC = () => {
             {selectedSubmission && view === "history" && (
                 <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
                     <Col xs={24} lg={10}>
-                        <MotionCard title="Intake History" style={{ borderRadius: 20 }}>
+                        <MotionCard title={t('Intake History')} style={{ borderRadius: 20 }}>
                             <Timeline
                                 items={[
                                     {
                                         dot: <AuditOutlined />,
                                         children: (
                                             <Space direction="vertical" size={2}>
-                                                <Text strong>AI intake submitted</Text>
+                                                <Text strong>{t('AI intake submitted')}</Text>
                                                 <Text type="secondary">
                                                     {formatDate(selectedSubmission.createdAt)}
                                                 </Text>
@@ -1843,7 +1845,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                                                 <Text type="secondary">
                                                     {selectedSubmission.recommendedProgramName ||
                                                         decision?.recommendedProgramName ||
-                                                        "Agent support path"}
+                                                        t('Agent support path')}
                                                 </Text>
                                             </Space>
                                         ),
@@ -1852,10 +1854,10 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                                         dot: <FileProtectOutlined />,
                                         children: (
                                             <Space direction="vertical" size={2}>
-                                                <Text strong>Documents captured</Text>
+                                                <Text strong>{t('Documents captured')}</Text>
                                                 <Text type="secondary">
                                                     {selectedSubmission.uploadedDocuments?.length || 0}{" "}
-                                                    uploaded document(s)
+                                                    {t('uploaded document(s)')}
                                                 </Text>
                                             </Space>
                                         ),
@@ -1866,10 +1868,10 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                     </Col>
 
                     <Col xs={24} lg={14}>
-                        <MotionCard title="Roadmap Record" style={{ borderRadius: 20 }}>
+                        <MotionCard title={t('Roadmap Record')} style={{ borderRadius: 20 }}>
                             <List
                                 dataSource={roadmap}
-                                locale={{ emptyText: "No roadmap records available." }}
+                                locale={{ emptyText: t('No roadmap records available.') }}
                                 renderItem={(item) => (
                                     <List.Item>
                                         <List.Item.Meta
@@ -1893,7 +1895,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                                             description={
                                                 item.reason ||
                                                 item.expectedImpact ||
-                                                "AI recommended intervention."
+                                                t('AI recommended intervention.')
                                             }
                                         />
                                     </List.Item>
@@ -1905,7 +1907,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
             )}
 
             <Drawer
-                title={selectedAgent?.name || "Agent Chat"}
+                title={selectedAgent?.name || t('Agent Chat')}
                 open={!!selectedAgent}
                 onClose={closeAgent}
                 width={isMobile ? "100%" : 520}
@@ -1922,7 +1924,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
 
                         <Card
                             size="small"
-                            title="Requested Documents"
+                            title={t('Requested Documents')}
                             style={{ borderRadius: 16 }}
                         >
                             <Space direction="vertical" size={10} style={{ width: "100%" }}>
@@ -1932,7 +1934,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                                             <Space wrap>
                                                 <Text strong>{row.item}</Text>
                                                 <Tag color={row.ready ? "green" : "orange"}>
-                                                    {row.ready ? "Uploaded" : "Missing"}
+                                                    {row.ready ? t('Uploaded') : t('Missing')}
                                                 </Tag>
                                             </Space>
                                             {row.matches.length ? (
@@ -1940,7 +1942,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                                                     {row.matches.map((item) => item.fileName || item.type).join(", ")}
                                                 </Text>
                                             ) : (
-                                                <Text type="secondary">No matching file found yet.</Text>
+                                                <Text type="secondary">{t('No matching file found yet.')}</Text>
                                             )}
                                         </Space>
                                         <Upload
@@ -1952,7 +1954,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                                             disabled={documentUploading}
                                         >
                                             <Button size="small" icon={<InboxOutlined />} loading={documentUploading}>
-                                                Upload
+                                                {t('Upload')}
                                             </Button>
                                         </Upload>
                                     </div>
@@ -1972,7 +1974,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                                         </div>
                                         {item.requiresRating && (
                                             <div className="delivery-agent-rating">
-                                                <Text type="secondary">{item.rating ? 'Conversation rated' : 'Rate this conversation to continue'}</Text>
+                                                <Text type="secondary">{item.rating ? t('Conversation rated') : t('Rate this conversation to continue')}</Text>
                                                 <Rate disabled={!!item.rating || ratingMessageId === item.id} value={item.rating || 0} onChange={(value) => void rateDeliveryConversation(item, value)} />
                                             </div>
                                         )}
@@ -1987,7 +1989,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                                 value={chatInput}
                                 disabled={chatSending}
                                 onChange={(event) => setChatInput(event.target.value)}
-                                placeholder="Type what support is needed..."
+                                placeholder={t('Type what support is needed...')}
                                 onPressEnter={(event) => {
                                     if (!event.shiftKey) {
                                         event.preventDefault();

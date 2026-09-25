@@ -1,6 +1,7 @@
 import { Checkbox, Input, Radio } from 'antd'
 import { hasQuizAnswer, type LessonAnswers } from '@/lib/quizAnswers'
 import type { CourseLesson } from '@/services/courseTemplatesService'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 type LessonQuizProps = {
     lesson: CourseLesson
@@ -13,6 +14,7 @@ type LessonQuizProps = {
 
 /** A lesson's end-of-lesson quiz, shown as its own step — see LessonBody for the lesson content itself. */
 export const LessonQuiz = ({ lesson, answers, onAnswer, touched }: LessonQuizProps) => {
+    const { t } = useLanguage()
     const readOnly = !onAnswer
     const quiz = lesson.quiz || []
 
@@ -25,7 +27,7 @@ export const LessonQuiz = ({ lesson, answers, onAnswer, touched }: LessonQuizPro
                 return (
                     <div key={question.id} className="lesson-quiz-question">
                         <span className="lesson-quiz-question-text">
-                            {question.question || 'Untitled question'}
+                            {question.question || t('Untitled question')}
                             {question.required && <span className="survey-frame-required">*</span>}
                         </span>
 
@@ -56,7 +58,7 @@ export const LessonQuiz = ({ lesson, answers, onAnswer, touched }: LessonQuizPro
                             />
                         )}
 
-                        {blocked && <span className="survey-response-error">This question needs an answer before you continue.</span>}
+                        {blocked && <span className="survey-response-error">{t('This question needs an answer before you continue.')}</span>}
                     </div>
                 )
             })}

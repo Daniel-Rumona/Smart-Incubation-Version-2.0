@@ -1,6 +1,7 @@
 import { Button, Checkbox, Input, Radio, Select, Space, Switch, Tooltip } from 'antd'
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import { QUIZ_QUESTION_TYPES, generateQuizQuestionId, type QuizQuestion, type QuizQuestionType } from '@/services/courseTemplatesService'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 type QuizEditorProps = {
     quiz: QuizQuestion[]
@@ -17,6 +18,7 @@ const emptyQuestion = (): QuizQuestion => ({
 })
 
 export const QuizEditor = ({ quiz, onChange }: QuizEditorProps) => {
+    const { t } = useLanguage()
     const patch = (id: string, updates: Partial<QuizQuestion>) =>
         onChange(quiz.map((question) => (question.id === id ? { ...question, ...updates } : question)))
 
@@ -72,13 +74,13 @@ export const QuizEditor = ({ quiz, onChange }: QuizEditorProps) => {
                             options={QUIZ_QUESTION_TYPES}
                             style={{ width: 150 }}
                         />
-                        <Tooltip title="Required">
+                        <Tooltip title={t('Required')}>
                             <span className="survey-setting is-row" style={{ marginLeft: 'auto' }}>
-                                <span>Required</span>
+                                <span>{t('Required')}</span>
                                 <Switch size="small" checked={question.required} onChange={(required) => patch(question.id, { required })} />
                             </span>
                         </Tooltip>
-                        <Tooltip title="Delete question">
+                        <Tooltip title={t('Delete question')}>
                             <Button size="small" danger icon={<DeleteOutlined />} onClick={() => removeQuestion(question.id)} />
                         </Tooltip>
                     </div>
@@ -87,7 +89,7 @@ export const QuizEditor = ({ quiz, onChange }: QuizEditorProps) => {
                         size="small"
                         autoSize={{ minRows: 1, maxRows: 3 }}
                         value={question.question}
-                        placeholder="Ask a question"
+                        placeholder={t('Ask a question')}
                         onChange={(event) => patch(question.id, { question: event.target.value })}
                         style={{ marginTop: 8 }}
                     />
@@ -128,14 +130,14 @@ export const QuizEditor = ({ quiz, onChange }: QuizEditorProps) => {
                             ))}
 
                             <Button block size="small" type="dashed" icon={<PlusOutlined />} onClick={() => addOption(question.id)}>
-                                Add option
+                                {t('Add option')}
                             </Button>
                         </Space>
                     )}
                 </div>
             ))}
 
-            <Button block type="dashed" icon={<PlusOutlined />} onClick={addQuestion}>Add quiz question</Button>
+            <Button block type="dashed" icon={<PlusOutlined />} onClick={addQuestion}>{t('Add quiz question')}</Button>
         </Space>
     )
 }

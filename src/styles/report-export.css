@@ -1,0 +1,7 @@
+.report-export-menu .ant-dropdown-menu-item { padding: 8px 10px; }
+.report-export-option { display: flex; align-items: flex-start; gap: 12px; min-width: 300px; max-width: 340px; }
+.report-export-option-icon { display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; border-radius: 10px; color: #6d5dfb; background: rgba(109, 93, 251, .12); font-size: 16px; }
+.report-export-option-copy { display: grid; gap: 2px; min-width: 0; white-space: normal; }
+.report-export-option-copy strong { font-size: 13px; }
+.report-export-option-copy span { color: var(--ant-color-text-secondary); font-size: 12px; line-height: 1.4; }
+html[data-theme='dark'] .report-export-option-icon { color: #c4b5fd; background: rgba(139, 92, 246, .2); }

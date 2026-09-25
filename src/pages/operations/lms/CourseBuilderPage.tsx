@@ -35,6 +35,7 @@ import PreviewCourseModal from './PreviewCourseModal'
 import QuizEditor from './QuizEditor'
 import '@/styles/survey-builder.css'
 import '@/styles/course-lesson.css'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 const LMS_PATH = '/operations/lms'
 
@@ -67,6 +68,7 @@ const fingerprint = (course: CourseTemplate | null) => course
     : null
 
 export default function CourseBuilderPage() {
+    const { t } = useLanguage()
     const { message } = App.useApp()
     const { user } = useFullIdentity()
     const navigate = useNavigate()
@@ -100,7 +102,7 @@ export default function CourseBuilderPage() {
         void loadCourseTemplate(params.id)
             .then((template) => {
                 if (!template) {
-                    message.error('That course could not be found.')
+                    message.error(t('That course could not be found.'))
                     navigate(LMS_PATH)
                     return
                 }
@@ -108,7 +110,7 @@ export default function CourseBuilderPage() {
                 setBaseline(fingerprint(template))
                 setSelectedStepId(template.lessons[0] ? `${template.lessons[0].id}:content` : null)
             })
-            .catch(() => message.error('The course could not be loaded.'))
+            .catch(() => message.error(t('The course could not be loaded.')))
             .finally(() => setLoading(false))
     }, [params.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -169,16 +171,16 @@ export default function CourseBuilderPage() {
     const save = async (status: 'draft' | 'published') => {
         if (!course.title.trim()) {
             setSettingsOpen(true)
-            message.error('Give the course a title first.')
+            message.error(t('Give the course a title first.'))
             return
         }
         if (!course.lessons.length) {
-            message.error('Add at least one lesson.')
+            message.error(t('Add at least one lesson.'))
             return
         }
         if (!course.programId) {
             setSettingsOpen(true)
-            message.error('Choose the programme this course belongs to.')
+            message.error(t('Choose the programme this course belongs to.'))
             return
         }
 
@@ -191,7 +193,7 @@ export default function CourseBuilderPage() {
             setBaseline(fingerprint(saved))
 
             if (status !== 'published') {
-                message.success('Draft saved.')
+                message.success(t('Draft saved.'))
                 return
             }
 
@@ -199,9 +201,9 @@ export default function CourseBuilderPage() {
             const assigned = await assignCourseToProgramme(saved)
             message.success(assigned
                 ? `Course published and sent to ${assigned} SME${assigned === 1 ? '' : 's'}.`
-                : 'Course published. Everyone on this programme already has it.')
+                : t('Course published. Everyone on this programme already has it.'))
         } catch {
-            message.error('The course could not be saved.')
+            message.error(t('The course could not be saved.'))
         } finally {
             setSaving(false)
         }
@@ -213,10 +215,10 @@ export default function CourseBuilderPage() {
             return
         }
         Modal.confirm({
-            title: 'Save as draft before leaving?',
-            content: 'This course has unsaved changes.',
-            okText: 'Save draft',
-            cancelText: 'Discard',
+            title: t('Save as draft before leaving?'),
+            content: t('This course has unsaved changes.'),
+            okText: t('Save draft'),
+            cancelText: t('Discard'),
             onOk: async () => { await save('draft'); navigate(LMS_PATH) },
             onCancel: () => navigate(LMS_PATH),
         })
@@ -233,11 +235,11 @@ export default function CourseBuilderPage() {
 
     const settingsForm = (
         <Form layout="vertical">
-            <Form.Item label="Programme" required tooltip="Only this programme's participants receive the course.">
+            <Form.Item label={t('Programme')} required tooltip={t('Only this programme\'s participants receive the course.')}>
                 <Select
                     value={course.programId}
                     onChange={(value) => patchCourse({ programId: value })}
-                    placeholder="Select a programme"
+                    placeholder={t('Select a programme')}
                     showSearch
                     optionFilterProp="label"
                     allowClear
@@ -245,15 +247,15 @@ export default function CourseBuilderPage() {
                 />
             </Form.Item>
 
-            <Form.Item label="Title" required>
-                <Input value={course.title} onChange={(event) => patchCourse({ title: event.target.value })} placeholder="Course title" />
+            <Form.Item label={t('Title')} required>
+                <Input value={course.title} onChange={(event) => patchCourse({ title: event.target.value })} placeholder={t('Course title')} />
             </Form.Item>
 
-            <Form.Item label="Description">
-                <Input.TextArea rows={3} value={course.description} onChange={(event) => patchCourse({ description: event.target.value })} placeholder="What is this course about?" />
+            <Form.Item label={t('Description')}>
+                <Input.TextArea rows={3} value={course.description} onChange={(event) => patchCourse({ description: event.target.value })} placeholder={t('What is this course about?')} />
             </Form.Item>
 
-            <Form.Item label="Category">
+            <Form.Item label={t('Category')}>
                 <Select
                     value={course.category}
                     onChange={(value) => patchCourse({ category: value })}
@@ -261,8 +263,8 @@ export default function CourseBuilderPage() {
                 />
             </Form.Item>
 
-            <Form.Item label="Department" tooltip="Taken from your own workspace scope.">
-                <Tag color="purple">{course.department || user?.departmentId || 'Not set'}</Tag>
+            <Form.Item label={t('Department')} tooltip={t('Taken from your own workspace scope.')}>
+                <Tag color="purple">{course.department || user?.departmentId || t('Not set')}</Tag>
             </Form.Item>
         </Form>
     )
@@ -272,20 +274,20 @@ export default function CourseBuilderPage() {
             <MotionCard className="survey-builder-bar">
                 <div className="survey-builder-bar-inner">
                     <Space size={8} className="survey-builder-bar-side">
-                        <Button icon={<ArrowLeftOutlined />} onClick={goBack}>Back</Button>
-                        {isCompact && <Button icon={<UnorderedListOutlined />} onClick={() => setOutlineOpen(true)}>Outline</Button>}
-                        <Button type="primary" icon={<PlusOutlined />} onClick={addLesson}>Add lesson</Button>
+                        <Button icon={<ArrowLeftOutlined />} onClick={goBack}>{t('Back')}</Button>
+                        {isCompact && <Button icon={<UnorderedListOutlined />} onClick={() => setOutlineOpen(true)}>{t('Outline')}</Button>}
+                        <Button type="primary" icon={<PlusOutlined />} onClick={addLesson}>{t('Add lesson')}</Button>
                     </Space>
 
                     <button type="button" className="survey-builder-identity" onClick={() => setSettingsOpen(true)}>
-                        <strong>{course.title.trim() || 'Untitled course'}</strong>
-                        <span>{course.description.trim() || 'Add a description'}</span>
+                        <strong>{course.title.trim() || t('Untitled course')}</strong>
+                        <span>{course.description.trim() || t('Add a description')}</span>
                     </button>
 
                     <Space size={8} className="survey-builder-bar-side is-end">
-                        <Button icon={<EyeOutlined />} disabled={!course.lessons.length} onClick={() => setPreviewOpen(true)}>Preview</Button>
-                        <Button icon={<SaveOutlined />} loading={saving} onClick={() => void save('draft')}>Save draft</Button>
-                        <Button type="primary" icon={<SendOutlined />} loading={saving} onClick={() => void save('published')}>Publish</Button>
+                        <Button icon={<EyeOutlined />} disabled={!course.lessons.length} onClick={() => setPreviewOpen(true)}>{t('Preview')}</Button>
+                        <Button icon={<SaveOutlined />} loading={saving} onClick={() => void save('draft')}>{t('Save draft')}</Button>
+                        <Button type="primary" icon={<SendOutlined />} loading={saving} onClick={() => void save('published')}>{t('Publish')}</Button>
                     </Space>
                 </div>
             </MotionCard>
@@ -295,7 +297,7 @@ export default function CourseBuilderPage() {
                     <MotionCard
                         loading={loading}
                         className="survey-builder-panel survey-builder-outline"
-                        title="Outline"
+                        title={t('Outline')}
                         extra={<Button type="text" size="small" icon={<PlusOutlined />} onClick={addLesson} />}
                     >
                         {outlinePanel}
@@ -306,15 +308,15 @@ export default function CourseBuilderPage() {
                     {loading ? <MotionCard loading className="survey-builder-panel" /> : selectedLesson && selectedSection === 'quiz' ? (
                         <MotionCard className="survey-builder-panel survey-builder-question">
                             <div className="survey-question-head">
-                                <span className="survey-question-number"><QuestionCircleOutlined /> Quiz</span>
+                                <span className="survey-question-number"><QuestionCircleOutlined /> {t('Quiz')}</span>
 
-                                <Tooltip title="Remove this quiz">
+                                <Tooltip title={t('Remove this quiz')}>
                                     <Button shape="circle" danger icon={<DeleteOutlined />} onClick={() => removeQuiz(selectedLesson.id)} />
                                 </Tooltip>
                             </div>
 
                             <Typography.Paragraph type="secondary" style={{ marginTop: 4 }}>
-                                Shown to the SME as its own step, right after "{selectedLesson.title || 'this lesson'}".
+                                {t('Shown to the SME as its own step, right after "')}{selectedLesson.title || t('this lesson')}".
                             </Typography.Paragraph>
 
                             <div style={{ marginTop: 14 }}>
@@ -330,10 +332,10 @@ export default function CourseBuilderPage() {
                                 <span className="survey-question-number">{String(selectedIndex + 1).padStart(2, '0')}</span>
 
                                 <Space size={8}>
-                                    <Tooltip title="Duplicate lesson">
+                                    <Tooltip title={t('Duplicate lesson')}>
                                         <Button shape="circle" icon={<CopyOutlined />} onClick={() => duplicateLesson(selectedLesson.id)} />
                                     </Tooltip>
-                                    <Tooltip title="Delete lesson">
+                                    <Tooltip title={t('Delete lesson')}>
                                         <Button shape="circle" danger icon={<DeleteOutlined />} onClick={() => removeLesson(selectedLesson.id)} />
                                     </Tooltip>
                                 </Space>
@@ -345,7 +347,7 @@ export default function CourseBuilderPage() {
                                     autoSize={{ minRows: 1, maxRows: 3 }}
                                     value={selectedLesson.title}
                                     onChange={(event) => patchLesson(selectedLesson.id, { title: event.target.value })}
-                                    placeholder="Lesson title"
+                                    placeholder={t('Lesson title')}
                                 />
                             </div>
 
@@ -353,7 +355,7 @@ export default function CourseBuilderPage() {
                                 prefix={<PlayCircleOutlined />}
                                 value={selectedLesson.videoUrl || ''}
                                 onChange={(event) => patchLesson(selectedLesson.id, { videoUrl: event.target.value })}
-                                placeholder="Video link (YouTube, Vimeo, or a direct video URL) — optional"
+                                placeholder={t('Video link (YouTube, Vimeo, or a direct video URL) — optional')}
                                 style={{ marginTop: 12 }}
                             />
 
@@ -361,7 +363,7 @@ export default function CourseBuilderPage() {
                                 rows={8}
                                 value={selectedLesson.body}
                                 onChange={(event) => patchLesson(selectedLesson.id, { body: event.target.value })}
-                                placeholder="Write the lesson content the SME will read…"
+                                placeholder={t('Write the lesson content the SME will read…')}
                                 style={{ marginTop: 12 }}
                             />
 
@@ -369,19 +371,19 @@ export default function CourseBuilderPage() {
                                 {selectedLesson.quiz?.length ? (
                                     <Space direction="vertical" size={4}>
                                         <Typography.Text strong>
-                                            <QuestionCircleOutlined /> This lesson has a quiz — {selectedLesson.quiz.length} question{selectedLesson.quiz.length === 1 ? '' : 's'}
+                                            <QuestionCircleOutlined /> {t('This lesson has a quiz —')} {selectedLesson.quiz.length} {t('question')}{selectedLesson.quiz.length === 1 ? '' : 's'}
                                         </Typography.Text>
-                                        <Button size="small" onClick={() => setSelectedStepId(`${selectedLesson.id}:quiz`)}>Edit quiz</Button>
+                                        <Button size="small" onClick={() => setSelectedStepId(`${selectedLesson.id}:quiz`)}>{t('Edit quiz')}</Button>
                                     </Space>
                                 ) : (
                                     <Button size="small" icon={<PlusOutlined />} onClick={() => addQuiz(selectedLesson.id)}>
-                                        Add a quiz after this lesson
+                                        {t('Add a quiz after this lesson')}
                                     </Button>
                                 )}
 
                                 {isAgentApiConfigured && (
                                     <div className="survey-setting is-row" style={{ marginTop: 14 }}>
-                                        <span><RobotOutlined /> AI review after this lesson</span>
+                                        <span><RobotOutlined /> {t('AI review after this lesson')}</span>
                                         <Switch
                                             size="small"
                                             checked={Boolean(selectedLesson.aiReviewEnabled)}
@@ -394,12 +396,12 @@ export default function CourseBuilderPage() {
                     ) : (
                         <MotionCard className="survey-builder-panel survey-builder-empty">
                             {course.lessons.length ? (
-                                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Select a lesson from the outline" />
+                                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('Select a lesson from the outline')} />
                             ) : (
                                 <>
-                                    <Typography.Title level={4}>Start building your course</Typography.Title>
-                                    <Typography.Paragraph type="secondary">Add your first lesson, then arrange them in the outline.</Typography.Paragraph>
-                                    <Button type="primary" icon={<PlusOutlined />} onClick={addLesson}>Add lesson</Button>
+                                    <Typography.Title level={4}>{t('Start building your course')}</Typography.Title>
+                                    <Typography.Paragraph type="secondary">{t('Add your first lesson, then arrange them in the outline.')}</Typography.Paragraph>
+                                    <Button type="primary" icon={<PlusOutlined />} onClick={addLesson}>{t('Add lesson')}</Button>
                                 </>
                             )}
                         </MotionCard>
@@ -408,12 +410,12 @@ export default function CourseBuilderPage() {
 
                 {!isCompact && (
                     <div className="survey-builder-side">
-                        <MotionCard loading={loading} className="survey-builder-panel" title="Course at a glance">
-                            <div className="survey-snapshot-row"><span>Lessons</span><strong>{course.lessons.length}</strong></div>
-                            <div className="survey-snapshot-row"><span>Quiz questions</span><strong>{quizCount}</strong></div>
-                            {isAgentApiConfigured && <div className="survey-snapshot-row"><span>AI reviews</span><strong>{reviewCount}</strong></div>}
-                            <div className="survey-snapshot-row"><span>Status</span><Tag color={course.status === 'published' ? 'green' : 'default'}>{course.status === 'published' ? 'Published' : 'Draft'}</Tag></div>
-                            <div className="survey-snapshot-row"><span>Changes</span><Tag color={isDirty ? 'orange' : 'green'}>{isDirty ? 'Unsaved' : 'Saved'}</Tag></div>
+                        <MotionCard loading={loading} className="survey-builder-panel" title={t('Course at a glance')}>
+                            <div className="survey-snapshot-row"><span>{t('Lessons')}</span><strong>{course.lessons.length}</strong></div>
+                            <div className="survey-snapshot-row"><span>{t('Quiz questions')}</span><strong>{quizCount}</strong></div>
+                            {isAgentApiConfigured && <div className="survey-snapshot-row"><span>{t('AI reviews')}</span><strong>{reviewCount}</strong></div>}
+                            <div className="survey-snapshot-row"><span>{t('Status')}</span><Tag color={course.status === 'published' ? 'green' : 'default'}>{course.status === 'published' ? t('Published') : t('Draft')}</Tag></div>
+                            <div className="survey-snapshot-row"><span>{t('Changes')}</span><Tag color={isDirty ? 'orange' : 'green'}>{isDirty ? t('Unsaved') : t('Saved')}</Tag></div>
                         </MotionCard>
                     </div>
                 )}
@@ -421,10 +423,10 @@ export default function CourseBuilderPage() {
 
             <Modal
                 open={settingsOpen}
-                title="Course settings"
+                title={t('Course settings')}
                 width={520}
                 onCancel={() => setSettingsOpen(false)}
-                footer={<Button type="primary" onClick={() => setSettingsOpen(false)}>Done</Button>}
+                footer={<Button type="primary" onClick={() => setSettingsOpen(false)}>{t('Done')}</Button>}
             >
                 {settingsForm}
             </Modal>
@@ -439,7 +441,7 @@ export default function CourseBuilderPage() {
 
             <Modal
                 open={outlineOpen}
-                title="Outline"
+                title={t('Outline')}
                 footer={null}
                 onCancel={() => setOutlineOpen(false)}
                 className="survey-outline-modal"

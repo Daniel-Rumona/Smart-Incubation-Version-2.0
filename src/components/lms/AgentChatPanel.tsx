@@ -5,6 +5,7 @@ import { AgentRichText } from '@/components/agent/AgentRichText'
 import { AGENT_PENDING_CONTENT } from '@/hooks/useLessonAgentChat'
 import type { AgentChatMessage } from '@/types/agent'
 import '@/styles/agent-fab.css'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 type AgentChatPanelProps = {
     messages: AgentChatMessage[]
@@ -19,6 +20,7 @@ type AgentChatPanelProps = {
 
 /** The message list + composer shared by every LMS AI surface — same markup and classes as the "Thuso" workspace assistant (agent-fab.css), so it reads as the same product. */
 export const AgentChatPanel = ({ messages, draft, onDraftChange, onSend, onVoice, placeholder, emptyState }: AgentChatPanelProps) => {
+    const { t } = useLanguage()
     const bodyRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
@@ -50,12 +52,12 @@ export const AgentChatPanel = ({ messages, draft, onDraftChange, onSend, onVoice
                     value={draft}
                     onChange={(event) => onDraftChange(event.target.value)}
                     onPressEnter={onSend}
-                    placeholder={placeholder || 'Ask a question…'}
+                    placeholder={placeholder || t('Ask a question…')}
                     prefix={onVoice && (
-                        <Button type="text" size="small" icon={<AudioOutlined />} onClick={onVoice} aria-label="Start voice conversation" />
+                        <Button type="text" size="small" icon={<AudioOutlined />} onClick={onVoice} aria-label={t('Start voice conversation')} />
                     )}
                     suffix={(
-                        <Button type="text" size="small" icon={<SendOutlined />} onClick={onSend} disabled={!draft.trim()} aria-label="Send" />
+                        <Button type="text" size="small" icon={<SendOutlined />} onClick={onSend} disabled={!draft.trim()} aria-label={t('Send')} />
                     )}
                 />
             </footer>

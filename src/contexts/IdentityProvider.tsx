@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react'
 import { onAuthStateChanged, reload } from 'firebase/auth'
 import { getFirebaseAuth, isFirebaseConfigured } from '@/config/firebase'
 import { resolveIdentityPermissions } from '@/config/permissions'
@@ -11,6 +11,8 @@ type IdentityContextValue = {
   user: FullIdentity | null
   loading: boolean
   error?: string
+  /** Patches the in-memory identity after the user edits their own profile, so the UI updates without a reload. */
+  updateIdentity: (patch: Partial<FullIdentity>) => void
 }
 
 const IdentityContext = createContext<IdentityContextValue | undefined>(undefined)
@@ -73,6 +75,7 @@ export const IdentityProvider = ({ children }: PropsWithChildren) => {
           branchId: typeof profile?.branchId === 'string' ? profile.branchId : null,
           departmentId: typeof profile?.departmentId === 'string' ? profile.departmentId : null,
           signatureURL,
+          profileImageUrl: typeof profile?.profileImageUrl === 'string' && profile.profileImageUrl.trim() ? profile.profileImageUrl : null,
           assignedProgramIds: Array.isArray(profile?.assignedProgramIds)
             ? profile.assignedProgramIds.filter((id): id is string => typeof id === 'string')
             : [],
@@ -91,7 +94,9 @@ export const IdentityProvider = ({ children }: PropsWithChildren) => {
     })
   }, [])
 
-  const value = useMemo(() => ({ user, loading, error }), [error, loading, user])
+  const updateIdentity = useCallback((patch: Partial<FullIdentity>) => setUser((current) => (current ? { ...current, ...patch } : current)), [])
+
+  const value = useMemo(() => ({ user, loading, error, updateIdentity }), [error, loading, updateIdentity, user])
 
   return <IdentityContext.Provider value={value}>{children}</IdentityContext.Provider>
 }

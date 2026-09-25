@@ -870,6 +870,15 @@ type AiToolResult = {
   result: unknown
 }
 
+// Optional rich reply from the ai-backend. `reply` is always a complete text fallback.
+type AiInteractive = {
+  type: 'buttons' | 'list'
+  body: string
+  buttons?: Array<{ id: string, title: string }>
+  button?: string
+  sections?: Array<{ title: string, rows: Array<{ id: string, title: string, description?: string }> }>
+}
+
 type AiResponse = {
   ok?: boolean
   reply?: string
@@ -878,6 +887,7 @@ type AiResponse = {
   action?: AiAction | null
   toolCall?: AiToolCall | null
   conversation?: AiConversationState | null
+  interactive?: AiInteractive | null
   error?: { code?: string } | null
 }
 
@@ -1440,7 +1450,24 @@ async function processAiMessage(
     return
   }
 
-  await sendText(to, String(response.reply || 'I could not determine what you need. Please try rephrasing your message.'))
+  const fallback = String(response.reply || 'I could not determine what you need. Please try rephrasing your message.')
+  const ui = response.interactive
+  if (engine === 'LPH' && ui?.type === 'buttons' && ui.buttons?.length) {
+    await sendButtons(to, ui.body || fallback, ui.buttons.map(button => ({ id: button.id, title: button.title })))
+    return
+  }
+  if (engine === 'LPH' && ui?.type === 'list' && ui.sections?.length) {
+    await sendMenuList(to, {
+      body: ui.body || fallback,
+      button: ui.button || 'Options',
+      sections: ui.sections.map(section => ({
+        title: section.title,
+        rows: section.rows.map(row => ({ id: row.id, title: row.title, description: row.description || '' })),
+      })),
+    })
+    return
+  }
+  await sendText(to, fallback)
 }
 
 async function processStructuredRsvp(to: string, phone: string, parsed: ReturnType<typeof structuredRsvp>) {

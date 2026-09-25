@@ -16,40 +16,41 @@ import {
 } from '@ant-design/icons'
 import { PREFILL_SECTIONS, type PrefillSection } from '@/lib/surveyPrefill'
 import type { SurveyFieldType } from '@/services/surveyTemplatesService'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 type FieldTypeItem = { value: SurveyFieldType, label: string, icon: ReactNode, tone: string }
 
 /** Grouped so the list reads as a palette rather than eleven equal options. */
 const FIELD_TYPE_GROUPS: Array<{ title: string, items: FieldTypeItem[] }> = [
     {
-        title: 'Text',
+        get title() { return tr('Text') },
         items: [
-            { value: 'text', label: 'Text field', icon: <FontSizeOutlined />, tone: 'is-blue' },
-            { value: 'textarea', label: 'Text area', icon: <AlignLeftOutlined />, tone: 'is-blue' },
-            { value: 'heading', label: 'Section heading', icon: <FontSizeOutlined />, tone: 'is-blue' },
+            { value: 'text', get label() { return tr('Text field') }, icon: <FontSizeOutlined />, tone: 'is-blue' },
+            { value: 'textarea', get label() { return tr('Text area') }, icon: <AlignLeftOutlined />, tone: 'is-blue' },
+            { value: 'heading', get label() { return tr('Section heading') }, icon: <FontSizeOutlined />, tone: 'is-blue' },
         ],
     },
     {
-        title: 'Choice',
+        get title() { return tr('Choice') },
         items: [
-            { value: 'select', label: 'Dropdown', icon: <DownOutlined />, tone: 'is-violet' },
-            { value: 'checkbox', label: 'Checkbox group', icon: <CheckSquareOutlined />, tone: 'is-violet' },
-            { value: 'radio', label: 'Radio group', icon: <CheckCircleOutlined />, tone: 'is-violet' },
+            { value: 'select', get label() { return tr('Dropdown') }, icon: <DownOutlined />, tone: 'is-violet' },
+            { value: 'checkbox', get label() { return tr('Checkbox group') }, icon: <CheckSquareOutlined />, tone: 'is-violet' },
+            { value: 'radio', get label() { return tr('Radio group') }, icon: <CheckCircleOutlined />, tone: 'is-violet' },
         ],
     },
     {
-        title: 'Input',
+        get title() { return tr('Input') },
         items: [
-            { value: 'number', label: 'Number', icon: <NumberOutlined />, tone: 'is-amber' },
-            { value: 'date', label: 'Date picker', icon: <CalendarOutlined />, tone: 'is-amber' },
-            { value: 'file', label: 'File upload', icon: <UploadOutlined />, tone: 'is-amber' },
+            { value: 'number', get label() { return tr('Number') }, icon: <NumberOutlined />, tone: 'is-amber' },
+            { value: 'date', get label() { return tr('Date picker') }, icon: <CalendarOutlined />, tone: 'is-amber' },
+            { value: 'file', get label() { return tr('File upload') }, icon: <UploadOutlined />, tone: 'is-amber' },
         ],
     },
     {
-        title: 'Contact and rating',
+        get title() { return tr('Contact and rating') },
         items: [
-            { value: 'email', label: 'Email', icon: <MailOutlined />, tone: 'is-pink' },
-            { value: 'rating', label: 'Rating', icon: <StarOutlined />, tone: 'is-green' },
+            { value: 'email', get label() { return tr('Email') }, icon: <MailOutlined />, tone: 'is-pink' },
+            { value: 'rating', get label() { return tr('Rating') }, icon: <StarOutlined />, tone: 'is-green' },
         ],
     },
 ]
@@ -63,6 +64,7 @@ type AddFieldModalProps = {
 }
 
 export const AddFieldModal = ({ open, onClose, onAdd, onAddSection }: AddFieldModalProps) => {
+    const { t } = useLanguage()
     const [search, setSearch] = useState('')
     const term = search.trim().toLowerCase()
 
@@ -93,27 +95,27 @@ export const AddFieldModal = ({ open, onClose, onAdd, onAddSection }: AddFieldMo
             className="survey-add-modal"
         >
             <div className="survey-add-head">
-                <Typography.Title level={4}>Add field</Typography.Title>
-                <Typography.Text type="secondary">Choose the type of question or element you want to add.</Typography.Text>
+                <Typography.Title level={4}>{t('Add field')}</Typography.Title>
+                <Typography.Text type="secondary">{t('Choose the type of question or element you want to add.')}</Typography.Text>
             </div>
 
             <Input
                 size="large"
                 allowClear
                 prefix={<SearchOutlined />}
-                placeholder="Search form elements"
+                placeholder={t('Search form elements')}
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 className="survey-add-search"
             />
 
             {!groups.length && !sections.length ? (
-                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No matching field types" />
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('No matching field types')} />
             ) : (
                 <div className="survey-add-groups">
                     {sections.length > 0 && (
                         <div className="survey-add-group">
-                            <span className="survey-add-group-title">Prefilled sections</span>
+                            <span className="survey-add-group-title">{t('Prefilled sections')}</span>
 
                             {sections.map((section) => (
                                 <button

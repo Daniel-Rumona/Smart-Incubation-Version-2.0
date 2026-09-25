@@ -15,3 +15,9 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+/* FilterBar buttons share the row equally instead of sizing to their labels. */
+.user-management-page .filter-bar-controls > .ant-btn {
+  flex: 1 1 0;
+}

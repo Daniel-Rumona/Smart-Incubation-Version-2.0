@@ -19,6 +19,7 @@ import { generateInterventionMonitoringInsights, type InterventionMonitoringInsi
 import { getParticipants } from '@/services/participantService'
 import { matchesActiveProgram } from '@/services/workspaceProgramsService'
 import type { Participant } from '@/types/participant.types'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 type AssignmentKind = 'all' | 'single' | 'grouped'
 type HealthFilter = 'all' | 'on_track' | 'held_up' | 'overdue' | 'completed'
@@ -229,14 +230,14 @@ const insightTextType = (severity: MonitoringInsight['severity']) => {
 }
 
 const STANDARD_STATUS_OPTIONS: Array<{ value: StandardStatusFilter; label: string }> = [
-    { value: 'all', label: 'All statuses' },
-    { value: 'Assigned', label: 'Assigned' },
-    { value: 'Awaiting Assignee Acceptance', label: 'Awaiting assignee acceptance' },
-    { value: 'Awaiting SME Acceptance', label: 'Awaiting SME acceptance' },
-    { value: 'In Progress', label: 'In Progress' },
-    { value: 'Awaiting Completion Confirmation', label: 'Awaiting completion confirmation' },
-    { value: 'Completed', label: 'Completed' },
-    { value: 'Declined', label: 'Declined' },
+    { value: 'all', get label() { return tr('All statuses') } },
+    { value: 'Assigned', get label() { return tr('Assigned') } },
+    { value: 'Awaiting Assignee Acceptance', get label() { return tr('Awaiting assignee acceptance') } },
+    { value: 'Awaiting SME Acceptance', get label() { return tr('Awaiting SME acceptance') } },
+    { value: 'In Progress', get label() { return tr('In Progress') } },
+    { value: 'Awaiting Completion Confirmation', get label() { return tr('Awaiting completion confirmation') } },
+    { value: 'Completed', get label() { return tr('Completed') } },
+    { value: 'Declined', get label() { return tr('Declined') } },
 ]
 
 const dueLabel = (date: Date | null) => date ? dayjs(date).format('DD MMM YYYY') : 'No due date'
@@ -252,6 +253,7 @@ const firstText = (...values: unknown[]) => {
 }
 
 export const InterventionsMonitoringPage = () => {
+    const { t } = useLanguage()
     const { message } = App.useApp()
     const { assignments, loading, refresh } = useAssignedInterventions()
     const { activeProgramId, isAllPrograms } = useActiveProgramId()
@@ -488,20 +490,20 @@ export const InterventionsMonitoringPage = () => {
 
         return {
             chart: { type: 'pie', height: 280 },
-            title: { text: 'Status mix' },
+            title: { text: tr('Status mix') },
             tooltip: { pointFormat: '<b>{point.y}</b> assignments' },
             plotOptions: { pie: { innerSize: '58%', dataLabels: { enabled: true, format: '{point.name}: {point.y}' } } },
-            series: [{ type: 'pie', name: 'Assignments', data: counts.length ? counts : [{ name: 'No data', y: 1, color: semanticPalette.assigned }] }],
+            series: [{ type: 'pie', name: tr('Assignments'), data: counts.length ? counts : [{ name: 'No data', y: 1, color: semanticPalette.assigned }] }],
         }
     }, [filteredRows])
 
     const holdUpChartOptions = useMemo<Highcharts.Options>(() => ({
         chart: { type: 'column', height: 280 },
-        title: { text: 'Hold-up reasons' },
+        title: { text: tr('Hold-up reasons') },
         xAxis: { categories: holdUpCounts.map(([name]) => name) },
-        yAxis: { title: { text: 'Assignments' }, allowDecimals: false },
+        yAxis: { title: { text: tr('Assignments') }, allowDecimals: false },
         tooltip: { pointFormat: '<b>{point.y}</b> assignments' },
-        series: [{ type: 'column', name: 'Held up / overdue', color: semanticPalette.heldUp, data: holdUpCounts.map(([, count]) => count) }],
+        series: [{ type: 'column', name: tr('Held up / overdue'), color: semanticPalette.heldUp, data: holdUpCounts.map(([, count]) => count) }],
     }), [holdUpCounts])
 
     const progressChartOptions = useMemo<Highcharts.Options>(() => {
@@ -514,12 +516,12 @@ export const InterventionsMonitoringPage = () => {
 
         return {
             chart: { type: 'bar', height: 260 },
-            title: { text: 'Progress spread' },
+            title: { text: tr('Progress spread') },
             xAxis: { categories: buckets.map((bucket) => bucket.name) },
-            yAxis: { title: { text: 'Assignments' }, allowDecimals: false },
+            yAxis: { title: { text: tr('Assignments') }, allowDecimals: false },
             series: [{
                 type: 'bar',
-                name: 'Assignments',
+                name: tr('Assignments'),
                 data: buckets.map((bucket) => ({
                     y: filteredRows.filter((row) => row.progress >= bucket.min && row.progress <= bucket.max).length,
                     color: bucket.name === '100%' ? semanticPalette.completed : bucket.name === '0%' ? semanticPalette.assigned : bucket.name === '50-99%' ? semanticPalette.progress : semanticPalette.awaiting,
@@ -538,7 +540,7 @@ export const InterventionsMonitoringPage = () => {
         if (overdueRows.length) {
             const oldest = [...overdueRows].sort((a, b) => (a.dueDate?.getTime() || 0) - (b.dueDate?.getTime() || 0))[0]
             insights.push({
-                title: 'Overdue pressure is the first priority',
+                title: t('Overdue pressure is the first priority'),
                 body: `${plural(overdueRows.length, 'assignment')} overdue. Oldest item is ${oldest.title} for ${oldest.participantName}, due ${dueLabel(oldest.dueDate)}.`,
                 tone: 'danger',
             })
@@ -554,7 +556,7 @@ export const InterventionsMonitoringPage = () => {
 
         if (groupedAtRisk.length) {
             insights.push({
-                title: 'Grouped interventions need coordination',
+                title: t('Grouped interventions need coordination'),
                 body: `${plural(groupedAtRisk.length, 'group')} have overdue or held-up assignments. Drill into grouped view to identify the specific SMEs blocking group completion.`,
                 tone: 'info',
             })
@@ -562,7 +564,7 @@ export const InterventionsMonitoringPage = () => {
 
         if (awaitingSme.length) {
             insights.push({
-                title: 'SME action is gating delivery',
+                title: t('SME action is gating delivery'),
                 body: `${plural(awaitingSme.length, 'assignment')} need SME acceptance or completion confirmation. Prioritize reminders to incubatees for these.`,
                 tone: 'warning',
             })
@@ -570,14 +572,14 @@ export const InterventionsMonitoringPage = () => {
 
         if (!insights.length) {
             insights.push({
-                title: 'Delivery looks stable',
+                title: t('Delivery looks stable'),
                 body: 'No overdue or held-up interventions match the current filters. Keep monitoring progress drift and upcoming due dates.',
                 tone: 'success',
             })
         }
 
         return insights.slice(0, 4)
-    }, [filteredRows, groupedRows, holdUpCounts])
+    }, [filteredRows, groupedRows, holdUpCounts, t])
 
     const progressBuckets = useMemo(() => [
         { label: '0%', count: filteredRows.filter((row) => row.progress === 0).length },
@@ -635,10 +637,10 @@ export const InterventionsMonitoringPage = () => {
             const response = await generateInterventionMonitoringInsights(aiPayload)
             setAiResult(response.insights)
             setAiMeta({ model: response.model, generatedAt: response.generatedAt })
-            if (showSuccess) message.success('AI insights refreshed.')
+            if (showSuccess) message.success(t('AI insights refreshed.'))
         } catch {
             setAiResult({
-                summary: 'Operational signals from the current monitoring data.',
+                summary: t('Operational signals from the current monitoring data.'),
                 insights: aiInsights.map((insight) => ({
                     title: insight.title,
                     body: insight.body,
@@ -649,7 +651,7 @@ export const InterventionsMonitoringPage = () => {
                 focusAreas: holdUpCounts.slice(0, 3).map(([reason]) => reason),
             })
             setAiMeta({ fallback: true })
-            if (showSuccess) message.warning('AI backend unavailable. Showing local insights.')
+            if (showSuccess) message.warning(t('AI backend unavailable. Showing local insights.'))
         } finally {
             setAiLoading(false)
         }
@@ -677,9 +679,9 @@ export const InterventionsMonitoringPage = () => {
                 recipientRole: reminderRoleFor(row),
                 reason: row.reason,
             })
-            message.success('Reminder created.')
+            message.success(t('Reminder created.'))
         } catch {
-            message.error('Reminder could not be created.')
+            message.error(t('Reminder could not be created.'))
         } finally {
             setRemindingId(undefined)
         }
@@ -688,7 +690,7 @@ export const InterventionsMonitoringPage = () => {
     const remindGroup = async (group: GroupRow) => {
         const targets = group.assignments.filter((row) => row.health === 'held_up' || row.health === 'overdue')
         if (!targets.length) {
-            message.info('This group has no held-up or overdue assignments to remind.')
+            message.info(t('This group has no held-up or overdue assignments to remind.'))
             return
         }
 
@@ -701,7 +703,7 @@ export const InterventionsMonitoringPage = () => {
             })))
             message.success(`${plural(targets.length, 'reminder')} created.`)
         } catch {
-            message.error('Group reminders could not be created.')
+            message.error(t('Group reminders could not be created.'))
         } finally {
             setRemindingId(undefined)
         }
@@ -742,36 +744,36 @@ export const InterventionsMonitoringPage = () => {
                     updatedAt: serverTimestamp(),
                 }),
             ])
-            message.success(approved ? 'Agent work approved.' : 'Agent work returned for changes.')
+            message.success(approved ? t('Agent work approved.') : t('Agent work returned for changes.'))
             setSelected(undefined)
             await refresh()
         } catch {
-            message.error('The agent work review could not be saved.')
+            message.error(t('The agent work review could not be saved.'))
         } finally {
             setReviewSaving(false)
         }
     }
 
     const assignmentColumns: TableProps<MonitorRow>['columns'] = [
-        { title: 'Intervention', dataIndex: 'title', render: (value: string, row) => <Space direction="vertical" size={0}><Typography.Text strong>{value}</Typography.Text><Typography.Text type="secondary">{row.participantName}</Typography.Text></Space> },
-        { title: 'Delivery', dataIndex: 'deliveryActorType', width: 170, render: (value: MonitorRow['deliveryActorType'], row) => value === 'agent' ? <Space direction="vertical" size={0}><Tag icon={<RobotOutlined />} color="purple">{row.agentName || 'Agent'}</Tag>{row.reviewStatus && <Typography.Text type="secondary">Review: {row.reviewStatus}</Typography.Text>}</Space> : value === 'human' ? <Tag icon={<TeamOutlined />} color="blue">Human</Tag> : <Tag>Unmarked</Tag> },
-        { title: 'Rating', key: 'agentRating', width: 145, render: (_, row) => row.deliveryActorType === 'agent' && row.agentRating ? <Space direction="vertical" size={0}><Rate disabled allowHalf value={row.agentRating} style={{ fontSize: 14 }} /><Typography.Text type="secondary">{row.agentRating.toFixed(1)} · {plural(row.agentRatingCount, 'rating')}</Typography.Text></Space> : <Typography.Text type="secondary">—</Typography.Text> },
-        { title: 'Type', dataIndex: 'kind', render: (value: MonitorRow['kind']) => <Tag color={value === 'grouped' ? 'purple' : 'default'}>{value === 'grouped' ? 'Grouped' : 'Single'}</Tag> },
-        { title: 'Status', dataIndex: 'status', render: (value: StandardStatus) => <Tag color={statusColor(value)}>{value}</Tag> },
-        { title: 'Progress', dataIndex: 'progress', render: (value: number) => <Progress percent={value} size="small" /> },
-        { title: 'Hold-up', dataIndex: 'holdUp', render: (value: string, row) => <Space direction="vertical" size={0}><Tag color={healthColor(row.health)}>{value}</Tag><Typography.Text type="secondary">{row.reason}</Typography.Text></Space> },
-        { title: 'Due', dataIndex: 'dueDate', render: (value: Date | null, row) => <Tag color={row.isOverdue ? 'red' : 'default'}>{dueLabel(value)}</Tag> },
-        { title: 'Actions', render: (_, row) => <Space><Button icon={<BellOutlined />} loading={remindingId === row.id} disabled={row.isCompleted} onClick={() => void sendReminder(row)}>Remind</Button><Button icon={<EyeOutlined />} onClick={() => setSelected(row)}>Drill down</Button></Space> },
+        { title: t('Intervention'), dataIndex: 'title', render: (value: string, row) => <Space direction="vertical" size={0}><Typography.Text strong>{value}</Typography.Text><Typography.Text type="secondary">{row.participantName}</Typography.Text></Space> },
+        { title: t('Delivery'), dataIndex: 'deliveryActorType', width: 170, render: (value: MonitorRow['deliveryActorType'], row) => value === 'agent' ? <Space direction="vertical" size={0}><Tag icon={<RobotOutlined />} color="purple">{row.agentName || t('Agent')}</Tag>{row.reviewStatus && <Typography.Text type="secondary">{t('Review:')} {row.reviewStatus}</Typography.Text>}</Space> : value === 'human' ? <Tag icon={<TeamOutlined />} color="blue">{t('Human')}</Tag> : <Tag>{t('Unmarked')}</Tag> },
+        { title: t('Rating'), key: 'agentRating', width: 145, render: (_, row) => row.deliveryActorType === 'agent' && row.agentRating ? <Space direction="vertical" size={0}><Rate disabled allowHalf value={row.agentRating} style={{ fontSize: 14 }} /><Typography.Text type="secondary">{row.agentRating.toFixed(1)} · {plural(row.agentRatingCount, 'rating')}</Typography.Text></Space> : <Typography.Text type="secondary">—</Typography.Text> },
+        { title: t('Type'), dataIndex: 'kind', render: (value: MonitorRow['kind']) => <Tag color={value === 'grouped' ? 'purple' : 'default'}>{value === 'grouped' ? t('Grouped') : t('Single')}</Tag> },
+        { title: t('Status'), dataIndex: 'status', render: (value: StandardStatus) => <Tag color={statusColor(value)}>{value}</Tag> },
+        { title: t('Progress'), dataIndex: 'progress', render: (value: number) => <Progress percent={value} size="small" /> },
+        { title: t('Hold-up'), dataIndex: 'holdUp', render: (value: string, row) => <Space direction="vertical" size={0}><Tag color={healthColor(row.health)}>{value}</Tag><Typography.Text type="secondary">{row.reason}</Typography.Text></Space> },
+        { title: t('Due'), dataIndex: 'dueDate', render: (value: Date | null, row) => <Tag color={row.isOverdue ? 'red' : 'default'}>{dueLabel(value)}</Tag> },
+        { title: t('Actions'), render: (_, row) => <Space><Button icon={<BellOutlined />} loading={remindingId === row.id} disabled={row.isCompleted} onClick={() => void sendReminder(row)}>{t('Remind')}</Button><Button icon={<EyeOutlined />} onClick={() => setSelected(row)}>{t('Drill down')}</Button></Space> },
     ]
 
     const groupColumns: TableProps<GroupRow>['columns'] = [
-        { title: 'Group', dataIndex: 'groupName', render: (value: string, row) => <Space direction="vertical" size={0}><Typography.Text strong>{value}</Typography.Text><Typography.Text type="secondary">{plural(row.assignedCount, 'assignment')}</Typography.Text></Space> },
-        { title: 'Progress', dataIndex: 'averageProgress', render: (value: number) => <Progress percent={value} size="small" /> },
-        { title: 'Completed', dataIndex: 'completedCount' },
-        { title: 'Held up', dataIndex: 'heldUpCount', render: (value: number) => <Tag color={value ? 'orange' : 'green'}>{value}</Tag> },
-        { title: 'Overdue', dataIndex: 'overdueCount', render: (value: number) => <Tag color={value ? 'red' : 'green'}>{value}</Tag> },
-        { title: 'Reason', dataIndex: 'reason' },
-        { title: 'Actions', render: (_, row) => <Space><Button icon={<BellOutlined />} loading={remindingId === row.id} onClick={() => void remindGroup(row)}>Remind blockers</Button><Button icon={<EyeOutlined />} onClick={() => setSelectedGroup(row)}>Drill down</Button></Space> },
+        { title: t('Group'), dataIndex: 'groupName', render: (value: string, row) => <Space direction="vertical" size={0}><Typography.Text strong>{value}</Typography.Text><Typography.Text type="secondary">{plural(row.assignedCount, 'assignment')}</Typography.Text></Space> },
+        { title: t('Progress'), dataIndex: 'averageProgress', render: (value: number) => <Progress percent={value} size="small" /> },
+        { title: t('Completed'), dataIndex: 'completedCount' },
+        { title: t('Held up'), dataIndex: 'heldUpCount', render: (value: number) => <Tag color={value ? 'orange' : 'green'}>{value}</Tag> },
+        { title: t('Overdue'), dataIndex: 'overdueCount', render: (value: number) => <Tag color={value ? 'red' : 'green'}>{value}</Tag> },
+        { title: t('Reason'), dataIndex: 'reason' },
+        { title: t('Actions'), render: (_, row) => <Space><Button icon={<BellOutlined />} loading={remindingId === row.id} onClick={() => void remindGroup(row)}>{t('Remind blockers')}</Button><Button icon={<EyeOutlined />} onClick={() => setSelectedGroup(row)}>{t('Drill down')}</Button></Space> },
     ]
 
     const rowsToShow = view === 'grouped' ? groupedRows : filteredRows
@@ -779,44 +781,44 @@ export const InterventionsMonitoringPage = () => {
     return (
         <DashboardPage className="operations-interventions-page">
             <Row gutter={[12, 12]} className="dashboard-metrics-row">
-                <Col xs={12} lg={4}><DashboardMetricCard loading={loading} icon={<TeamOutlined />} label="Assigned" value={metrics.assigned} /></Col>
-                <Col xs={12} lg={4}><DashboardMetricCard loading={loading} icon={<BarChartOutlined />} label="Avg progress" value={`${metrics.averageProgress}%`} /></Col>
-                <Col xs={12} lg={4}><DashboardMetricCard loading={loading} icon={<FieldTimeOutlined />} label="Held up" value={metrics.heldUp} /></Col>
-                <Col xs={12} lg={4}><DashboardMetricCard loading={loading} icon={<AlertOutlined />} label="Overdue" value={metrics.overdue} /></Col>
-                <Col xs={12} lg={4}><DashboardMetricCard loading={loading} icon={<TeamOutlined />} label="Human delivery" value={metrics.human} /></Col>
-                <Col xs={12} lg={4}><DashboardMetricCard loading={loading} icon={<RobotOutlined />} label="Agent delivery" value={metrics.agent} /></Col>
+                <Col xs={12} lg={4}><DashboardMetricCard loading={loading} icon={<TeamOutlined />} label={t('Assigned')} value={metrics.assigned} /></Col>
+                <Col xs={12} lg={4}><DashboardMetricCard loading={loading} icon={<BarChartOutlined />} label={t('Avg progress')} value={`${metrics.averageProgress}%`} /></Col>
+                <Col xs={12} lg={4}><DashboardMetricCard loading={loading} icon={<FieldTimeOutlined />} label={t('Held up')} value={metrics.heldUp} /></Col>
+                <Col xs={12} lg={4}><DashboardMetricCard loading={loading} icon={<AlertOutlined />} label={t('Overdue')} value={metrics.overdue} /></Col>
+                <Col xs={12} lg={4}><DashboardMetricCard loading={loading} icon={<TeamOutlined />} label={t('Human delivery')} value={metrics.human} /></Col>
+                <Col xs={12} lg={4}><DashboardMetricCard loading={loading} icon={<RobotOutlined />} label={t('Agent delivery')} value={metrics.agent} /></Col>
             </Row>
 
             <FilterBar
-                title="Interventions monitoring"
+                title={t('Interventions monitoring')}
                 primary={(
                     <>
-                        <Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search intervention, SME, assignee, or reason" allowClear />
+                        <Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('Search intervention, SME, assignee, or reason')} allowClear />
                         {isAllPrograms && <Select value={programme} onChange={setProgramme} options={programmes.map((value) => ({ value, label: value }))} />}
                         <Select value={status} onChange={setStatus} options={STANDARD_STATUS_OPTIONS} />
                         <Select value={health} onChange={setHealth} options={[
-                            { value: 'all', label: 'All health' },
-                            { value: 'on_track', label: 'On track' },
-                            { value: 'held_up', label: 'Held up' },
-                            { value: 'overdue', label: 'Overdue' },
-                            { value: 'completed', label: 'Completed' },
+                            { value: 'all', label: t('All health') },
+                            { value: 'on_track', label: t('On track') },
+                            { value: 'held_up', label: t('Held up') },
+                            { value: 'overdue', label: t('Overdue') },
+                            { value: 'completed', label: t('Completed') },
                         ]} />
                         <Select value={delivery} onChange={setDelivery} options={[
-                            { value: 'all', label: 'All delivery' },
-                            { value: 'human', label: 'Human delivery' },
-                            { value: 'agent', label: 'Agent delivery' },
-                            { value: 'unmarked', label: 'Unmarked delivery' },
+                            { value: 'all', label: t('All delivery') },
+                            { value: 'human', label: t('Human delivery') },
+                            { value: 'agent', label: t('Agent delivery') },
+                            { value: 'unmarked', label: t('Unmarked delivery') },
                         ]} />
                     </>
                 )}
                 actions={(
                     <>
                         <Segmented value={view} onChange={(value) => setView(value as AssignmentKind)} options={[
-                            { value: 'all', label: 'All' },
-                            { value: 'single', label: 'Single' },
-                            { value: 'grouped', label: 'Grouped' },
+                            { value: 'all', label: t('All') },
+                            { value: 'single', label: t('Single') },
+                            { value: 'grouped', label: t('Grouped') },
                         ]} />
-                        <Button icon={<ReloadOutlined />} onClick={() => { void refresh(); message.success('Monitoring refreshed.') }}>Refresh</Button>
+                        <Button icon={<ReloadOutlined />} onClick={() => { void refresh(); message.success(t('Monitoring refreshed.')) }}>{t('Refresh')}</Button>
                     </>
                 )}
             />
@@ -827,9 +829,9 @@ export const InterventionsMonitoringPage = () => {
                     value={section}
                     onChange={(value) => setSection(value as MonitorSection)}
                     options={[
-                        { value: 'overview', label: 'Overview' },
-                        { value: 'insights', label: 'AI insights' },
-                        { value: 'assignments', label: view === 'grouped' ? 'Groups' : 'Assignments' },
+                        { value: 'overview', label: t('Overview') },
+                        { value: 'insights', label: t('AI insights') },
+                        { value: 'assignments', label: view === 'grouped' ? t('Groups') : t('Assignments') },
                     ]}
                 />
             </Card>
@@ -858,8 +860,8 @@ export const InterventionsMonitoringPage = () => {
                 <Row gutter={[12, 12]}>
                     <Col xs={24} xl={14}>
                         <Card
-                            title={<Space><RobotOutlined />AI insights</Space>}
-                            extra={<Button size="small" icon={<ReloadOutlined />} loading={aiLoading} onClick={() => void refreshAiInsights()}>Refresh AI</Button>}
+                            title={<Space><RobotOutlined />{t('AI insights')}</Space>}
+                            extra={<Button size="small" icon={<ReloadOutlined />} loading={aiLoading} onClick={() => void refreshAiInsights()}>{t('Refresh AI')}</Button>}
                         >
                             <Space direction="vertical" size={12} style={{ width: '100%' }}>
                                 {aiResult?.summary && (
@@ -868,9 +870,9 @@ export const InterventionsMonitoringPage = () => {
                                     </Typography.Paragraph>
                                 )}
                                 <Space wrap>
-                                    {aiResult?.riskLevel && <Tag color={aiResult.riskLevel === 'critical' || aiResult.riskLevel === 'high' ? 'red' : aiResult.riskLevel === 'medium' ? 'orange' : 'green'}>{aiResult.riskLevel.toUpperCase()} risk</Tag>}
+                                    {aiResult?.riskLevel && <Tag color={aiResult.riskLevel === 'critical' || aiResult.riskLevel === 'high' ? 'red' : aiResult.riskLevel === 'medium' ? 'orange' : 'green'}>{aiResult.riskLevel.toUpperCase()} {t('risk')}</Tag>}
                                     {aiMeta.model && <Tag color="blue">{aiMeta.model}</Tag>}
-                                    {aiMeta.fallback && <Tag>Local fallback</Tag>}
+                                    {aiMeta.fallback && <Tag>{t('Local fallback')}</Tag>}
                                     {aiMeta.generatedAt && <Typography.Text type="secondary">{dayjs(aiMeta.generatedAt).format('DD MMM HH:mm')}</Typography.Text>}
                                 </Space>
                                 {(aiResult?.insights || []).map((insight) => (
@@ -888,7 +890,7 @@ export const InterventionsMonitoringPage = () => {
                         </Card>
                     </Col>
                     <Col xs={24} xl={10}>
-                        <Card title="Recommended actions">
+                        <Card title={t('Recommended actions')}>
                             <Space direction="vertical" size={12} style={{ width: '100%' }}>
                                 {aiResult?.recommendedActions?.length ? aiResult.recommendedActions.slice(0, 6).map((action) => (
                                     <Card key={`${action.action}-${action.owner}`} size="small">
@@ -898,7 +900,7 @@ export const InterventionsMonitoringPage = () => {
                                             <Typography.Text>{action.reason}</Typography.Text>
                                         </Space>
                                     </Card>
-                                )) : <Typography.Text type="secondary">Refresh AI insights to generate recommended actions.</Typography.Text>}
+                                )) : <Typography.Text type="secondary">{t('Refresh AI insights to generate recommended actions.')}</Typography.Text>}
                                 {aiResult?.focusAreas?.length ? (
                                     <Space wrap>
                                         {aiResult.focusAreas.map((area) => <Tag key={area}>{area}</Tag>)}
@@ -918,8 +920,8 @@ export const InterventionsMonitoringPage = () => {
                             rows={rowsToShow as GroupRow[]}
                             columns={groupColumns}
                             loading={loading}
-                            emptyText="No grouped interventions match the selected filters."
-                            renderCard={(row) => <Space direction="vertical" size={8}><Typography.Text strong>{row.groupName}</Typography.Text><Progress percent={row.averageProgress} /><Space wrap><Tag>{plural(row.assignedCount, 'assignment')}</Tag><Tag color="orange">{row.heldUpCount} held up</Tag><Tag color="red">{row.overdueCount} overdue</Tag></Space><Space><Button icon={<BellOutlined />} loading={remindingId === row.id} onClick={() => void remindGroup(row)}>Remind blockers</Button><Button onClick={() => setSelectedGroup(row)}>Drill down</Button></Space></Space>}
+                            emptyText={t('No grouped interventions match the selected filters.')}
+                            renderCard={(row) => <Space direction="vertical" size={8}><Typography.Text strong>{row.groupName}</Typography.Text><Progress percent={row.averageProgress} /><Space wrap><Tag>{plural(row.assignedCount, 'assignment')}</Tag><Tag color="orange">{row.heldUpCount} {t('held up')}</Tag><Tag color="red">{row.overdueCount} {t('overdue')}</Tag></Space><Space><Button icon={<BellOutlined />} loading={remindingId === row.id} onClick={() => void remindGroup(row)}>{t('Remind blockers')}</Button><Button onClick={() => setSelectedGroup(row)}>{t('Drill down')}</Button></Space></Space>}
                         />
                     ) : (
                         <ResponsiveDataView
@@ -927,8 +929,8 @@ export const InterventionsMonitoringPage = () => {
                             rows={rowsToShow as MonitorRow[]}
                             columns={assignmentColumns}
                             loading={loading}
-                            emptyText="No assigned interventions match the selected filters."
-                            renderCard={(row) => <Space direction="vertical" size={8}><Typography.Text strong>{row.title}</Typography.Text><Typography.Text type="secondary">{row.participantName}</Typography.Text><Progress percent={row.progress} /><Space wrap>{row.deliveryActorType === 'agent' ? <Tag icon={<RobotOutlined />} color="purple">Agent</Tag> : row.deliveryActorType === 'human' ? <Tag icon={<TeamOutlined />} color="blue">Human</Tag> : <Tag>Unmarked</Tag>}<Tag color={row.kind === 'grouped' ? 'purple' : 'default'}>{row.kind === 'grouped' ? 'Grouped' : 'Single'}</Tag><Tag color={statusColor(row.status)}>{row.status}</Tag><Tag color={healthColor(row.health)}>{row.holdUp}</Tag>{row.isOverdue && <Tag color="red">Overdue</Tag>}</Space><Space><Button icon={<BellOutlined />} loading={remindingId === row.id} disabled={row.isCompleted} onClick={() => void sendReminder(row)}>Remind</Button><Button onClick={() => setSelected(row)}>Drill down</Button></Space></Space>}
+                            emptyText={t('No assigned interventions match the selected filters.')}
+                            renderCard={(row) => <Space direction="vertical" size={8}><Typography.Text strong>{row.title}</Typography.Text><Typography.Text type="secondary">{row.participantName}</Typography.Text><Progress percent={row.progress} /><Space wrap>{row.deliveryActorType === 'agent' ? <Tag icon={<RobotOutlined />} color="purple">{t('Agent')}</Tag> : row.deliveryActorType === 'human' ? <Tag icon={<TeamOutlined />} color="blue">{t('Human')}</Tag> : <Tag>{t('Unmarked')}</Tag>}<Tag color={row.kind === 'grouped' ? 'purple' : 'default'}>{row.kind === 'grouped' ? t('Grouped') : t('Single')}</Tag><Tag color={statusColor(row.status)}>{row.status}</Tag><Tag color={healthColor(row.health)}>{row.holdUp}</Tag>{row.isOverdue && <Tag color="red">{t('Overdue')}</Tag>}</Space><Space><Button icon={<BellOutlined />} loading={remindingId === row.id} disabled={row.isCompleted} onClick={() => void sendReminder(row)}>{t('Remind')}</Button><Button onClick={() => setSelected(row)}>{t('Drill down')}</Button></Space></Space>}
                         />
                     )}
                 </Card>
@@ -938,34 +940,34 @@ export const InterventionsMonitoringPage = () => {
                 {selected && (
                     <Space direction="vertical" size={16} style={{ width: '100%' }}>
                         <Descriptions bordered size="small" column={{ xs: 1, md: 2 }} items={[
-                            { key: 'sme', label: 'SME', children: selected.participantName },
-                            { key: 'email', label: 'SME email', children: selected.participantEmail || 'No email' },
-                            { key: 'assignee', label: 'Assignee', children: selected.assigneeName },
-                            { key: 'assigneeEmail', label: 'Assignee email', children: selected.assigneeEmail || 'No email' },
-                            { key: 'delivery', label: 'Delivery', children: selected.deliveryActorType === 'agent' ? <Tag icon={<RobotOutlined />} color="purple">Agent</Tag> : selected.deliveryActorType === 'human' ? <Tag icon={<TeamOutlined />} color="blue">Human</Tag> : <Tag>Unmarked</Tag> },
-                            { key: 'agent', label: 'Agent workspace', children: selected.deliveryActorType === 'agent' ? `${selected.agentName || 'Agent'} · ${selected.agentWorkStatus || 'ready'}` : 'Not applicable' },
-                            { key: 'review', label: 'Review layer', children: selected.deliveryActorType === 'agent' && selected.reviewerType ? `${selected.reviewerType} · ${selected.reviewStatus || 'not started'}` : 'No review required' },
-                            { key: 'rating', label: 'Agent rating', children: selected.agentRating ? <Space><Rate disabled allowHalf value={selected.agentRating} /><Typography.Text>{selected.agentRating.toFixed(1)} from {plural(selected.agentRatingCount, 'rating')}</Typography.Text></Space> : 'No ratings yet' },
-                            { key: 'type', label: 'Type', children: <Tag color={selected.kind === 'grouped' ? 'purple' : 'default'}>{selected.kind === 'grouped' ? 'Grouped' : 'Single'}</Tag> },
-                            { key: 'status', label: 'Status', children: <Tag color={statusColor(selected.status)}>{selected.status}</Tag> },
-                            { key: 'rawStatus', label: 'Firestore status', children: selected.rawStatus },
-                            { key: 'assigned', label: 'Assigned', children: selected.assignedAt ? dayjs(selected.assignedAt).format('DD MMM YYYY') : 'No assigned date' },
-                            { key: 'implementation', label: 'Implementation', children: selected.implementationDate ? dayjs(selected.implementationDate).format('DD MMM YYYY') : 'No implementation date' },
-                            { key: 'due', label: 'Due', children: <Tag color={selected.isOverdue ? 'red' : 'default'}>{dueLabel(selected.dueDate)}</Tag> },
-                            { key: 'holdUp', label: 'Hold-up', children: <Tag color={healthColor(selected.health)}>{selected.holdUp}</Tag> },
-                            { key: 'reason', label: 'Reason', span: 2, children: selected.reason },
+                            { key: 'sme', label: t('SME'), children: selected.participantName },
+                            { key: 'email', label: t('SME email'), children: selected.participantEmail || 'No email' },
+                            { key: 'assignee', label: t('Assignee'), children: selected.assigneeName },
+                            { key: 'assigneeEmail', label: t('Assignee email'), children: selected.assigneeEmail || 'No email' },
+                            { key: 'delivery', label: t('Delivery'), children: selected.deliveryActorType === 'agent' ? <Tag icon={<RobotOutlined />} color="purple">{t('Agent')}</Tag> : selected.deliveryActorType === 'human' ? <Tag icon={<TeamOutlined />} color="blue">{t('Human')}</Tag> : <Tag>{t('Unmarked')}</Tag> },
+                            { key: 'agent', label: t('Agent workspace'), children: selected.deliveryActorType === 'agent' ? `${selected.agentName || 'Agent'} · ${selected.agentWorkStatus || 'ready'}` : 'Not applicable' },
+                            { key: 'review', label: t('Review layer'), children: selected.deliveryActorType === 'agent' && selected.reviewerType ? `${selected.reviewerType} · ${selected.reviewStatus || 'not started'}` : 'No review required' },
+                            { key: 'rating', label: t('Agent rating'), children: selected.agentRating ? <Space><Rate disabled allowHalf value={selected.agentRating} /><Typography.Text>{selected.agentRating.toFixed(1)} {t('from')} {plural(selected.agentRatingCount, 'rating')}</Typography.Text></Space> : 'No ratings yet' },
+                            { key: 'type', label: t('Type'), children: <Tag color={selected.kind === 'grouped' ? 'purple' : 'default'}>{selected.kind === 'grouped' ? t('Grouped') : t('Single')}</Tag> },
+                            { key: 'status', label: t('Status'), children: <Tag color={statusColor(selected.status)}>{selected.status}</Tag> },
+                            { key: 'rawStatus', label: t('Firestore status'), children: selected.rawStatus },
+                            { key: 'assigned', label: t('Assigned'), children: selected.assignedAt ? dayjs(selected.assignedAt).format('DD MMM YYYY') : 'No assigned date' },
+                            { key: 'implementation', label: t('Implementation'), children: selected.implementationDate ? dayjs(selected.implementationDate).format('DD MMM YYYY') : 'No implementation date' },
+                            { key: 'due', label: t('Due'), children: <Tag color={selected.isOverdue ? 'red' : 'default'}>{dueLabel(selected.dueDate)}</Tag> },
+                            { key: 'holdUp', label: t('Hold-up'), children: <Tag color={healthColor(selected.health)}>{selected.holdUp}</Tag> },
+                            { key: 'reason', label: t('Reason'), span: 2, children: selected.reason },
                         ]} />
                         {selected.deliveryActorType === 'agent' && selected.reviewerType === 'operations' && selected.agentWorkStatus === 'awaiting_review' && (
-                            <Card size="small" title="Operations review required">
+                            <Card size="small" title={t('Operations review required')}>
                                 <Space wrap>
-                                    <Button type="primary" loading={reviewSaving} onClick={() => void reviewAgentWork(selected, 'approved')}>Approve agent work</Button>
-                                    <Button danger loading={reviewSaving} onClick={() => void reviewAgentWork(selected, 'changes_requested')}>Request changes</Button>
+                                    <Button type="primary" loading={reviewSaving} onClick={() => void reviewAgentWork(selected, 'approved')}>{t('Approve agent work')}</Button>
+                                    <Button danger loading={reviewSaving} onClick={() => void reviewAgentWork(selected, 'changes_requested')}>{t('Request changes')}</Button>
                                 </Space>
                             </Card>
                         )}
                         <Progress percent={selected.progress} />
                         <Space style={{ justifyContent: 'flex-end', width: '100%' }}>
-                            <Button icon={<BellOutlined />} loading={remindingId === selected.id} disabled={selected.isCompleted} onClick={() => void sendReminder(selected)}>Create reminder</Button>
+                            <Button icon={<BellOutlined />} loading={remindingId === selected.id} disabled={selected.isCompleted} onClick={() => void sendReminder(selected)}>{t('Create reminder')}</Button>
                         </Space>
                     </Space>
                 )}
@@ -975,17 +977,17 @@ export const InterventionsMonitoringPage = () => {
                 {selectedGroup && (
                     <Space direction="vertical" size={16} style={{ width: '100%' }}>
                         <Row gutter={[12, 12]}>
-                            <Col xs={12} md={6}><DashboardMetricCard loading={loading} icon={<TeamOutlined />} label="Assigned" value={selectedGroup.assignedCount} /></Col>
-                            <Col xs={12} md={6}><DashboardMetricCard loading={loading} icon={<BarChartOutlined />} label="Avg progress" value={`${selectedGroup.averageProgress}%`} /></Col>
-                            <Col xs={12} md={6}><DashboardMetricCard loading={loading} icon={<ClockCircleOutlined />} label="Held up" value={selectedGroup.heldUpCount} /></Col>
-                            <Col xs={12} md={6}><DashboardMetricCard loading={loading} icon={<AlertOutlined />} label="Overdue" value={selectedGroup.overdueCount} /></Col>
+                            <Col xs={12} md={6}><DashboardMetricCard loading={loading} icon={<TeamOutlined />} label={t('Assigned')} value={selectedGroup.assignedCount} /></Col>
+                            <Col xs={12} md={6}><DashboardMetricCard loading={loading} icon={<BarChartOutlined />} label={t('Avg progress')} value={`${selectedGroup.averageProgress}%`} /></Col>
+                            <Col xs={12} md={6}><DashboardMetricCard loading={loading} icon={<ClockCircleOutlined />} label={t('Held up')} value={selectedGroup.heldUpCount} /></Col>
+                            <Col xs={12} md={6}><DashboardMetricCard loading={loading} icon={<AlertOutlined />} label={t('Overdue')} value={selectedGroup.overdueCount} /></Col>
                         </Row>
                         <ResponsiveDataView
                             rowKey="id"
                             rows={selectedGroup.assignments}
                             columns={assignmentColumns}
-                            emptyText="This group has no assignments."
-                            renderCard={(row) => <Space direction="vertical" size={8}><Typography.Text strong>{row.participantName}</Typography.Text><Progress percent={row.progress} /><Tag color={healthColor(row.health)}>{row.holdUp}</Tag><Space><Button icon={<BellOutlined />} loading={remindingId === row.id} disabled={row.isCompleted} onClick={() => void sendReminder(row)}>Remind</Button><Button onClick={() => setSelected(row)}>Open assignment</Button></Space></Space>}
+                            emptyText={t('This group has no assignments.')}
+                            renderCard={(row) => <Space direction="vertical" size={8}><Typography.Text strong>{row.participantName}</Typography.Text><Progress percent={row.progress} /><Tag color={healthColor(row.health)}>{row.holdUp}</Tag><Space><Button icon={<BellOutlined />} loading={remindingId === row.id} disabled={row.isCompleted} onClick={() => void sendReminder(row)}>{t('Remind')}</Button><Button onClick={() => setSelected(row)}>{t('Open assignment')}</Button></Space></Space>}
                         />
                     </Space>
                 )}

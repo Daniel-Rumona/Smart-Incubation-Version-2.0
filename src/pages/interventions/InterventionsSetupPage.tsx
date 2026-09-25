@@ -14,6 +14,7 @@ import { useSystemSettings } from '@/contexts/SystemSettingsContext'
 import { DELIVERY_STRATEGY_OPTIONS, getCompanyAvailableAgents, isAgentStrategy } from '@/services/agentOrchestrationService'
 import { listAgents } from '@/services/agentRegistryService'
 import type { AgentDefinition, InterventionDeliveryStrategy } from '@/types/agentOrchestration'
+import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 type RecurrenceUnit = 'day' | 'week' | 'month' | 'year'
 type RecurrencePreset = 'weekly' | 'monthly' | 'quarterly' | 'yearly' | 'custom'
@@ -56,24 +57,24 @@ type InterventionFilters = {
 }
 
 const RECURRENCE_PRESETS: Array<{ label: string; value: RecurrencePreset; every?: number; unit?: RecurrenceUnit }> = [
-    { label: 'Weekly', value: 'weekly', every: 1, unit: 'week' },
-    { label: 'Monthly', value: 'monthly', every: 1, unit: 'month' },
-    { label: 'Quarterly', value: 'quarterly', every: 3, unit: 'month' },
-    { label: 'Yearly', value: 'yearly', every: 1, unit: 'year' },
-    { label: 'Custom', value: 'custom' },
+    { get label() { return tr('Weekly') }, value: 'weekly', every: 1, unit: 'week' },
+    { get label() { return tr('Monthly') }, value: 'monthly', every: 1, unit: 'month' },
+    { get label() { return tr('Quarterly') }, value: 'quarterly', every: 3, unit: 'month' },
+    { get label() { return tr('Yearly') }, value: 'yearly', every: 1, unit: 'year' },
+    { get label() { return tr('Custom') }, value: 'custom' },
 ]
 
 const RECURRENCE_UNITS: Array<{ label: string; value: RecurrenceUnit }> = [
-    { label: 'Day(s)', value: 'day' },
-    { label: 'Week(s)', value: 'week' },
-    { label: 'Month(s)', value: 'month' },
-    { label: 'Year(s)', value: 'year' },
+    { get label() { return tr('Day(s)') }, value: 'day' },
+    { get label() { return tr('Week(s)') }, value: 'week' },
+    { get label() { return tr('Month(s)') }, value: 'month' },
+    { get label() { return tr('Year(s)') }, value: 'year' },
 ]
 
 const DURATION_TERMS: Array<{ label: string; value: InterventionDurationTerm; color: string }> = [
-    { label: 'Short-term', value: 'short_term', color: 'green' },
-    { label: 'Medium-term', value: 'medium_term', color: 'gold' },
-    { label: 'Long-term', value: 'long_term', color: 'blue' },
+    { get label() { return tr('Short-term') }, value: 'short_term', color: 'green' },
+    { get label() { return tr('Medium-term') }, value: 'medium_term', color: 'gold' },
+    { get label() { return tr('Long-term') }, value: 'long_term', color: 'blue' },
 ]
 
 const emptyFilters: InterventionFilters = {
@@ -137,8 +138,8 @@ const YesNoField = ({ value, onChange, yesIcon, noIcon }: {
     noIcon: ReactNode
 }) => (
     <Row gutter={8}>
-        <Col span={12}><OptionCard icon={yesIcon} label="Yes" selected={value === 'yes'} onClick={() => onChange?.('yes')} /></Col>
-        <Col span={12}><OptionCard icon={noIcon} label="No" selected={value === 'no'} onClick={() => onChange?.('no')} /></Col>
+        <Col span={12}><OptionCard icon={yesIcon} label={tr('Yes')} selected={value === 'yes'} onClick={() => onChange?.('yes')} /></Col>
+        <Col span={12}><OptionCard icon={noIcon} label={tr('No')} selected={value === 'no'} onClick={() => onChange?.('no')} /></Col>
     </Row>
 )
 
@@ -156,6 +157,7 @@ const defaultInterventionValues = {
 }
 
 export const InterventionsSetupPage = () => {
+    const { t } = useLanguage()
     const { message } = App.useApp()
     const { user, loading: identityLoading } = useFullIdentity()
     const { settings, getSetting } = useSystemSettings()
@@ -194,7 +196,7 @@ export const InterventionsSetupPage = () => {
             const snapshot = await getDocs(query(collection(db, 'interventions'), where('companyCode', '==', companyCode)))
             setInterventions(snapshot.docs.map((item) => ({ id: item.id, ...(item.data() as Record<string, unknown>) })))
         } catch {
-            message.error('Interventions could not be loaded.')
+            message.error(t('Interventions could not be loaded.'))
         } finally {
             setLoading(false)
         }
@@ -433,16 +435,16 @@ export const InterventionsSetupPage = () => {
             if (editingRecord) {
                 await updateDoc(doc(db, 'interventions', editingRecord.id), payload)
                 await syncRequiredInterventionSnapshots(editingRecord.id, payload)
-                message.success('Intervention updated.')
+                message.success(t('Intervention updated.'))
             } else {
                 await addDoc(collection(db, 'interventions'), payload)
-                message.success('Intervention created.')
+                message.success(t('Intervention created.'))
             }
 
             setModalOpen(false)
             await fetchInterventions()
         } catch (error: any) {
-            message.error(error?.message || 'Intervention could not be saved.')
+            message.error(error?.message || t('Intervention could not be saved.'))
         } finally {
             setLoading(false)
         }
@@ -463,10 +465,10 @@ export const InterventionsSetupPage = () => {
                 }
             }
 
-            message.success('Intervention deleted.')
+            message.success(t('Intervention deleted.'))
             await fetchInterventions()
         } catch {
-            message.error('Intervention could not be deleted.')
+            message.error(t('Intervention could not be deleted.'))
         } finally {
             setLoading(false)
         }
@@ -474,17 +476,17 @@ export const InterventionsSetupPage = () => {
 
     const columns: TableProps<InterventionRow>['columns'] = [
         {
-            title: 'Intervention',
+            title: t('Intervention'),
             dataIndex: 'interventionTitle',
             render: (value: string, row) => (
                 <Space direction="vertical" size={0}>
-                    <Typography.Text strong>{value || 'Untitled intervention'}</Typography.Text>
-                    <Typography.Text type="secondary">{row.areaOfSupport || 'No support area'}</Typography.Text>
+                    <Typography.Text strong>{value || t('Untitled intervention')}</Typography.Text>
+                    <Typography.Text type="secondary">{row.areaOfSupport || t('No support area')}</Typography.Text>
                 </Space>
             ),
         },
         {
-            title: 'Term',
+            title: t('Term'),
             dataIndex: 'durationTerm',
             render: (value?: string) => {
                 const option = durationTermOption(value)
@@ -492,40 +494,40 @@ export const InterventionsSetupPage = () => {
             },
         },
         {
-            title: 'Execution',
+            title: t('Execution'),
             dataIndex: 'executionMode',
-            render: (value?: ExecutionMode) => value === 'multi_step' ? <Tag color="purple">Multi-step</Tag> : <Tag>Single session</Tag>,
+            render: (value?: ExecutionMode) => value === 'multi_step' ? <Tag color="purple">{t('Multi-step')}</Tag> : <Tag>{t('Single session')}</Tag>,
         },
         {
-            title: 'Delivery',
+            title: t('Delivery'),
             dataIndex: 'deliveryStrategy',
             render: (value: InterventionDeliveryStrategy | undefined, row) => {
                 const strategy = DELIVERY_STRATEGY_OPTIONS.find((option) => option.value === (value || 'human_only'))
                 const agent = allAgents.find((item) => item.id === row.agentId)
-                return <Space direction="vertical" size={0}><Tag icon={isAgentStrategy(value) ? <RobotOutlined /> : undefined} color={isAgentStrategy(value) ? 'purple' : 'blue'}>{strategy?.label || 'Human delivery'}</Tag>{agent && <Typography.Text type="secondary">{agent.name}</Typography.Text>}</Space>
+                return <Space direction="vertical" size={0}><Tag icon={isAgentStrategy(value) ? <RobotOutlined /> : undefined} color={isAgentStrategy(value) ? 'purple' : 'blue'}>{strategy?.label || t('Human delivery')}</Tag>{agent && <Typography.Text type="secondary">{agent.name}</Typography.Text>}</Space>
             },
         },
         {
-            title: 'Recurrence',
+            title: t('Recurrence'),
             render: (_, row) => row.isRecurring === 'yes'
                 ? <Space direction="vertical" size={0}><Tag color="blue" icon={<SyncOutlined />}>{recurrenceLabel(row.recurrence)}</Tag><Typography.Text type="secondary">{endRuleLabel(row)}</Typography.Text></Space>
-                : <Tag>Not recurring</Tag>,
+                : <Tag>{t('Not recurring')}</Tag>,
         },
         {
-            title: 'Compulsory',
+            title: t('Compulsory'),
             dataIndex: 'isCompulsory',
-            render: (value?: string) => value === 'yes' ? <Tag color="green">Yes</Tag> : <Tag>No</Tag>,
+            render: (value?: string) => value === 'yes' ? <Tag color="green">{t('Yes')}</Tag> : <Tag>{t('No')}</Tag>,
         },
         {
-            title: 'Steps',
+            title: t('Steps'),
             render: (_, row) => <Tag>{Array.isArray(row.steps) ? row.steps.length : 0}</Tag>,
         },
         {
-            title: 'Actions',
+            title: t('Actions'),
             render: (_, row) => (
                 <Space>
-                    <Button icon={<EditOutlined />} onClick={() => openEdit(row)}>Edit</Button>
-                    <Popconfirm title="Delete this intervention?" okText="Delete" okButtonProps={{ danger: true }} onConfirm={() => void deleteIntervention(row.id)}>
+                    <Button icon={<EditOutlined />} onClick={() => openEdit(row)}>{t('Edit')}</Button>
+                    <Popconfirm title={t('Delete this intervention?')} okText={t('Delete')} okButtonProps={{ danger: true }} onConfirm={() => void deleteIntervention(row.id)}>
                         <Button icon={<DeleteOutlined />} danger />
                     </Popconfirm>
                 </Space>
@@ -536,26 +538,26 @@ export const InterventionsSetupPage = () => {
     return (
         <DashboardPage className="operations-interventions-page">
             <Row gutter={[12, 12]} className="dashboard-metrics-row">
-                <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<ToolOutlined />} label="Interventions" value={metrics.total} /></Col>
-                <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<CheckCircleOutlined />} label="Compulsory" value={metrics.compulsory} /></Col>
-                <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<SyncOutlined />} label="Recurring" value={metrics.recurring} /></Col>
-                <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<SettingOutlined />} label="Long-term" value={metrics.longTerm} /></Col>
+                <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<ToolOutlined />} label={t('Interventions')} value={metrics.total} /></Col>
+                <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<CheckCircleOutlined />} label={t('Compulsory')} value={metrics.compulsory} /></Col>
+                <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<SyncOutlined />} label={t('Recurring')} value={metrics.recurring} /></Col>
+                <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<SettingOutlined />} label={t('Long-term')} value={metrics.longTerm} /></Col>
             </Row>
 
             <FilterBar
                 primary={(
                     <>
-                        <Input prefix={<SearchOutlined />} value={filters.title} onChange={(event) => setFilters((prev) => ({ ...prev, title: event.target.value }))} placeholder="Search interventions" allowClear />
-                        <Select allowClear placeholder="Support area" value={filters.area || undefined} onChange={(value) => setFilters((prev) => ({ ...prev, area: value || '' }))} options={areaOptions.map((value) => ({ value, label: value }))} />
-                        <Select allowClear placeholder="Term" value={filters.durationTerm || undefined} onChange={(value) => setFilters((prev) => ({ ...prev, durationTerm: value || '' }))} options={DURATION_TERMS.map(({ value, label }) => ({ value, label }))} />
-                        <Select allowClear placeholder="Execution" value={filters.executionMode || undefined} onChange={(value) => setFilters((prev) => ({ ...prev, executionMode: value || '' }))} options={[{ value: 'single_session', label: 'Single session' }, { value: 'multi_step', label: 'Multi-step' }]} />
+                        <Input prefix={<SearchOutlined />} value={filters.title} onChange={(event) => setFilters((prev) => ({ ...prev, title: event.target.value }))} placeholder={t('Search interventions')} allowClear />
+                        <Select allowClear placeholder={t('Support area')} value={filters.area || undefined} onChange={(value) => setFilters((prev) => ({ ...prev, area: value || '' }))} options={areaOptions.map((value) => ({ value, label: value }))} />
+                        <Select allowClear placeholder={t('Term')} value={filters.durationTerm || undefined} onChange={(value) => setFilters((prev) => ({ ...prev, durationTerm: value || '' }))} options={DURATION_TERMS.map(({ value, label }) => ({ value, label }))} />
+                        <Select allowClear placeholder={t('Execution')} value={filters.executionMode || undefined} onChange={(value) => setFilters((prev) => ({ ...prev, executionMode: value || '' }))} options={[{ value: 'single_session', label: t('Single session') }, { value: 'multi_step', label: t('Multi-step') }]} />
                     </>
                 )}
                 actions={(
                     <>
-                        <Button icon={<ReloadOutlined />} onClick={() => setFilters(emptyFilters)}>Reset</Button>
-                        <Button icon={<ReloadOutlined />} onClick={() => void fetchInterventions()}>Refresh</Button>
-                        <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>Add intervention</Button>
+                        <Button icon={<ReloadOutlined />} onClick={() => setFilters(emptyFilters)}>{t('Reset')}</Button>
+                        <Button icon={<ReloadOutlined />} onClick={() => void fetchInterventions()}>{t('Refresh')}</Button>
+                        <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>{t('Add intervention')}</Button>
                     </>
                 )}
             />
@@ -566,22 +568,22 @@ export const InterventionsSetupPage = () => {
                     rows={rows}
                     columns={columns}
                     loading={loading}
-                    emptyText="No interventions match the selected filters."
+                    emptyText={t('No interventions match the selected filters.')}
                     renderCard={(row) => {
                         const option = durationTermOption(row.durationTerm)
                         return (
                             <Space direction="vertical" size={8}>
-                                <Typography.Text strong>{row.interventionTitle || 'Untitled intervention'}</Typography.Text>
-                                <Typography.Text type="secondary">{row.areaOfSupport || 'No support area'}</Typography.Text>
+                                <Typography.Text strong>{row.interventionTitle || t('Untitled intervention')}</Typography.Text>
+                                <Typography.Text type="secondary">{row.areaOfSupport || t('No support area')}</Typography.Text>
                                 <Space wrap>
                                     <Tag color={option.color}>{option.label}</Tag>
-                                    <Tag>{row.executionMode === 'multi_step' ? 'Multi-step' : 'Single session'}</Tag>
-                                    <Tag>{row.isRecurring === 'yes' ? 'Recurring' : 'Not recurring'}</Tag>
+                                    <Tag>{row.executionMode === 'multi_step' ? t('Multi-step') : t('Single session')}</Tag>
+                                    <Tag>{row.isRecurring === 'yes' ? t('Recurring') : t('Not recurring')}</Tag>
                                     <Tag icon={isAgentStrategy(row.deliveryStrategy) ? <RobotOutlined /> : undefined} color={isAgentStrategy(row.deliveryStrategy) ? 'purple' : 'blue'}>{DELIVERY_STRATEGY_OPTIONS.find((item) => item.value === (row.deliveryStrategy || 'human_only'))?.label}</Tag>
                                 </Space>
                                 <Space>
-                                    <Button icon={<EditOutlined />} onClick={() => openEdit(row)}>Edit</Button>
-                                    <Popconfirm title="Delete this intervention?" okText="Delete" okButtonProps={{ danger: true }} onConfirm={() => void deleteIntervention(row.id)}>
+                                    <Button icon={<EditOutlined />} onClick={() => openEdit(row)}>{t('Edit')}</Button>
+                                    <Popconfirm title={t('Delete this intervention?')} okText={t('Delete')} okButtonProps={{ danger: true }} onConfirm={() => void deleteIntervention(row.id)}>
                                         <Button icon={<DeleteOutlined />} danger />
                                     </Popconfirm>
                                 </Space>
@@ -591,20 +593,20 @@ export const InterventionsSetupPage = () => {
                 />
             </Card>
 
-            <Modal open={modalOpen} onCancel={() => setModalOpen(false)} footer={null} destroyOnClose width={820} title={editingRecord ? 'Edit intervention' : 'Add intervention'}>
+            <Modal open={modalOpen} onCancel={() => setModalOpen(false)} footer={null} destroyOnClose width={820} title={editingRecord ? t('Edit intervention') : t('Add intervention')}>
                 <Form form={form} layout="vertical" onFinish={handleFinish}>
-                    <Form.Item name="areaOfSupport" label="Area of support" rules={[{ required: true, message: 'Area of support is required.' }]}>
+                    <Form.Item name="areaOfSupport" label={t('Area of support')} rules={[{ required: true, message: tr('Area of support is required.') }]}>
                         <Select
                             allowClear
                             showSearch
-                            placeholder="Select or add an area"
+                            placeholder={t('Select or add an area')}
                             options={areaOptions.map((value) => ({ value, label: value }))}
                             dropdownRender={(menu) => (
                                 <>
                                     {menu}
                                     <Divider style={{ margin: '8px 0' }} />
                                     <Space.Compact style={{ width: '100%', padding: '0 8px 8px' }}>
-                                        <Input value={newAreaText} onChange={(event) => setNewAreaText(event.target.value)} placeholder="New support area" />
+                                        <Input value={newAreaText} onChange={(event) => setNewAreaText(event.target.value)} placeholder={t('New support area')} />
                                         <Button
                                             type="primary"
                                             onClick={() => {
@@ -614,7 +616,7 @@ export const InterventionsSetupPage = () => {
                                                 setNewAreaText('')
                                             }}
                                         >
-                                            Add
+                                            {t('Add')}
                                         </Button>
                                     </Space.Compact>
                                 </>
@@ -622,47 +624,47 @@ export const InterventionsSetupPage = () => {
                         />
                     </Form.Item>
 
-                    <Form.Item name="interventionTitle" label="Intervention title" rules={[{ required: true, message: 'Intervention title is required.' }]}>
-                        <Input placeholder="e.g. Website development" />
+                    <Form.Item name="interventionTitle" label={t('Intervention title')} rules={[{ required: true, message: tr('Intervention title is required.') }]}>
+                        <Input placeholder={t('e.g. Website development')} />
                     </Form.Item>
 
                     {interventionScopeModel === 'program_specific' && (
-                        <Form.Item name="programId" label="Program" rules={[{ required: true, message: 'Program is required.' }]}>
-                            <Input placeholder="Enter program ID" />
+                        <Form.Item name="programId" label={t('Program')} rules={[{ required: true, message: tr('Program is required.') }]}>
+                            <Input placeholder={t('Enter program ID')} />
                         </Form.Item>
                     )}
 
                     {interventionScopeModel === 'department_specific' && hasDepartments && (
-                        <Form.Item name="departmentId" label="Department" rules={[{ required: true, message: 'Department is required.' }]}>
-                            <Input placeholder="Enter department ID" />
+                        <Form.Item name="departmentId" label={t('Department')} rules={[{ required: true, message: tr('Department is required.') }]}>
+                            <Input placeholder={t('Enter department ID')} />
                         </Form.Item>
                     )}
 
                     <Row gutter={12}>
                         <Col xs={24} md={12}>
-                            <Form.Item name="durationTerm" label="Intervention term" rules={[{ required: true, message: 'Select an intervention term.' }]}>
+                            <Form.Item name="durationTerm" label={t('Intervention term')} rules={[{ required: true, message: tr('Select an intervention term.') }]}>
                                 <Select options={DURATION_TERMS.map(({ value, label }) => ({ value, label }))} />
                             </Form.Item>
                         </Col>
                         <Col xs={24} md={12}>
-                            <Form.Item name="executionMode" label="Execution mode" rules={[{ required: true, message: 'Select execution mode.' }]}>
-                                <Select options={[{ value: 'single_session', label: 'Single session' }, { value: 'multi_step', label: 'Multi-step' }]} />
+                            <Form.Item name="executionMode" label={t('Execution mode')} rules={[{ required: true, message: tr('Select execution mode.') }]}>
+                                <Select options={[{ value: 'single_session', label: t('Single session') }, { value: 'multi_step', label: t('Multi-step') }]} />
                             </Form.Item>
                         </Col>
                         <Col xs={24} md={12}>
-                            <Form.Item name="isCompulsory" label="Compulsory?" rules={[{ required: true }]}>
+                            <Form.Item name="isCompulsory" label={t('Compulsory?')} rules={[{ required: true }]}>
                                 <YesNoField yesIcon={<CheckCircleOutlined />} noIcon={<CloseCircleOutlined />} />
                             </Form.Item>
                         </Col>
                         <Col xs={24} md={12}>
-                            <Form.Item name="isRecurring" label="Recurring?" rules={[{ required: true }]}>
+                            <Form.Item name="isRecurring" label={t('Recurring?')} rules={[{ required: true }]}>
                                 <YesNoField yesIcon={<SyncOutlined />} noIcon={<StopOutlined />} />
                             </Form.Item>
                         </Col>
                     </Row>
 
-                    <Card size="small" title={<Space><RobotOutlined /> Delivery orchestration</Space>} style={{ marginBottom: 16 }}>
-                        <Form.Item name="deliveryStrategy" label="Who performs this intervention?" rules={[{ required: true }]}>
+                    <Card size="small" title={<Space><RobotOutlined /> {t('Delivery orchestration')}</Space>} style={{ marginBottom: 16 }}>
+                        <Form.Item name="deliveryStrategy" label={t('Who performs this intervention?')} rules={[{ required: true }]}>
                             <Select options={DELIVERY_STRATEGY_OPTIONS.map((option) => ({ value: option.value, label: option.label, title: option.description }))} />
                         </Form.Item>
                         <Form.Item noStyle shouldUpdate={(previous, current) => previous.deliveryStrategy !== current.deliveryStrategy}>
@@ -671,17 +673,17 @@ export const InterventionsSetupPage = () => {
                                 if (!isAgentStrategy(strategy)) return null
                                 return (
                                     <>
-                                        <Form.Item name="agentId" label="Assigned agent" rules={[{ required: true, message: 'Choose an enabled company agent.' }]}>
+                                        <Form.Item name="agentId" label={t('Assigned agent')} rules={[{ required: true, message: tr('Choose an enabled company agent.') }]}>
                                             <Select
-                                                placeholder={enabledAgents.length ? 'Choose an enabled agent' : 'No agents enabled for this company'}
+                                                placeholder={enabledAgents.length ? t('Choose an enabled agent') : t('No agents enabled for this company')}
                                                 disabled={!enabledAgents.length}
                                                 options={enabledAgents.map((agent) => ({ value: agent.id, label: agent.name }))}
                                             />
                                         </Form.Item>
                                         <Typography.Text type="secondary">
-                                            {strategy === 'agent_only' && 'The agent owns delivery and operations monitors progress.'}
-                                            {strategy === 'agent_with_ops_review' && 'The agent produces the work; operations reviews before completion.'}
-                                            {strategy === 'agent_with_consultant_review' && 'The agent produces the work; the assigned consultant reviews it from start to finish.'}
+                                            {strategy === 'agent_only' && t('The agent owns delivery and operations monitors progress.')}
+                                            {strategy === 'agent_with_ops_review' && t('The agent produces the work; operations reviews before completion.')}
+                                            {strategy === 'agent_with_consultant_review' && t('The agent produces the work; the assigned consultant reviews it from start to finish.')}
                                         </Typography.Text>
                                     </>
                                 )
@@ -693,10 +695,10 @@ export const InterventionsSetupPage = () => {
                         {({ getFieldValue, setFieldsValue }) => {
                             if (getFieldValue('isRecurring') !== 'yes') return null
                             return (
-                                <Card size="small" title="Recurrence" style={{ marginBottom: 16 }}>
+                                <Card size="small" title={t('Recurrence')} style={{ marginBottom: 16 }}>
                                     <Row gutter={12}>
                                         <Col xs={24} md={12}>
-                                            <Form.Item name={['recurrence', 'preset']} label="Recurrence pattern" rules={[{ required: true, message: 'Select a recurrence pattern.' }]}>
+                                            <Form.Item name={['recurrence', 'preset']} label={t('Recurrence pattern')} rules={[{ required: true, message: tr('Select a recurrence pattern.') }]}>
                                                 <Select
                                                     options={RECURRENCE_PRESETS.map(({ value, label }) => ({ value, label }))}
                                                     onChange={(preset: RecurrencePreset) => {
@@ -711,8 +713,8 @@ export const InterventionsSetupPage = () => {
                                             </Form.Item>
                                         </Col>
                                         <Col xs={24} md={12}>
-                                            <Form.Item name="endRule" label="Series end rule">
-                                                <Select options={[{ value: 'none', label: 'Ongoing' }, { value: 'after_n_cycles', label: 'End after N cycles' }, { value: 'by_date', label: 'End by date' }]} />
+                                            <Form.Item name="endRule" label={t('Series end rule')}>
+                                                <Select options={[{ value: 'none', label: t('Ongoing') }, { value: 'after_n_cycles', label: t('End after N cycles') }, { value: 'by_date', label: t('End by date') }]} />
                                             </Form.Item>
                                         </Col>
                                     </Row>
@@ -720,12 +722,12 @@ export const InterventionsSetupPage = () => {
                                         {({ getFieldValue }) => getFieldValue(['recurrence', 'preset']) === 'custom' ? (
                                             <Row gutter={12}>
                                                 <Col xs={24} md={12}>
-                                                    <Form.Item name={['recurrence', 'every']} label="Repeat every" rules={[{ required: true, message: 'Enter repeat interval.' }]}>
+                                                    <Form.Item name={['recurrence', 'every']} label={t('Repeat every')} rules={[{ required: true, message: tr('Enter repeat interval.') }]}>
                                                         <InputNumber min={1} style={{ width: '100%' }} />
                                                     </Form.Item>
                                                 </Col>
                                                 <Col xs={24} md={12}>
-                                                    <Form.Item name={['recurrence', 'unit']} label="Unit" rules={[{ required: true, message: 'Select a unit.' }]}>
+                                                    <Form.Item name={['recurrence', 'unit']} label={t('Unit')} rules={[{ required: true, message: tr('Select a unit.') }]}>
                                                         <Select options={RECURRENCE_UNITS} />
                                                     </Form.Item>
                                                 </Col>
@@ -736,10 +738,10 @@ export const InterventionsSetupPage = () => {
                                         {({ getFieldValue }) => {
                                             const endRule = getFieldValue('endRule') as EndRule
                                             if (endRule === 'after_n_cycles') {
-                                                return <Form.Item name="maxCycles" label="Max cycles" rules={[{ required: true, message: 'Enter max cycles.' }]}><InputNumber min={1} style={{ width: '100%' }} /></Form.Item>
+                                                return <Form.Item name="maxCycles" label={t('Max cycles')} rules={[{ required: true, message: tr('Enter max cycles.') }]}><InputNumber min={1} style={{ width: '100%' }} /></Form.Item>
                                             }
                                             if (endRule === 'by_date') {
-                                                return <Form.Item name="endDate" label="End date" rules={[{ required: true, message: 'Enter end date.' }]}><Input placeholder="YYYY-MM-DD" /></Form.Item>
+                                                return <Form.Item name="endDate" label={t('End date')} rules={[{ required: true, message: tr('Enter end date.') }]}><Input placeholder={t('YYYY-MM-DD')} /></Form.Item>
                                             }
                                             return null
                                         }}
@@ -753,7 +755,7 @@ export const InterventionsSetupPage = () => {
                         {({ getFieldValue }) => {
                             if (getFieldValue('executionMode') !== 'multi_step') return null
                             return (
-                            <Card size="small" title="Steps required" style={{ marginBottom: 16 }}>
+                            <Card size="small" title={t('Steps required')} style={{ marginBottom: 16 }}>
                                 <Form.List name="steps">
                                     {(fields, { add, remove }) => (
                                         <Space direction="vertical" size={12} style={{ width: '100%' }}>
@@ -761,24 +763,24 @@ export const InterventionsSetupPage = () => {
                                                 <Card key={key} size="small" title={`Step ${name + 1}`} extra={<Button danger icon={<DeleteOutlined />} onClick={() => remove(name)} />}>
                                                     <Row gutter={12}>
                                                         <Col xs={24} md={16}>
-                                                            <Form.Item {...restField} name={[name, 'title']} label="Step title" rules={[{ required: true, message: 'Step title is required.' }]}>
-                                                                <Input placeholder="e.g. Draft business profile" />
+                                                            <Form.Item {...restField} name={[name, 'title']} label={t('Step title')} rules={[{ required: true, message: tr('Step title is required.') }]}>
+                                                                <Input placeholder={t('e.g. Draft business profile')} />
                                                             </Form.Item>
                                                         </Col>
                                                         <Col xs={24} md={8}>
-                                                            <Form.Item {...restField} name={[name, 'weight']} label="Weight">
+                                                            <Form.Item {...restField} name={[name, 'weight']} label={t('Weight')}>
                                                                 <InputNumber min={1} style={{ width: '100%' }} />
                                                             </Form.Item>
                                                         </Col>
                                                         <Col span={24}>
-                                                            <Form.Item {...restField} name={[name, 'description']} label="Description">
+                                                            <Form.Item {...restField} name={[name, 'description']} label={t('Description')}>
                                                                 <Input.TextArea rows={2} />
                                                             </Form.Item>
                                                         </Col>
                                                     </Row>
                                                 </Card>
                                             ))}
-                                            <Button type="dashed" icon={<PlusOutlined />} block onClick={() => add({ id: `step-${Date.now()}-${Math.random().toString(16).slice(2)}`, weight: 1 })}>Add step</Button>
+                                            <Button type="dashed" icon={<PlusOutlined />} block onClick={() => add({ id: `step-${Date.now()}-${Math.random().toString(16).slice(2)}`, weight: 1 })}>{t('Add step')}</Button>
                                         </Space>
                                     )}
                                 </Form.List>
@@ -788,8 +790,8 @@ export const InterventionsSetupPage = () => {
                     </Form.Item>
 
                     <Space style={{ justifyContent: 'flex-end', width: '100%' }}>
-                        <Button onClick={() => setModalOpen(false)}>Cancel</Button>
-                        <Button type="primary" htmlType="submit" loading={loading}>Save intervention</Button>
+                        <Button onClick={() => setModalOpen(false)}>{t('Cancel')}</Button>
+                        <Button type="primary" htmlType="submit" loading={loading}>{t('Save intervention')}</Button>
                     </Space>
                 </Form>
             </Modal>

@@ -22,6 +22,7 @@ import type { CourseLesson } from '@/services/courseTemplatesService'
 import '@/styles/survey-response.css'
 import '@/styles/course-lesson.css'
 import '@/styles/course-player.css'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 const LMS_PATH = '/incubatee/lms'
 
@@ -58,6 +59,7 @@ const scoreCourse = (lessons: CourseLesson[], answers: Record<string, LessonAnsw
  * a render) and this component only re-renders itself each second.
  */
 const StepTimer = ({ stepId, stats }: { stepId: string, stats: MutableRefObject<Record<string, StepStat>> }) => {
+    const { t } = useLanguage()
     const [, setTick] = useState(0)
 
     useEffect(() => {
@@ -74,8 +76,8 @@ const StepTimer = ({ stepId, stats }: { stepId: string, stats: MutableRefObject<
 
     return (
         <>
-            <Tooltip title={stat?.interactive ? 'Interactive: you answered a question or talked to the AI in this section.' : 'Passive: so far you have only read or watched this section. Answering a question or asking the AI makes it interactive.'}>
-                <Tag color={stat?.interactive ? 'purple' : 'default'} style={{ margin: 0 }}>{stat?.interactive ? 'Interactive' : 'Passive'}</Tag>
+            <Tooltip title={stat?.interactive ? t('Interactive: you answered a question or talked to the AI in this section.') : t('Passive: so far you have only read or watched this section. Answering a question or asking the AI makes it interactive.')}>
+                <Tag color={stat?.interactive ? 'purple' : 'default'} style={{ margin: 0 }}>{stat?.interactive ? t('Interactive') : t('Passive')}</Tag>
             </Tooltip>
             <span className="course-player-timer"><ClockCircleOutlined />{formatDuration(stat?.seconds || 0)}</span>
         </>
@@ -83,6 +85,7 @@ const StepTimer = ({ stepId, stats }: { stepId: string, stats: MutableRefObject<
 }
 
 export default function CourseLessonPage() {
+    const { t } = useLanguage()
     const { message } = App.useApp()
     const { user } = useFullIdentity()
     const navigate = useNavigate()
@@ -106,7 +109,7 @@ export default function CourseLessonPage() {
         void loadCourseForLesson(user, id)
             .then((loaded) => {
                 if (!loaded) {
-                    message.error('That course could not be found.')
+                    message.error(t('That course could not be found.'))
                     navigate(LMS_PATH)
                     return
                 }
@@ -124,7 +127,7 @@ export default function CourseLessonPage() {
                 setIndex(Math.min(loaded.progress?.currentLessonIndex ?? 0, Math.max(0, loadedSteps.length - 1)))
             })
             .catch(() => {
-                message.error('The course could not be loaded.')
+                message.error(t('The course could not be loaded.'))
                 setContext(null)
             })
     }, [user, id]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -169,7 +172,7 @@ export default function CourseLessonPage() {
             })
             setContext({ ...context, progress: { ...(context.progress ?? {} as never), id: progressId, status, currentLessonIndex: index, completedLessonIds: ids, answers, score, stepStats } as never })
         } catch {
-            message.error('Your progress could not be saved.')
+            message.error(t('Your progress could not be saved.'))
         } finally {
             setSaving(false)
         }
@@ -191,7 +194,7 @@ export default function CourseLessonPage() {
             setFinalScore(score)
             setCompleted(true)
             await persist('completed', ids, score)
-            message.success('Course completed — nice work!')
+            message.success(t('Course completed — nice work!'))
             return
         }
 
@@ -201,7 +204,7 @@ export default function CourseLessonPage() {
 
     const saveForLater = async () => {
         await persist('in progress', completedStepIds)
-        message.success('Progress saved. Pick up where you left off any time.')
+        message.success(t('Progress saved. Pick up where you left off any time.'))
     }
 
     // Time spent is only worth keeping if it survives leaving, so save on the way out.
@@ -214,7 +217,7 @@ export default function CourseLessonPage() {
         <div className="course-player">
             <header className="course-player-top">
                 <div className="course-player-top-row">
-                    <Button shape="circle" icon={<ArrowLeftOutlined />} onClick={() => void leave()} aria-label="Back to courses" />
+                    <Button shape="circle" icon={<ArrowLeftOutlined />} onClick={() => void leave()} aria-label={t('Back to courses')} />
                     <div className="course-player-heading">
                         <strong>{heading}</strong>
                         <span>{details}</span>
@@ -235,7 +238,7 @@ export default function CourseLessonPage() {
     }
 
     if (!context) {
-        return shell('Course', ' ', <div className="course-player-center"><Empty description="This course is not available." /></div>)
+        return shell('Course', ' ', <div className="course-player-center"><Empty description={t('This course is not available.')} /></div>)
     }
 
     if (completed) {
@@ -247,21 +250,21 @@ export default function CourseLessonPage() {
             <div className="course-player-center">
                 <Result
                     status="success"
-                    title="Course completed"
+                    title={t('Course completed')}
                     subTitle={[
                         context.template.title,
                         context.progress?.completedAt ? `completed on ${dayjs(context.progress.completedAt).format('DD MMM YYYY')}` : 'completed',
                         finalScore?.total ? `— scored ${finalScore.correct}/${finalScore.total} on the quiz questions` : '',
                         totalSeconds ? `· ${Math.max(1, Math.round(totalSeconds / 60))} min spent, ${interactiveCount} interactive section${interactiveCount === 1 ? '' : 's'}` : '',
                     ].filter(Boolean).join(' ')}
-                    extra={<Button type="primary" onClick={() => navigate(LMS_PATH)}>Back to courses</Button>}
+                    extra={<Button type="primary" onClick={() => navigate(LMS_PATH)}>{t('Back to courses')}</Button>}
                 />
             </div>
         ), { percent: 100 })
     }
 
     if (!steps.length) {
-        return shell(context.template.title || 'Course', ' ', <div className="course-player-center"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="This course has no lessons yet." /></div>)
+        return shell(context.template.title || 'Course', ' ', <div className="course-player-center"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('This course has no lessons yet.')} /></div>)
     }
 
     const lessonNumber = lessons.findIndex((lesson) => lesson.id === current.lesson.id) + 1
@@ -292,7 +295,7 @@ export default function CourseLessonPage() {
                     )}
                     {current.kind === 'quiz' && (
                         <>
-                            {touched && blocked && <Tag color="red" style={{ width: 'fit-content' }}>Answer the required question{current.lesson.quiz && current.lesson.quiz.length > 1 ? 's' : ''} to continue.</Tag>}
+                            {touched && blocked && <Tag color="red" style={{ width: 'fit-content' }}>{t('Answer the required question')}{current.lesson.quiz && current.lesson.quiz.length > 1 ? 's' : ''} {t('to continue.')}</Tag>}
                             <LessonQuiz lesson={current.lesson} answers={answers[current.lesson.id]} onAnswer={setAnswer} touched={touched} />
                         </>
                     )}
@@ -313,15 +316,15 @@ export default function CourseLessonPage() {
                         disabled={isFirst}
                         onClick={() => { setTouched(false); setIndex((value) => Math.max(0, value - 1)) }}
                     >
-                        Previous
+                        {t('Previous')}
                     </Button>
 
                     <Button size="large" icon={<SaveOutlined />} loading={saving} onClick={() => void saveForLater()}>
-                        Save for later
+                        {t('Save for later')}
                     </Button>
 
                     <Button size="large" type="primary" icon={isLast ? <CheckOutlined /> : undefined} loading={saving} onClick={() => void goNext()}>
-                        {current.kind === 'review' ? 'Continue' : isLast ? 'Complete course' : 'Next'}
+                        {current.kind === 'review' ? t('Continue') : isLast ? t('Complete course') : t('Next')}
                     </Button>
                 </div>
             ),

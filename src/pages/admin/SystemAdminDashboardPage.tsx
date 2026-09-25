@@ -44,7 +44,7 @@ export const SystemAdminDashboardPage = () => {
   const columns: TableProps<AdminDashboardError>['columns'] = [
     { title: t('admin.dashboard.source'), dataIndex: 'source', render: (value: string) => <Tag color="orange">{value}</Tag> },
     { title: t('admin.dashboard.error'), dataIndex: 'message' },
-    { title: t('admin.dashboard.recorded'), dataIndex: 'createdAt', render: (value?: Date) => value ? dateFormatter.format(value) : 'N/A' },
+    { title: t('admin.dashboard.recorded'), dataIndex: 'createdAt', render: (value?: Date) => value ? dateFormatter.format(value) : t('N/A') },
   ]
 
   return (

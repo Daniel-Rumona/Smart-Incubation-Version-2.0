@@ -22,7 +22,7 @@ import {
 import { AnimatePresence, motion, type Variants } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { LANGUAGES, type LanguageCode } from '@/config/languages'
-import { useLanguage } from '@/providers/LanguageProvider'
+import { useLanguage, tEnglish } from '@/providers/LanguageProvider'
 import { useThemeMode } from '@/providers/ThemeProvider'
 import { useAgent } from '@/providers/AgentProvider'
 import { HolidayBanner } from '@/components/shared/HolidayBanner'
@@ -116,13 +116,13 @@ const LandingPage: React.FC = () => {
             allowedActions: [
                 {
                     key: 'explain_platform',
-                    label: 'Explain platform',
-                    description: 'Explain the purpose of the platform.',
+                    label: tEnglish('Explain platform'),
+                    description: tEnglish('Explain the purpose of the platform.'),
                 },
             ],
             updatedAt: new Date().toISOString(),
         })
-    }, [registerPageContext])
+    }, [registerPageContext, t])
 
     useEffect(() => {
         if (typeof IntersectionObserver === 'undefined') return
@@ -215,7 +215,7 @@ const LandingPage: React.FC = () => {
                         className="landing-icon-button"
                         icon={mode === 'dark' ? <SunOutlined /> : <MoonOutlined />}
                         onClick={toggleTheme}
-                        aria-label="Toggle theme"
+                        aria-label={t('Toggle theme')}
                     />
 
                     <Dropdown
@@ -230,7 +230,7 @@ const LandingPage: React.FC = () => {
                             shape="circle"
                             className="landing-icon-button"
                             icon={<GlobalOutlined />}
-                            aria-label="Change language"
+                            aria-label={t('Change language')}
                         />
                     </Dropdown>
                 </Space>
@@ -352,7 +352,7 @@ const LandingPage: React.FC = () => {
                     type="button"
                     className="landing-scroll-cue"
                     onClick={heroCtaHidden ? scrollToTop : scrollToShowcase}
-                    aria-label={heroCtaHidden ? 'Scroll to top' : 'Scroll to explore'}
+                    aria-label={heroCtaHidden ? t('Scroll to top') : t('Scroll to explore')}
                     animate={{ y: [0, 8, 0] }}
                     transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
                 >

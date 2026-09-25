@@ -6,6 +6,7 @@ import LessonBody from '@/components/lms/LessonBody'
 import LessonQuiz from '@/components/lms/LessonQuiz'
 import { buildLessonSteps } from '@/lib/lessonSteps'
 import type { CourseLesson } from '@/services/courseTemplatesService'
+import { useLanguage } from '@/providers/LanguageProvider'
 
 type PreviewCourseModalProps = {
     open: boolean
@@ -16,6 +17,7 @@ type PreviewCourseModalProps = {
 }
 
 const PreviewCourseBody = ({ open, title, description, lessons, onClose }: PreviewCourseModalProps) => {
+    const { t } = useLanguage()
     const [index, setIndex] = useState(0)
     // Remounting on open (see the key below) resets this rather than an effect.
 
@@ -37,30 +39,30 @@ const PreviewCourseBody = ({ open, title, description, lessons, onClose }: Previ
         >
             {steps.length === 0 || !current ? (
                 <div className="survey-preview-empty">
-                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="This course has no lessons yet" />
-                    <Button onClick={onClose}>Close</Button>
+                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('This course has no lessons yet')} />
+                    <Button onClick={onClose}>{t('Close')}</Button>
                 </div>
             ) : (
                 <SurveyQuestionFrame
                     index={index}
                     total={steps.length}
-                    field={{ id: current.id, type: current.kind, label: current.kind === 'quiz' ? `${current.lesson.title || 'Lesson'} — Quiz` : current.lesson.title || 'Untitled lesson' }}
+                    field={{ id: current.id, type: current.kind, label: current.kind === 'quiz' ? `${current.lesson.title || 'Lesson'} — Quiz` : current.lesson.title || t('Untitled lesson') }}
                     surveyTitle={title || 'Untitled course'}
                     surveySubtitle={description}
-                    extra={current.kind === 'content' && current.lesson.aiReviewEnabled ? <Tag color="purple">AI review follows this lesson</Tag> : undefined}
+                    extra={current.kind === 'content' && current.lesson.aiReviewEnabled ? <Tag color="purple">{t('AI review follows this lesson')}</Tag> : undefined}
                     footer={
                         <div className={`survey-preview-nav${isFirst || steps.length === 1 ? ' is-single' : ''}`}>
                             {!isFirst && (
                                 <Button block size="large" icon={<ArrowLeftOutlined />} onClick={() => setIndex((value) => Math.max(0, value - 1))}>
-                                    Previous
+                                    {t('Previous')}
                                 </Button>
                             )}
 
                             {isLast ? (
-                                <Button block size="large" type="primary" icon={<CheckOutlined />} onClick={onClose}>Finish</Button>
+                                <Button block size="large" type="primary" icon={<CheckOutlined />} onClick={onClose}>{t('Finish')}</Button>
                             ) : (
                                 <Button block size="large" type="primary" onClick={() => setIndex((value) => Math.min(steps.length - 1, value + 1))}>
-                                    Next <ArrowRightOutlined />
+                                    {t('Next')} <ArrowRightOutlined />
                                 </Button>
                             )}
                         </div>

@@ -15,7 +15,7 @@ import DashboardPage from '@/components/shared/DashboardPage'
 import MetricsGrid from '@/components/shared/MetricsGrid'
 import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
-import { useLanguage } from '@/providers/LanguageProvider'
+import { useLanguage, tEnglish } from '@/providers/LanguageProvider'
 import {
     canAcceptIncubateeIntervention,
     canConfirmIncubateeIntervention,
@@ -92,8 +92,8 @@ export const IncubateeDashboardPage = () => {
 
     useRegisterAgentPageContext({
         pageKey: 'incubatee-dashboard',
-        pageName: t('incubatee.dashboard.title'),
-        purpose: t('incubatee.dashboard.subtitle'),
+        pageName: tEnglish('incubatee.dashboard.title'),
+        purpose: tEnglish('incubatee.dashboard.subtitle'),
         metrics: {
             documentsOutstanding: workspace?.outstandingDocuments || 0,
             interventionsToAccept: toAccept.length,
