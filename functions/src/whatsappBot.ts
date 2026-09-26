@@ -257,6 +257,31 @@ const sendText = async (to: string, body: string) => {
   await sendPayload(to, { type: 'text', text: { body, preview_url: false } })
 }
 
+/**
+ * A proactive alert to a staff member (not a reply to something they sent). WhatsApp only delivers free-form
+ * text inside the 24 hours after the person last messaged the business; outside it a pre-approved template is
+ * required. Set WHATSAPP_ALERT_TEMPLATE (and optionally WHATSAPP_ALERT_TEMPLATE_LANG, default "en") to a
+ * template with ONE body variable and it is used; otherwise plain text is sent, which may not be delivered.
+ */
+export async function sendWhatsAppAlert(to: string, text: string) {
+  const template = String(process.env.WHATSAPP_ALERT_TEMPLATE || '').trim()
+  const recipient = normalizePhone(to)
+  if (recipient.length < 8) return false
+  const payload = template
+    ? {
+      type: 'template',
+      template: {
+        name: template,
+        language: { code: String(process.env.WHATSAPP_ALERT_TEMPLATE_LANG || 'en') },
+        // Template body variables cannot contain new lines, tabs or runs of spaces.
+        components: [{ type: 'body', parameters: [{ type: 'text', text: text.replace(/\s*\n+\s*/g, ' | ') }] }],
+      },
+    }
+    : { type: 'text', text: { body: text, preview_url: false } }
+  await sendPayload(recipient, payload)
+  return true
+}
+
 const sendButtons = async (to: string, body: string, choices: Choice[], extras: { header?: string, footer?: string } = {}) => {
   await sendPayload(to, {
     type: 'interactive',

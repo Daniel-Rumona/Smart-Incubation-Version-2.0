@@ -5,9 +5,12 @@ import { getAuth } from 'firebase-admin/auth'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 import { onDocumentCreated, onDocumentWritten } from 'firebase-functions/v2/firestore'
 import { HttpsError, onCall, onRequest, type Request } from 'firebase-functions/v2/https'
+import { onSchedule } from 'firebase-functions/v2/scheduler'
+import { runInterventionDeadlineDigest, type DigestDeps } from './deadlineDigest.js'
 import {
   processWhatsAppInboundEvent,
   processWhatsAppMessageStatusEvent,
+  sendWhatsAppAlert,
   whatsappWebhookHandler,
   whatsappDispatchHandler,
 } from './whatsappBot.js'
@@ -2984,6 +2987,55 @@ export const sendComplianceDocumentUploadReminders = onRequest({ region }, (requ
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       jsonResponse(response, message === 'permission_denied' ? 403 : 401, { ok: false, error: message })
+    }
+  })
+})
+
+const buildDeadlineDigestDeps = (overrides: Partial<DigestDeps> = {}): DigestDeps => ({
+  db: getFirestore(),
+  appUrl: getAppBaseUrl(),
+  sendEmail: async (to, template) => {
+    const email = normalizeEmail(to)
+    if (!isValidEmail(email)) return 'invalid'
+    if (await getSuppressedEmail(email)) return 'suppressed'
+    await queueTemplateMail({ to: email, source: 'interventionDeadlineDigest', template })
+    return 'queued'
+  },
+  sendWhatsApp: sendWhatsAppAlert,
+  ...overrides,
+})
+
+/** Every morning (05:00 UTC, 07:00 in South Africa): tell operations about overdue and near-due interventions. */
+export const notifyInterventionDeadlines = onSchedule(
+  { schedule: '0 5 * * *', timeZone: 'Etc/UTC', region, timeoutSeconds: 300 },
+  async () => {
+    await runInterventionDeadlineDigest(buildDeadlineDigestDeps())
+  },
+)
+
+/**
+ * Manual trigger for the same digest (POST, signed-in operations / project admin / admin). Body options:
+ * { dryRun: true } to count without sending, { force: true } to resend today's digest.
+ * Non-platform users only ever run it for their own company.
+ */
+export const runInterventionDeadlineDigestNow = onRequest({ region, timeoutSeconds: 300 }, (request, response) => {
+  corsHandler(request, response, async () => {
+    if (request.method !== 'POST') {
+      jsonResponse(response, 405, { ok: false, error: 'Method not allowed' })
+      return
+    }
+    try {
+      const manager = await requireAccountManager(request)
+      const body = (request.body || {}) as { dryRun?: boolean, force?: boolean }
+      const result = await runInterventionDeadlineDigest(buildDeadlineDigestDeps({
+        dryRun: body.dryRun === true,
+        force: body.force === true,
+        ...(manager.isPlatformAdmin ? {} : { companyCode: manager.companyCode }),
+      }))
+      jsonResponse(response, 200, { ok: true, ...result })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      jsonResponse(response, message === 'permission_denied' ? 403 : message === 'not_authenticated' ? 401 : 500, { ok: false, error: message })
     }
   })
 })

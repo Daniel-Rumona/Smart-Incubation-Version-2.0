@@ -44,6 +44,7 @@ import { GuideMe } from '@/components/guide/GuideMe'
 import { PageGuideProvider } from '@/components/guide/PageGuideContext'
 import { AgenticHomePage } from '@/pages/agentic/AgenticHomePage'
 import { IncubateeNotificationBell } from '@/components/incubatee/IncubateeNotificationBell'
+import { StaffNotificationBell } from '@/components/shared/StaffNotificationBell'
 import { useSystemSettings } from '@/contexts/SystemSettingsContext'
 import { SystemLayoutTopbarContext, type SystemLayoutPageChrome } from '@/contexts/SystemLayoutTopbarContext'
 import { WorkspaceShellProvider } from '@/contexts/WorkspaceShellContext'
@@ -602,7 +603,7 @@ export const SystemLayout = () => {
 
                                         {shellMode === 'workspace' && <AgentFab placement="topbar" />}
 
-                                        {isSmeWorkspace && <IncubateeNotificationBell />}
+                                        {isSmeWorkspace ? <IncubateeNotificationBell /> : <StaffNotificationBell />}
 
                                         <Button
                                             type="text"
@@ -634,7 +635,7 @@ export const SystemLayout = () => {
                                             pageName={shellMode === 'agentic' ? 'Agentic workspace' : selectedKey === '/' ? 'Workspace dashboard' : selectedKey.replace(/^\//, '').replaceAll('/', ' › ')}
                                         />
 
-                                        {isSmeWorkspace && <IncubateeNotificationBell />}
+                                        {isSmeWorkspace ? <IncubateeNotificationBell /> : <StaffNotificationBell />}
 
                                         {shellMode === 'workspace' && <AgentFab placement="topbar" />}
 

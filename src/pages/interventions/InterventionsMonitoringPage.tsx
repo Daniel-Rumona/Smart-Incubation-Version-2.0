@@ -8,6 +8,7 @@ import { db } from '@/firebase'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
+import { InterventionOpsActions } from '@/components/interventions/InterventionOpsActions'
 import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
 import { ThemedHighcharts } from '@/components/shared/ThemedHighcharts'
 import { useAssignedInterventions, type AssignedIntervention } from '@/contexts/AssignedInterventionsContext'
@@ -965,6 +966,13 @@ export const InterventionsMonitoringPage = () => {
                                 </Space>
                             </Card>
                         )}
+                        <InterventionOpsActions
+                            assignment={{ id: selected.id, companyCode: selected.raw.companyCode, assigneeId: selected.raw.assigneeId, assigneeName: selected.raw.assigneeName }}
+                            title={selected.title}
+                            participantName={selected.participantName}
+                            isCompleted={selected.isCompleted}
+                            onChanged={() => { setSelected(undefined); void refresh() }}
+                        />
                         <Progress percent={selected.progress} />
                         <Space style={{ justifyContent: 'flex-end', width: '100%' }}>
                             <Button icon={<BellOutlined />} loading={remindingId === selected.id} disabled={selected.isCompleted} onClick={() => void sendReminder(selected)}>{t('Create reminder')}</Button>

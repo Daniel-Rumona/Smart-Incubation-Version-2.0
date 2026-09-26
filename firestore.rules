@@ -583,6 +583,15 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Overdue / near-due digests for operations-side staff. Written only by the notifyInterventionDeadlines
+    // Cloud Function (Admin SDK); the recipient reads their own and can only stamp `readAt`.
+    match /staffNotifications/{notificationId} {
+      allow get, list: if signedIn() && resource.data.recipientUid == request.auth.uid;
+      allow update: if signedIn() && resource.data.recipientUid == request.auth.uid
+        && changedKeys().hasOnly(['readAt']);
+      allow create, delete: if false;
+    }
+
     match /systemSettingsChangeRequests/{requestId} {
       // Approval only ever happens through a Cloud Function
       // (reviewSystemSettingsChangeRequest), never a direct client update.
