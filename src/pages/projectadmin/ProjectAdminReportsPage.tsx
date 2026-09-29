@@ -333,7 +333,7 @@ export default function ProjectAdminReportsPage() {
     const { user, loading: identityLoading } = useFullIdentity()
     const { activeProgramId } = useActiveProgramId()
     const [loading, setLoading] = useState(true)
-    const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>([dayjs().startOf('month'), dayjs().endOf('month')])
+    const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>([dayjs().startOf('year'), dayjs()])
     const [view, setView] = useState<ReportView>('overview')
     const [data, setData] = useState<ProjectAdminWorkspaceData>(emptyWorkspace)
     const [selectedProgramme, setSelectedProgramme] = useState<string>()
@@ -346,6 +346,7 @@ export default function ProjectAdminReportsPage() {
             { label: t('This month'), value: [now.startOf('month'), now.endOf('month')] as [Dayjs, Dayjs] },
             { label: t('This quarter'), value: [now.startOf('quarter'), now.endOf('quarter')] as [Dayjs, Dayjs] },
             { label: t('Year to date'), value: [now.startOf('year'), now] as [Dayjs, Dayjs] },
+            { label: t('All time'), value: [now.subtract(10, 'year').startOf('year'), now.endOf('day')] as [Dayjs, Dayjs] },
         ]
     }, [t])
 

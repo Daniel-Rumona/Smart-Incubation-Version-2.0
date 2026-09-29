@@ -167,6 +167,7 @@ export const DirectorReportsPage = () => {
       { label: t('This month'), value: [now.startOf('month'), now.endOf('month')] as [Dayjs, Dayjs] },
       { label: t('This quarter'), value: [now.startOf('quarter'), now.endOf('quarter')] as [Dayjs, Dayjs] },
       { label: t('Year to date'), value: [now.startOf('year'), now] as [Dayjs, Dayjs] },
+      { label: t('All time'), value: [now.subtract(10, 'year').startOf('year'), now.endOf('day')] as [Dayjs, Dayjs] },
     ]
   }, [t])
 

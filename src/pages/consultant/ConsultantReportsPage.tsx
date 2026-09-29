@@ -34,7 +34,7 @@ import '@/styles/consultant.css'
 dayjs.extend(isSameOrAfter)
 dayjs.extend(isSameOrBefore)
 
-type Period = 'month' | 'quarter' | 'year' | 'custom'
+type Period = 'month' | 'quarter' | 'year' | 'all' | 'custom'
 
 type ReportRow = {
     id: string
@@ -65,7 +65,9 @@ const rangeFor = (period: Period): [Dayjs, Dayjs] => {
     const now = dayjs()
     if (period === 'month') return [now.startOf('month'), now.endOf('month')]
     if (period === 'quarter') return [now.startOf('quarter'), now.endOf('quarter')]
-    return [now.startOf('year'), now.endOf('year')]
+    if (period === 'year') return [now.startOf('year'), now]
+    if (period === 'all') return [now.subtract(10, 'year').startOf('year'), now.endOf('day')]
+    return [now.startOf('year'), now]
 }
 
 const dateInRange = (date: Date | null, start: Dayjs, end: Dayjs) => {
@@ -358,6 +360,7 @@ export const ConsultantReportsPage = () => {
                                 { label: t('consultant.reports.thisMonth'), value: 'month' },
                                 { label: t('consultant.reports.thisQuarter'), value: 'quarter' },
                                 { label: t('consultant.reports.thisYear'), value: 'year' },
+                                { label: t('consultant.reports.allTime', 'All time'), value: 'all' },
                                 { label: t('consultant.reports.custom'), value: 'custom' },
                             ]}
                         />

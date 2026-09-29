@@ -576,7 +576,7 @@ export const OperationsReportsPage = () => {
   const { activeProgramId, isAllPrograms } = useActiveProgramId()
   const { token } = theme.useToken()
   const [view, setView] = useState<ReportView>('overview')
-  const [[start, end], setRange] = useState<[Dayjs, Dayjs]>([dayjs().startOf('month'), dayjs().endOf('month')])
+  const [[start, end], setRange] = useState<[Dayjs, Dayjs]>([dayjs().startOf('year'), dayjs()])
   const [applications, setApplications] = useState<ApplicationDoc[]>([])
   const [participants, setParticipants] = useState<ParticipantDoc[]>([])
   const [assignments, setAssignments] = useState<AssignmentDoc[]>([])
@@ -596,8 +596,25 @@ export const OperationsReportsPage = () => {
       { label: t('This month'), value: [now.startOf('month'), now.endOf('month')] as [Dayjs, Dayjs] },
       { label: t('This quarter'), value: [now.startOf('quarter'), now.endOf('quarter')] as [Dayjs, Dayjs] },
       { label: t('Year to date'), value: [now.startOf('year'), now] as [Dayjs, Dayjs] },
+      { label: t('All time'), value: [now.subtract(10, 'year').startOf('year'), now.endOf('day')] as [Dayjs, Dayjs] },
     ]
   }, [t])
+
+  // Everything the current scope has, regardless of the selected date range - used only to tell
+  // the viewer their period is empty because of the date filter, not because the data is missing.
+  const scopedApplicationsAnyDate = useMemo(
+    () => applications.filter((application) => matchesActiveProgram(user, activeProgramId, String(application.programId || ''))),
+    [activeProgramId, applications, user],
+  )
+  const earliestApplicationDate = useMemo(
+    () => scopedApplicationsAnyDate.reduce<Dayjs | null>((earliest, application) => {
+      const date = primaryApplicationDate(application)
+      if (!date) return earliest
+      const value = dayjs(date)
+      return !earliest || value.isBefore(earliest) ? value : earliest
+    }, null),
+    [scopedApplicationsAnyDate],
+  )
 
   useEffect(() => {
     let mounted = true
@@ -1640,7 +1657,21 @@ export const OperationsReportsPage = () => {
       )}
 
       {view === 'applications' && (
-        <Row gutter={[16, 16]}>
+        <>
+          {reportData.scopedApplications.length === 0 && scopedApplicationsAnyDate.length > 0 && (
+            <Alert
+              type="warning"
+              showIcon
+              closable
+              style={{ marginBottom: 16 }}
+              message={t('No applications in the selected period')}
+              description={earliestApplicationDate
+                ? t(`This scope has ${scopedApplicationsAnyDate.length} application(s), the earliest from ${earliestApplicationDate.format('D MMM YYYY')}. Widen the date range above to see them.`)
+                : t('This scope has applications outside the selected date range. Widen the date range above to see them.')}
+              action={<Button size="small" onClick={() => setRange([dayjs().subtract(10, 'year').startOf('year'), dayjs().endOf('day')])}>{t('Show all time')}</Button>}
+            />
+          )}
+          <Row gutter={[16, 16]}>
           <Col xs={24} xl={15}>
             <Card loading={loading} className="dashboard-section-card motion-card">
               {reportData.intakeBuckets.size ? <ThemedHighcharts options={intakeOptions} /> : <Empty description={t('No applications in this period')} />}
@@ -1657,6 +1688,7 @@ export const OperationsReportsPage = () => {
             </Card>
           </Col>
         </Row>
+        </>
       )}
 
       {view === 'interventions' && (
