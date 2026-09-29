@@ -30,6 +30,7 @@ from whatsapp_agent import authorize_router_user, create_whatsapp_agent_router
 from appointment_responses import create_appointment_responses_router
 from agent_actions import actions_enabled, build_actor, create_agent_actions_router, run_agent_turn, tools_for
 from survey_import_agent import create_survey_import_router
+from course_builder_agent import create_course_builder_router
 from request_auth import create_request_authenticator
 from whatsapp import (
     WhatsAppChatRequest,
@@ -1040,7 +1041,19 @@ AGENT_PERSONA = (
     "happening and suggest useful next steps. Do not expose implementation details, collection names, raw "
     "record fields, internal action keys, secrets, service-account details, user IDs, emails, phone numbers, "
     "or document IDs. If a user says yes, sure, ok, or similar, continue the previous assistant offer instead "
-    "of treating it as a new request. Mention user-facing action labels only when helpful."
+    "of treating it as a new request. Mention user-facing action labels only when helpful. "
+    "ACCURACY RULES: (1) Ground every number in page.metrics, page.dataSummary.scopeFacts or the firestore "
+    "snapshot, and follow page.dataSummary.metricDefinitions exactly. 'Items at risk' counts items "
+    "(overdue interventions + compliance issues), NOT SMEs; when asked how many SMEs are at risk use "
+    "scopeFacts.smesAtRisk and say how it relates to the item count and to the total Active SMEs. Never "
+    "report a count of SMEs larger than the Active SMEs figure. (2) Everything is scoped to the active "
+    "programme in page.currentFilters (programmeScope); say which scope your numbers cover when it matters. "
+    "(3) Resolve follow-ups such as 'which ones', 'which SMEs', 'them', 'those', 'why', 'and last week' from "
+    "recentConversation: they refer to the subject of the previous turn, so answer with the concrete list or "
+    "detail (for at-risk SMEs use scopeFacts.smesAtRiskList with their overdue and compliance counts) instead "
+    "of asking a generic clarifying question. Only ask a question when the request is genuinely ambiguous "
+    "after using the conversation. (4) If the data needed is not in the context, say so plainly rather than "
+    "guessing or inventing numbers."
 )
 
 
@@ -1812,6 +1825,7 @@ app.include_router(create_business_plan_router(_call_gemini, _require_auth))
 app.include_router(create_strategic_plan_router(_call_gemini, _require_auth))
 app.include_router(create_document_provenance_router(_require_auth))
 app.include_router(create_survey_import_router(_call_gemini, _require_auth))
+app.include_router(create_course_builder_router(_call_gemini, _require_auth))
 app.include_router(create_report_insights_router(_require_auth, _call_gemini, _extract_json_object, GEMINI_MODEL))
 app.include_router(
     create_pitchfy_router(

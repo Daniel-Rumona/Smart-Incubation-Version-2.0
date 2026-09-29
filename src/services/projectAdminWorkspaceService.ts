@@ -48,6 +48,8 @@ export type ProjectAdminParticipant = {
   onboardedAt: Date | null
   acceptedAt: Date | null
   approvedAt: Date | null
+  /** Set when an SME is discontinued: they count only for dates up to this day. */
+  discontinuedAt?: Date | null
   revenue?: unknown
   annualRevenue?: unknown
   monthlyRevenue?: unknown
@@ -74,6 +76,7 @@ export type ProjectAdminIntervention = {
   dueDate: Date | null
   assignedAt: Date | null
   completedAt: Date | null
+  discontinuedAt?: Date | null
 }
 
 export type ProjectAdminComplianceDocument = {
@@ -83,6 +86,7 @@ export type ProjectAdminComplianceDocument = {
   status: string
   expiryDate: Date | null
   updatedAt: Date | null
+  discontinuedAt?: Date | null
 }
 
 export type ProjectAdminStaffMember = {
@@ -163,9 +167,14 @@ export const isOverdueIntervention = (intervention: ProjectAdminIntervention, re
 export const isComplianceAttentionStatus = (status: string) =>
   ['missing', 'pending', 'rejected', 'invalid', 'expired', 'queried'].includes(normalize(status))
 
+/** A record counts on `date` unless its SME was discontinued before that day. */
+export const countsOnDate = (record: { discontinuedAt?: Date | null }, date?: Date | null) =>
+  !record.discontinuedAt || (!!date && !dayjs(date).isAfter(record.discontinuedAt, 'day'))
+
 export const loadProjectAdminWorkspace = async (
   user: FullIdentity,
   activeProgramId?: string | null,
+  options: { includeDiscontinued?: boolean } = {},
 ): Promise<ProjectAdminWorkspaceData> => {
   const companyCode = String(user.companyCode || '').trim()
   const companyConstraints = companyCode ? [where('companyCode', '==', companyCode)] : []
@@ -259,6 +268,7 @@ export const loadProjectAdminWorkspace = async (
       status: String(data.status || data.participantStatus || 'active'),
       createdAt: toDate(data.createdAt || data.acceptedAt),
       onboardedAt: toDate(data.onboardedAt || data.acceptedAt || data.approvedAt),
+      discontinuedAt: toDate(data.discontinuedAt),
       acceptedAt: toDate(data.acceptedAt),
       approvedAt: toDate(data.approvedAt),
       revenue: data.revenue,
@@ -276,6 +286,7 @@ export const loadProjectAdminWorkspace = async (
     }]
   })
 
+  const discontinuedByParticipant = new Map(participants.filter((item) => item.discontinuedAt).map((item) => [item.id, item.discontinuedAt as Date]))
   const participantIds = new Set(participants.map((participant) => participant.id))
   const applicationsById = new Map(applications.map((application) => [application.id, application]))
   const participantNamesById = new Map(participants.map((participant) => [participant.id, participant.businessName]))
@@ -318,6 +329,7 @@ export const loadProjectAdminWorkspace = async (
       dueDate: toDate(data.dueDate),
       assignedAt: toDate(data.assignedAt || data.createdAt),
       completedAt: toDate(data.completedAt || data.completionConfirmedAt),
+      discontinuedAt: toDate(data.participantDiscontinuedAt),
     }]
   })
 
@@ -333,6 +345,7 @@ export const loadProjectAdminWorkspace = async (
       status: String(data.verificationStatus || data.currentStatus || data.status || 'pending'),
       expiryDate: toDate(data.expiryDate),
       updatedAt: toDate(data.updatedAt || data.createdAt),
+      discontinuedAt: discontinuedByParticipant.get(String(data.participantId || '')) ?? null,
     }]
   })
 
@@ -349,7 +362,16 @@ export const loadProjectAdminWorkspace = async (
     }]
   })
 
-  return { applications, participants, interventions, complianceDocuments, staff }
+  if (options.includeDiscontinued) return { applications, participants, interventions, complianceDocuments, staff }
+
+  // Current view: discontinued SMEs and everything attached to them stop counting.
+  return {
+    applications: applications.filter((item) => !['removed', 'discontinued'].includes(normalize(item.status))),
+    participants: participants.filter((item) => !item.discontinuedAt),
+    interventions: interventions.filter((item) => !item.discontinuedAt),
+    complianceDocuments: complianceDocuments.filter((item) => !item.discontinuedAt),
+    staff,
+  }
 }
 
 export const filterProjectAdminDataByRange = (
@@ -358,7 +380,7 @@ export const filterProjectAdminDataByRange = (
 ): ProjectAdminWorkspaceData => ({
   applications: data.applications.filter((item) => isInRange(item.submittedAt || item.createdAt, range)),
   participants: data.participants.filter((item) => isInRange(item.onboardedAt || item.createdAt, range)),
-  interventions: data.interventions.filter((item) => isInRange(item.completedAt || item.assignedAt || item.dueDate, range)),
-  complianceDocuments: data.complianceDocuments.filter((item) => isInRange(item.updatedAt || item.expiryDate, range)),
+  interventions: data.interventions.filter((item) => isInRange(item.completedAt || item.assignedAt || item.dueDate, range) && countsOnDate(item, item.completedAt || item.assignedAt || item.dueDate)),
+  complianceDocuments: data.complianceDocuments.filter((item) => isInRange(item.updatedAt || item.expiryDate, range) && countsOnDate(item, item.updatedAt || item.expiryDate)),
   staff: data.staff,
 })

@@ -216,6 +216,14 @@ new assignments now carry it automatically).
 node scripts/backfill-assignment-sector.cjs --service-account ./scripts/new-service-account.json --apply
 ```
 
+`seed-rcm-impact-dates.cjs` moves the onboarding date of about a third of RCM's SMEs into the current
+month, so the Operations dashboard's SME Impact card (which counts SMEs onboarded on or before a date)
+shows this month above last month instead of zero change. Previous dates are restored by `--undo`.
+
+```bash
+node scripts/seed-rcm-impact-dates.cjs --service-account ./scripts/new-service-account.json --apply
+```
+
 Undo any of these with `--undo ./scripts/seed-output-<...>-<timestamp>.json --apply`.
 
 ## `assignedInterventions.businessName` backfill

@@ -5,6 +5,19 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Smart Incubation</title>
+    <script>
+      // Apply the saved (or system) theme before first paint so reloads never flash a white page.
+      (function () {
+        var mode = null;
+        try { mode = localStorage.getItem('smartv2.themeMode'); } catch (e) {}
+        if (mode !== 'dark' && mode !== 'light') {
+          mode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.dataset.theme = mode;
+        document.documentElement.style.colorScheme = mode;
+        document.documentElement.style.backgroundColor = mode === 'dark' ? '#0f1220' : '#f5f6fb';
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

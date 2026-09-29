@@ -14,12 +14,24 @@ export type QuizQuestion = {
     correctOptions?: string[]
 }
 
+/** A file attached to a lesson. Its extracted text is stored separately (see courseMaterialsService) so the assistant can read it. */
+export type LessonMaterial = {
+    id: string
+    name: string
+    kind: 'pdf' | 'docx' | 'text'
+    size: number
+    url: string
+    /** Length of the extracted text; 0 means nothing readable (e.g. a scanned PDF). */
+    chars: number
+}
+
 export type CourseLesson = {
     id: string
     title: string
     body: string
     videoUrl?: string
     quiz?: QuizQuestion[]
+    materials?: LessonMaterial[]
     /** Adds an AI-led review step after this lesson (and its quiz, if any) — see LessonAiReview. */
     aiReviewEnabled?: boolean
 }

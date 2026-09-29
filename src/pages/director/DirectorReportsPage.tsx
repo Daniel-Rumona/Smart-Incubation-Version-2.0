@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { isDiscontinuedRecord } from '@/services/discontinuedSmes'
 import { App, Card, Col, DatePicker, Empty, Progress, Row, Space, Tag, Typography, theme } from 'antd'
 import {
   AreaChartOutlined,
@@ -187,8 +188,8 @@ export const DirectorReportsPage = () => {
         if (!mounted) return
         setPortfolio(portfolioRows)
         setComplianceDocs(compliance)
-        setAssignments(assigned)
-        setAppointments(appts)
+        setAssignments(assigned.filter((row) => !isDiscontinuedRecord(row as { participantDiscontinuedAt?: unknown })))
+        setAppointments(appts.filter((row) => !isDiscontinuedRecord(row as { participantDiscontinuedAt?: unknown })))
         setTasks(taskRows)
       } catch (error) {
         console.error(error)

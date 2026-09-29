@@ -492,7 +492,7 @@ export const ParticipantsPage: React.FC = () => {
                 ...(d.data() as AnyDoc)
             }) as AnyDoc).filter((participant: AnyDoc) => {
                 const status = normalizedStatus(participant.status)
-                if (status === 'inactive' || status === 'exited' || status === 'removed') return false
+                if (status === 'inactive' || status === 'exited' || status === 'removed' || status === 'discontinued') return false
                 if (!matchesActiveProgram(user, activeProgramId, participant.programId)) return false
 
                 const shouldSeparateConsultantSmes =
@@ -1434,7 +1434,7 @@ export const ParticipantsPage: React.FC = () => {
 
         const reason = String(removalReason || '').trim()
         if (!reason) {
-            message.error(t('Removal reason is required'))
+            message.error(t('A reason for discontinuing is required'))
             return
         }
 
@@ -1468,6 +1468,7 @@ export const ParticipantsPage: React.FC = () => {
             await updateDoc(doc(db, 'applications', viewData.applicationId), {
                 applicationStatus: 'removed',
                 removedFromProgram: true,
+                discontinuedAt: new Date(),
                 removedAt: serverTimestamp(),
                 removedReason: reason,
                 removedBy: {
@@ -1479,13 +1480,33 @@ export const ParticipantsPage: React.FC = () => {
                 updatedAt: serverTimestamp()
             })
 
+            // Stamp the cut-off so current metrics stop counting this SME while past periods keep
+            // showing them up to the day they were discontinued.
+            const discontinuedAt = new Date()
+            await updateDoc(doc(db, 'participants', viewData.participantId), {
+                status: 'discontinued',
+                discontinuedAt,
+                discontinuedReason: reason,
+                updatedAt: serverTimestamp()
+            })
+            const stampDiscontinued = async (collectionName: 'assignedInterventions' | 'appointments') => {
+                const snap = await getDocs(query(collection(db, collectionName), where('participantId', '==', viewData.participantId)))
+                for (let index = 0; index < snap.docs.length; index += 400) {
+                    const batch = writeBatch(db)
+                    snap.docs.slice(index, index + 400).forEach((row) => batch.update(row.ref, { participantDiscontinuedAt: discontinuedAt }))
+                    await batch.commit()
+                }
+            }
+            await stampDiscontinued('assignedInterventions')
+            await stampDiscontinued('appointments')
+
             await addDoc(collection(db, 'participantAuditTrail'), {
                 participantId: viewData.participantId,
                 applicationId: viewData.applicationId,
                 companyCode: String((user as any)?.companyCode || '').trim(),
                 programId: application.programId || viewData.programId || null,
                 programName: viewData.programName || application.programName || null,
-                actionType: 'removed_from_program',
+                actionType: 'discontinued',
                 reason,
                 createdAt: serverTimestamp(),
                 createdBy: {
@@ -1496,7 +1517,7 @@ export const ParticipantsPage: React.FC = () => {
                 }
             })
 
-            message.success(t('SME removed from program'))
+            message.success(t('SME discontinued'))
             setRemoveModalOpen(false)
             setRemovalReason('')
             setViewOpen(false)
@@ -1505,7 +1526,7 @@ export const ParticipantsPage: React.FC = () => {
             await refreshList()
         } catch (error: any) {
             console.error(error)
-            message.error(error?.message || t('Failed to remove SME from program'))
+            message.error(error?.message || t('Failed to discontinue SME'))
         } finally {
             setRemovingParticipant(false)
         }
@@ -1782,10 +1803,10 @@ export const ParticipantsPage: React.FC = () => {
                         key="remove"
                         danger
                         icon={<StopOutlined />}
-                        disabled={!viewData?.applicationId}
+                        disabled={!viewData?.applicationId || ['removed', 'discontinued'].includes(String(viewData?.application?.applicationStatus || '').toLowerCase())}
                         onClick={() => setRemoveModalOpen(true)}
                     >
-                        {t('Remove From Program')}
+                        {t('Discontinue')}
                     </Button>
                 ]}
                 width={1100}
@@ -2530,7 +2551,7 @@ export const ParticipantsPage: React.FC = () => {
             </Modal>
 
             <Modal
-                title={t('Remove SME From Program')}
+                title={t('Discontinue SME')}
                 open={removeModalOpen}
                 confirmLoading={removingParticipant}
                 onCancel={() => {
@@ -2538,14 +2559,14 @@ export const ParticipantsPage: React.FC = () => {
                     setRemovalReason('')
                 }}
                 onOk={removeFromProgram}
-                okText={t('Remove')}
-                okButtonProps={{ danger: true }}
+                okText={t('Discontinue SME')}
+                okButtonProps={{ danger: true, disabled: !removalReason.trim() }}
             >
                 <Alert
-                    type="warning"
+                    type="error"
                     showIcon
-                    message={t('This will remove the SME from the current program view.')}
-                    description={t('The SME profile stays in SMEs, but the application is marked as removed and a permanent removal trail is saved.')}
+                    message={t('This action is irreversible.')}
+                    description={t('Once discontinued, this SME can only be reinstated by contacting an admin. Their metrics, interventions and appointments stop counting towards current progress, but stay visible in past periods up to today, and a permanent audit trail is saved.')}
                     style={{ marginBottom: 16 }}
                 />
                 <Text strong>{t('Reason')}</Text>
@@ -2553,7 +2574,7 @@ export const ParticipantsPage: React.FC = () => {
                     rows={4}
                     value={removalReason}
                     onChange={e => setRemovalReason(e.target.value)}
-                    placeholder={t('Enter the reason for removal')}
+                    placeholder={t('Enter the reason for discontinuing this SME')}
                     style={{ marginTop: 8 }}
                 />
             </Modal>

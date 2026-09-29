@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { isDiscontinuedRecord } from '@/services/discontinuedSmes'
 import { Button, Card, Empty, Grid, Skeleton, Space, Table, Tag, Typography, theme } from 'antd'
 import {
     CalendarOutlined,
@@ -132,7 +133,7 @@ export const UpcomingWeekCard = ({ interventionDueItems, loading: interventionsL
         void getDocs(appointmentsQuery)
             .then((snapshot) => {
                 if (!active) return
-                setAppointments(snapshot.docs.map((row) => ({ id: row.id, ...(row.data() as Omit<AppointmentRow, 'id'>) })))
+                setAppointments(snapshot.docs.map((row) => ({ id: row.id, ...(row.data() as Omit<AppointmentRow, 'id'>) })).filter((row) => !isDiscontinuedRecord(row as { participantDiscontinuedAt?: unknown })))
             })
             .catch(() => { if (active) setAppointments([]) })
             .finally(() => { if (active) setAppointmentsLoading(false) })

@@ -20,8 +20,8 @@ export const useLessonAgentChat = (page: AgentPageContext, titlePrefix?: string)
     const { queueTask } = useBackgroundTasks()
     const [messages, setMessages] = useState<AgentChatMessage[]>([])
 
-    /** A normal turn: the learner's own message, shown in the transcript. `prompt` lets the assistant receive fuller instructions than the short text the learner sees. */
-    const send = (content: string, prompt?: string) => {
+    /** A normal turn: the learner's own message, shown in the transcript. `prompt` lets the assistant receive fuller instructions than the short text the learner sees; `pageOverride` swaps in a different context for this one turn. */
+    const send = (content: string, prompt?: string, pageOverride?: AgentPageContext) => {
         const trimmed = content.trim()
         if (!trimmed) return
 
@@ -33,7 +33,7 @@ export const useLessonAgentChat = (page: AgentPageContext, titlePrefix?: string)
         queueTask({
             title: titlePrefix ? `${titlePrefix}: ${trimmed}` : undefined,
             prompt: prompt ?? trimmed,
-            page,
+            page: pageOverride ?? page,
             history,
             onCompleted: (result) => setMessages((current) => current.map((item) => (item.id === pendingMessage.id ? { ...item, content: result } : item))),
             onFailed: (error) => setMessages((current) => current.map((item) => (item.id === pendingMessage.id ? { ...item, content: error } : item))),

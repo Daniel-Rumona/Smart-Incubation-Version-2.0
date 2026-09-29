@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
+import { isDiscontinuedRecord } from '@/services/discontinuedSmes'
 import React, { useEffect, useMemo, useState } from 'react'
 import {
     Card,
@@ -384,6 +385,7 @@ const DirectorDashboard: React.FC = () => {
                 let unresponsiveCount = 0
 
                 snap.forEach(d => {
+                    if (isDiscontinuedRecord(d.data() as { participantDiscontinuedAt?: unknown })) return
                     const ai = { id: d.id, ...(d.data() as any) } as AnyAssignedIntervention
 
                     // Filter to accepted SMEs (strict)

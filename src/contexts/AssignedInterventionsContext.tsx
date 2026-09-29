@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react'
+import { isDiscontinuedRecord } from '@/services/discontinuedSmes'
 import { collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '@/firebase'
 import { AGENT_ACTION_EXECUTED_EVENT } from '@/services/agentService'
@@ -42,10 +43,12 @@ export const AssignedInterventionsProvider = ({ children }: PropsWithChildren) =
     setLoading(true)
     try {
       const snapshot = await getDocs(query(collection(db, 'assignedInterventions'), where('companyCode', '==', user.companyCode)))
-      setAssignments(snapshot.docs.map((document) => ({
-        ...(document.data() as AssignedIntervention),
-        id: document.id,
-      })))
+      setAssignments(snapshot.docs
+        .map((document) => ({
+          ...(document.data() as AssignedIntervention),
+          id: document.id,
+        }))
+        .filter((row) => !isDiscontinuedRecord(row as { participantDiscontinuedAt?: unknown })))
     } finally {
       setLoading(false)
     }

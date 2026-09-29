@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { BulbOutlined } from '@ant-design/icons'
 import type { RichTextItemAction } from '@/components/agent/AgentRichText'
 import { useLessonAgentChat } from '@/hooks/useLessonAgentChat'
 import { ConversationMode } from '@/components/agent/ConversationMode'
 import ChatQuizCard from '@/components/lms/ChatQuizCard'
-import { lessonPageContext } from '@/lib/lessonAgentContext'
+import MaterialsPanel, { type MaterialAction } from '@/components/lms/MaterialsPanel'
+import { lessonPageContext, type MaterialText } from '@/lib/lessonAgentContext'
+import { loadMaterialTexts } from '@/services/courseMaterialsService'
 import { NEXT_QUIZ_LABEL, QUIZ_LABEL, QUIZ_PROMPT, matchQuizAnswer, optionLetter, parseChatQuiz, quizSpeech, type ChatQuiz } from '@/lib/lessonQuiz'
 import { isAgentApiConfigured } from '@/config/agent'
 import type { CourseLesson, CourseTemplate } from '@/services/courseTemplatesService'
@@ -27,6 +29,16 @@ const SUGGESTIONS = [
     QUIZ_LABEL,
 ]
 
+const MATERIAL_ACTIONS: MaterialAction[] = [
+    { label: 'Summarise', instruction: 'Summarise this material in a few clear points' },
+    { label: 'Key points', instruction: 'List the key points of this material' },
+    { label: 'Elaborate', instruction: 'Elaborate on the most important ideas in this material' },
+    { label: 'Simplify', instruction: 'Explain this material in simple, plain language' },
+    { label: 'Example', instruction: 'Give an example from my own business that illustrates this material' },
+]
+
+const HELP_PURPOSE = 'The learner is currently on this lesson and has opened a help chat because part of it is unclear. Break the content down further, use a concrete example, and keep answers short and encouraging.'
+
 const YOUR_BUSINESS_SUGGESTION = 'How does this apply to my business?'
 
 const FOLLOW_UPS = ['Elaborate on that', 'Simplify that', 'Give me an example from my business', 'Summarise it in one sentence']
@@ -48,12 +60,28 @@ export const LessonHelpChat = ({ course, lesson, business, onInteract }: LessonH
     const [open, setOpen] = useState(false)
     // Which option was picked for each quiz message, by message id.
     const [picked, setPicked] = useState<Record<string, number>>({})
+    const materials = lesson.materials || []
+    // null until the extracted text has been fetched (it is only needed once the chat opens).
+    const [materialTexts, setMaterialTexts] = useState<Record<string, string> | null>(null)
+    // Set by the materials panel just before it sends, so that one turn carries the chosen file's text.
+    const focusRef = useRef<{ name: string, text: string, prompt: string } | null>(null)
+
+    useEffect(() => {
+        if (!open || !materials.length || materialTexts) return
+        void loadMaterialTexts(materials).then(setMaterialTexts)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open])
+
+    const readable: MaterialText[] = materials
+        .filter((material) => materialTexts?.[material.id])
+        .map((material) => ({ name: material.name, text: materialTexts?.[material.id] || '' }))
 
     const page = lessonPageContext(
         course,
         lesson,
-        'The learner is currently on this lesson and has opened a help chat because part of it is unclear. Break the content down further, use a concrete example, and keep answers short and encouraging.',
+        HELP_PURPOSE,
         business,
+        { readable },
     )
     const { messages, send: sendMessage, appendLocal, isTyping } = useLessonAgentChat(page, `Lesson help: ${lesson.title}`)
 
@@ -76,6 +104,13 @@ export const LessonHelpChat = ({ course, lesson, business, onInteract }: LessonH
 
     const send = (content: string) => {
         onInteract?.()
+
+        const focus = focusRef.current
+        focusRef.current = null
+        if (focus) {
+            sendMessage(content, focus.prompt, lessonPageContext(course, lesson, HELP_PURPOSE, business, { readable, focus }))
+            return
+        }
 
         if (pendingQuiz) {
             const index = matchQuizAnswer(content, pendingQuiz.quiz)
@@ -112,6 +147,19 @@ export const LessonHelpChat = ({ course, lesson, business, onInteract }: LessonH
                     startInVoice={false}
                     followUps={FOLLOW_UPS}
                     itemActions={ITEM_ACTIONS}
+                    sidePanelTitle={t('Materials')}
+                    sidePanel={materials.length ? ({ send: sendFromPanel }) => (
+                        <MaterialsPanel
+                            materials={materials}
+                            readableIds={new Set(Object.keys(materialTexts || {}))}
+                            loading={!materialTexts}
+                            actions={MATERIAL_ACTIONS}
+                            onAction={(material, action) => {
+                                focusRef.current = { name: material.name, text: materialTexts?.[material.id] || '', prompt: `${action.instruction}: "${material.name}".` }
+                                sendFromPanel(`${action.label}: ${material.name}`)
+                            }}
+                        />
+                    ) : undefined}
                     suggestions={business ? [YOUR_BUSINESS_SUGGESTION, ...SUGGESTIONS] : SUGGESTIONS}
                     intro={(
                         <div className="conversation-intro-card">

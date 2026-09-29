@@ -342,7 +342,7 @@ export const SmeMetricsPage = () => {
           .map(docSnap => ({ id: docSnap.id, ...(docSnap.data() as AnyDoc) } as AnyDoc))
           .filter(row => {
             const status = String(row.status || '').trim().toLowerCase()
-            return !['inactive', 'exited', 'removed'].includes(status) && matchesActiveProgram(user, activeProgramId, String(row.programId || ''))
+            return !['inactive', 'exited', 'removed', 'discontinued'].includes(status) && matchesActiveProgram(user, activeProgramId, String(row.programId || ''))
           })
 
         const businessProfileIds = Array.from(new Set(participants.map(row => String(row.businessProfileId || row.id || '').trim()).filter(Boolean)))

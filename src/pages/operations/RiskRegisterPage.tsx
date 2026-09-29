@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { isDiscontinuedRecord } from '@/services/discontinuedSmes'
 import { Button, Card, Col, Empty, Input, Modal, Pagination, Row, Segmented, Select, Space, Table, Tag, theme, Typography, message } from 'antd'
 import { ClockCircleOutlined, ExclamationCircleOutlined, FileDoneOutlined, SearchOutlined, TeamOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
@@ -340,7 +341,8 @@ export default function RiskRegisterPage() {
                 compliance.rows as unknown as ParticipantRow[],
                 snap.docs
                     .map(doc => ({ id: doc.id, ...doc.data() }) as InterventionRow)
-                    .filter(row => matchesActiveProgram(user, activeProgramId, row.programId)),
+                    .filter(row => matchesActiveProgram(user, activeProgramId, row.programId))
+                    .filter(row => !isDiscontinuedRecord(row as { participantDiscontinuedAt?: unknown })),
             ))
         } catch (error) {
             console.error('[RISK REGISTER] Failed loading risk register:', error)

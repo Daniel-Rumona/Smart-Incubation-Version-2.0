@@ -1,4 +1,5 @@
 import { useMemo, type ComponentType } from 'react'
+import type React from 'react'
 import Highcharts from 'highcharts'
 import HighchartsReactModule from 'highcharts-react-official'
 import { CHART_PALETTE } from '@/config/chartPalette'
@@ -16,6 +17,8 @@ type HighchartsReactProps = {
   options: Highcharts.Options
   immutable?: boolean
   callback?: (chart: Highcharts.Chart) => void
+  /** Props for the chart's container div, e.g. a fixed or percentage height so the chart fills its parent. */
+  containerProps?: React.HTMLAttributes<HTMLDivElement>
 }
 
 type ThemedHighchartsProps = Omit<HighchartsReactProps, 'highcharts'>

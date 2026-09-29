@@ -163,6 +163,7 @@ export const listDirectorPortfolio = async (user: FullIdentity, activeProgramId?
 
   const participants: Array<{ id: string } & AnyDoc> = participantsSnap.docs
     .filter(record => accepted.has(record.id))
+    .filter(record => { const d = record.data() as AnyDoc; return !d.discontinuedAt && String(d.status || '').toLowerCase() !== 'discontinued' })
     .map(record => ({ id: record.id, ...(record.data() as AnyDoc) }))
 
   const assignmentsByParticipant = new Map<string, AnyDoc[]>()

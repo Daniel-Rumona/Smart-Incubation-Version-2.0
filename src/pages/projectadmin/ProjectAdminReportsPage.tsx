@@ -357,7 +357,7 @@ export default function ProjectAdminReportsPage() {
 
             try {
                 setLoading(true)
-                const result = await loadProjectAdminWorkspace(user, activeProgramId)
+                const result = await loadProjectAdminWorkspace(user, activeProgramId, { includeDiscontinued: true })
                 if (!cancelled) setData(result)
             } catch (error) {
                 console.error('[PROJECT ADMIN REPORTS] Failed loading report data:', error)

@@ -594,6 +594,35 @@ html[data-theme='dark'] .workspace-navigation-card:hover, html[data-theme='dark'
     font-weight: 600;
 }
 
+.app-project-tag {
+    display: inline-flex;
+    align-items: center;
+
+    max-width: 180px;
+    height: 38px;
+    margin: 0;
+    padding: 0 14px;
+
+    overflow: hidden;
+
+    border: 1px solid rgba(109, 93, 251, 0.22);
+    border-radius: 999px;
+
+    background: rgba(109, 93, 251, 0.08);
+
+    color: #5b4bd9;
+
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+html[data-theme='dark'] .app-project-tag {
+    border-color: rgba(139, 92, 246, 0.4);
+    background: rgba(139, 92, 246, 0.16);
+    color: #c4b5fd;
+}
+
 /* =========================================================
    CONTENT
    ========================================================= */

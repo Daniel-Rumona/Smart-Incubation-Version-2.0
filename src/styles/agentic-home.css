@@ -1001,3 +1001,40 @@ html[data-theme='dark'] .agentic-background-panel>header h2 { color: #f1f5f9; }
         background: #0f1117;
     }
 }
+
+/* Metric modal: themed scrollbar (both modes) + dark mode surfaces */
+.agentic-metric-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(109, 93, 251, .45) transparent;
+}
+.agentic-metric-scroll::-webkit-scrollbar { width: 6px; }
+.agentic-metric-scroll::-webkit-scrollbar-track { background: transparent; }
+.agentic-metric-scroll::-webkit-scrollbar-thumb { border-radius: 999px; background: rgba(109, 93, 251, .45); }
+.agentic-metric-scroll::-webkit-scrollbar-thumb:hover { background: rgba(109, 93, 251, .7); }
+
+.agentic-metric-scroll > div > [role='button'] { transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease; }
+.agentic-metric-scroll > div > [role='button']:hover { transform: translateY(-1px); border-color: rgba(109, 93, 251, .5) !important; box-shadow: 0 8px 22px rgba(109, 93, 251, .16); }
+
+html[data-theme='dark'] .agentic-metric-modal .ant-modal-content {
+    background: linear-gradient(160deg, #1c2138 0%, #14172a 100%);
+    border-color: rgba(139, 124, 255, .32);
+    box-shadow: 0 0 0 1px rgba(139, 124, 255, .1), 0 0 40px rgba(109, 93, 251, .22), 0 28px 70px rgba(0, 0, 0, .55);
+}
+html[data-theme='dark'] .agentic-metric-modal-shell,
+html[data-theme='dark'] .agentic-metric-scroll { background: transparent; }
+html[data-theme='dark'] .agentic-metric-modal-footer {
+    background: rgba(255, 255, 255, .03);
+    border-top-color: rgba(139, 124, 255, .18);
+}
+html[data-theme='dark'] .agentic-metric-modal-footer .ant-pagination .ant-pagination-item {
+    background: rgba(255, 255, 255, .06);
+    border-color: rgba(255, 255, 255, .12);
+}
+html[data-theme='dark'] .agentic-metric-modal-footer .ant-pagination .ant-pagination-item a { color: #cdd3ea; }
+html[data-theme='dark'] .agentic-metric-modal-footer .ant-pagination .ant-pagination-item-active {
+    background: #6d5dfb;
+    border-color: #6d5dfb;
+}
+html[data-theme='dark'] .agentic-metric-modal-footer .ant-pagination .ant-pagination-item-active a { color: #fff; }
+html[data-theme='dark'] .agentic-metric-modal-footer .ant-pagination .ant-pagination-prev .anticon,
+html[data-theme='dark'] .agentic-metric-modal-footer .ant-pagination .ant-pagination-next .anticon { color: #cdd3ea; }

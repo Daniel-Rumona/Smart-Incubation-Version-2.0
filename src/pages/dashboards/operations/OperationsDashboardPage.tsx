@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { isDiscontinuedRecord } from '@/services/discontinuedSmes'
 import {
     Button,
     Card,
@@ -791,7 +792,8 @@ export default function OperationsDashboard() {
                         id: doc.id,
                         ...doc.data(),
                     }) as AssignedInterventionRow)
-                    .filter(row => matchesActiveProgram(user, activeProgramId, row.programId)),
+                    .filter(row => matchesActiveProgram(user, activeProgramId, row.programId))
+                    .filter(row => !isDiscontinuedRecord(row as { participantDiscontinuedAt?: unknown })),
             )
 
             hasLoadedOnce.current = true
@@ -1195,12 +1197,15 @@ export default function OperationsDashboard() {
         ],
     }
 
+    // Categories with no open risks are left off the chart entirely.
+    const riskRows = computed.riskCategoryRows.filter(row => row.critical + row.high + row.medium + row.low > 0)
+
     const riskClassificationOptions: Highcharts.Options = {
         chart: { type: 'bar', height: isMobile ? 280 : 320, backgroundColor: 'transparent' },
         title: { text: undefined },
         credits: { enabled: false },
         xAxis: {
-            categories: computed.riskCategoryRows.map(row => row.label),
+            categories: riskRows.map(row => row.label),
             labels: { style: { fontSize: isMobile ? '10px' : '11px' } },
         },
         yAxis: { min: 0, allowDecimals: false, title: { text: tr('Open risks') } },
@@ -1223,27 +1228,27 @@ export default function OperationsDashboard() {
                 type: 'bar',
                 name: tr('Critical'),
                 color: '#ef4444',
-                data: computed.riskCategoryRows.map(row => row.critical),
+                data: riskRows.map(row => row.critical),
             },
             {
                 type: 'bar',
                 name: tr('High'),
                 color: '#f97316',
-                data: computed.riskCategoryRows.map(row => row.high),
+                data: riskRows.map(row => row.high),
             },
             {
                 type: 'bar',
                 name: tr('Medium'),
                 color: '#f59e0b',
-                data: computed.riskCategoryRows.map(row => row.medium),
+                data: riskRows.map(row => row.medium),
             },
             {
                 type: 'bar',
                 name: tr('Low'),
                 color: '#60a5fa',
-                data: computed.riskCategoryRows.map(row => row.low),
+                data: riskRows.map(row => row.low),
             },
-        ],
+        ].filter(item => (item.data as number[]).some(value => value > 0)),
     }
 
     const upcomingWeekCard = (
@@ -1447,23 +1452,15 @@ export default function OperationsDashboard() {
                         />
                     ) : (
                         <>
-                            <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+                            <Row gutter={[16, 0]}>
                                 <Col xs={24} lg={12}>
-                                    {interventionCard}
+                                    <div style={{ marginBottom: 16 }}>{interventionCard}</div>
+                                    <div style={{ marginBottom: 16 }}>{riskClassificationCard}</div>
                                 </Col>
 
                                 <Col xs={24} lg={12}>
-                                    {upcomingWeekCard}
-                                </Col>
-                            </Row>
-
-                            <Row gutter={[16, 16]}>
-                                <Col xs={24} lg={12}>
-                                    {riskClassificationCard}
-                                </Col>
-
-                                <Col xs={24} lg={12}>
-                                    {smeImpactCard}
+                                    <div style={{ marginBottom: 16 }}>{upcomingWeekCard}</div>
+                                    <div style={{ marginBottom: 16 }}>{smeImpactCard}</div>
                                 </Col>
                             </Row>
                         </>

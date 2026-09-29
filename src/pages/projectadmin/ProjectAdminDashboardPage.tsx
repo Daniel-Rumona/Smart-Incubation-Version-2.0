@@ -160,7 +160,7 @@ export default function ProjectAdminDashboardPage() {
     const metrics = useMemo(() => {
         const totalParticipants = data.participants.length
         const activeParticipants = data.participants.filter((participant) =>
-            !['inactive', 'exited', 'removed'].includes(normalize(participant.status)),
+            !['inactive', 'exited', 'removed', 'discontinued'].includes(normalize(participant.status)),
         ).length
 
         const totalApplications = data.applications.length

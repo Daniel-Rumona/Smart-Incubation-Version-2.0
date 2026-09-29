@@ -10,6 +10,7 @@ import {
     QuestionCircleOutlined,
     RobotOutlined,
     SaveOutlined,
+    ThunderboltOutlined,
     SendOutlined,
     UnorderedListOutlined,
 } from '@ant-design/icons'
@@ -33,6 +34,9 @@ import {
 import LessonOutline from './LessonOutline'
 import PreviewCourseModal from './PreviewCourseModal'
 import QuizEditor from './QuizEditor'
+import MaterialsEditor from './MaterialsEditor'
+import GenerateCourseModal from './GenerateCourseModal'
+import { generateQuizForLesson } from '@/services/courseGenerationService'
 import '@/styles/survey-builder.css'
 import '@/styles/course-lesson.css'
 import { useLanguage } from '@/providers/LanguageProvider'
@@ -91,6 +95,8 @@ export default function CourseBuilderPage() {
     const [settingsOpen, setSettingsOpen] = useState(false)
     const [previewOpen, setPreviewOpen] = useState(false)
     const [outlineOpen, setOutlineOpen] = useState(false)
+    const [generateOpen, setGenerateOpen] = useState(false)
+    const [quizWriting, setQuizWriting] = useState(false)
 
     useEffect(() => {
         if (!user) return
@@ -132,6 +138,30 @@ export default function CourseBuilderPage() {
         const lesson = emptyLesson()
         setCourse((current) => ({ ...current, lessons: [...current.lessons, lesson] }))
         setSelectedStepId(`${lesson.id}:content`)
+    }
+
+    // Lessons the AI built from a file: appended (or replacing), filling in the course title/description only where empty.
+    const applyGeneratedLessons = (lessons: CourseLesson[], meta: { title: string, description: string }, replace: boolean) => {
+        setCourse((current) => ({
+            ...current,
+            title: current.title.trim() ? current.title : meta.title,
+            description: current.description.trim() ? current.description : meta.description,
+            lessons: replace ? lessons : [...current.lessons, ...lessons],
+            updatedAt: new Date().toISOString(),
+        }))
+        if (lessons[0]) setSelectedStepId(`${lessons[0].id}:content`)
+    }
+
+    const generateQuizFor = async (lesson: CourseLesson) => {
+        setQuizWriting(true)
+        try {
+            patchLesson(lesson.id, { quiz: await generateQuizForLesson(lesson, 3) })
+            setSelectedStepId(`${lesson.id}:quiz`)
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : t('The quiz could not be written.'))
+        } finally {
+            setQuizWriting(false)
+        }
     }
 
     const addQuiz = (lessonId: string) => {
@@ -277,6 +307,7 @@ export default function CourseBuilderPage() {
                         <Button icon={<ArrowLeftOutlined />} onClick={goBack}>{t('Back')}</Button>
                         {isCompact && <Button icon={<UnorderedListOutlined />} onClick={() => setOutlineOpen(true)}>{t('Outline')}</Button>}
                         <Button type="primary" icon={<PlusOutlined />} onClick={addLesson}>{t('Add lesson')}</Button>
+                        {isAgentApiConfigured && <Button icon={<ThunderboltOutlined />} onClick={() => setGenerateOpen(true)}>{t('Build from a file')}</Button>}
                     </Space>
 
                     <button type="button" className="survey-builder-identity" onClick={() => setSettingsOpen(true)}>
@@ -367,6 +398,12 @@ export default function CourseBuilderPage() {
                                 style={{ marginTop: 12 }}
                             />
 
+                            <MaterialsEditor
+                                key={selectedLesson.id}
+                                materials={selectedLesson.materials || []}
+                                onChange={(materials) => patchLesson(selectedLesson.id, { materials: materials.length ? materials : undefined })}
+                            />
+
                             <div className="lesson-quiz-editor">
                                 {selectedLesson.quiz?.length ? (
                                     <Space direction="vertical" size={4}>
@@ -376,9 +413,16 @@ export default function CourseBuilderPage() {
                                         <Button size="small" onClick={() => setSelectedStepId(`${selectedLesson.id}:quiz`)}>{t('Edit quiz')}</Button>
                                     </Space>
                                 ) : (
-                                    <Button size="small" icon={<PlusOutlined />} onClick={() => addQuiz(selectedLesson.id)}>
-                                        {t('Add a quiz after this lesson')}
-                                    </Button>
+                                    <Space wrap>
+                                        <Button size="small" icon={<PlusOutlined />} onClick={() => addQuiz(selectedLesson.id)}>
+                                            {t('Add a quiz after this lesson')}
+                                        </Button>
+                                        {isAgentApiConfigured && (
+                                            <Button size="small" icon={<ThunderboltOutlined />} loading={quizWriting} disabled={selectedLesson.body.trim().length < 100} onClick={() => void generateQuizFor(selectedLesson)}>
+                                                {t('Write a quiz with AI')}
+                                            </Button>
+                                        )}
+                                    </Space>
                                 )}
 
                                 {isAgentApiConfigured && (
@@ -401,7 +445,10 @@ export default function CourseBuilderPage() {
                                 <>
                                     <Typography.Title level={4}>{t('Start building your course')}</Typography.Title>
                                     <Typography.Paragraph type="secondary">{t('Add your first lesson, then arrange them in the outline.')}</Typography.Paragraph>
-                                    <Button type="primary" icon={<PlusOutlined />} onClick={addLesson}>{t('Add lesson')}</Button>
+                                    <Space>
+                                        <Button type="primary" icon={<PlusOutlined />} onClick={addLesson}>{t('Add lesson')}</Button>
+                                        {isAgentApiConfigured && <Button icon={<ThunderboltOutlined />} onClick={() => setGenerateOpen(true)}>{t('Build from a file')}</Button>}
+                                    </Space>
                                 </>
                             )}
                         </MotionCard>
@@ -430,6 +477,14 @@ export default function CourseBuilderPage() {
             >
                 {settingsForm}
             </Modal>
+
+            <GenerateCourseModal
+                open={generateOpen}
+                hasLessons={course.lessons.length > 0}
+                onClose={() => setGenerateOpen(false)}
+                onLessons={applyGeneratedLessons}
+                onQuiz={(lessonId, quiz) => patchLesson(lessonId, { quiz })}
+            />
 
             <PreviewCourseModal
                 open={previewOpen}

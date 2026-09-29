@@ -527,6 +527,17 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Text extracted (in the browser, at upload) from a lesson's PDF/Word
+    // material, keyed by material id and kept out of the course document to
+    // stay under Firestore's 1 MiB limit. Operations writes it; learners read
+    // it so the lesson chat can be grounded in the material.
+    match /courseMaterialTexts/{materialId} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create, update: if hasRole(operationsRoles());
+      allow delete: if false;
+    }
+
     match /courseProgress/{progressId} {
       allow get, list: if isOwnParticipantId(resource.data.participantId) || hasRole(operationsRoles());
       allow create: if isOwnParticipantId(request.resource.data.participantId);

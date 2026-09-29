@@ -1,4 +1,5 @@
 import dayjs from 'dayjs'
+import { isDiscontinuedRecord } from '@/services/discontinuedSmes'
 import { collection, getDocs, query, where } from 'firebase/firestore'
 import { getFirebaseDb } from '@/config/firebase'
 import type { FullIdentity } from '@/types/identity'
@@ -97,6 +98,7 @@ export const listDirectorProgramPerformance = async (
 
   assignmentsSnap.docs.forEach(record => {
     const data = record.data() as AnyDoc
+    if (isDiscontinuedRecord(data)) return
     const programId = String(data.programId || '').trim()
     if (!matchesActiveProgram(user, activeProgramId || 'all', programId)) return
     const row = ensureProgram(programId, String(data.programName || ''))

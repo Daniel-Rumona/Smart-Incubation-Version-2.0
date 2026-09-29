@@ -7,6 +7,7 @@ import {
     Segmented,
     Select,
     Space,
+    Tag,
     Typography,
 } from 'antd'
 import {
@@ -458,7 +459,12 @@ export const SystemLayout = () => {
         />
     )
 
-    const projectSelector = showCompanySelector ? companySelector : isSmeWorkspace ? null : (
+    // A single programme has nothing to choose between, so show it as a plain tag instead of a dropdown with "All programmes".
+    const singleProgramTag = programs.length === 1
+        ? <Tag className="app-project-tag" title={programs[0].name}>{programs[0].name}</Tag>
+        : null
+
+    const projectSelector = showCompanySelector ? companySelector : isSmeWorkspace ? null : singleProgramTag ?? (
         <Select
             value={activeProgramId}
             onChange={setActiveProgramId}

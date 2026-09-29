@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Button, Input } from 'antd'
-import { AudioMutedOutlined, AudioOutlined, CloseOutlined, RobotOutlined, SendOutlined, SoundOutlined } from '@ant-design/icons'
+import { AudioMutedOutlined, AudioOutlined, CloseOutlined, PaperClipOutlined, RobotOutlined, SendOutlined, SoundOutlined } from '@ant-design/icons'
 import { synthesizeSpeech } from '@/services/agentService'
 import { splitForSpeech, toSpeakable } from '@/lib/speech'
 import { AgentRichText, type RichTextItemAction } from '@/components/agent/AgentRichText'
@@ -95,6 +95,9 @@ interface ConversationModeProps {
     followUps?: string[]
     /** Follow-ups offered on an individual list item within a reply. */
     itemActions?: RichTextItemAction[]
+    /** A panel beside the conversation (e.g. reference material); `send` posts a message as if typed. */
+    sidePanel?: (api: { send: (text: string) => void }) => ReactNode
+    sidePanelTitle?: string
     /** Custom rendering for an agent message (e.g. an interactive card); return undefined to fall back to text. */
     renderAgentMessage?: (message: AgentChatMessage) => ReactNode | undefined
     /** What to read aloud for a message, when that differs from its raw content. */
@@ -106,12 +109,14 @@ interface ConversationModeProps {
 // tracks what conversation mode itself controls: mic capture and playback.
 type ConversationPhase = Exclude<VoiceOrbMode, 'thinking'>
 
-export const ConversationMode = ({ messages, isTyping, onSend, onClose, suggestions, intro, startMuted = false, startInVoice = true, followUps, itemActions, renderAgentMessage, toSpeech }: ConversationModeProps) => {
+export const ConversationMode = ({ messages, isTyping, onSend, onClose, suggestions, intro, startMuted = false, startInVoice = true, followUps, itemActions, sidePanel, sidePanelTitle, renderAgentMessage, toSpeech }: ConversationModeProps) => {
     const { t } = useLanguage()
     const [phase, setPhase] = useState<ConversationPhase>('idle')
     const [muted, setMuted] = useState(startMuted)
     const [voiceMode, setVoiceMode] = useState(startInVoice)
     const [dictating, setDictating] = useState(false)
+    // Beside the chat on wide screens; a slide-over on narrow ones, where it starts closed.
+    const [sideOpen, setSideOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth > 960)
     const dictationRef = useRef<SpeechRecognitionInstance | null>(null)
     const [draft, setDraft] = useState('')
     const [micError, setMicError] = useState<string | null>(null)
@@ -504,7 +509,16 @@ export const ConversationMode = ({ messages, isTyping, onSend, onClose, suggesti
     )
 
     return (
-        <div className="conversation-mode" role="dialog" aria-modal="true" aria-label={t('Conversation mode')}>
+        <div className={`conversation-mode${sidePanel && sideOpen ? ' has-side' : ''}`} role="dialog" aria-modal="true" aria-label={t('Conversation mode')}>
+            {sidePanel && (
+                <>
+                    <button type="button" className={`conversation-mode-side-toggle${sideOpen ? ' is-active' : ''}`} aria-pressed={sideOpen} onClick={() => setSideOpen((value) => !value)}>
+                        <PaperClipOutlined /> {sidePanelTitle}
+                    </button>
+                    {sideOpen && <aside className="conversation-mode-side">{sidePanel({ send: sendTypedMessage })}</aside>}
+                </>
+            )}
+
             <button type="button" className="conversation-mode-exit-button" aria-label={t('Exit conversation mode')} onClick={onClose}>
                 <CloseOutlined />
             </button>

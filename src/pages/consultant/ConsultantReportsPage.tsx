@@ -1,4 +1,5 @@
 import { Button, Card, Col, DatePicker, Empty, Progress, Row, Segmented, Space, Typography, theme } from 'antd'
+import { isDiscontinuedRecord } from '@/services/discontinuedSmes'
 import type Highcharts from 'highcharts'
 import { AreaChartOutlined, CalendarOutlined, CheckCircleOutlined, ClockCircleOutlined, DownloadOutlined, PieChartOutlined, StarOutlined, WarningOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
@@ -88,7 +89,7 @@ export const ConsultantReportsPage = () => {
         if (!user?.uid) return
         let active = true
         void getDocs(query(collection(db, 'appointments'), where('assigneeId', '==', user.uid)))
-            .then((snapshot) => { if (active) setAppointments(snapshot.docs.map((row) => row.data())) })
+            .then((snapshot) => { if (active) setAppointments(snapshot.docs.map((row) => row.data()).filter((row) => !isDiscontinuedRecord(row as { participantDiscontinuedAt?: unknown }))) })
             .catch(() => { if (active) setAppointments([]) })
         return () => { active = false }
     }, [user?.uid])
