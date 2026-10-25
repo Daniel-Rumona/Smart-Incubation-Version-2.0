@@ -1,0 +1,16 @@
+/* Week hours editor: one row per day — open switch, day name, hours. */
+.week-hours { display: grid; gap: 4px; }
+.week-hours-row { display: grid; grid-template-columns: auto 104px minmax(0, 1fr); align-items: center; gap: 10px; min-height: 36px; padding: 2px 4px; border-radius: 8px; }
+.week-hours-row.is-closed .week-hours-day { color: var(--ant-color-text-tertiary); }
+.week-hours-day { font-size: 13px; font-weight: 600; }
+.week-hours-copy { justify-self: start; margin-top: 6px; }
+
+/* Read-only summary of someone's hours, e.g. on their profile. */
+.week-hours-summary { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
+.week-hours-summary li { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 10px; min-height: 24px; align-items: center; }
+.week-hours-summary li.is-closed { color: var(--ant-color-text-tertiary); }
+
+@media (max-width: 480px) {
+  .week-hours-row { grid-template-columns: auto minmax(0, 1fr); }
+  .week-hours-row > :last-child { grid-column: 2; }
+}

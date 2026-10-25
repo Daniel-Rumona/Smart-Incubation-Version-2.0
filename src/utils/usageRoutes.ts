@@ -1,7 +1,7 @@
 const routeLabels: Array<[RegExp, string]> = [
   [/^\/dashboard$/, 'Dashboard'],
   [/^\/operations$/, 'Operations Dashboard'],
-  [/^\/operations\/staff\/manage$/, 'Staff / Manage'],
+  [/^\/shared\/staff\/manage$/, 'Staff / Manage'],
   [/^\/operations\/participants\/diagnostic-plans$/, 'Participants / Diagnostic Plans'],
   [/^\/operations\/participants\/all$/, 'Participants / View All'],
   [/^\/operations\/participants\/new$/, 'Participants / New Participant'],

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from 'react'
 import { App, Button, Empty, Progress, Result, Skeleton, Tag, Tooltip, Typography } from 'antd'
-import { ArrowLeftOutlined, CheckOutlined, ClockCircleOutlined, SaveOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, ArrowRightOutlined, CheckOutlined, ClockCircleOutlined, SaveOutlined } from '@ant-design/icons'
 import { useNavigate, useParams } from 'react-router-dom'
 import dayjs from 'dayjs'
 import LessonBody from '@/components/lms/LessonBody'
@@ -77,7 +77,7 @@ const StepTimer = ({ stepId, stats }: { stepId: string, stats: MutableRefObject<
     return (
         <>
             <Tooltip title={stat?.interactive ? t('Interactive: you answered a question or talked to the AI in this section.') : t('Passive: so far you have only read or watched this section. Answering a question or asking the AI makes it interactive.')}>
-                <Tag color={stat?.interactive ? 'purple' : 'default'} style={{ margin: 0 }}>{stat?.interactive ? t('Interactive') : t('Passive')}</Tag>
+                <Tag color={stat?.interactive ? 'purple' : 'default'} className="course-player-mode" style={{ margin: 0 }}>{stat?.interactive ? t('Interactive') : t('Passive')}</Tag>
             </Tooltip>
             <span className="course-player-timer"><ClockCircleOutlined />{formatDuration(stat?.seconds || 0)}</span>
         </>
@@ -234,11 +234,11 @@ export default function CourseLessonPage() {
     )
 
     if (context === undefined) {
-        return shell('Loading course…', ' ', <div className="course-player-center"><Skeleton active paragraph={{ rows: 6 }} style={{ width: '100%' }} /></div>)
+        return shell(t('Loading course…'), ' ', <div className="course-player-center"><Skeleton active paragraph={{ rows: 6 }} style={{ width: '100%' }} /></div>)
     }
 
     if (!context) {
-        return shell('Course', ' ', <div className="course-player-center"><Empty description={t('This course is not available.')} /></div>)
+        return shell(t('Course'), ' ', <div className="course-player-center"><Empty description={t('This course is not available.')} /></div>)
     }
 
     if (completed) {
@@ -246,16 +246,17 @@ export default function CourseLessonPage() {
         const totalSeconds = stats.reduce((sum, stat) => sum + stat.seconds, 0)
         const interactiveCount = stats.filter((stat) => stat.interactive).length
 
-        return shell(context.template.title || 'Course', 'Completed', (
+        return shell(context.template.title || t('Course'), t('Completed'), (
             <div className="course-player-center">
                 <Result
                     status="success"
                     title={t('Course completed')}
                     subTitle={[
-                        context.template.title,
-                        context.progress?.completedAt ? `completed on ${dayjs(context.progress.completedAt).format('DD MMM YYYY')}` : 'completed',
-                        finalScore?.total ? `— scored ${finalScore.correct}/${finalScore.total} on the quiz questions` : '',
-                        totalSeconds ? `· ${Math.max(1, Math.round(totalSeconds / 60))} min spent, ${interactiveCount} interactive section${interactiveCount === 1 ? '' : 's'}` : '',
+                        context.progress?.completedAt
+                            ? t('{title} completed on {date}.', undefined, { title: context.template.title, date: dayjs(context.progress.completedAt).format('D MMM YYYY') })
+                            : t('{title} completed.', undefined, { title: context.template.title }),
+                        finalScore?.total ? t('You scored {correct} out of {total} on the quiz questions.', undefined, { correct: finalScore.correct, total: finalScore.total }) : '',
+                        totalSeconds ? t('{minutes} min spent, {count} interactive sections.', undefined, { minutes: Math.max(1, Math.round(totalSeconds / 60)), count: interactiveCount }) : '',
                     ].filter(Boolean).join(' ')}
                     extra={<Button type="primary" onClick={() => navigate(LMS_PATH)}>{t('Back to courses')}</Button>}
                 />
@@ -264,20 +265,20 @@ export default function CourseLessonPage() {
     }
 
     if (!steps.length) {
-        return shell(context.template.title || 'Course', ' ', <div className="course-player-center"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('This course has no lessons yet.')} /></div>)
+        return shell(context.template.title || t('Course'), ' ', <div className="course-player-center"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('This course has no lessons yet.')} /></div>)
     }
 
     const lessonNumber = lessons.findIndex((lesson) => lesson.id === current.lesson.id) + 1
-    const kindLabel = current.kind === 'quiz' ? 'Quiz' : current.kind === 'review' ? 'AI review' : 'Lesson'
+    const kindLabel = current.kind === 'quiz' ? t('Quiz') : current.kind === 'review' ? t('AI review') : t('Lesson')
     const stepTitle = current.kind === 'quiz'
-        ? `${current.lesson.title || 'Lesson'} — Quiz`
+        ? t('{lesson}: quiz', undefined, { lesson: current.lesson.title || t('Lesson') })
         : current.kind === 'review'
-            ? `${current.lesson.title || 'Lesson'} — Quick review`
-            : current.lesson.title || 'Untitled lesson'
+            ? t('{lesson}: quick review', undefined, { lesson: current.lesson.title || t('Lesson') })
+            : current.lesson.title || t('Untitled lesson')
 
     return shell(
-        context.template.title || 'Course',
-        `Lesson ${lessonNumber} of ${lessons.length} · ${kindLabel} · Step ${index + 1} of ${steps.length}`,
+        context.template.title || t('Course'),
+        t('Lesson {lesson} of {lessons} · Step {step} of {steps}', undefined, { lesson: lessonNumber, lessons: lessons.length, step: index + 1, steps: steps.length }),
         (
             <div className="course-player-scroll">
                 <div className="course-player-step" key={current.id}>
@@ -295,7 +296,7 @@ export default function CourseLessonPage() {
                     )}
                     {current.kind === 'quiz' && (
                         <>
-                            {touched && blocked && <Tag color="red" style={{ width: 'fit-content' }}>{t('Answer the required question')}{current.lesson.quiz && current.lesson.quiz.length > 1 ? 's' : ''} {t('to continue.')}</Tag>}
+                            {touched && blocked && <Tag color="red" style={{ width: 'fit-content' }}>{current.lesson.quiz && current.lesson.quiz.length > 1 ? t('Answer the required questions to continue.') : t('Answer the required question to continue.')}</Tag>}
                             <LessonQuiz lesson={current.lesson} answers={answers[current.lesson.id]} onAnswer={setAnswer} touched={touched} />
                         </>
                     )}
@@ -309,21 +310,23 @@ export default function CourseLessonPage() {
             percent: Math.round((completedStepIds.length / steps.length) * 100),
             meta: <StepTimer key={current.id} stepId={current.id} stats={statsRef} />,
             footer: (
-                <div className="survey-response-nav">
+                <div className="survey-response-nav course-player-nav">
                     <Button
                         size="large"
+                        className="course-player-prev"
                         icon={<ArrowLeftOutlined />}
                         disabled={isFirst}
+                        aria-label={t('Previous')}
                         onClick={() => { setTouched(false); setIndex((value) => Math.max(0, value - 1)) }}
                     >
-                        {t('Previous')}
+                        <span className="course-player-prev-label">{t('Previous')}</span>
                     </Button>
 
-                    <Button size="large" icon={<SaveOutlined />} loading={saving} onClick={() => void saveForLater()}>
+                    <Button size="large" className="course-player-save" icon={<SaveOutlined />} loading={saving} onClick={() => void saveForLater()}>
                         {t('Save for later')}
                     </Button>
 
-                    <Button size="large" type="primary" icon={isLast ? <CheckOutlined /> : undefined} loading={saving} onClick={() => void goNext()}>
+                    <Button size="large" type="primary" className="course-player-next" icon={isLast ? <CheckOutlined /> : <ArrowRightOutlined />} iconPlacement="end" loading={saving} onClick={() => void goNext()}>
                         {current.kind === 'review' ? t('Continue') : isLast ? t('Complete course') : t('Next')}
                     </Button>
                 </div>

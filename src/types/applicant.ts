@@ -15,6 +15,23 @@ export type ApplicantProfile = {
   city?: string
 }
 
+export type DirectorRole = 'director' | 'shareholder' | 'both'
+
+/** One director or shareholder of the SME. Ownership percentages are worked out from these when present. */
+export type BusinessDirector = {
+  id: string
+  fullName: string
+  idNumber: string
+  gender: 'Male' | 'Female'
+  /** B-BBEE population group; African, Coloured and Indian count as Black. */
+  race: 'African' | 'Coloured' | 'Indian' | 'White' | 'Other'
+  sharePercent: number
+  role?: DirectorRole
+  phone?: string
+  email?: string
+  disabilityStatus?: string
+}
+
 export type BusinessProfile = {
   id?: string
   ownerUid: string
@@ -38,6 +55,7 @@ export type BusinessProfile = {
     femaleOwnedPercent?: number
     blackOwnedPercent?: number
   }
+  directors?: BusinessDirector[]
   businessAddress?: string
   province?: string
   city?: string

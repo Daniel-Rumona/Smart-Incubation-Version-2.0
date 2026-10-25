@@ -7,9 +7,14 @@ import { onDocumentCreated, onDocumentWritten } from 'firebase-functions/v2/fire
 import { HttpsError, onCall, onRequest, type Request } from 'firebase-functions/v2/https'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { runInterventionDeadlineDigest, type DigestDeps } from './deadlineDigest.js'
+import { runFollowUpReminders } from './followUps.js'
+import { runSmeCheckbackAsks } from './smeCheckbacks.js'
+import { DirectorSetupError, completeDirectorSetup } from './directorSetup.js'
+import { JoinError, getProgramLinkInfo, joinProgram, type JoinInput } from './programJoin.js'
 import {
   processWhatsAppInboundEvent,
   processWhatsAppMessageStatusEvent,
+  sendSmeCheckbackTemplate,
   sendWhatsAppAlert,
   whatsappWebhookHandler,
   whatsappDispatchHandler,
@@ -87,6 +92,7 @@ type PlatformUserPayload = {
   alternativePhone?: string | null
   phoneIsWhatsApp?: boolean
   alternativePhoneIsWhatsApp?: boolean
+  phoneProvider?: string | null
 }
 
 type DeleteUserPayload = {
@@ -102,11 +108,12 @@ type UpdateUserPayload = {
   role?: string
   status?: string
   companyCode?: string
-  permissions?: string[]
+  permissions?: string[] | null
   phone?: string | null
   alternativePhone?: string | null
   phoneIsWhatsApp?: boolean
   alternativePhoneIsWhatsApp?: boolean
+  phoneProvider?: string | null
 }
 
 type OrphanCleanupPayload = {
@@ -373,6 +380,19 @@ function buildEmailVerificationActionUrl(firebaseLink: string, request?: Request
   if (apiKey) continueUrl.searchParams.set('apiKey', apiKey)
 
   return continueUrl.toString()
+}
+
+/**
+ * Sends password links to the app's own /set-password page instead of Firebase's hosted reset page, which is
+ * unbranded and has no way back into the app. `invite` marks a brand-new account so the page says "set", not "reset".
+ */
+function buildPasswordActionUrl(firebaseLink: string, options: { invite?: boolean, request?: Request } = {}) {
+  const parsed = new URL(firebaseLink)
+  const actionUrl = new URL('/set-password', getAppBaseUrl(options.request))
+  const oobCode = parsed.searchParams.get('oobCode')
+  if (oobCode) actionUrl.searchParams.set('oobCode', oobCode)
+  if (options.invite) actionUrl.searchParams.set('invite', '1')
+  return actionUrl.toString()
 }
 
 function buildAuthActionTemplate(input: {
@@ -1427,7 +1447,7 @@ export const requestBrandedPasswordReset = onRequest({ region }, (request, respo
         jsonResponse(response, 200, { ok: true, throttled: true })
         return
       }
-      const link = await getAuth().generatePasswordResetLink(email)
+      const link = buildPasswordActionUrl(await getAuth().generatePasswordResetLink(email), { request })
       await queueTemplateMail({
         to: email,
         source: 'requestBrandedPasswordReset',
@@ -1497,7 +1517,7 @@ export const createPlatformUser = onRequest({ region }, (request, response) => {
       }
 
       const resetLink = payload.sendResetLink
-        ? await getAuth().generatePasswordResetLink(email)
+        ? buildPasswordActionUrl(await getAuth().generatePasswordResetLink(email), { invite: true, request })
         : null
 
       const userDoc = {
@@ -1516,6 +1536,7 @@ export const createPlatformUser = onRequest({ region }, (request, response) => {
         alternativePhone: String(payload.alternativePhone || '').trim() || null,
         phoneIsWhatsApp: payload.phoneIsWhatsApp === true,
         alternativePhoneIsWhatsApp: payload.alternativePhoneIsWhatsApp === true,
+        phoneProvider: String(payload.phoneProvider || '').trim() || null,
         whatsappPhoneNumbers: whatsappNumbersFromPayload(payload),
         ...(permissions ? { permissions } : {}),
         mustChangePassword: true,
@@ -1547,6 +1568,7 @@ export const createPlatformUser = onRequest({ region }, (request, response) => {
             alternativePhone: String(payload.alternativePhone || '').trim() || null,
             phoneIsWhatsApp: payload.phoneIsWhatsApp === true,
             alternativePhoneIsWhatsApp: payload.alternativePhoneIsWhatsApp === true,
+            phoneProvider: String(payload.phoneProvider || '').trim() || null,
             whatsappPhoneNumbers: whatsappNumbersFromPayload(payload),
             ...(permissions ? { permissions } : {}),
             mustChangePassword: true,
@@ -1684,7 +1706,7 @@ export const createParticipantAccount = onRequest({ region }, (request, response
           createdBy: manager.decoded.uid,
         }, { merge: true }),
       ])
-      const resetLink = await getAuth().generatePasswordResetLink(email)
+      const resetLink = buildPasswordActionUrl(await getAuth().generatePasswordResetLink(email), { invite: true, request })
       await queueTemplateMail({
         to: email,
         source: 'createParticipantAccount',
@@ -1725,6 +1747,10 @@ export const deleteUserAccount = onRequest({ region }, (request, response) => {
 
       if (!uid) {
         jsonResponse(response, 400, { ok: false, error: 'uid_or_email_required' })
+        return
+      }
+      if (uid === admin.decoded.uid) {
+        jsonResponse(response, 403, { ok: false, error: 'self_delete' })
         return
       }
 
@@ -1891,8 +1917,21 @@ export const updatePlatformUser = onRequest({ region }, (request, response) => {
       }
 
       const profile = await getFirestore().collection('users').doc(uid).get()
-      if (!profile.exists) {
+      if (!profile.exists || profile.data()?.status === 'deleted') {
         jsonResponse(response, 404, { ok: false, error: 'user_not_found' })
+        return
+      }
+      // A manager must not demote or disable their own account.
+      if (uid === admin.decoded.uid && (
+        (payload.role && payload.role !== profile.data()?.role) || payload.status === 'inactive'
+      )) {
+        jsonResponse(response, 403, { ok: false, error: 'self_lockout' })
+        return
+      }
+      // Nobody changes their own access: a limit one manager puts on another has to stick, and a manager must not
+      // be able to remove their own Manage team access. Saving your own details sends no permissions at all.
+      if (uid === admin.decoded.uid && payload.permissions !== undefined) {
+        jsonResponse(response, 403, { ok: false, error: 'self_permissions' })
         return
       }
 
@@ -1910,7 +1949,15 @@ export const updatePlatformUser = onRequest({ region }, (request, response) => {
 
       const name = String(payload.name || '').trim()
       const status = payload.status === 'inactive' ? 'inactive' : 'active'
-      await getAuth().updateUser(uid, { displayName: name || undefined, disabled: status === 'inactive' })
+      try {
+        await getAuth().updateUser(uid, { displayName: name || undefined, disabled: status === 'inactive' })
+      } catch (error) {
+        if ((error as { code?: string })?.code === 'auth/user-not-found') {
+          jsonResponse(response, 404, { ok: false, error: 'user_not_found' })
+          return
+        }
+        throw error
+      }
 
       const updates = {
         name,
@@ -1919,11 +1966,14 @@ export const updatePlatformUser = onRequest({ region }, (request, response) => {
         status,
         active: status === 'active',
         companyCode: String(payload.companyCode || '').trim(),
-        permissions: permissions || profile.data()?.permissions || [],
+        // null clears the override so the person follows their role's default permissions again. Not sent means
+        // unchanged: writing `[]` here would strip every feature from someone on their role's defaults.
+        ...(payload.permissions === undefined ? {} : { permissions: payload.permissions === null ? FieldValue.delete() : permissions || [] }),
         phone: String(payload.phone || '').trim() || null,
         alternativePhone: String(payload.alternativePhone || '').trim() || null,
         phoneIsWhatsApp: payload.phoneIsWhatsApp === true,
         alternativePhoneIsWhatsApp: payload.alternativePhoneIsWhatsApp === true,
+        phoneProvider: String(payload.phoneProvider || '').trim() || null,
         whatsappPhoneNumbers: whatsappNumbersFromPayload(payload),
         updatedAt: FieldValue.serverTimestamp(),
       }
@@ -2079,7 +2129,7 @@ async function sendAdminPasswordResetCallable(
     throw new HttpsError('permission-denied', 'permission_denied')
   }
 
-  const resetLink = await getAuth().generatePasswordResetLink(userRecord.email)
+  const resetLink = buildPasswordActionUrl(await getAuth().generatePasswordResetLink(userRecord.email))
   if (payload.sendEmail !== false) {
     await queueTemplateMail({
       to: userRecord.email,
@@ -2168,7 +2218,7 @@ async function createManagedUserCallable(request: LegacyCallableRequest<Platform
   }
 
   const resetLink = payload.sendResetLink
-    ? await getAuth().generatePasswordResetLink(email)
+    ? buildPasswordActionUrl(await getAuth().generatePasswordResetLink(email), { invite: true })
     : null
   const userDoc = {
     uid: userRecord.uid,
@@ -2312,7 +2362,7 @@ export const sendForgotPasswordEmail = onDocumentCreated(
         return
       }
 
-      const link = await getAuth().generatePasswordResetLink(email)
+      const link = buildPasswordActionUrl(await getAuth().generatePasswordResetLink(email))
       const mailRef = await queueTemplateMail({
         to: email,
         source: 'sendForgotPasswordEmail',
@@ -2509,6 +2559,50 @@ export const reviewSystemSettingsChangeRequest = onCall({ region }, async reques
   }
 
   return { ok: true, id: requestId, status: decision }
+})
+
+/** Director first-login: claim a company code, save the company profile and lock its settings. */
+export const completeDirectorCompanySetup = onCall({ region }, async request => {
+  const uid = request.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'not_authenticated')
+  const email = String(request.auth?.token?.email || '').toLowerCase()
+  try {
+    return { ok: true, ...(await completeDirectorSetup(getFirestore(), uid, email, (request.data || {}) as Record<string, never>)) }
+  } catch (error) {
+    if (error instanceof DirectorSetupError) {
+      const map = { invalid: 'invalid-argument', forbidden: 'permission-denied', conflict: 'already-exists', not_found: 'not-found' } as const
+      throw new HttpsError(map[error.code], error.message)
+    }
+    throw error
+  }
+})
+
+const joinErrorToHttps = (error: unknown) => {
+  if (error instanceof JoinError) {
+    const map = { invalid: 'invalid-argument', forbidden: 'permission-denied', not_found: 'not-found' } as const
+    return new HttpsError(map[error.code], error.message)
+  }
+  return error
+}
+
+/** Public (no sign-in): which programme and company a join link is for, shown before the SME creates an account. */
+export const getProgramJoinInfo = onCall({ region }, async request => {
+  try {
+    return { ok: true, ...(await getProgramLinkInfo(getFirestore(), String((request.data as { programId?: unknown } | undefined)?.programId || ''))) }
+  } catch (error) {
+    throw joinErrorToHttps(error)
+  }
+})
+
+/** Attaches the signed-in SME to a company and programme. The browser never writes its own company code. */
+export const joinProgramAsSme = onCall({ region }, async request => {
+  const uid = request.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'not_authenticated')
+  try {
+    return { ok: true, ...(await joinProgram(getFirestore(), uid, (request.data || {}) as JoinInput)) }
+  } catch (error) {
+    throw joinErrorToHttps(error)
+  }
 })
 
 export const resendEmailDeliveryLog = onCall({ region }, async request => {
@@ -3004,6 +3098,18 @@ const buildDeadlineDigestDeps = (overrides: Partial<DigestDeps> = {}): DigestDep
   sendWhatsApp: sendWhatsAppAlert,
   ...overrides,
 })
+
+/**
+ * Every morning (05:15 UTC): nudge facilitators whose completed interventions are due a follow-up outcome check,
+ * then ask the SMEs for their own check-back on the same rounds (in the app, and on WhatsApp where they opted in).
+ */
+export const notifyInterventionFollowUps = onSchedule(
+  { schedule: '15 5 * * *', timeZone: 'Etc/UTC', region, timeoutSeconds: 300 },
+  async () => {
+    await runFollowUpReminders({ db: getFirestore(), appUrl: getAppBaseUrl(), sendWhatsApp: sendWhatsAppAlert })
+    await runSmeCheckbackAsks({ db: getFirestore(), sendCheckbackTemplate: sendSmeCheckbackTemplate, sendWhatsAppAlert })
+  },
+)
 
 /** Every morning (05:00 UTC, 07:00 in South Africa): tell operations about overdue and near-due interventions. */
 export const notifyInterventionDeadlines = onSchedule(

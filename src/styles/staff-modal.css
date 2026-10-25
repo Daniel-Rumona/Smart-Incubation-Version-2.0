@@ -1,0 +1,104 @@
+/* Staff management page (src/pages/shared/StaffPage.tsx). Colours come from the antd theme tokens so light and dark both work. */
+
+/* Filter bar on desktop: search takes the room; Refresh is icon-only and the add button keeps its natural width (phones: see FilterBar). */
+.staff-page .filter-bar-controls { display: flex; flex-wrap: nowrap; align-items: center; gap: 10px; width: 100%; }
+.staff-page .filter-bar-controls > .ant-input-affix-wrapper { flex: 1 1 auto; min-width: 0; width: auto; }
+.staff-page .filter-bar-controls > .ant-btn { flex: none; }
+
+/* Company operating hours: a setting, shown as its current value with an edit action. */
+/* Page sections space themselves with a bottom margin (see .filter-bar and .dashboard-metrics-row in dashboard.css). */
+.staff-hours-strip { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding: 10px 14px; border-radius: 18px; background: var(--ant-color-fill-quaternary); }
+.staff-hours-strip > .anticon { color: var(--ant-color-text-secondary); font-size: 18px; }
+.staff-hours-label { color: var(--ant-color-text-secondary); white-space: nowrap; }
+.staff-hours-value { flex: 1; min-width: 0; }
+@media (max-width: 575px) {
+  .staff-hours-strip { flex-wrap: wrap; }
+  .staff-hours-value { flex-basis: calc(100% - 28px); order: 3; margin-left: 28px; }
+  .staff-hours-strip > .ant-btn { margin-left: auto; }
+}
+
+.staff-filter-note { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+
+/* A person: initials avatar, name, then email and phone. */
+.staff-person { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.staff-person .ant-avatar { flex: none; background: var(--ant-color-fill-secondary); color: var(--ant-color-text-secondary); font-size: 13px; font-weight: 600; }
+.staff-person .ant-avatar.is-active { background: var(--ant-color-primary-bg); color: var(--ant-color-primary); }
+.staff-person-text { display: grid; min-width: 0; }
+.staff-person-meta { font-size: 12px; }
+.staff-person-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.staff-you-tag { flex: none; margin: 0; font-size: 11px; line-height: 18px; background: var(--ant-color-primary-bg); color: var(--ant-color-primary); }
+.staff-whatsapp { margin-left: 4px; color: var(--ant-color-success); }
+.staff-row-actions { justify-content: flex-end; }
+.staff-row-locked { display: inline-grid; place-items: center; width: 32px; height: 32px; color: var(--ant-color-text-tertiary); cursor: help; }
+
+.staff-card { display: grid; gap: 10px; }
+.staff-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.staff-card-head .staff-person { flex: 1; }
+.staff-card-areas { display: flex; align-items: center; gap: 6px; color: var(--ant-color-text-secondary); }
+
+/*
+ * Add/edit modal. Editing switches sections with a Segmented control; adding steps through them in order.
+ * Only the current section is shown, so the modal is as tall as that section rather than the tallest one.
+ * Showing a section (display: none -> block) restarts its entrance, sliding in from the side it sits on.
+ */
+
+.staff-modal { --staff-ease-out: cubic-bezier(0.23, 1, 0.32, 1); }
+.staff-modal-sections { margin-bottom: 16px; }
+.staff-modal-panel-hidden { display: none; }
+.staff-modal-panel { min-width: 0; animation: staff-panel-in 200ms var(--staff-ease-out); }
+.staff-modal-panel.from-start { animation-name: staff-panel-in-start; }
+@keyframes staff-panel-in { from { opacity: 0; transform: translateX(12px); } }
+@keyframes staff-panel-in-start { from { opacity: 0; transform: translateX(-12px); } }
+@media (prefers-reduced-motion: reduce) {
+  .staff-modal-panel, .staff-modal-panel.from-start { animation: staff-panel-fade 150ms ease; }
+  @keyframes staff-panel-fade { from { opacity: 0; } }
+}
+
+.staff-modal-steps { display: flex; gap: 8px; margin: 0 0 16px; padding: 0; list-style: none; }
+.staff-modal-steps li { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; padding-bottom: 8px; border-bottom: 2px solid var(--ant-color-border-secondary); color: var(--ant-color-text-tertiary); font-size: 13px; transition: color 200ms ease, border-color 200ms ease; }
+.staff-modal-steps li > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.staff-modal-steps li.is-current { border-color: var(--ant-color-primary); color: var(--ant-color-text); font-weight: 600; }
+.staff-modal-steps li.is-done { border-color: var(--ant-color-primary-border); color: var(--ant-color-text-secondary); }
+.staff-modal-step-index { display: grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--ant-color-fill-secondary); font-size: 12px; }
+.staff-modal-steps li.is-current .staff-modal-step-index { background: var(--ant-color-primary); color: var(--ant-color-white); }
+.staff-modal-steps li.is-done .staff-modal-step-index { background: transparent; color: var(--ant-color-primary); font-size: 16px; }
+
+
+/* Denser permission cards here than on the full permissions page, to keep the modal short. */
+.staff-modal .feature-permissions-grid { gap: 8px; }
+.staff-modal .feature-permission-card { min-height: 40px; padding: 8px 12px; }
+
+/* Footer buttons fill the row: one full-width button, or Back and Next/Add sharing it equally. A note takes its own row above. */
+.staff-modal-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; }
+.staff-modal-footer > .ant-btn { flex: 1 1 0; }
+.staff-modal-footer-note { flex-basis: 100%; font-size: 13px; }
+
+.staff-load-error { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.staff-role-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.staff-role-card { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 8px 12px; border: 1px solid var(--ant-color-border); border-radius: 12px; background: var(--ant-color-bg-container); color: var(--ant-color-text); text-align: left; cursor: pointer; transition: border-color 150ms ease, background-color 150ms ease, transform 120ms var(--staff-ease-out); }
+.staff-role-card:active:not(:disabled) { transform: scale(0.98); }
+.staff-role-card:disabled { cursor: not-allowed; opacity: 0.6; }
+.staff-role-card.is-selected { border-color: var(--ant-color-primary); background: var(--ant-color-primary-bg); }
+.staff-role-card .ant-avatar { flex: 0 0 auto; background: var(--ant-color-primary-bg); color: var(--ant-color-primary); }
+.staff-role-card.is-selected .ant-avatar { background: var(--ant-color-primary); color: var(--ant-color-white); }
+@media (hover: hover) and (pointer: fine) {
+  .staff-role-card:hover:not(:disabled):not(.is-selected) { border-color: var(--ant-color-primary-border-hover); }
+}
+
+
+/* WhatsApp and Active as a settings list: icon, label and what it means, then the switch. */
+.staff-toggle-list { margin-bottom: 8px; border: 1px solid var(--ant-color-border-secondary); border-radius: 12px; overflow: hidden; }
+.staff-toggle { display: flex; align-items: center; gap: 12px; padding: 10px 14px; cursor: pointer; transition: background-color 150ms ease; }
+.staff-toggle + .staff-toggle { border-top: 1px solid var(--ant-color-border-secondary); }
+.staff-toggle.is-disabled { cursor: not-allowed; }
+.staff-toggle-icon { flex: none; font-size: 18px; color: var(--ant-color-text-tertiary); transition: color 150ms ease; }
+.staff-toggle-icon.is-whatsapp { color: var(--ant-color-success); }
+.staff-toggle-icon.is-active { color: var(--ant-color-primary); }
+.staff-toggle-text { display: grid; flex: 1; min-width: 0; gap: 2px; }
+.staff-toggle-text small { color: var(--ant-color-text-secondary); font-size: 12px; }
+@media (hover: hover) and (pointer: fine) {
+  .staff-toggle:not(.is-disabled):hover { background: var(--ant-color-fill-quaternary); }
+}
+.staff-hours-strip .staff-hours-value { display: grid; gap: 1px; }
+.staff-hours-hint { font-size: 12.5px; line-height: 1.4; }

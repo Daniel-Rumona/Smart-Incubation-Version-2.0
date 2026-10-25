@@ -179,10 +179,19 @@ class CoreTests(unittest.TestCase):
         self.assertFalse(self.respond(response="accept")["changed"])
         self.assertEqual(len(self.db.data["notifications"]), 1)
 
-    def test_accept_does_not_touch_unbundled_or_foreign_assignment(self):
+    def test_accept_starts_unbundled_intervention_once(self):
+        # Any appointment the SME accepts starts the work, bundled or not; the start is stamped once.
         self.apt.pop("acceptanceBundle")
         self.respond(response="accept")
-        self.assertEqual(self.db.data["assignedInterventions"]["as1"]["participantStatus"], "pending")
+        a = self.db.data["assignedInterventions"]["as1"]
+        self.assertEqual((a["participantStatus"], a["status"], a["workStartedVia"]), ("accepted", "in-progress", "appointment_accepted"))
+
+    def test_accept_does_not_touch_foreign_assignment(self):
+        self.db.data["assignedInterventions"]["as1"]["participantId"] = "someone-else"
+        self.respond(response="accept")
+        a = self.db.data["assignedInterventions"]["as1"]
+        self.assertEqual(a["participantStatus"], "pending")
+        self.assertNotIn("workStartedAt", a)
 
     def test_reschedule_request_keeps_status(self):
         self.respond(response="reschedule_request", proposedText="next Tuesday", detail="clash")

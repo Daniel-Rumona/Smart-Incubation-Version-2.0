@@ -47,6 +47,7 @@ import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
 import { listComplianceRows } from '@/services/complianceService'
 import { matchesActiveProgram } from '@/services/workspaceProgramsService'
+import { outcomeRiskFlags } from '@/services/interventionOutcomeConfig'
 import { UpcomingWeekCard, type InterventionDueItem } from './UpcomingWeekCard'
 import '@/styles/dashboard.css'
 import '@/styles/compliance-tracker.css'
@@ -170,6 +171,9 @@ type AssignedInterventionRow = {
     updatedAt?: FirestoreDate
     completedAt?: FirestoreDate
     completionConfirmedAt?: FirestoreDate
+    followUpStatus?: string | null
+    followUpDueAt?: FirestoreDate
+    outcomeHistory?: unknown
 }
 
 type RiskLevel = 'critical' | 'high' | 'medium' | 'low'
@@ -535,6 +539,23 @@ const getInterventionRiskRegisterRows = (
                 action: 'Follow up with delivery owner',
             })
         }
+
+        outcomeRiskFlags(row as Record<string, unknown>).forEach(flag => {
+            const unresolved = flag.kind === 'unresolved_outcome'
+            rows.push({
+                key: `${unresolved ? 'outcome-unresolved' : 'outcome-overdue'}-${row.id}`,
+                category: unresolved ? 'Outcome: unresolved' : 'Outcome: follow-up overdue',
+                entityType: 'Intervention',
+                entityName: getInterventionTitle(row),
+                owner: getInterventionOwner(row),
+                issue: unresolved
+                    ? `${getInterventionParticipantName(row)}: intended change still not fully achieved after ${flag.rounds} follow-up checks`
+                    : `${getInterventionParticipantName(row)}: outcome follow-up waiting ${flag.daysOverdue} days with no result`,
+                severity: 'medium',
+                dueDate: unresolved ? null : toDayjs(row.followUpDueAt),
+                action: unresolved ? 'Review why the change has not stuck' : 'Ask the facilitator to record the follow-up',
+            })
+        })
     })
 
     return rows
@@ -581,6 +602,16 @@ const buildRiskCategoryRows = (registerRows: RiskRegisterRow[]): RiskCategoryRow
             label: tr('Consultant follow-up'),
             description: tr('Delivery owner, consultant, or coordinator action required'),
             action: 'Follow up owner',
+        },
+        'Outcome: unresolved': {
+            label: tr('Unresolved outcomes'),
+            description: tr('Intended change still not achieved after repeated follow-up checks'),
+            action: 'Review support approach',
+        },
+        'Outcome: follow-up overdue': {
+            label: tr('Overdue outcome follow-ups'),
+            description: tr('Completed interventions whose outcome check has gone unrecorded'),
+            action: 'Prompt facilitator',
         },
     }
 
@@ -775,19 +806,22 @@ export default function OperationsDashboard() {
                 user,
             })
 
-            const constraints: QueryConstraint[] = []
+            // The assignedInterventions rule only allows reading one's own company, so the query must say so;
+            // without a company there is nothing this page may read.
+            const companyCode = String(user?.companyCode || '').trim()
+            const constraints: QueryConstraint[] = [where('companyCode', '==', companyCode)]
 
             if (!isAllPrograms && activeProgramId) {
                 constraints.push(where('programId', '==', activeProgramId))
             }
 
-            const interventionSnap = await getDocs(
-                query(collection(db, 'assignedInterventions'), ...constraints),
-            )
+            const assignments = companyCode
+                ? (await getDocs(query(collection(db, 'assignedInterventions'), ...constraints))).docs
+                : []
 
             setRows(complianceResult.rows as ParticipantRow[])
             setInterventions(
-                interventionSnap.docs
+                assignments
                     .map(doc => ({
                         id: doc.id,
                         ...doc.data(),
@@ -1255,7 +1289,7 @@ export default function OperationsDashboard() {
         <UpcomingWeekCard
             interventionDueItems={interventionDueItems}
             loading={cardLoading}
-            onViewSchedule={() => navigate('/operations/interventions/appointments')}
+            onViewSchedule={() => navigate('/shared/interventions/appointments')}
         />
     )
 

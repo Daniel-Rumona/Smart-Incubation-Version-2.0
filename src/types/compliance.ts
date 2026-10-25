@@ -29,6 +29,8 @@ export type ComplianceParticipant = {
   programId?: string
   companyCode?: string
   documents: ComplianceDocument[]
+  /** The documents this participant's programme asks for (all of the catalogue when none are configured). */
+  requirements: { key: string, name: string, required: boolean }[]
 }
 
 export type SaveComplianceDocument = {

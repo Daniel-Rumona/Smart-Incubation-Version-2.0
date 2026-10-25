@@ -17,7 +17,6 @@ import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { useLanguage, tEnglish } from '@/providers/LanguageProvider'
 import {
-    canAcceptIncubateeIntervention,
     canConfirmIncubateeIntervention,
     listIncubateeOutstandingComplianceDocuments,
     loadIncubateeWorkspace,
@@ -28,6 +27,7 @@ import { MotionCard } from '@/components/shared/MotionCard'
 import { IncubateeItemList, type DashboardItem } from './IncubateeItemList'
 import { describeDue } from './incubateeDashboardStatus'
 import { buildDemoIncubateeWorkspace, buildDemoOutstandingDocuments, type OutstandingDocument } from './incubateeDemoWorkspace'
+import { PLAN_READY_PATH, shouldShowPlanReady } from '@/utils/planReadyPrompt'
 
 type MetricKey = 'documents' | 'accept' | 'confirm' | 'forms'
 
@@ -54,7 +54,8 @@ export const IncubateeDashboardPage = () => {
         if (!user) return
         try {
             setWorkspace(await loadIncubateeWorkspace(user))
-        } catch {
+        } catch (error) {
+            console.error('Could not load the incubatee workspace.', error)
             message.error(t('incubatee.common.loadError'))
             setWorkspace(null)
         }
@@ -64,6 +65,11 @@ export const IncubateeDashboardPage = () => {
         const timeout = window.setTimeout(() => void load(), 0)
         return () => window.clearTimeout(timeout)
     }, [user, isDemo]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // A freshly approved growth plan opens its own page once per sign-in until the SME confirms it.
+    useEffect(() => {
+        if (!isDemo && shouldShowPlanReady(workspace, user?.uid)) navigate(PLAN_READY_PATH)
+    }, [isDemo, navigate, user?.uid, workspace])
 
     const openDocuments = () => {
         setOpenMetric('documents')
@@ -78,8 +84,9 @@ export const IncubateeDashboardPage = () => {
             .catch(() => setDocuments([]))
     }
 
-    const toAccept = useMemo(
-        () => workspace?.assignedInterventions.filter(canAcceptIncubateeIntervention) || [],
+    // No accept step any more (confirming the plan covers it): this tile shows work that hasn't started yet.
+    const notStarted = useMemo(
+        () => workspace?.assignedInterventions.filter((item) => item.status === 'Not Started') || [],
         [workspace],
     )
     const toConfirm = useMemo(
@@ -87,7 +94,7 @@ export const IncubateeDashboardPage = () => {
         [workspace],
     )
     const openForms = useMemo(() => workspace?.forms.filter(isOpenForm) || [], [workspace])
-    const decisions = useMemo(() => [...toAccept, ...toConfirm], [toAccept, toConfirm])
+    const decisions = toConfirm
     const unread = workspace?.notifications.filter((item) => !item.read).length || 0
 
     useRegisterAgentPageContext({
@@ -96,7 +103,7 @@ export const IncubateeDashboardPage = () => {
         purpose: tEnglish('incubatee.dashboard.subtitle'),
         metrics: {
             documentsOutstanding: workspace?.outstandingDocuments || 0,
-            interventionsToAccept: toAccept.length,
+            interventionsNotStarted: notStarted.length,
             completionsToConfirm: toConfirm.length,
             formsToComplete: openForms.length,
             unread,
@@ -154,7 +161,7 @@ export const IncubateeDashboardPage = () => {
         },
         accept: {
             title: t('incubatee.dashboard.pendingInterventions'),
-            items: toAccept.map(interventionItem),
+            items: notStarted.map(interventionItem),
             emptyText: t('incubatee.dashboard.noPendingInterventions'),
             action: { label: t('incubatee.dashboard.openTracker'), path: '/incubatee/interventions' },
         },
@@ -191,7 +198,7 @@ export const IncubateeDashboardPage = () => {
                 onMobile={false}
                 icon={<TeamOutlined />}
                 label={t('incubatee.dashboard.pendingInterventions')}
-                value={toAccept.length}
+                value={notStarted.length}
                 onClick={() => setOpenMetric('accept')}
             />
 

@@ -17,10 +17,10 @@ import {
     FileDoneOutlined,
     LoadingOutlined,
     PlusOutlined,
+    RightOutlined,
     RobotOutlined,
     SendOutlined,
     ThunderboltOutlined,
-    WarningOutlined,
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -32,7 +32,6 @@ import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { useOpenWorkspace } from '@/contexts/WorkspaceShellContext'
 import { getAdminDashboardSummary } from '@/services/adminDashboardService'
 import {
-    canAcceptIncubateeIntervention,
     canConfirmIncubateeIntervention,
     listIncubateeOutstandingComplianceDocuments,
     loadIncubateeWorkspace,
@@ -45,15 +44,33 @@ import {
     loadProjectAdminWorkspace,
 } from '@/services/projectAdminWorkspaceService'
 import { uploadIncubateeComplianceDocument } from '@/services/incubateeComplianceUploadService'
+import { listMyApplications } from '@/services/applicantService'
 import type { AgentChatMessage, AgentPageContext, AgentProposalStatus } from '@/types/agent'
 import { AgentProposalCard } from '@/components/agent/AgentProposalCard'
+import { AgentGuidedAction, type GuidedActionKind } from '@/components/agent/AgentGuidedAction'
+import { hasRolePermission } from '@/config/permissions'
 import type { UserRole } from '@/config/roles'
 import { guideTarget, useRegisterPageGuide, type PageGuideRegistration } from '@/components/guide/PageGuideContext'
 import { ConversationMode } from '@/components/agent/ConversationMode'
+import { TypingGreeting } from '@/components/agent/TypingGreeting'
+import { summariseConsultantWork } from '@/pages/consultant/consultantWorkSummary'
 import '@/styles/agentic-home.css'
 import { useLanguage, tr } from '@/providers/LanguageProvider'
 
+/**
+ * What a metric counts. Drill-downs, actions and the agent's context are keyed on this, never on the
+ * (translated) label, so they behave the same in every language.
+ */
+type MetricKey =
+    | 'attention' | 'ongoing' | 'completed'
+    | 'action' | 'documents' | 'applications'
+    | 'pending' | 'smes'
+    | 'accept' | 'due' | 'overdue'
+    | 'errors' | 'users' | 'companies'
+    | 'risk' | 'decisions'
+
 type Metric = {
+    key: MetricKey
     label: string
     value: string | number
     detail: string
@@ -68,6 +85,8 @@ type MetricDetailRow = {
 }
 
 type Insight = {
+    /** Stable English name for the agent's context (labels are translated for display). */
+    key: string
     label: string
     value: string | number
     detail: string
@@ -76,7 +95,8 @@ type Insight = {
 
 type AgenticOverview = {
     roleLabel: string
-    headline: string
+    /** Phrases the greeting types in turn after "Ready to work on". */
+    focus: string[]
     metrics: Metric[]
     insights: Insight[]
     prompts: string[]
@@ -96,17 +116,44 @@ type PendingComplianceUpload = {
     expiryDate: dayjs.Dayjs | null
 }
 
+/** English names for each metric, for the agent's context and task titles (never the translated label). */
+const METRIC_NAMES: Record<MetricKey, string> = {
+    attention: 'Needs your attention',
+    ongoing: 'Ongoing interventions',
+    completed: 'Completed',
+    action: 'Needs your action',
+    documents: 'Pending documents',
+    applications: 'Open applications',
+    pending: 'Pending assignments',
+    accept: 'To accept',
+    due: 'Due this week',
+    overdue: 'Overdue on your side',
+    smes: 'Active SMEs',
+    errors: 'Delivery errors',
+    users: 'Active users',
+    companies: 'Companies',
+    risk: 'Items at risk',
+    decisions: 'Pending decisions',
+}
+
+// Same limits as the compliance page.
+const COMPLIANCE_FILE_TYPES = '.pdf,.png,.jpg,.jpeg,.webp'
+const COMPLIANCE_MAX_MB = 10
+
+/**
+ * Suggests dates from the file name, only when written unambiguously as YYYY-MM-DD (a name like
+ * "03-04-2025" could be March or April, so it is ignored). The SME always confirms before saving.
+ */
 const inferComplianceDates = async (file: File) => {
-    const source = `${file.name} ${file.type.startsWith('text/') ? await file.text().catch(() => '') : ''}`
-    const matches = source.match(/\b(?:\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})\b/g) || []
-    const dates = matches.map((value) => dayjs(value)).filter((value) => value.isValid())
+    const matches = file.name.match(/\b\d{4}-\d{2}-\d{2}\b/g) || []
+    const dates = matches.map((value) => dayjs(value, 'YYYY-MM-DD')).filter((value) => value.isValid())
     return { issueDate: dates[0] || null, expiryDate: dates[1] || null }
 }
 
 const actionForPrompt = (prompt: string, role?: UserRole): AgentAction | undefined => {
     const request = prompt.toLowerCase()
     if (role === 'consultant' && /appointment|meeting|schedule/.test(request)) {
-        return { label: tr('Schedule an appointment'), description: tr('Open the appointment form with your assigned interventions already available.'), path: '/consultant/appointments?create=1' }
+        return { label: tr('Schedule an appointment'), description: tr('Open the appointment form with your assigned interventions already available.'), path: '/shared/interventions/appointments?create=1' }
     }
     if (role === 'incubatee' && /document|compliance|upload/.test(request)) {
         return { label: tr('Upload a document'), description: tr('Open the compliance upload form and save the document to your workspace.'), path: '/incubatee/compliance?upload=1' }
@@ -114,6 +161,17 @@ const actionForPrompt = (prompt: string, role?: UserRole): AgentAction | undefin
     if (role === 'incubatee' && /intervention|support|work on/.test(request)) {
         return { label: tr('Open interventions'), description: tr('Review the intervention tracker and continue with the right item.'), path: '/incubatee/interventions' }
     }
+    return undefined
+}
+
+const COORDINATOR_ROLES: UserRole[] = ['operations', 'projectadmin', 'projectmanager']
+
+/** Short requests like "schedule an appointment" open the guided form; a detailed sentence goes straight to the agent. */
+const guidedActionForPrompt = (prompt: string): GuidedActionKind | undefined => {
+    const request = prompt.toLowerCase().trim()
+    if (request.split(/\s+/).length > 8) return undefined
+    if (/appointment|meeting|schedule/.test(request)) return 'appointment'
+    if (/\b(assign|allocate)\b/.test(request)) return 'assignment'
     return undefined
 }
 
@@ -147,23 +205,30 @@ const inWeek = (value: Date | null | undefined, weekOffset = 0) => {
     return dayjs(value).isAfter(start.subtract(1, 'millisecond')) && dayjs(value).isBefore(end.add(1, 'millisecond'))
 }
 
+/** This week and last week, as the admin summary expects them (shared by the card and its drill-down so they agree). */
+const thisAndLastWeek = (): [[Date, Date], [Date, Date]] => [
+    [dayjs().startOf('week').toDate(), dayjs().endOf('week').toDate()],
+    [dayjs().subtract(1, 'week').startOf('week').toDate(), dayjs().subtract(1, 'week').endOf('week').toDate()],
+]
+
+/** "+2 vs last week", in the user's language. `unit` is already translated by the caller. */
 const signedDelta = (current: number, previous: number, unit: string) => {
     const difference = current - previous
-    return `${difference >= 0 ? '+' : ''}${difference} ${unit} vs last week`
+    return tr('{change} {unit} vs last week', undefined, { change: `${difference >= 0 ? '+' : ''}${difference}`, unit })
 }
 
 const emptyOverview = (role?: UserRole): AgenticOverview => ({
-    roleLabel: role ? roleNames[role] : 'Workspace',
-    headline: tr('What would you like to move forward today?'),
+    roleLabel: role ? roleNames[role] : tr('Workspace'),
+    focus: [tr('your priorities'), tr('your next steps')],
     metrics: [
-        { label: tr('Needs your attention'), value: 0, detail: tr('Items waiting for action'), tone: 'amber' },
-        { label: tr('Ongoing work'), value: 0, detail: tr('Currently in progress'), tone: 'blue' },
-        { label: tr('Completed'), value: 0, detail: tr('Across your workspace'), tone: 'violet' },
+        { key: 'attention', label: tr('Needs your attention'), value: 0, detail: tr('Items waiting for action'), tone: 'amber' },
+        { key: 'ongoing', label: tr('Ongoing work'), value: 0, detail: tr('Currently in progress'), tone: 'blue' },
+        { key: 'completed', label: tr('Completed'), value: 0, detail: tr('Across your workspace'), tone: 'violet' },
     ],
     insights: [
-        { label: tr('Completed this week'), value: 0, detail: tr('No change vs last week'), positive: true },
-        { label: tr('Workspace health'), value: tr('Ready'), detail: tr('No urgent signals detected'), positive: true },
-        { label: tr('Current scope'), value: tr('All'), detail: tr('Using your permitted workspace data'), positive: true },
+        { key: 'Completed this week', label: tr('Completed this week'), value: 0, detail: tr('No change vs last week'), positive: true },
+        { key: 'Workspace health', label: tr('Workspace health'), value: tr('Ready'), detail: tr('No urgent signals detected'), positive: true },
+        { key: 'Current scope', label: tr('Current scope'), value: tr('All'), detail: tr('Using your permitted workspace data'), positive: true },
     ],
     prompts: ['Summarise what needs my attention', 'What should I work on next?', 'Show me this week’s progress'],
     workspacePath: role ? roleWorkspacePaths[role] : '/dashboard',
@@ -225,7 +290,7 @@ export const AgenticHomePage = () => {
     const openWorkspace = useOpenWorkspace()
     const [overview, setOverview] = useState<AgenticOverview>(() => emptyOverview(user?.role))
     const workspaceRef = useRef<Awaited<ReturnType<typeof loadProjectAdminWorkspace>> | undefined>(undefined)
-    const [focusedItem, setFocusedItem] = useState<{ metric: string; row: MetricDetailRow; facts: Record<string, unknown> }>()
+    const [focusedItem, setFocusedItem] = useState<{ metric: MetricKey; row: MetricDetailRow; facts: Record<string, unknown> }>()
     const [scopeFacts, setScopeFacts] = useState<Record<string, unknown> | undefined>()
     const [loading, setLoading] = useState(true)
     const [draft, setDraft] = useState('')
@@ -248,6 +313,12 @@ export const AgenticHomePage = () => {
         composerRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' })
     }, [messages])
 
+    // Only facilitators' cards are built from the shared assignments list; for everyone else its live
+    // updates must not re-run (and re-skeleton) the whole overview.
+    const consultantAssignments = user?.role === 'consultant' ? assignments : null
+    const consultantIsMine = user?.role === 'consultant' ? isMine : null
+    const overviewLoaded = useRef(false)
+
     useEffect(() => {
         let cancelled = false
 
@@ -258,76 +329,92 @@ export const AgenticHomePage = () => {
                 return
             }
 
-            setLoading(true)
+            // Skeletons only on the first load; later refreshes update the numbers in place.
+            if (!overviewLoaded.current) setLoading(true)
             try {
                 if (user.role === 'incubatee') {
-                    const workspace = await loadIncubateeWorkspace(user)
-                    if (cancelled || !workspace) {
-                        if (!cancelled) setOverview(user.isApplicant ? {
-                            roleLabel: tr('Applicant'),
-                            headline: tr('Let’s get your application moving.'),
+                    const workspace = user.isApplicant ? null : await loadIncubateeWorkspace(user)
+                    if (cancelled) return
+                    if (!workspace) {
+                        if (!user.isApplicant) {
+                            setOverview(emptyOverview(user.role))
+                            return
+                        }
+                        // Applicants: independent SMEs use the marketplace and programmes; programme applicants follow their application.
+                        const applications = await listMyApplications(user.uid).catch(() => [])
+                        if (cancelled) return
+                        const open = applications.filter((item) => isOpenApplicationStatus(String(item.applicationStatus || 'pending'))).length
+                        const independent = user.smeJourney === 'independent'
+                        setOverview({
+                            roleLabel: independent ? t('SME') : t('Applicant'),
+                            focus: independent
+                                ? [t('your business profile'), t('finding a programme'), t('your next step')]
+                                : [t('your application'), t('your documents'), t('your next step')],
                             metrics: [
-                                { label: t('Application steps'), value: tr('Open'), detail: tr('Continue your active application'), tone: 'amber' },
-                                { label: t('Programmes'), value: tr('Explore'), detail: tr('Find the right support programme'), tone: 'blue' },
-                                { label: t('Profile readiness'), value: tr('Review'), detail: tr('Keep your business details current'), tone: 'violet' },
+                                { key: 'applications', label: t('Open applications'), value: open, detail: t('Applications waiting for a decision'), tone: 'amber' },
                             ],
-                            insights: [
-                                { label: t('Next best action'), value: tr('Continue'), detail: tr('Open your application tracker'), positive: true },
-                                { label: t('Workspace status'), value: tr('Applicant'), detail: tr('Incubatee tools unlock after acceptance'), positive: true },
-                                { label: t('Agent support'), value: tr('Ready'), detail: tr('Ask for help with any application step'), positive: true },
-                            ],
-                            prompts: ['What should I complete next?', 'Help me strengthen my application', 'Explain the programme requirements'],
-                            workspacePath: '/applicant/application-tracker',
-                        } : emptyOverview(user.role))
+                            insights: independent
+                                ? [
+                                    { key: 'Consultant marketplace', label: t('Consultant marketplace'), value: t('Open'), detail: t('Request support from consultants'), positive: true },
+                                    { key: 'Programmes', label: t('Programmes'), value: applications.length ? t('{count} applied', undefined, { count: applications.length }) : t('Find one'), detail: t('Programmes open to SMEs like yours'), positive: true },
+                                    { key: 'Agent support', label: t('Agent support'), value: t('Ready'), detail: t('Ask for help with any business task'), positive: true },
+                                ]
+                                : [
+                                    { key: 'Applications', label: t('Applications'), value: applications.length, detail: open ? t('Waiting for a decision') : t('No open applications'), positive: true },
+                                    { key: 'Workspace status', label: t('Workspace status'), value: t('Applicant'), detail: t('Incubatee tools unlock after acceptance'), positive: true },
+                                    { key: 'Agent support', label: t('Agent support'), value: t('Ready'), detail: t('Ask for help with any application step'), positive: true },
+                                ],
+                            prompts: independent
+                                ? ['Help me find the right consultant', 'Which programme suits my business?', 'Help me plan my next growth step']
+                                : ['What should I complete next?', 'Help me strengthen my application', 'Explain the programme requirements'],
+                            workspacePath: independent ? '/applicant/marketplace' : '/applicant/application-tracker',
+                        })
                         return
                     }
-                    const needsAction = workspace.assignedInterventions.filter((item) => canAcceptIncubateeIntervention(item) || canConfirmIncubateeIntervention(item)).length
+                    const needsAction = workspace.assignedInterventions.filter(canConfirmIncubateeIntervention).length
                         + workspace.forms.filter((item) => !['completed', 'submitted'].includes(item.status.toLowerCase())).length
                     const ongoing = workspace.assignedInterventions.filter((item) => item.status === 'In Progress').length
                     const completed = workspace.assignedInterventions.filter((item) => item.status === 'Completed')
                     const unread = workspace.notifications.filter((item) => !item.read).length
                     setOverview({
-                        roleLabel: user.isApplicant ? 'Applicant' : roleNames[user.role],
-                        headline: user.isApplicant ? 'Let’s get your application moving.' : 'What can we move forward in your business today?',
+                        roleLabel: roleNames[user.role],
+                        focus: [t('your compliance documents'), t('your interventions'), t('your next milestone'), t('your growth plan')],
                         metrics: [
-                            { label: t('Needs your action'), value: needsAction, detail: tr('Confirmations, forms and decisions'), tone: 'amber' },
-                            { label: t('Ongoing interventions'), value: ongoing, detail: tr('Support currently in progress'), tone: 'blue' },
-                            { label: t('Pending documents'), value: workspace.outstandingDocuments, detail: tr('Compliance items still outstanding'), tone: 'violet' },
+                            { key: 'action', label: t('Needs your action'), value: needsAction, detail: t('Confirmations, forms and decisions'), tone: 'amber' },
+                            { key: 'ongoing', label: t('Ongoing interventions'), value: ongoing, detail: t('Support currently in progress'), tone: 'blue' },
+                            { key: 'documents', label: t('Pending documents'), value: workspace.outstandingDocuments, detail: t('Compliance items still outstanding'), tone: 'violet' },
                         ],
                         insights: [
-                            { label: t('Completed interventions'), value: completed.length, detail: tr('Across your current programme'), positive: true },
-                            { label: t('Growth plan'), value: workspace.growthPlanConfirmed ? 'Confirmed' : workspace.growthPlanAvailable ? 'Ready' : 'Pending', detail: workspace.programName || 'Current programme', positive: workspace.growthPlanConfirmed },
-                            { label: t('Unread updates'), value: unread, detail: unread ? 'New workspace notifications' : 'You are all caught up', positive: unread === 0 },
+                            { key: 'Completed interventions', label: t('Completed interventions'), value: completed.length, detail: t('Across your current programme'), positive: true },
+                            { key: 'Growth plan', label: t('Growth plan'), value: workspace.growthPlanConfirmed ? t('Confirmed') : workspace.growthPlanAvailable ? t('Ready') : t('Pending'), detail: workspace.programName || t('Current programme'), positive: workspace.growthPlanConfirmed },
+                            { key: 'Unread updates', label: t('Unread updates'), value: unread, detail: unread ? t('New workspace notifications') : t('You are all caught up'), positive: unread === 0 },
                         ],
                         prompts: ['What do I need to complete today?', 'Summarise my intervention progress', 'Help me prepare for my next milestone'],
-                        workspacePath: user.isApplicant ? '/applicant/application-tracker' : '/incubatee',
+                        workspacePath: '/incubatee',
                     })
                     return
                 }
 
                 if (user.role === 'consultant') {
-                    const mine = assignments.filter(isMine)
-                    const normalized = mine.map((item) => String(
-                        item.status || (item as unknown as Record<string, unknown>).completionStatus || '',
-                    ).toLowerCase())
-                    const completed = normalized.filter((status) => ['completed', 'complete', 'done', 'closed', 'confirmed'].includes(status)).length
-                    const ongoing = normalized.filter((status) => status.includes('progress') || status === 'active').length
-                    const pending = Math.max(0, mine.length - completed - ongoing)
+                    // The same counts the Workspace dashboard greeting gives, so both modes agree.
+                    const mine = (consultantAssignments || []).filter((item) => consultantIsMine?.(item))
+                    const work = summariseConsultantWork(mine)
+                    const completed = work.completed.length
                     const budget = typeof user.consultingBudget === 'number'
                         ? new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(user.consultingBudget)
-                        : 'Not set'
+                        : t('Not set')
                     setOverview({
                         roleLabel: roleNames[user.role],
-                        headline: tr('Where should we focus your delivery time today?'),
+                        focus: [t('your assigned interventions'), t('client follow-ups'), t('proof of evidence')],
                         metrics: [
-                            { label: t('Pending assignments'), value: pending, detail: tr('Waiting to be started'), tone: 'amber' },
-                            { label: t('Ongoing interventions'), value: ongoing, detail: tr('Active client delivery'), tone: 'blue' },
-                            { label: t('Assigned SMEs'), value: new Set(mine.map((item) => item.participantId).filter(Boolean)).size, detail: tr('Businesses in your portfolio'), tone: 'violet' },
+                            { key: 'accept', label: t('To accept'), value: work.toAccept.length, detail: t('Waiting for you to accept'), tone: 'amber' },
+                            { key: 'due', label: t('Due this week'), value: work.yourDue.length, detail: t('On your side, in the next 7 days'), tone: 'blue' },
+                            { key: 'overdue', label: t('Overdue'), value: work.yourLate.length, detail: t('On your side, past the due date'), tone: 'violet' },
                         ],
                         insights: [
-                            { label: t('Completed interventions'), value: completed, detail: `${mine.length ? Math.round((completed / mine.length) * 100) : 0}% completion rate`, positive: true },
-                            { label: t('Consulting budget'), value: budget, detail: tr('Current account allocation'), positive: true },
-                            { label: t('Delivery load'), value: ongoing + pending, detail: tr('Open assignments requiring capacity'), positive: ongoing + pending < 10 },
+                            { key: 'Waiting on others', label: t('Waiting on others'), value: work.waitingOnOthers.length, detail: t('Late or due work waiting on SMEs or reviewers'), positive: work.waitingOnOthers.length === 0 },
+                            { key: 'Completed interventions', label: t('Completed interventions'), value: completed, detail: t('{rate}% completion rate', undefined, { rate: mine.length ? Math.round((completed / mine.length) * 100) : 0 }), positive: true },
+                            { key: 'Consulting budget', label: t('Consulting budget'), value: budget, detail: t('Current account allocation'), positive: true },
                         ],
                         prompts: ['Prioritise my intervention queue', 'Which SMEs need attention?', 'Draft a plan for my active assignments'],
                         workspacePath: '/consultant',
@@ -336,24 +423,20 @@ export const AgenticHomePage = () => {
                 }
 
                 if (['systemadmin', 'admin'].includes(user.role)) {
-                    const currentStart = dayjs().startOf('week').toDate()
-                    const currentEnd = dayjs().endOf('week').toDate()
-                    const previousStart = dayjs().subtract(1, 'week').startOf('week').toDate()
-                    const previousEnd = dayjs().subtract(1, 'week').endOf('week').toDate()
-                    const summary = await getAdminDashboardSummary(user, [currentStart, currentEnd], [previousStart, previousEnd])
+                    const summary = await getAdminDashboardSummary(user, ...thisAndLastWeek())
                     if (cancelled) return
                     setOverview({
                         roleLabel: roleNames[user.role],
-                        headline: tr('What should we improve across the platform today?'),
+                        focus: [t('user access'), t('platform health'), t('delivery errors')],
                         metrics: [
-                            { label: t('Delivery errors'), value: summary.errors, detail: tr('Failed operations this week'), tone: 'amber' },
-                            { label: t('Active users'), value: summary.activeUsers, detail: tr('Accounts currently enabled'), tone: 'blue' },
-                            { label: t('Companies'), value: summary.companies, detail: tr('Organisations on the platform'), tone: 'violet' },
+                            { key: 'errors', label: t('Delivery errors'), value: summary.errors, detail: t('Failed operations this week'), tone: 'amber' },
+                            { key: 'users', label: t('Active users'), value: summary.activeUsers, detail: t('Accounts currently enabled'), tone: 'blue' },
+                            { key: 'companies', label: t('Companies'), value: summary.companies, detail: t('Organisations on the platform'), tone: 'violet' },
                         ],
                         insights: [
-                            { label: t('Applications this week'), value: summary.applications, detail: signedDelta(summary.applications, summary.previous.applications, 'applications'), positive: summary.applications >= summary.previous.applications },
-                            { label: t('User growth'), value: summary.users, detail: signedDelta(summary.users, summary.previous.users, 'users'), positive: summary.users >= summary.previous.users },
-                            { label: t('System health'), value: summary.errors ? 'Attention' : 'Healthy', detail: summary.errors ? `${summary.errors} failures need review` : 'No delivery failures this week', positive: summary.errors === 0 },
+                            { key: 'Applications this week', label: t('Applications this week'), value: summary.applications, detail: signedDelta(summary.applications, summary.previous.applications, t('applications')), positive: summary.applications >= summary.previous.applications },
+                            { key: 'User growth', label: t('User growth'), value: summary.users, detail: signedDelta(summary.users, summary.previous.users, t('users')), positive: summary.users >= summary.previous.users },
+                            { key: 'System health', label: t('System health'), value: summary.errors ? t('Attention') : t('Healthy'), detail: summary.errors ? t('{count} failures need review', undefined, { count: summary.errors }) : t('No delivery failures this week'), positive: summary.errors === 0 },
                         ],
                         prompts: ['Summarise platform risks', 'Which errors need immediate attention?', 'Show me adoption changes this week'],
                         workspacePath: '/dashboard',
@@ -395,20 +478,29 @@ export const AgenticHomePage = () => {
                 })
                 setOverview({
                     roleLabel: roleNames[user.role],
-                    headline: isExecutive ? 'What decision can I help you make today?' : 'What should the programme team move forward today?',
+                    focus: isExecutive
+                        ? [t('programme performance'), t('risk hotspots'), t('your next decision')]
+                        : [t('participant progress'), t('delivery risks'), t('overdue interventions')],
                     metrics: [
-                        { label: isExecutive ? t('Items at risk') : t('Pending decisions'), value: isExecutive ? overdue + complianceAttention : openApplications + complianceAttention, detail: isExecutive ? 'Overdue and compliance signals' : 'Applications and compliance reviews', tone: 'amber' },
-                        { label: t('Ongoing interventions'), value: ongoing, detail: tr('Active delivery across the programme'), tone: 'blue' },
-                        { label: t('Active SMEs'), value: workspace.participants.length, detail: tr('Businesses in the current scope'), tone: 'violet' },
+                        isExecutive
+                            ? { key: 'risk', label: t('Items at risk'), value: overdue + complianceAttention, detail: t('Overdue and compliance signals'), tone: 'amber' }
+                            : { key: 'decisions', label: t('Pending decisions'), value: openApplications + complianceAttention, detail: t('Applications and compliance reviews'), tone: 'amber' },
+                        { key: 'ongoing', label: t('Ongoing interventions'), value: ongoing, detail: t('Active delivery across the programme'), tone: 'blue' },
+                        { key: 'smes', label: t('Active SMEs'), value: workspace.participants.length, detail: t('Businesses in the current scope'), tone: 'violet' },
                     ],
                     insights: [
-                        { label: t('Completed this week'), value: completedThisWeek, detail: signedDelta(completedThisWeek, completedLastWeek, 'interventions'), positive: completedThisWeek >= completedLastWeek },
-                        { label: t('Completion rate'), value: `${completionRate}%`, detail: `${completed.length} of ${workspace.interventions.length} interventions completed`, positive: completionRate >= 60 },
-                        { label: t('Portfolio risk'), value: overdue, detail: overdue ? 'Overdue interventions need attention' : 'No overdue interventions', positive: overdue === 0 },
+                        { key: 'Completed this week', label: t('Completed this week'), value: completedThisWeek, detail: signedDelta(completedThisWeek, completedLastWeek, t('interventions')), positive: completedThisWeek >= completedLastWeek },
+                        { key: 'Completion rate', label: t('Completion rate'), value: `${completionRate}%`, detail: t('{done} of {total} interventions completed', undefined, { done: completed.length, total: workspace.interventions.length }), positive: completionRate >= 60 },
+                        { key: 'Portfolio risk', label: t('Portfolio risk'), value: overdue, detail: overdue ? t('Overdue interventions need attention') : t('No overdue interventions'), positive: overdue === 0 },
                     ],
                     prompts: isExecutive
                         ? ['Give me an executive programme brief', 'Where are our biggest delivery risks?', 'Compare this week’s intervention progress']
-                        : ['Build my priority list for today', 'Which interventions are falling behind?', 'Summarise programme delivery this week'],
+                        : [
+                            ...(COORDINATOR_ROLES.includes(user.role) && hasRolePermission(user.role, 'assign_interventions', user.permissions) ? ['Assign an intervention', 'Schedule an appointment'] : []),
+                            'Build my priority list for today',
+                            'Which interventions are falling behind?',
+                            'Summarise programme delivery this week',
+                        ],
                     workspacePath: roleWorkspacePaths[user.role],
                 })
             } catch {
@@ -417,63 +509,84 @@ export const AgenticHomePage = () => {
                     message.error(t('The agentic overview could not load all workspace metrics.'))
                 }
             } finally {
-                if (!cancelled) setLoading(false)
+                if (!cancelled) {
+                    overviewLoaded.current = true
+                    setLoading(false)
+                }
             }
         }
 
         void load()
         return () => { cancelled = true }
-    }, [activeProgramId, assignments, isMine, message, user, t])
+    }, [activeProgramId, consultantAssignments, consultantIsMine, message, user, t])
 
+    // The agent always gets English (labels on screen may be isiZulu), keyed by what each metric counts.
     const pageContext = useMemo<AgentPageContext>(() => ({
         pageKey: 'agentic-home',
         pageName: 'Agentic overview',
-        purpose: `Role-aware command centre for ${overview.roleLabel}.`,
+        purpose: `Role-aware command centre for ${user?.role || 'workspace'}.`,
         currentFilters: { activeProgramId, programmeScope: activeProgramId === 'all' ? 'All programmes' : `Single programme (id ${activeProgramId})` },
-        metrics: Object.fromEntries([...overview.metrics, ...overview.insights].map((item) => [item.label, item.value])),
+        metrics: Object.fromEntries([
+            ...overview.metrics.map((item) => [METRIC_NAMES[item.key], item.value]),
+            ...overview.insights.map((item) => [item.key, item.value]),
+        ]),
         dataSummary: {
             metricDefinitions: {
                 'Items at risk': 'COUNT OF ITEMS, not SMEs: overdue interventions + compliance documents needing attention. One SME can account for several items.',
                 'Active SMEs': 'Number of SMEs in the current programme scope.',
                 'Ongoing interventions': 'Assigned interventions not yet completed in the current programme scope.',
+                'To accept': 'Interventions assigned to the consultant that they have not accepted yet.',
+                'Due this week': 'Open interventions due in the next 7 days where the next move is the consultant’s.',
+                'Overdue on your side': 'Interventions past their due date where the next move is the consultant’s (not counting ones still to accept).',
                 'Portfolio risk': 'Number of overdue interventions.',
             },
             scopeFacts,
-            focusedItem: focusedItem ? { fromMetric: focusedItem.metric, item: focusedItem.row.item, status: focusedItem.row.status, detail: focusedItem.row.detail, facts: focusedItem.facts, note: 'The user picked this item from a list; questions like "tell me more", "this", "it" refer to it.' } : undefined,
+            focusedItem: focusedItem ? { fromMetric: METRIC_NAMES[focusedItem.metric], item: focusedItem.row.item, status: focusedItem.row.status, detail: focusedItem.row.detail, facts: focusedItem.facts, note: 'The user picked this item from a list; questions like "tell me more", "this", "it" refer to it.' } : undefined,
             role: user?.role,
-            roleLabel: overview.roleLabel,
             selectedMetric: selectedMetric ? {
-                label: selectedMetric.label,
+                metric: METRIC_NAMES[selectedMetric.key],
                 value: selectedMetric.value,
-                detail: selectedMetric.detail,
                 visibleRows: metricRows.slice(0, 50),
             } : undefined,
         },
         updatedAt: new Date().toISOString(),
     }), [activeProgramId, metricRows, overview, scopeFacts, focusedItem, selectedMetric, user?.role])
 
-    const send = (content = draft) => {
+    const [guidedKind, setGuidedKind] = useState<GuidedActionKind | null>(null)
+    const canGuide = (kind: GuidedActionKind) => !!user && COORDINATOR_ROLES.includes(user.role)
+        && (kind === 'assignment'
+            ? hasRolePermission(user.role, 'assign_interventions', user.permissions)
+            : hasRolePermission(user.role, 'assign_interventions', user.permissions) || hasRolePermission(user.role, 'track_interventions', user.permissions))
+
+    const send = (content = draft, display?: string) => {
         const nextContent = content.trim()
         if (!nextContent) return
-        const userMessage = makeMessage('user', nextContent)
-        const pendingMessage = makeMessage('agent', 'Working on this in the background…')
+        const guided = display ? undefined : guidedActionForPrompt(nextContent)
+        if (guided && canGuide(guided)) {
+            setDraft('')
+            setGuidedKind(guided)
+            return
+        }
+        const userMessage = makeMessage('user', display || nextContent)
+        // The pending flag (not the text) marks "thinking", so the wording can be translated.
+        const pendingMessage = { ...makeMessage('agent', t('Working on this in the background…')), pending: true }
         const action = actionForPrompt(nextContent, user?.role)
-        const history = messages
+        const history = messages.filter((item) => !item.pending)
         setMessages((current) => [...current, userMessage, pendingMessage])
         setDraft('')
         queueTask({
-            title: selectedMetric ? `${selectedMetric.label}: ${nextContent}` : undefined,
+            title: selectedMetric ? `${METRIC_NAMES[selectedMetric.key]}: ${nextContent}` : undefined,
             prompt: nextContent,
             page: pageContext,
             history,
             onCompleted: (result, proposal) => {
                 setMessages((current) => current.map((item) => item.id === pendingMessage.id
-                    ? { ...item, content: result, ...(proposal ? { proposal, proposalStatus: 'pending' as const } : {}) }
+                    ? { ...item, content: result, pending: false, ...(proposal ? { proposal, proposalStatus: 'pending' as const } : {}) }
                     : item))
                 if (action) setMessageActions((current) => ({ ...current, [pendingMessage.id]: action }))
             },
             onFailed: (error) => setMessages((current) => current.map((item) => item.id === pendingMessage.id
-                ? { ...item, content: error }
+                ? { ...item, content: error, pending: false }
                 : item)),
         })
     }
@@ -484,110 +597,134 @@ export const AgenticHomePage = () => {
             : item))
     }
 
+    // Each drill-down gets a number; a reply that arrives after the user opened another metric (or closed
+    // the window) is ignored, so the window can always be closed while it loads.
+    const metricRequest = useRef(0)
+
+    const closeMetric = () => {
+        metricRequest.current += 1
+        setSelectedMetric(undefined)
+        setMetricLoading(false)
+    }
+
     const loadMetricDetails = async (metric: Metric) => {
-        if (!user || metricLoading) return
+        if (!user) return
+        const request = ++metricRequest.current
+        const isCurrent = () => request === metricRequest.current
+        const showRows = (rows: MetricDetailRow[]) => { if (isCurrent()) setMetricRows(rows) }
         setSelectedMetric(metric)
         setMetricRows([])
         setMetricPage(1)
         setMetricLoading(true)
 
-        const label = metric.label.toLowerCase()
         const assignmentRow = (item: typeof assignments[number]): MetricDetailRow => {
             const raw = item as unknown as Record<string, unknown>
             return {
                 id: item.id,
-                item: String(item.interventionTitle || raw.title || 'Intervention'),
-                status: String(item.status || raw.completionStatus || 'Pending'),
-                detail: String(raw.participantName || raw.businessName || item.participantId || 'Assigned workspace item'),
+                item: String(item.interventionTitle || raw.title || t('Intervention')),
+                status: String(item.status || raw.completionStatus || t('Pending')),
+                detail: String(raw.participantName || raw.businessName || item.participantId || t('Assigned workspace item')),
             }
         }
 
         try {
             if (user.role === 'incubatee') {
-                const workspace = await loadIncubateeWorkspace(user)
-                if (!workspace) {
-                    setMetricRows([])
+                if (metric.key === 'applications') {
+                    const applications = await listMyApplications(user.uid)
+                    showRows(applications
+                        .filter((item) => isOpenApplicationStatus(String(item.applicationStatus || 'pending')))
+                        .map((item) => ({ id: item.id, item: item.programName || t('Programme application'), status: String(item.applicationStatus || t('Pending')), detail: t('Waiting for a decision') })))
                     return
                 }
 
-                if (label.includes('action')) {
+                const workspace = await loadIncubateeWorkspace(user)
+                if (!workspace) {
+                    showRows([])
+                    return
+                }
+
+                if (metric.key === 'action') {
                     const interventions = workspace.assignedInterventions
-                        .filter((item) => canAcceptIncubateeIntervention(item) || canConfirmIncubateeIntervention(item))
-                        .map((item) => ({ id: item.id, item: item.title, status: item.status, detail: item.areaOfSupport || 'Intervention' }))
+                        .filter(canConfirmIncubateeIntervention)
+                        .map((item) => ({ id: item.id, item: item.title, status: item.status, detail: item.areaOfSupport || t('Intervention') }))
                     const forms = workspace.forms
                         .filter((item) => !['completed', 'submitted'].includes(item.status.toLowerCase()))
-                        .map((item) => ({ id: item.id, item: item.title, status: item.status, detail: item.kind === 'survey' ? 'Survey' : 'Assessment' }))
-                    setMetricRows([...interventions, ...forms])
-                } else if (label.includes('ongoing')) {
-                    setMetricRows(workspace.assignedInterventions
+                        .map((item) => ({ id: item.id, item: item.title, status: item.status, detail: item.kind === 'survey' ? t('Survey') : t('Assessment') }))
+                    showRows([...interventions, ...forms])
+                } else if (metric.key === 'ongoing') {
+                    showRows(workspace.assignedInterventions
                         .filter((item) => item.status === 'In Progress')
-                        .map((item) => ({ id: item.id, item: item.title, status: item.status, detail: item.areaOfSupport || item.assigneeName || 'Intervention' })))
-                } else {
+                        .map((item) => ({ id: item.id, item: item.title, status: item.status, detail: item.areaOfSupport || item.assigneeName || t('Intervention') })))
+                } else if (metric.key === 'documents') {
                     const documents = await listIncubateeOutstandingComplianceDocuments(user)
-                    setMetricRows(documents.map((document) => ({
+                    showRows(documents.map((document) => ({
                         id: document.id,
                         item: document.title,
                         status: document.status,
                         detail: document.fileName
-                            ? `Uploaded file: ${document.fileName}${document.expiryDate ? ` · Expires ${document.expiryDate}` : ''}. Review or replace it.`
-                            : 'Not yet uploaded',
+                            ? document.expiryDate
+                                ? t('Uploaded file: {file} · Expires {date}. Review or replace it.', undefined, { file: document.fileName, date: document.expiryDate })
+                                : t('Uploaded file: {file}. Review or replace it.', undefined, { file: document.fileName })
+                            : t('Not yet uploaded'),
                     })))
+                } else {
+                    showRows([])
                 }
                 return
             }
 
             if (user.role === 'consultant') {
-                const mine = assignments.filter(isMine)
-                const rows = mine.map(assignmentRow)
-                if (label.includes('pending')) setMetricRows(rows.filter((row) => !['completed', 'complete', 'done', 'closed', 'confirmed', 'in-progress', 'in progress', 'active'].includes(row.status.toLowerCase())))
-                else if (label.includes('ongoing')) setMetricRows(rows.filter((row) => ['in-progress', 'in progress', 'active'].includes(row.status.toLowerCase())))
-                else if (label.includes('sme')) {
-                    const uniqueSmes = new Map(rows.map((row) => [row.detail, row]))
-                    setMetricRows([...uniqueSmes.values()].map((row) => ({ ...row, item: row.detail, detail: tr('Assigned SME') })))
-                } else setMetricRows(rows)
+                // The same groups as the cards' counts.
+                const work = summariseConsultantWork(assignments.filter(isMine))
+                const groups: Partial<Record<MetricKey, typeof assignments>> = { accept: work.toAccept, due: work.yourDue, overdue: work.yourLate }
+                showRows((groups[metric.key] || work.open).map(assignmentRow))
                 return
             }
 
             if (['systemadmin', 'admin'].includes(user.role)) {
-                const summary = await getAdminDashboardSummary(user)
-                if (label.includes('error')) {
-                    setMetricRows(summary.recentErrors.map((item) => ({ id: item.id, item: item.source, status: 'Failed', detail: item.message })))
+                // Same week range as the card, so the list matches its count.
+                const summary = await getAdminDashboardSummary(user, ...thisAndLastWeek())
+                if (metric.key === 'errors') {
+                    showRows(summary.recentErrors.map((item) => ({ id: item.id, item: item.source, status: t('Failed'), detail: item.message })))
                 } else {
-                    setMetricRows([{ id: label, item: metric.label, status: String(metric.value), detail: metric.detail }])
+                    showRows([{ id: metric.key, item: metric.label, status: String(metric.value), detail: metric.detail }])
                 }
                 return
             }
 
             const workspace = await loadProjectAdminWorkspace(user, activeProgramId)
-            if (label.includes('ongoing')) {
-                setMetricRows(workspace.interventions
+            const participantNameById = new Map(workspace.participants.map((item) => [item.id, item.businessName]))
+            if (metric.key === 'ongoing') {
+                showRows(workspace.interventions
                     .filter((item) => !isCompletedInterventionStatus(item.status))
                     .map((item) => ({ id: item.id, item: item.title, status: item.status, detail: `${item.participantName} · ${item.owner}` })))
-            } else if (label.includes('sme')) {
-                setMetricRows(workspace.participants.map((item) => ({ id: item.id, item: item.businessName, status: item.status, detail: item.programName })))
+            } else if (metric.key === 'smes') {
+                showRows(workspace.participants.map((item) => ({ id: item.id, item: item.businessName, status: item.status, detail: item.programName })))
             } else {
                 const applicationRows = workspace.applications
                     .filter((item) => isOpenApplicationStatus(item.status))
                     .map((item) => ({ id: item.id, item: item.businessName, status: item.status, detail: item.programName }))
                 const riskRows = workspace.interventions
                     .filter((item) => isOverdueIntervention(item))
-                    .map((item) => ({ id: item.id, item: item.title, status: 'Overdue', detail: item.participantName }))
+                    .map((item) => ({ id: item.id, item: item.title, status: t('Overdue'), detail: item.participantName }))
+                // The document's name and the SME's business name, not a raw participant id.
                 const complianceRows = workspace.complianceDocuments
                     .filter((item) => isComplianceAttentionStatus(item.status))
-                    .map((item) => ({ id: item.id, item: 'Compliance document', status: item.status, detail: item.participantId }))
-                setMetricRows(label.includes('risk') ? [...riskRows, ...complianceRows] : [...applicationRows, ...complianceRows])
+                    .map((item) => ({ id: item.id, item: item.type, status: item.status, detail: participantNameById.get(item.participantId) || t('Unknown SME') }))
+                showRows(metric.key === 'risk' ? [...riskRows, ...complianceRows] : [...applicationRows, ...complianceRows])
             }
         } catch {
+            if (!isCurrent()) return
             setMetricRows([])
-            message.error(`Could not load ${metric.label.toLowerCase()} details.`)
+            message.error(t('Could not load the details for {metric}.', undefined, { metric: metric.label }))
         } finally {
-            setMetricLoading(false)
+            if (isCurrent()) setMetricLoading(false)
         }
     }
 
     const focusRow = (row: MetricDetailRow) => {
         const workspace = workspaceRef.current
-        const metric = selectedMetric?.label || ''
+        const metric = selectedMetric?.key || 'attention'
         const facts: Record<string, unknown> = {}
         const fmt = (value: Date | null) => value ? dayjs(value).format('YYYY-MM-DD') : undefined
         const participant = workspace?.participants.find((item) => item.id === row.id)
@@ -602,7 +739,7 @@ export const AgenticHomePage = () => {
                 .map((item) => ({ title: item.title, status: item.status, progress: item.progress, due: fmt(item.dueDate), owner: item.owner, overdue: isOverdueIntervention(item) }))
             facts.complianceDocuments = workspace.complianceDocuments
                 .filter((item) => item.participantId === participant.id)
-                .map((item) => ({ status: item.status, expires: fmt(item.expiryDate) }))
+                .map((item) => ({ type: item.type, status: item.status, expires: fmt(item.expiryDate) }))
         } else if (workspace && intervention) {
             facts.type = 'Intervention'
             facts.sme = intervention.participantName
@@ -613,12 +750,17 @@ export const AgenticHomePage = () => {
             facts.overdue = isOverdueIntervention(intervention)
         }
         setFocusedItem({ metric, row, facts })
-        setSelectedMetric(undefined)
+        closeMetric()
         window.setTimeout(() => composerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 250)
     }
 
+    // The prompt sent to the agent stays English; the button shows the translated wording.
     const focusPrompts = focusedItem
-        ? [`Tell me more about ${focusedItem.row.item}`, `What are the risks or issues with ${focusedItem.row.item}?`, `What should I do next for ${focusedItem.row.item}?`]
+        ? [
+            { prompt: `Tell me more about ${focusedItem.row.item}`, label: t('Tell me more about {item}', undefined, { item: focusedItem.row.item }) },
+            { prompt: `What are the risks or issues with ${focusedItem.row.item}?`, label: t('What are the risks or issues with {item}?', undefined, { item: focusedItem.row.item }) },
+            { prompt: `What should I do next for ${focusedItem.row.item}?`, label: t('What should I do next for {item}?', undefined, { item: focusedItem.row.item }) },
+        ]
         : []
 
     const saveComplianceUpload = async (upload: PendingComplianceUpload) => {
@@ -631,7 +773,7 @@ export const AgenticHomePage = () => {
                 issueDate: upload.issueDate?.format('YYYY-MM-DD'),
                 expiryDate: upload.expiryDate?.format('YYYY-MM-DD'),
             })
-            message.success(`${upload.type} uploaded for compliance review.`)
+            message.success(t('{document} uploaded for compliance review.', undefined, { document: upload.type }))
             setPendingComplianceUpload(undefined)
             if (selectedMetric) void loadMetricDetails(selectedMetric)
         } catch {
@@ -641,18 +783,26 @@ export const AgenticHomePage = () => {
         }
     }
 
+    // Same rules as the compliance page; the dates are always shown for confirmation, never saved on a guess.
     const chooseComplianceFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0]
         const type = requestedComplianceTypeRef.current
         event.target.value = ''
         if (!file || !type) return
-        const upload = { type, file, ...await inferComplianceDates(file) }
-        if (upload.issueDate && upload.expiryDate) {
-            void saveComplianceUpload(upload)
+        const extension = `.${file.name.split('.').pop()?.toLowerCase() || ''}`
+        if (!COMPLIANCE_FILE_TYPES.split(',').includes(extension)) {
+            message.error(t('Please choose a PDF or an image (PNG, JPG, WEBP).'))
             return
         }
-        setPendingComplianceUpload(upload)
+        if (file.size > COMPLIANCE_MAX_MB * 1024 * 1024) {
+            message.error(t('That file is larger than {size} MB.', undefined, { size: COMPLIANCE_MAX_MB }))
+            return
+        }
+        setPendingComplianceUpload({ type, file, ...await inferComplianceDates(file) })
     }
+
+    const pendingDatesInvalid = Boolean(pendingComplianceUpload?.issueDate && pendingComplianceUpload.expiryDate
+        && pendingComplianceUpload.expiryDate.isBefore(pendingComplianceUpload.issueDate, 'day'))
 
     const firstName = String(user?.displayName || user?.name || '').trim().split(/\s+/)[0]
     const visibleMetrics = overview.metrics
@@ -660,14 +810,16 @@ export const AgenticHomePage = () => {
         .slice(0, 4)
     const activeMode = messages.length > 0
     const selectedMetricAction = selectedMetric && user?.role === 'incubatee'
-        ? selectedMetric.label.toLowerCase().includes('document')
+        ? selectedMetric.key === 'documents'
             ? { label: t('Upload document'), path: '/incubatee/compliance?upload=1' }
-            : selectedMetric.label.toLowerCase().includes('ongoing')
+            : selectedMetric.key === 'ongoing'
                 ? { label: t('Work on interventions'), path: '/incubatee/interventions' }
-                : undefined
+                : selectedMetric.key === 'applications'
+                    ? { label: t('Open application tracker'), path: '/applicant/application-tracker' }
+                    : undefined
         : undefined
-    const isDocumentMetric = Boolean(selectedMetric?.label.toLowerCase().includes('document'))
-    const metricPageSize = selectedMetric?.label.toLowerCase().includes('document') ? 5 : selectedMetric?.label.toLowerCase().includes('intervention') || selectedMetric?.label.toLowerCase().includes('ongoing') ? 3 : 5
+    const isDocumentMetric = selectedMetric?.key === 'documents'
+    const metricPageSize = selectedMetric?.key === 'ongoing' ? 3 : 5
     const visibleMetricRows = metricRows.slice((metricPage - 1) * metricPageSize, metricPage * metricPageSize)
     const conversationTurns = messages.reduce<Array<{ id: string; prompt?: AgentChatMessage; response?: AgentChatMessage }>>((turns, item) => {
         if (item.role === 'user') {
@@ -691,7 +843,6 @@ export const AgenticHomePage = () => {
                     { element: guideTarget('agentic-priority-metrics'), skipMissingElement: true, popover: { title: t('Priority signals'), description: t('Only items that need attention are shown. Select one to inspect the live records behind its count.'), side: 'bottom' } },
                     { element: guideTarget('agentic-composer'), popover: { title: t('Ask or direct the agent'), description: t('Use this one-line composer for a question, a summary, or a task. Once you start, it stays docked below the conversation.'), side: 'top' } },
                     { element: guideTarget('agentic-suggestions'), skipMissingElement: true, popover: { title: t('Suggested starting points'), description: t('These role-aware prompts are shortcuts. Select one to start a focused conversation immediately.'), side: 'top' } },
-                    { element: guideTarget('agentic-insights'), skipMissingElement: true, popover: { title: t('Role insights'), description: t('This landing-only snapshot highlights progress, health and the scope currently used by the agent.'), side: 'top' } },
                 ],
             },
             ...(visibleMetrics.length ? [{
@@ -750,10 +901,10 @@ export const AgenticHomePage = () => {
                                 type="button"
                                 data-guide="agentic-metric"
                                 data-guide-modal-trigger
-                                className={`agentic-metric-card is-${metric.tone} ${selectedMetric?.label === metric.label ? 'is-selected' : ''}`}
-                                key={metric.label}
+                                className={`agentic-metric-card is-${metric.tone} ${selectedMetric?.key === metric.key ? 'is-selected' : ''}`}
+                                key={metric.key}
                                 onClick={() => void loadMetricDetails(metric)}
-                                aria-label={`View ${metric.label} details`}
+                                aria-label={t('View {metric} details', undefined, { metric: metric.label })}
                             >
                                 <div className="agentic-metric-icon">{metric.tone === 'amber' ? <ClockCircleOutlined /> : metric.tone === 'blue' ? <FileDoneOutlined /> : <ThunderboltOutlined />}</div>
                                 <div><span>{metric.label}</span><strong>{metric.value}</strong><small>{metric.detail}</small></div>
@@ -765,7 +916,12 @@ export const AgenticHomePage = () => {
             <section data-guide-target="agentic-command" className={`agentic-command ${activeMode ? 'has-conversation' : ''}`}>
                 {!activeMode && (
                     <>
-                        <Typography.Title level={1}>{firstName ? `${firstName}, ${overview.headline.charAt(0).toLowerCase()}${overview.headline.slice(1)}` : overview.headline}</Typography.Title>
+                        <Typography.Title level={1}>
+                            <TypingGreeting
+                                lead={firstName ? t('{name}, ready to work on', undefined, { name: firstName }) : t('Ready to work on')}
+                                words={overview.focus}
+                            />
+                        </Typography.Title>
                         <Typography.Paragraph>{t('Ask across your permitted workspace data, or start with a suggested action.')}</Typography.Paragraph>
                     </>
                 )}
@@ -774,14 +930,14 @@ export const AgenticHomePage = () => {
                     <div className="agentic-conversation" aria-live="polite" ref={conversationRef}>
                         {messages.map((item) => (
                             <div
-                                className={`agentic-chat-message is-${item.role} ${item.content === 'Working on this in the background…' ? 'is-pending' : ''}`}
+                                className={`agentic-chat-message is-${item.role} ${item.pending ? 'is-pending' : ''}`}
                                 key={item.id}
                                 ref={(node) => { messageRefs.current[item.id] = node }}
                             >
                                 {item.role === 'agent' && <span><RobotOutlined /></span>}
                                 {item.role === 'agent'
                                     ? <div className="agentic-message-content">
-                                        {item.content === 'Working on this in the background…'
+                                        {item.pending
                                             ? <span className="agentic-pending-copy"><LoadingOutlined spin />{item.content}</span>
                                             : renderAgentContent(item.content)}
                                         {item.proposal && (
@@ -815,7 +971,7 @@ export const AgenticHomePage = () => {
                                     key={turn.id}
                                     style={{ '--chat-bar-width': `${12 + Math.min(18, Math.round(preview.length / 110))}px` } as CSSProperties}
                                     onClick={() => messageRefs.current[targetId]?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
-                                    aria-label={`Jump to conversation turn ${index + 1}`}
+                                    aria-label={t('Jump to conversation turn {number}', undefined, { number: index + 1 })}
                                 >
                                     <span />
                                     <div>
@@ -828,57 +984,59 @@ export const AgenticHomePage = () => {
                     </aside>
                 )}
 
-                <div data-guide-target="agentic-composer" className="agentic-composer" ref={composerRef}>
-                    <Button
-                        type="text"
-                        shape="circle"
-                        className="agentic-composer-mic-button"
-                        icon={<AudioOutlined />}
-                        onClick={() => setVoiceMode(true)}
-                        aria-label={t('Start voice conversation')}
-                    />
-                    <Input
-                        value={draft}
-                        onChange={(event) => setDraft(event.target.value)}
-                        onPressEnter={() => void send()}
-                        placeholder={focusedItem ? `Ask about ${focusedItem.row.item}…` : selectedMetric ? `Ask a follow-up about ${selectedMetric.label.toLowerCase()}…` : t('Ask about priorities, progress, risks or next steps…')}
-                    />
-                    <Button type="primary" shape="circle" icon={<SendOutlined />} onClick={() => void send()} disabled={!draft.trim()} aria-label={t('Send message')} />
+                {/* Suggestions sit above the box; in a conversation the whole dock stays pinned to the bottom. */}
+                <div className="agentic-composer-dock">
+                    {focusedItem && (
+                        <div className="agentic-suggestions" style={{ alignItems: 'center' }}>
+                            <Tag closable color="blue" onClose={() => setFocusedItem(undefined)}>{t('Focused: {item}', undefined, { item: focusedItem.row.item })}</Tag>
+                            {focusPrompts.map(({ prompt, label }) => <Button key={prompt} type="primary" ghost onClick={() => void send(prompt, label)}>{label}</Button>)}
+                        </div>
+                    )}
+
+                    {!activeMode && !focusedItem && (
+                        <div data-guide-target="agentic-suggestions" className="agentic-suggestions">
+                            {overview.prompts.map((prompt) => (
+                                <Button key={prompt} onClick={() => void send(prompt)}>
+                                    <span>{t(prompt)}</span>
+                                    <RightOutlined className="agentic-suggestion-arrow" aria-hidden="true" />
+                                </Button>
+                            ))}
+                        </div>
+                    )}
+
+                    <div data-guide-target="agentic-composer" className="agentic-composer" ref={composerRef}>
+                        <Button
+                            type="text"
+                            shape="circle"
+                            className="agentic-composer-mic-button"
+                            icon={<AudioOutlined />}
+                            onClick={() => setVoiceMode(true)}
+                            aria-label={t('Start voice conversation')}
+                        />
+                        <Input
+                            value={draft}
+                            onChange={(event) => setDraft(event.target.value)}
+                            onPressEnter={() => void send()}
+                            placeholder={focusedItem ? t('Ask about {item}…', undefined, { item: focusedItem.row.item }) : t('Ask about priorities, progress, risks or next steps…')}
+                        />
+                        <Button type="primary" shape="circle" icon={<SendOutlined />} onClick={() => void send()} disabled={!draft.trim()} aria-label={t('Send message')} />
+                    </div>
                 </div>
 
-                {focusedItem && (
-                    <div className="agentic-suggestions" style={{ alignItems: 'center' }}>
-                        <Tag closable color="blue" onClose={() => setFocusedItem(undefined)}>Focused: {focusedItem.row.item}</Tag>
-                        {focusPrompts.map((prompt) => <Button key={prompt} type="primary" ghost onClick={() => void send(prompt)}>{prompt}</Button>)}
-                    </div>
-                )}
-
-                {!activeMode && !focusedItem && (
-                    <div data-guide-target="agentic-suggestions" className="agentic-suggestions">
-                        {overview.prompts.map((prompt) => <Button key={prompt} onClick={() => void send(prompt)}>{t(prompt)}</Button>)}
-                    </div>
-                )}
             </section>
 
-            {!activeMode && (
-                <section data-guide-target="agentic-insights" className="agentic-insights" aria-label={t('Role insights')}>
-                    <div className="agentic-insight-grid">
-                        {overview.insights.map((insight) => (
-                            <article className="agentic-insight-card" key={insight.label}>
-                                <div className={insight.positive ? 'is-positive' : 'is-attention'}>{insight.positive ? <CheckCircleOutlined /> : <WarningOutlined />}</div>
-                                <span>{insight.label}</span>
-                                <strong>{insight.value}</strong>
-                                <small>{insight.detail}</small>
-                            </article>
-                        ))}
-                    </div>
-                </section>
-            )}
+
+            <AgentGuidedAction
+                kind={guidedKind}
+                assignments={assignments}
+                onClose={() => setGuidedKind(null)}
+                onSubmit={(prompt, display) => send(prompt, display)}
+            />
 
             <Modal
                 open={Boolean(selectedMetric)}
                 onCancel={() => {
-                    if (!metricLoading) setSelectedMetric(undefined)
+                    closeMetric()
                 }}
                 footer={null}
                 centered
@@ -967,7 +1125,7 @@ export const AgenticHomePage = () => {
                                         key={row.id}
                                         role="button"
                                         tabIndex={0}
-                                        title="Ask Q about this"
+                                        title={t('Ask the agent about this')}
                                         onClick={() => focusRow(row)}
                                         onKeyDown={(event) => { if (event.key === 'Enter') focusRow(row) }}
                                         style={{
@@ -1018,7 +1176,7 @@ export const AgenticHomePage = () => {
                                             type="text"
                                             shape="circle"
                                             icon={<PlusOutlined />}
-                                            aria-label={`Upload ${row.item}`}
+                                            aria-label={t('Upload {document}', undefined, { document: row.item })}
                                             onClick={(event) => {
                                                 event.stopPropagation()
                                                 requestedComplianceTypeRef.current = row.item
@@ -1070,17 +1228,18 @@ export const AgenticHomePage = () => {
                 </div>
             </Modal>
 
-            <input ref={complianceFileInputRef} type="file" hidden accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" onChange={(event) => void chooseComplianceFile(event)} />
+            <input ref={complianceFileInputRef} type="file" hidden accept={COMPLIANCE_FILE_TYPES} onChange={(event) => void chooseComplianceFile(event)} />
             <Modal
                 open={Boolean(pendingComplianceUpload)}
                 title={t('Confirm document dates')}
                 okText={t('Save document')}
+                okButtonProps={{ disabled: pendingDatesInvalid }}
                 confirmLoading={complianceUploading}
                 onCancel={() => !complianceUploading && setPendingComplianceUpload(undefined)}
                 onOk={() => pendingComplianceUpload && void saveComplianceUpload(pendingComplianceUpload)}
             >
                 <Typography.Paragraph>
-                    {t('We could not confidently read both dates from')} <strong>{pendingComplianceUpload?.file.name}</strong>. Confirm the values before saving it for review.
+                    {t('Check the dates for {file} before saving it for review. Leave the expiry date empty if it has none.', undefined, { file: pendingComplianceUpload?.file.name || '' })}
                 </Typography.Paragraph>
                 <DatePicker
                     value={pendingComplianceUpload?.issueDate || null}
@@ -1093,13 +1252,15 @@ export const AgenticHomePage = () => {
                     onChange={(expiryDate) => setPendingComplianceUpload((current) => current ? { ...current, expiryDate } : current)}
                     placeholder={t('Expiry date')}
                     style={{ width: '100%' }}
+                    status={pendingDatesInvalid ? 'error' : undefined}
                 />
+                {pendingDatesInvalid && <Typography.Text type="danger">{t('The expiry date must be after the issue date.')}</Typography.Text>}
             </Modal>
 
             {voiceMode && (
                 <ConversationMode
                     messages={messages}
-                    isTyping={Boolean(messages.at(-1)?.role === 'agent' && messages.at(-1)?.content === 'Working on this in the background…')}
+                    isTyping={Boolean(messages.at(-1)?.pending)}
                     onSend={(content) => send(content)}
                     onClose={() => setVoiceMode(false)}
                 />

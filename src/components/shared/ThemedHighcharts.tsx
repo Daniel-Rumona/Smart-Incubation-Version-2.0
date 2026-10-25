@@ -45,6 +45,27 @@ export const ThemedHighcharts = ({ options, ...props }: ThemedHighchartsProps) =
     const themeAxes = <T extends Highcharts.XAxisOptions | Highcharts.YAxisOptions>(axes?: T | T[]) =>
       Array.isArray(axes) ? axes.map(themeAxis) : axes && themeAxis(axes)
 
+    // Highcharts' defaults draw a white border round every bar and a white "contrast" outline round data labels,
+    // which only look right on white. Bars get no border; pie slices are separated by the card colour instead;
+    // labels use the theme text colour with no outline. A chart's own settings still win.
+    const seriesOptions = (options.plotOptions?.series || {}) as Highcharts.PlotSeriesOptions & { dataLabels?: Highcharts.DataLabelsOptions | Highcharts.DataLabelsOptions[] }
+    const ownLabels = Array.isArray(seriesOptions.dataLabels) ? undefined : seriesOptions.dataLabels
+    const plotOptions: Highcharts.PlotOptions = {
+      ...options.plotOptions,
+      series: {
+        ...seriesOptions,
+        ...(Array.isArray(seriesOptions.dataLabels) ? {} : {
+          dataLabels: {
+            ...ownLabels,
+            style: { color: textColor, textOutline: 'none', fontWeight: '600', ...ownLabels?.style },
+          },
+        }),
+      } as Highcharts.PlotSeriesOptions,
+      column: { borderWidth: 0, ...options.plotOptions?.column },
+      bar: { borderWidth: 0, ...options.plotOptions?.bar },
+      pie: { borderColor: isDark ? '#1b1e2a' : '#ffffff', ...options.plotOptions?.pie },
+    }
+
     return {
       colors: CHART_PALETTE,
       lang: language === 'zu'
@@ -63,6 +84,7 @@ export const ThemedHighcharts = ({ options, ...props }: ThemedHighchartsProps) =
         itemHoverStyle: { color: textColor },
         ...options.legend,
       },
+      plotOptions,
       xAxis: themeAxes(options.xAxis),
       yAxis: themeAxes(options.yAxis),
       tooltip: {

@@ -6,8 +6,9 @@ import { addDoc, arrayUnion, collection, doc, getDocs, query, serverTimestamp, T
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import DashboardPage from '@/components/shared/DashboardPage'
-import { LoadingOverlay } from '@/components/shared/LoadingOverlay'
+import { PageLoadingBar } from '@/components/shared/PageSkeleton'
 import { AppointmentCalendar } from '@/components/interventions/AppointmentCalendar'
+import { OutsideHoursAlert } from '@/components/interventions/OutsideHoursAlert'
 import AppointmentDayPanel from '@/components/interventions/AppointmentDayPanel'
 import AppointmentDetailModal from '@/components/interventions/AppointmentDetailModal'
 import {
@@ -32,6 +33,7 @@ import { hasRolePermission } from '@/config/permissions'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
 import { sendAdminEmail } from '@/services/emailOperationsService'
+import { EVIDENCE_ACCEPT, evidenceFileProblem, uploadEvidenceFiles } from '@/services/interventionOverrideService'
 import { matchesActiveProgram } from '@/services/workspaceProgramsService'
 import { useLanguage, tr } from '@/providers/LanguageProvider'
 
@@ -170,7 +172,7 @@ export const InterventionAppointmentsPage = () => {
     const [selected, setSelected] = useState<AppointmentRow>()
     const [outcomeOpen, setOutcomeOpen] = useState(false)
     const [detailOpen, setDetailOpen] = useState(false)
-    const [evidenceFiles, setEvidenceFiles] = useState<string[]>([])
+    const [evidenceUploads, setEvidenceUploads] = useState<File[]>([])
     const [anchorDate, setAnchorDate] = useState(dayjs())
     const [calendarView, setCalendarView] = useState<CalendarView>('month')
     const [selectedDate, setSelectedDate] = useState(dayjs())
@@ -474,7 +476,7 @@ export const InterventionAppointmentsPage = () => {
         setOutcomeGuideComplete(false)
         setOutcomeStep(0)
         setOutcomeOpen(true)
-        setEvidenceFiles([])
+        setEvidenceUploads([])
         const assignment = interventionById.get(appointment.assignedInterventionId)
         outcomeForm.setFieldsValue({
             attendanceStatus: 'present',
@@ -507,6 +509,15 @@ export const InterventionAppointmentsPage = () => {
 
         try {
             setSaving(true)
+            const evidenceFiles = evidenceUploads.map((file) => file.name)
+            let evidenceLinks: { name: string, url: string }[] = []
+            try {
+                const uploaded = await uploadEvidenceFiles(String(assignment?.companyCode || user.companyCode || ''), assignment?.id || selected.assignedInterventionId || selected.id, evidenceUploads)
+                evidenceLinks = uploaded.map(({ name, url }) => ({ name, url }))
+            } catch {
+                message.error(t('The evidence files could not be uploaded. Nothing was saved.'))
+                return
+            }
             await updateDoc(doc(db, 'appointments', selected.id), {
                 status: 'completed',
                 attendance: {
@@ -515,6 +526,7 @@ export const InterventionAppointmentsPage = () => {
                 },
                 discussionSummary: values.discussionSummary,
                 evidenceFiles,
+                evidenceLinks,
                 progressUpdated: true,
                 completedAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
@@ -544,6 +556,7 @@ export const InterventionAppointmentsPage = () => {
                         targetActualAfter: targetActualAfter ?? null,
                         discussionSummary: values.discussionSummary,
                         evidenceFiles,
+                        evidenceLinks,
                     }),
                 })
             }
@@ -593,7 +606,7 @@ export const InterventionAppointmentsPage = () => {
 
     return (
         <DashboardPage className="operations-appointments-page">
-            {(loading || saving || assignmentsLoading) && <LoadingOverlay tip={saving ? t('Saving appointment') : t('Loading appointments')} />}
+            <PageLoadingBar active={loading || saving || assignmentsLoading} label={saving ? t('Saving appointment') : t('Loading appointments')} />
 
             <div className="apt-workspace">
                 <Card className="apt-calendar-card" styles={{ body: { padding: 0 } }}>
@@ -677,6 +690,9 @@ export const InterventionAppointmentsPage = () => {
                             <Col xs={24} md={12}><Form.Item name="meetingType" label={t('Meeting type')} rules={[{ required: true }]}><Select options={MEETING_TYPE_OPTIONS} /></Form.Item></Col>
                             <Col xs={24} md={12}><Form.Item name="timeRange" label={t('New date and time')} rules={[{ required: true, message: tr('Choose the new time.') }]}><RangePicker showTime format="DD MMM YYYY HH:mm" style={{ width: '100%' }} /></Form.Item></Col>
                         </Row>
+                        <Form.Item noStyle dependencies={['timeRange']}>
+                            {({ getFieldValue }) => <OutsideHoursAlert companyCode={user?.companyCode} assigneeId={rescheduleTarget.assigneeId} range={getFieldValue('timeRange')} />}
+                        </Form.Item>
                         {rescheduleMeetingType === 'online' && <Form.Item name="meetingLink" label={t('Meeting link')} rules={[{ required: true, message: tr('Add the meeting link.') }]}><Input placeholder={t('Paste Zoom, Google Meet, Teams, or any online meeting link')} /></Form.Item>}
                         {rescheduleMeetingType === 'in_person' && <Form.Item name="location" label={t('Location')} rules={[{ required: true, message: tr('Add the location.') }]}><Input.TextArea rows={3} /></Form.Item>}
                         <Space style={{ justifyContent: 'flex-end', width: '100%' }}>
@@ -697,6 +713,10 @@ export const InterventionAppointmentsPage = () => {
                         <Col xs={24} md={12}><Form.Item name="meetingType" label={t('Meeting type')} rules={[{ required: true }]}><Select options={MEETING_TYPE_OPTIONS} /></Form.Item></Col>
                         <Col xs={24} md={12}><Form.Item name="timeRange" label={t('Date and time')} rules={[{ required: true }]}><RangePicker showTime format="DD MMM YYYY HH:mm" style={{ width: '100%' }} /></Form.Item></Col>
                     </Row>
+                    {/* Same consultant as saveAppointment books for: the intervention's assignee, else the person booking. */}
+                    <Form.Item noStyle dependencies={['timeRange', 'assignedInterventionId']}>
+                        {({ getFieldValue }) => <OutsideHoursAlert companyCode={user?.companyCode} assigneeId={interventionById.get(getFieldValue('assignedInterventionId'))?.assigneeId || user?.uid} range={getFieldValue('timeRange')} />}
+                    </Form.Item>
                     <Form.Item noStyle dependencies={['meetingType']}>
                         {({ getFieldValue }) => {
                             const type = getFieldValue('meetingType')
@@ -743,7 +763,19 @@ export const InterventionAppointmentsPage = () => {
                             </>}
                             {outcomeStep === 3 && <>
                                 <Form.Item label={t('Images or evidence')}>
-                                    <Upload beforeUpload={() => false} multiple onChange={({ fileList }) => setEvidenceFiles(fileList.map((file) => file.name))}>
+                                    <Upload
+                                        multiple
+                                        accept={EVIDENCE_ACCEPT}
+                                        beforeUpload={(file) => {
+                                            const problem = evidenceFileProblem(file)
+                                            if (problem) {
+                                                message.error(problem)
+                                                return Upload.LIST_IGNORE
+                                            }
+                                            return false
+                                        }}
+                                        onChange={({ fileList }) => setEvidenceUploads(fileList.map((file) => file.originFileObj as File | undefined).filter((file): file is File => Boolean(file)))}
+                                    >
                                         <Button icon={<EditOutlined />}>{t('Choose files')}</Button>
                                     </Upload>
                                 </Form.Item>

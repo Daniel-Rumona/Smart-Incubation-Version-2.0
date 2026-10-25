@@ -6,7 +6,7 @@ import {
   setDoc,
   Timestamp,
 } from 'firebase/firestore'
-import { getFirebaseDb, isFirebaseConfigured } from '@/config/firebase'
+import { getFirebaseAuth, getFirebaseDb, isFirebaseConfigured } from '@/config/firebase'
 import type { FullIdentity } from '@/types/identity'
 
 export type UsageSessionRecord = {
@@ -70,6 +70,18 @@ export const createUsageId = (prefix: string) => {
   return `${prefix}-${randomPart}`
 }
 
+// Rules only accept usage docs owned by the signed-in uid. Provider cleanups can fire after sign-out or an
+// account switch, so skip writes for anyone else and never let analytics surface as an uncaught rejection.
+const writeOwnUsageDoc = async (collectionName: string, id: string, uid: string, data: Record<string, unknown>) => {
+  if (!isFirebaseConfigured || getFirebaseAuth().currentUser?.uid !== uid) return
+
+  try {
+    await setDoc(doc(getFirebaseDb(), collectionName, id), data, { merge: true })
+  } catch (error) {
+    console.warn('Usage tracking write skipped', error)
+  }
+}
+
 export const saveUsageSession = async ({
   sessionId,
   user,
@@ -78,9 +90,7 @@ export const saveUsageSession = async ({
   active,
   endedAt = new Date(),
 }: TrackSessionPayload) => {
-  if (!isFirebaseConfigured) return
-
-  await setDoc(doc(getFirebaseDb(), 'usageSessions', sessionId), {
+  await writeOwnUsageDoc('usageSessions', sessionId, user.uid, {
     uid: user.uid,
     email: user.email,
     displayName: user.displayName,
@@ -91,7 +101,7 @@ export const saveUsageSession = async ({
     currentPath,
     active,
     lastSeenAt: serverTimestamp(),
-  }, { merge: true })
+  })
 }
 
 export const saveUsagePageView = async ({
@@ -102,9 +112,7 @@ export const saveUsagePageView = async ({
   startedAt,
   endedAt,
 }: TrackPageViewPayload) => {
-  if (!isFirebaseConfigured) return
-
-  await setDoc(doc(getFirebaseDb(), 'usagePageViews', pageViewId), {
+  await writeOwnUsageDoc('usagePageViews', pageViewId, user.uid, {
     sessionId,
     uid: user.uid,
     email: user.email,
@@ -115,7 +123,7 @@ export const saveUsagePageView = async ({
     endedAt: Timestamp.fromDate(endedAt),
     durationSeconds: secondsBetween(startedAt, endedAt),
     updatedAt: serverTimestamp(),
-  }, { merge: true })
+  })
 }
 
 export const listUsageSessions = async (): Promise<UsageSessionRecord[]> => {

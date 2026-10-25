@@ -42,7 +42,7 @@ import { AgentFab } from '@/components/agent/AgentFab'
 import { GuideMe } from '@/components/guide/GuideMe'
 import { PageGuideProvider } from '@/components/guide/PageGuideContext'
 import { AgenticHomePage } from '@/pages/agentic/AgenticHomePage'
-import { IncubateeNotificationBell } from '@/components/incubatee/IncubateeNotificationBell'
+import { NotificationBell as IncubateeNotificationBell } from '@/components/notifications/NotificationBell'
 import { useSystemSettings } from '@/contexts/SystemSettingsContext'
 import { SystemLayoutTopbarContext, type SystemLayoutPageChrome } from '@/contexts/SystemLayoutTopbarContext'
 import { WorkspaceShellProvider } from '@/contexts/WorkspaceShellContext'
@@ -118,9 +118,9 @@ const NAVIGATION_DESCRIPTIONS: Record<string, string> = {
     '/operations': 'Monitor delivery work, activity queues, and operational priorities.',
     '/operations/programs': 'Create and maintain the programmes available in this workspace.',
     '/operations/tasks': 'Plan, assign, and follow up on operational work across the active programme.',
-    '/operations/staff/tasks': 'Plan, assign, and follow up on operational work across the active programme.',
-    '/operations/staff/manage': 'Manage staff records, roles, and team capacity.',
-    '/operations/participants/applications': 'Review incoming applications and decide who moves into the programme.',
+    '/shared/staff/tasks': 'Plan, assign, and follow up on operational work across the active programme.',
+    '/shared/staff/manage': 'Manage staff records, roles, and team capacity.',
+    '/shared/applications': 'Review incoming applications and decide who moves into the programme.',
     '/operations/participants/diagnostic-plans': 'Review diagnostic plans and the business priorities they identify.',
     '/operations/participants/all': 'Manage all participating businesses and their programme records.',
     '/operations/participants/metrics': 'Compare participant performance measures and growth trends.',

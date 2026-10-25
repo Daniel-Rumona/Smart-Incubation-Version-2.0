@@ -54,6 +54,7 @@ import { CHART_COLORS, CHART_PALETTE } from '@/config/chartPalette'
 import { db } from '@/firebase/config'
 import { useActiveProgramId } from '@/hooks/useActiveProgramId'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
+import { useThemeMode } from '@/providers/ThemeProvider'
 import { ReportExportButton } from '@/components/shared/ReportExportButton'
 import { ReportPlayer, type PlayerSlide } from '@/components/reports/ReportPlayer'
 import { resolveReportInsights } from '@/services/reportExport/insights'
@@ -587,6 +588,8 @@ export const OperationsReportsPage = () => {
   const [selectedDeliveryOwner, setSelectedDeliveryOwner] = useState<string>()
   const [areaPage, setAreaPage] = useState(1)
   const [playerOpen, setPlayerOpen] = useState(false)
+  const [playerOrigin, setPlayerOrigin] = useState<{ x: number; y: number } | null>(null)
+  const { mode: playerMode } = useThemeMode()
   const [playerInsights, setPlayerInsights] = useState<{ insights: ReportInsights, aiGenerated: boolean } | null>(null)
   const [companyName, setCompanyName] = useState('')
 
@@ -627,7 +630,7 @@ export const OperationsReportsPage = () => {
         const [applicationsSnap, participantsSnap, assignmentsSnap, appointmentsSnap] = await Promise.all([
           getDocs(query(collection(db, 'applications'), ...appConstraints)),
           getDocs(collection(db, 'participants')),
-          getDocs(collection(db, 'assignedInterventions')),
+          getDocs(query(collection(db, 'assignedInterventions'), ...appConstraints)),
           getDocs(query(collection(db, 'appointments'), ...appointmentConstraints)),
         ])
 
@@ -1390,38 +1393,51 @@ export const OperationsReportsPage = () => {
     }
   }
 
-  const startPlayer = () => {
-    try {
-      void document.documentElement.requestFullscreen?.()
-    } catch {
-      // Full screen can be refused (e.g. embedded frames); the player still fills the window.
-    }
+  const startPlayer = (event?: { currentTarget: Element }) => {
+    // The player ripples open from the button that started it.
+    const rect = event?.currentTarget.getBoundingClientRect()
+    setPlayerOrigin(rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null)
+    // ReportPlayer takes the browser fullscreen itself.
     setPlayerInsights(null)
     setPlayerOpen(true)
     if (user?.companyCode) void getCompanyName(user.companyCode).then(setCompanyName)
     void resolveReportInsights(buildExportData(), 'executive').then(setPlayerInsights)
   }
 
-  const closePlayer = () => {
-    setPlayerOpen(false)
-    if (document.fullscreenElement) void document.exitFullscreen?.()
-  }
+  const closePlayer = () => setPlayerOpen(false)
 
   const playerSlides = useMemo<PlayerSlide[]>(() => {
     const monthLabel = start.isSame(end, 'month') ? start.format('MMMM YYYY') : `${start.format('DD MMM YYYY')} – ${end.format('DD MMM YYYY')}`
-    const inProgress = reportData.inProgressAssignments.length
-    const notStarted = Math.max(summary.assigned - summary.completed - inProgress, 0)
     const held = summary.attended + summary.absent
     const awaiting = Math.max(summary.appointments - held, 0)
     const documents = reportData.complianceDocuments.length
     const inGoodStanding = Math.max(documents - summary.complianceRisk, 0)
     const complianceRate = percent(inGoodStanding, documents)
-    const statusHex = (status: string) => {
+    // Same status colours as the consultant report, per theme. Each split runs risk → neutral → good so red and green never touch.
+    const tone = playerMode === 'dark'
+      ? { good: '#16A34A', warn: '#B48C08', risk: '#DC2626', info: '#3B82F6', neutral: '#94A3B8' }
+      : { good: '#15803D', warn: '#CA8A04', risk: '#DC2626', info: '#2563EB', neutral: '#64748B' }
+    const statusTone = (status: string) => {
       const color = complianceStatusColor(status)
-      return color === 'success' ? '#34d399' : color === 'error' ? '#f0808a' : color === 'warning' ? '#fbbf24' : '#60a5fa'
+      return color === 'error' ? 'risk' : color === 'warning' ? 'warn' : color === 'success' ? 'good' : 'info'
     }
+    const toneOrder = ['risk', 'warn', 'info', 'good'] as const
     const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`
+    // Below this many items a percentage overstates what we know, so no large figure is shown.
+    const enough = (count: number) => count >= 5
     const insights = playerInsights?.insights
+
+    // Each assignment counted once, the same way as the delivery chart on the page.
+    const split = { overdue: 0, notStarted: 0, inProgress: 0, completed: 0 }
+    reportData.scopedAssignments.forEach((assignment) => {
+      const dueDate = toDate(assignment.dueDate)
+      if (isCompletedAssignment(assignment)) split.completed += 1
+      else if (dueDate && dayjs(dueDate).isBefore(dayjs(), 'day')) split.overdue += 1
+      else if (isInProgressAssignment(assignment)) split.inProgress += 1
+      else split.notStarted += 1
+    })
+    const revenue = performanceData.revenue
+    const steady = Math.max(performanceData.smeCount - revenue.growing - revenue.declining, 0)
 
     const slides: PlayerSlide[] = [
       {
@@ -1432,97 +1448,79 @@ export const OperationsReportsPage = () => {
         icon: <FundOutlined />,
         accent: '#8b5cf6',
       },
+      // Each data slide says every number once: the lead carries the main counts, the large figure is a
+      // rate the lead doesn't state, and the bar adds the split. Counts the lead already gives are hidden
+      // in the legend (note: '').
       {
-        kind: 'metrics',
+        kind: 'focus',
         title: 'Intervention delivery',
         lead: summary.assigned
-          ? `${plural(summary.completed, 'intervention')} completed out of ${summary.assigned} assigned, with ${inProgress} still in progress.`
+          ? `${summary.completed} of ${plural(summary.assigned, 'intervention')} completed${summary.overdue ? `, and ${summary.overdue} ${summary.overdue === 1 ? 'is' : 'are'} overdue` : ', with nothing overdue'}.`
           : 'No interventions were assigned in this period.',
         icon: <RiseOutlined />,
         accent: '#38bdf8',
-        stats: [
-          { label: 'Assigned', value: summary.assigned, icon: <AuditOutlined />, tone: 'info', hint: 'Interventions issued in the period' },
-          { label: 'Completed', value: summary.completed, icon: <CheckCircleOutlined />, tone: 'good', hint: `${summary.completionRate}% completion rate` },
-          { label: 'In progress', value: inProgress, icon: <ClockCircleOutlined />, tone: 'warn', hint: 'Currently being delivered' },
-          { label: 'Overdue', value: summary.overdue, icon: <ExclamationCircleOutlined />, tone: summary.overdue ? 'risk' : 'good', hint: summary.overdue ? 'Past their due date' : 'Nothing is overdue' },
-        ],
-        ring: { label: 'completed', value: summary.completionRate, caption: `${summary.completed} of ${summary.assigned} interventions delivered`, color: '#34d399' },
-        barsTitle: 'Where the work stands',
-        bars: [
-          { label: 'Completed', value: summary.completed, total: summary.assigned, color: '#34d399' },
-          { label: 'In progress', value: inProgress, total: summary.assigned, color: '#60a5fa' },
-          { label: 'Not started', value: notStarted, total: summary.assigned, color: '#94a3b8' },
-          { label: 'Overdue', value: summary.overdue, total: summary.assigned, color: '#f0808a' },
+        figure: enough(summary.assigned) ? { value: `${summary.completionRate}%`, label: 'completion' } : undefined,
+        breakdownTitle: 'Where the work stands',
+        breakdown: [
+          { label: 'Overdue', value: split.overdue, total: summary.assigned, color: tone.risk, note: split.overdue === summary.overdue ? '' : undefined },
+          { label: 'Not started', value: split.notStarted, total: summary.assigned, color: tone.neutral },
+          { label: 'In progress', value: split.inProgress, total: summary.assigned, color: tone.info },
+          { label: 'Completed', value: split.completed, total: summary.assigned, color: tone.good, note: split.completed === summary.completed ? '' : undefined },
         ],
       },
       {
-        kind: 'metrics',
+        kind: 'focus',
         title: 'Appointments and attendance',
         lead: summary.appointments
-          ? `${plural(summary.appointments, 'appointment')} planned and ${held} held, with ${summary.attendanceRate}% attendance among those held.`
+          ? `${plural(summary.appointments, 'appointment')} planned, ${held} held so far.${held && !enough(held) ? ` ${summary.attended} of ${held} attended.` : ''}`
           : 'No appointments were scheduled in this period.',
         icon: <CalendarOutlined />,
         accent: '#22d3ee',
-        stats: [
-          { label: 'Planned', value: summary.appointments, icon: <CalendarOutlined />, tone: 'info', hint: 'Scheduled in the period' },
-          { label: 'Held', value: held, icon: <CheckCircleOutlined />, tone: 'good', hint: 'With attendance recorded' },
-          { label: 'Attended', value: summary.attended, icon: <TeamOutlined />, tone: 'good', hint: 'SMEs who were present' },
-          { label: 'Absent', value: summary.absent, icon: <WarningOutlined />, tone: summary.absent ? 'warn' : 'good', hint: 'SMEs who did not attend' },
-        ],
-        ring: { label: 'attendance', value: summary.attendanceRate, caption: `${summary.attended} of ${held} held appointments attended`, color: summary.attendanceRate >= 80 ? '#34d399' : summary.attendanceRate >= 60 ? '#fbbf24' : '#f0808a' },
-        barsTitle: 'Appointment outcomes',
-        bars: [
-          { label: 'Attended', value: summary.attended, total: summary.appointments, color: '#34d399' },
-          { label: 'Absent', value: summary.absent, total: summary.appointments, color: '#f0808a' },
-          { label: 'Upcoming or awaiting attendance', value: awaiting, total: summary.appointments, color: '#94a3b8' },
+        figure: enough(held) ? { value: `${summary.attendanceRate}%`, label: 'attendance' } : undefined,
+        breakdownTitle: 'Appointment outcomes',
+        breakdown: [
+          { label: 'Absent', value: summary.absent, total: summary.appointments, color: tone.risk },
+          { label: 'Upcoming or awaiting attendance', value: awaiting, total: summary.appointments, color: tone.neutral },
+          { label: 'Attended', value: summary.attended, total: summary.appointments, color: tone.good, note: held && !enough(held) ? '' : undefined },
         ],
       },
       {
-        kind: 'metrics',
+        kind: 'focus',
         title: 'Compliance',
         lead: documents
-          ? `${inGoodStanding} of ${plural(documents, 'compliance document')} are in good standing; ${summary.complianceRisk} need follow-up.`
+          ? `${inGoodStanding} of ${plural(documents, 'compliance document')} ${inGoodStanding === 1 ? 'is' : 'are'} in good standing, and ${summary.complianceRisk} ${summary.complianceRisk === 1 ? 'needs' : 'need'} follow-up.`
           : 'No compliance documents were on record for this period.',
         icon: <FileProtectOutlined />,
         accent: '#f59e0b',
-        stats: [
-          { label: 'Documents on record', value: documents, icon: <FileProtectOutlined />, tone: 'info' },
-          { label: 'In good standing', value: inGoodStanding, icon: <CheckCircleOutlined />, tone: 'good' },
-          { label: 'Need follow-up', value: summary.complianceRisk, icon: <ExclamationCircleOutlined />, tone: summary.complianceRisk ? 'warn' : 'good', hint: 'Missing, pending, expired or queried' },
-        ],
-        ring: { label: 'compliant', value: complianceRate, caption: `${inGoodStanding} of ${documents} documents valid`, color: complianceRate >= 80 ? '#34d399' : complianceRate >= 60 ? '#fbbf24' : '#f0808a' },
-        barsTitle: 'Documents by status',
-        bars: complianceCounts.map(([status, count]) => ({ label: status, value: count, total: documents, color: statusHex(status) })),
+        figure: enough(documents) ? { value: `${complianceRate}%`, label: 'compliant' } : undefined,
+        breakdownTitle: 'Documents by status',
+        breakdown: [...complianceCounts]
+          .sort(([left], [right]) => toneOrder.indexOf(statusTone(left)) - toneOrder.indexOf(statusTone(right)))
+          .map(([status, count]) => ({ label: status, value: count, total: documents, color: tone[statusTone(status)] })),
       },
       {
-        kind: 'metrics',
+        kind: 'focus',
         title: 'Applications and participants',
-        lead: `${plural(summary.submitted, 'application')} submitted; ${summary.accepted} accepted (${summary.acceptanceRate}%). ${plural(summary.participants, 'SME')} are active in the programme.`,
+        lead: `${plural(summary.submitted, 'application')} submitted and ${summary.accepted} accepted. ${plural(summary.participants, 'SME')} ${summary.participants === 1 ? 'is' : 'are'} active in the programme.`,
         icon: <AuditOutlined />,
         accent: '#a78bfa',
-        stats: [
-          { label: 'Submitted', value: summary.submitted, icon: <AuditOutlined />, tone: 'info' },
-          { label: 'Accepted', value: summary.accepted, icon: <CheckCircleOutlined />, tone: 'good' },
-          { label: 'Active SMEs', value: summary.participants, icon: <TeamOutlined />, tone: 'good' },
-        ],
-        ring: { label: 'accepted', value: summary.acceptanceRate, caption: `${summary.accepted} of ${summary.submitted} applications accepted`, color: '#a78bfa' },
+        figure: enough(summary.submitted) ? { value: `${summary.acceptanceRate}%`, label: 'accepted' } : undefined,
       },
     ]
 
     if (performanceData.smeCount) {
       slides.push({
-        kind: 'metrics',
+        kind: 'focus',
         title: 'SME performance',
-        lead: `Revenue moved ${performanceData.revenue.delta.label} and employees ${performanceData.employees.delta.label} against the previous period.`,
+        lead: `Revenue across ${plural(performanceData.smeCount, 'SME')} came to ${formatCurrencyZAR(revenue.current)}, ${revenue.delta.label} on the previous period. Employees: ${performanceData.employees.current}, ${performanceData.employees.delta.label}.`,
         icon: <FundOutlined />,
         accent: '#34d399',
-        stats: [
-          { label: 'Revenue', value: 0, display: formatCurrencyZAR(performanceData.revenue.current), icon: <DollarCircleOutlined />, tone: performanceData.revenue.delta.positive ? 'good' : 'risk', hint: `${performanceData.revenue.delta.label} vs previous period` },
-          { label: 'Employees', value: performanceData.employees.current, icon: <TeamOutlined />, tone: performanceData.employees.delta.positive ? 'good' : 'risk', hint: `${performanceData.employees.delta.label} vs previous period` },
-          { label: 'SMEs growing', value: performanceData.revenue.growing, icon: <RiseOutlined />, tone: 'good', hint: `of ${performanceData.smeCount} SMEs` },
-          { label: 'SMEs declining', value: performanceData.revenue.declining, icon: <WarningOutlined />, tone: performanceData.revenue.declining ? 'warn' : 'good' },
+        breakdownTitle: 'SMEs by revenue direction',
+        breakdown: [
+          { label: 'Declining', value: revenue.declining, total: performanceData.smeCount, color: tone.risk },
+          { label: 'Steady or not reported', value: steady, total: performanceData.smeCount, color: tone.neutral },
+          { label: 'Growing', value: revenue.growing, total: performanceData.smeCount, color: tone.good },
         ],
-        ring: { label: performanceData.revenue.headline.label.toLowerCase(), value: performanceData.revenue.headline.value, caption: 'Share of SMEs moving in that direction (revenue)', color: performanceData.revenue.headline.positive ? '#34d399' : '#f0808a' },
       })
     }
 
@@ -1530,27 +1528,30 @@ export const OperationsReportsPage = () => {
       {
         kind: 'narrative',
         title: 'What the figures say',
-        lead: 'A short commentary on the period.',
         icon: <BulbOutlined />,
         accent: '#fbbf24',
         loading: !insights,
         paragraph: insights?.executiveSummary,
-        points: insights?.highlights.slice(0, 4).map((text) => ({ icon: <CheckCircleOutlined />, text, tone: 'good' as const })),
+        points: insights?.highlights.slice(0, 3).map((text) => ({ icon: <CheckCircleOutlined />, text, tone: 'good' as const })),
         note: insights ? (playerInsights?.aiGenerated ? 'Commentary written by AI from the report figures.' : 'Commentary compiled from the report figures.') : undefined,
       },
+      // Risks and actions answer different questions, so each gets its own slide that fits a phone.
       {
         kind: 'narrative',
-        title: 'Watch points and next steps',
+        title: 'Watch points',
         lead: insights?.outlook,
         icon: <WarningOutlined />,
         accent: '#f0808a',
         loading: !insights,
-        points: insights
-          ? [
-            ...insights.risks.slice(0, 3).map((text) => ({ icon: <WarningOutlined />, text, tone: 'warn' as const })),
-            ...insights.actionPlan.slice(0, 3).map((item) => ({ icon: <BulbOutlined />, text: `${item.action} (${item.owner}, ${item.due})`, tone: 'info' as const })),
-          ]
-          : undefined,
+        points: insights?.risks.slice(0, 3).map((text) => ({ icon: <WarningOutlined />, text, tone: 'warn' as const })),
+      },
+      {
+        kind: 'narrative',
+        title: 'Next steps',
+        icon: <BulbOutlined />,
+        accent: '#60a5fa',
+        loading: !insights,
+        points: insights?.actionPlan.slice(0, 3).map((item) => ({ icon: <BulbOutlined />, text: item.action, meta: [item.owner, item.due].filter(Boolean).join(' · '), tone: 'info' as const })),
       },
       {
         kind: 'closing',
@@ -1561,7 +1562,7 @@ export const OperationsReportsPage = () => {
       },
     )
     return slides
-  }, [companyName, complianceCounts, end, performanceData, playerInsights, reportData, start, summary])
+  }, [companyName, complianceCounts, end, performanceData, playerInsights, playerMode, reportData, start, summary])
 
   return (
     <DashboardPage className="operations-reports-page">
@@ -1610,7 +1611,7 @@ export const OperationsReportsPage = () => {
         }
         actions={(
           <>
-            <Button icon={<PlayCircleOutlined />} onClick={startPlayer} disabled={loading}>Play report</Button>
+            <Button icon={<PlayCircleOutlined />} onClick={(event) => startPlayer(event)} disabled={loading}>Play report</Button>
             <ReportExportButton buildData={buildExportData} disabled={loading} />
           </>
         )}
@@ -1861,7 +1862,7 @@ export const OperationsReportsPage = () => {
           <Col xs={24} xl={9}>
             <Card loading={loading} className="dashboard-section-card motion-card" title={<Space><TeamOutlined /> {t('Facilitator & agent health')}</Space>} extra={<Text type="secondary">{t('Only owner-held delays add risk')}</Text>}>
               {reportData.facilitatorRows.length ? <div className="operations-facilitator-list">{reportData.facilitatorRows.map((row) => <FacilitatorHealthCard key={row.key} row={row} onClick={() => { setSelectedWorkloadIntervention(undefined); setSelectedDeliveryOwner(row.name) }} />)}</div> : <Empty description={t('No facilitator or agent workload in this period')} />}
-              <Text type="secondary" style={{ display: 'block', marginTop: 12 }}>{t('Awaiting SME acceptance or completion confirmation remains visible, but does not lower the facilitator or agent health score.')}</Text>
+              <Text type="secondary" style={{ display: 'block', marginTop: 12 }}>{t('Waiting on the SME (plan sign-off or completion confirmation) stays visible, but does not lower the facilitator or agent health score.')}</Text>
             </Card>
           </Col>
         </Row>
@@ -1903,7 +1904,7 @@ export const OperationsReportsPage = () => {
       <Modal open={!!selectedWorkloadIntervention || !!selectedDeliveryOwner} title={selectedWorkloadIntervention ? `${selectedWorkloadIntervention} — delivery status` : `${selectedDeliveryOwner} — assigned interventions`} onCancel={() => { setSelectedWorkloadIntervention(undefined); setSelectedDeliveryOwner(undefined) }} footer={null} width={1100} destroyOnClose>
         <Table rowKey="id" dataSource={workloadDrilldownRows} columns={workloadDrilldownColumns} pagination={{ pageSize: 5, showSizeChanger: false, position: ['bottomCenter'] }} locale={{ emptyText: t('No assignments match this workload selection.') }} scroll={{ x: 880 }} />
       </Modal>
-      <ReportPlayer open={playerOpen} onClose={closePlayer} slides={playerSlides} />
+      <ReportPlayer open={playerOpen} onClose={closePlayer} slides={playerSlides} origin={playerOrigin} />
     </DashboardPage>
   )
 }

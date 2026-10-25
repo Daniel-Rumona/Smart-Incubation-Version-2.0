@@ -115,7 +115,9 @@ export default function SurveyResponsePage() {
             setTouched(true)
             const first = questions.findIndex((field) => field.id === missing[0].id)
             setIndex(first < 0 ? 0 : first)
-            message.error(`${missing.length} required question${missing.length === 1 ? ' still needs' : 's still need'} an answer.`)
+            message.error(missing.length === 1
+                ? t('1 required question still needs an answer.')
+                : t('{count} required questions still need an answer.', undefined, { count: missing.length }))
             return
         }
 
@@ -132,15 +134,18 @@ export default function SurveyResponsePage() {
             }
 
             const responseId = await saveSurveyResponse({ context, answers: prepared, status, user })
+
+            if (status === 'draft') {
+                // Saving for later means leaving: back to the list, where this survey now shows as In progress.
+                message.success(t('Draft saved. You can finish this later.'))
+                navigate(SURVEYS_PATH)
+                return
+            }
+
             setAnswers(prepared)
             setContext({ ...context, response: { ...(context.response ?? {} as never), id: responseId, status, answers: prepared } as never })
-
-            if (status === 'submitted') {
-                setSubmitted(true)
-                message.success(t('Thank you, your answers have been submitted.'))
-            } else {
-                message.success(t('Draft saved. You can finish this later.'))
-            }
+            setSubmitted(true)
+            message.success(t('Thank you, your answers have been submitted.'))
         } catch {
             message.error(t('Your answers could not be saved.'))
         } finally {
@@ -178,7 +183,9 @@ export default function SurveyResponsePage() {
                     <Result
                         status="success"
                         title={t('Your answers are in')}
-                        subTitle={`${context.template.title} was submitted${context.response?.submittedAt ? ` on ${dayjs(context.response.submittedAt).format('DD MMM YYYY')}` : ''}.`}
+                        subTitle={context.response?.submittedAt
+                            ? t('{title} was submitted on {date}.', undefined, { title: context.template.title, date: dayjs(context.response.submittedAt).format('D MMM YYYY') })
+                            : t('{title} was submitted.', undefined, { title: context.template.title })}
                         extra={<Button type="primary" onClick={() => navigate(SURVEYS_PATH)}>{t('Back to surveys')}</Button>}
                     />
                 </MotionCard>

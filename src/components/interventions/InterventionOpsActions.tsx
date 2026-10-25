@@ -6,6 +6,8 @@ import { hasRolePermission } from '@/config/permissions'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import {
   completeInterventionWithEvidence,
+  pendingChangeRequest,
+  resolveInterventionChange,
   listReassignCandidates,
   reassignIntervention,
   takeOverIntervention,
@@ -19,7 +21,7 @@ const MAX_FILES = 5
 const MAX_FILE_BYTES = 10 * 1024 * 1024
 
 type Props = {
-  assignment: { id: string, companyCode?: string | null, assigneeId?: string, assigneeName?: string }
+  assignment: { id: string, companyCode?: string | null, assigneeId?: string, assigneeName?: string, changeRequest?: unknown }
   title: string
   participantName: string
   isCompleted: boolean
@@ -43,6 +45,9 @@ export const InterventionOpsActions = ({ assignment, title, participantName, isC
   const [files, setFiles] = useState<UploadFile[]>([])
 
   const allowed = !!user && hasRolePermission(user.role, 'assign_interventions', user.permissions)
+  // A consultant's open request to extend or close this long-overdue work.
+  const request = pendingChangeRequest(assignment)
+  const [reviewNote, setReviewNote] = useState('')
   const isMine = !!user && assignment.assigneeId === user.uid
 
   useEffect(() => {
@@ -79,6 +84,21 @@ export const InterventionOpsActions = ({ assignment, title, participantName, isC
 
   return (
     <>
+      {request && (
+        <Card size="small" title={request.type === 'close' ? 'Asked to close this intervention' : 'Asked to extend the due date'} style={{ marginBottom: 12 }}>
+          <Space direction="vertical" size={10} style={{ width: '100%' }}>
+            <Text>
+              <strong>{request.requestedBy.name || 'The consultant'}</strong>{request.type === 'close' ? ' asks to close it as no longer needed' : ` asks to move the due date to ${request.requestedDueDate ? new Date(request.requestedDueDate).toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' }) : 'a later date'}`}, on {new Date(request.requestedAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'long' })}.
+            </Text>
+            {request.reason && <Text type="secondary">"{request.reason}"</Text>}
+            <Input.TextArea rows={2} value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} placeholder="A note for the consultant (optional)" maxLength={500} />
+            <Space wrap>
+              <Button type="primary" loading={saving} onClick={() => void run(() => resolveInterventionChange(user, assignment, true, reviewNote), request.type === 'close' ? 'Intervention closed.' : 'Due date moved.')}>{request.type === 'close' ? 'Approve and close' : 'Approve new date'}</Button>
+              <Button loading={saving} onClick={() => void run(() => resolveInterventionChange(user, assignment, false, reviewNote), 'Request declined.')}>Decline</Button>
+            </Space>
+          </Space>
+        </Card>
+      )}
       <Card size="small" title="Operations actions" extra={<Text type="secondary">Recorded in the intervention's history</Text>}>
         <Space wrap>
           <Button icon={<UserSwitchOutlined />} disabled={isCompleted || isMine} onClick={() => setActive('takeover')}>Take over</Button>

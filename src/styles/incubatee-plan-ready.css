@@ -1,0 +1,181 @@
+/* =========================================================
+   GROWTH PLAN READY
+   Shown after sign-in until the SME confirms their plan.
+   Motion comes from framer-motion in the page; this file only
+   lays it out.
+   ========================================================= */
+
+.plan-ready-page {
+    --plan-ready-accent: #6d5dfb;
+    --plan-ready-blue: #3b82f6;
+    --plan-ready-border: rgba(109, 93, 251, 0.14);
+    --plan-ready-surface: var(--ant-color-bg-container, #fff);
+    --plan-ready-divider: rgba(15, 23, 42, 0.06);
+    display: grid;
+    place-items: center;
+    min-height: 100%;
+}
+
+.plan-ready {
+    display: grid;
+    justify-items: center;
+    gap: 14px;
+    width: min(640px, 100%);
+    padding: 24px 0 32px;
+    text-align: center;
+}
+
+.plan-ready-badge {
+    display: grid;
+    place-items: center;
+    width: 72px;
+    height: 72px;
+    border-radius: 22px;
+    font-size: 32px;
+    color: #fff;
+    background: linear-gradient(135deg, var(--plan-ready-accent), var(--plan-ready-blue));
+    box-shadow: 0 14px 30px rgba(109, 93, 251, 0.28);
+}
+
+.plan-ready-badge.is-done {
+    border-radius: 50%;
+    background: linear-gradient(135deg, #10b981, #059669);
+    box-shadow: 0 14px 30px rgba(5, 150, 105, 0.28);
+}
+
+.plan-ready-title {
+    margin: 0 !important;
+    line-height: 1.25 !important;
+}
+
+.plan-ready-intro {
+    display: block;
+    max-width: 520px;
+    font-size: 15px;
+}
+
+.plan-ready-card {
+    width: 100%;
+    padding: 16px;
+    text-align: left;
+    border: 1px solid var(--plan-ready-border);
+    border-radius: 16px;
+    background: var(--plan-ready-surface);
+}
+
+.plan-ready-card-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.plan-ready-count,
+.plan-ready-meta {
+    font-size: 12px;
+}
+
+.plan-ready-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.plan-ready-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-top: 1px solid var(--plan-ready-divider);
+}
+
+.plan-ready-item:first-child {
+    border-top: none;
+}
+
+.plan-ready-number {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--plan-ready-accent);
+    background: rgba(109, 93, 251, 0.1);
+}
+
+.plan-ready-item-text {
+    display: grid;
+    min-width: 0;
+}
+
+.plan-ready-approval {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.plan-ready-tick {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    color: #059669;
+    background: rgba(5, 150, 105, 0.12);
+}
+
+.plan-ready-signature {
+    max-width: 110px;
+    height: 36px;
+    margin-left: auto;
+    object-fit: contain;
+}
+
+.plan-ready-actions {
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+    width: 100%;
+    margin-top: 4px;
+}
+
+.plan-ready-confirm {
+    min-width: 280px;
+    box-shadow: 0 10px 24px rgba(109, 93, 251, 0.28);
+}
+
+.plan-ready-note {
+    font-size: 12px;
+}
+
+.plan-ready-later {
+    color: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.55)) !important;
+}
+
+html[data-theme='dark'] .plan-ready-page {
+    --plan-ready-accent: #8b7dff;
+    --plan-ready-blue: #60a5fa;
+    --plan-ready-border: rgba(139, 92, 246, 0.2);
+    --plan-ready-divider: rgba(255, 255, 255, 0.08);
+}
+
+html[data-theme='dark'] .plan-ready-tick {
+    color: #34d399;
+    background: rgba(52, 211, 153, 0.14);
+}
+
+@media (max-width: 767px) {
+    .plan-ready {
+        padding-top: 12px;
+    }
+
+    .plan-ready-confirm {
+        width: 100%;
+        min-width: 0;
+    }
+}

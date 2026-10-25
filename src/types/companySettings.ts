@@ -18,6 +18,10 @@ export type SystemSettingsRecord = {
   smeDivisionModel?: SmeDivisionModel
   branchScopedManagement?: boolean
   interventionDeliveryRoles?: InterventionDeliveryRole[]
+  /** Roles the director let manage departments/offices and the logo. */
+  delegation?: { structure?: string[]; branding?: string[] }
+  logoUrl?: string
+  subscription?: { tier?: string; addOns?: string[] }
   locked?: boolean
   ownerUid?: string
   ownerEmail?: string

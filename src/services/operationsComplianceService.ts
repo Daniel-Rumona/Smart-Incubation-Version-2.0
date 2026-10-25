@@ -2,6 +2,7 @@ import { collection, deleteDoc, doc, getDocs, runTransaction, serverTimestamp, u
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { agentApiBaseUrl, isAgentApiConfigured } from '@/config/agent'
 import { getFirebaseDb, getFirebaseStorage } from '@/config/firebase'
+import { programDocumentRequirements } from '@/config/complianceDocuments'
 import { hasRolePermission } from '@/config/permissions'
 import { matchesActiveProgram } from '@/services/workspaceProgramsService'
 import type { FullIdentity } from '@/types/identity'
@@ -16,10 +17,12 @@ export const complianceDocumentId = (participantId: string, programId: string | 
 
 export const listComplianceParticipants = async (user: FullIdentity, activeProgramId?: string | null) => {
   assertPermission(user, 'view_compliance')
-  const [applications, timeline] = await Promise.all([
+  const [applications, timeline, programs] = await Promise.all([
     getDocs(collection(getFirebaseDb(), 'participants')),
     getDocs(collection(getFirebaseDb(), 'complianceDocuments')),
+    getDocs(collection(getFirebaseDb(), 'programs')),
   ])
+  const requirementsByProgram = new Map(programs.docs.map((program) => [program.id, programDocumentRequirements(program.data().complianceRequirements)]))
   const documents = timeline.docs.map((row) => ({ id: row.id, ...row.data() })) as ComplianceDocument[]
   const documentsByParticipant = new Map<string, ComplianceDocument[]>()
   documents.forEach((document) => {
@@ -43,6 +46,7 @@ export const listComplianceParticipants = async (user: FullIdentity, activeProgr
       programId: data.programId,
       companyCode: data.companyCode,
       documents: documentsByParticipant.get(participantId) || [],
+      requirements: requirementsByProgram.get(String(data.programId || '')) || programDocumentRequirements(null),
     } satisfies ComplianceParticipant]
   })
 }

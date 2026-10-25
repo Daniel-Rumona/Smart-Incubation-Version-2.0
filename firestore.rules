@@ -1,5 +1,6 @@
 // ============================================================================
-// COMPREHENSIVE DRAFT - REVIEW AGAINST THE LIVE CONSOLE RULES BEFORE DEPLOYING.
+// FIRESTORE RULES - deployed from this file (firebase.json -> firestore.rules).
+// (Previously the live ruleset was `allow read, write: if true`; see git history for the draft notes below.)
 // ============================================================================
 //
 // This repository has never held the project's full rules under version
@@ -77,7 +78,7 @@ service cloud.firestore {
     }
 
     function hasRole(roles) {
-      return signedIn() && currentUser().role in roles;
+      return signedIn() && currentUser().get('role', '') in roles;
     }
 
     function isSystemAdmin() {
@@ -88,8 +89,16 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
+    // Missing-field-safe company lookup. A profile with no companyCode (never-backfilled SMEs/consultants)
+    // must not make the rule error out and deny; they fall back to the platform owner like the app does.
+    function myCompany() {
+      return currentUser().get('companyCode', '') != ''
+        ? currentUser().get('companyCode', '')
+        : (currentUser().get('role', '') in ['incubatee', 'consultant'] ? 'QTX' : '');
+    }
+
     function belongsToCompany(companyCode) {
-      return signedIn() && currentUser().companyCode == companyCode;
+      return signedIn() && myCompany() == companyCode;
     }
 
     // The platform owner. SMEs who register independently rather than through a company's
@@ -127,6 +136,22 @@ service cloud.firestore {
     function isConnectionReviewer() {
       return hasRole(['systemadmin', 'admin', 'director', 'projectadmin', 'projectmanager', 'operations'])
         && isPlatformOwnerStaff();
+    }
+
+    // Feature access set per staff member on the Manage team page (users/{uid}.permissions).
+    // This only ever NARROWS what a role may do: a platform admin, or a member with no explicit
+    // list (they run on their role's defaults), is unaffected; a member whose saved list lacks
+    // the permission is refused. It deliberately does not re-implement the role default table.
+    function hasFeature(permission) {
+      return isPlatformAdmin()
+        || currentUser().get('permissions', null) == null
+        || permission in currentUser().get('permissions', []);
+    }
+
+    function hasAnyFeature(permissions) {
+      return isPlatformAdmin()
+        || currentUser().get('permissions', null) == null
+        || currentUser().get('permissions', []).hasAny(permissions);
     }
 
     function changedKeys() {
@@ -176,6 +201,59 @@ service cloud.firestore {
       return isPlatformAdmin() || hasRole(operationsStaffRoles());
     }
 
+    // A director only ever sees their own company. The `director` role used to be part of operationsRoles(),
+    // which let it read these collections across every company. Operations-side staff keep their existing
+    // access; a director must carry a company code and the record must belong to that same company.
+    function isOwnCompanyDirector() {
+      return hasRole(['director']) && currentUser().get('companyCode', '') != '';
+    }
+
+    function canReadCompanyRecord(data) {
+      return hasRole(operationsStaffRoles())
+        || (isOwnCompanyDirector() && data.get('companyCode', '') == currentUser().get('companyCode', ''));
+    }
+
+    // The director can hand control of parts of the company set-up to project admins / operations by listing their
+    // role in `companies/{code}.delegation.{structure|branding}`. Everyone in the company can still read; delegation
+    // only grants the right to change.
+    function delegatedTo(companyCode, area) {
+      return companyCode != ''
+        && currentUser().get('companyCode', '') == companyCode
+        && exists(/databases/$(database)/documents/companies/$(companyCode))
+        && currentUser().get('role', '') in get(/databases/$(database)/documents/companies/$(companyCode)).data.get('delegation', {}).get(area, []);
+    }
+
+    function validDelegation(delegation) {
+      return delegation is map
+        && delegation.keys().hasOnly(['structure', 'branding'])
+        && delegation.get('structure', []) is list
+        && delegation.get('structure', []).hasOnly(['projectadmin', 'operations'])
+        && delegation.get('branding', []) is list
+        && delegation.get('branding', []).hasOnly(['projectadmin', 'operations']);
+    }
+
+    function canManageStructure(companyCode) {
+      return isPlatformAdmin()
+        || (isOwnCompanyDirector() && currentUser().get('companyCode', '') == companyCode)
+        || delegatedTo(companyCode, 'structure');
+    }
+
+    // A company that registers its own SMEs ("Our team registers them") cannot be applied to by an SME directly.
+    // Companies with no choice recorded keep today's behaviour (self-application allowed).
+    function companyAllowsSelfApplication(companyCode) {
+      return companyCode == ''
+        || !exists(/databases/$(database)/documents/companies/$(companyCode))
+        || get(/databases/$(database)/documents/companies/$(companyCode)).data.get('smeOnboardingModel', 'self_application') != 'consultants_register_smes';
+    }
+
+    // For records keyed by a participant id (monthlyPerformance): the participant must belong to the director's
+    // company. Evaluated against the path id, so it also works for sub-collection `list` queries.
+    function directorOwnsParticipant(participantId) {
+      return isOwnCompanyDirector()
+        && exists(/databases/$(database)/documents/participants/$(participantId))
+        && get(/databases/$(database)/documents/participants/$(participantId)).data.get('companyCode', '') == currentUser().get('companyCode', '');
+    }
+
     // Most "participant-scoped" collections store a `participantId` that
     // came from findParticipant() (src/services/incubateeWorkspaceService.ts):
     // usually the SME's own uid (a `participants/{uid}` doc), but on legacy
@@ -186,7 +264,8 @@ service cloud.firestore {
       return signedIn() && (
         participantId == request.auth.uid
         || (exists(/databases/$(database)/documents/participants/$(participantId))
-            && get(/databases/$(database)/documents/participants/$(participantId)).data.email == request.auth.token.email)
+            && (get(/databases/$(database)/documents/participants/$(participantId)).data.email == request.auth.token.email
+              || get(/databases/$(database)/documents/participants/$(participantId)).data.get('uid', '') == request.auth.uid))
       );
     }
 
@@ -292,7 +371,7 @@ service cloud.firestore {
       // OperationsTasksPage, ProgramsPage all query
       // where('companyCode','==', own company)).
       function isCompanyStaffLookup() {
-        return hasRole(operationsRoles()) && resource.data.companyCode == currentUser().companyCode;
+        return hasRole(operationsRoles()) && resource.data.companyCode == myCompany();
       }
 
       allow get, list: if signedIn() && (isOwnRecord() || isPlatformAdmin() || isCompanyStaffLookup());
@@ -301,11 +380,15 @@ service cloud.firestore {
       // starter role; only systemadmin/admin can create an account for
       // someone else or hand out any other role.
       allow create: if isPlatformAdmin()
-        || (isSelf(uid) && request.resource.data.role in ['incubatee', 'consultant']);
+        || (isSelf(uid) && request.resource.data.role in ['incubatee', 'consultant']
+            && !request.resource.data.keys().hasAny(['companyCode']));
 
-      // Nobody may grant themselves a different role by self-editing.
+      // Nobody may grant themselves a different role, or pick their own company, by self-editing. A company code
+      // scopes what a person can read, so it is only ever set by a Cloud Function that checked the programme.
       allow update: if isPlatformAdmin()
-        || (isSelf(uid) && request.resource.data.role == resource.data.role);
+        || (isSelf(uid) && request.resource.data.role == resource.data.role
+            && request.resource.data.get('companyCode', '') == resource.data.get('companyCode', '')
+            && request.resource.data.get('permissions', null) == resource.data.get('permissions', null));
 
       allow delete: if isPlatformAdmin() && !isSelf(uid);
     }
@@ -313,7 +396,10 @@ service cloud.firestore {
     // Password-change / e-signature bookkeeping mirrored alongside the
     // users doc; always the signed-in user's own record.
     match /userIdentities/{uid} {
-      allow read, write: if isSelf(uid);
+      allow read: if isSelf(uid);
+      allow create, update: if isSelf(uid)
+        && request.resource.data.get('permissions', null) == (resource == null ? null : resource.data.get('permissions', null));
+      allow delete: if isSelf(uid);
     }
 
     // ========================================================================
@@ -331,7 +417,19 @@ service cloud.firestore {
       // creating a managed user's company, or any SME onboarding into the
       // platform-owner fallback company (QTX).
       allow create: if isPlatformAdmin() || (signedIn() && companyCode == platformOwnerCode());
-      allow update: if isPlatformAdmin();
+
+      function isLogoChange() {
+        return changedKeys().hasOnly(['logoUrl', 'updatedAt', 'updatedByUid'])
+          && request.resource.data.logoUrl is string
+          && request.resource.data.logoUrl.matches('https://.*');
+      }
+
+      allow update: if isPlatformAdmin()
+        || (isOwnCompanyDirector()
+            && currentUser().get('companyCode', '') == companyCode
+            && (isLogoChange()
+                || (changedKeys().hasOnly(['delegation', 'updatedAt', 'updatedByUid']) && validDelegation(request.resource.data.delegation))))
+        || (delegatedTo(companyCode, 'branding') && isLogoChange());
       allow delete: if false;
     }
 
@@ -341,7 +439,35 @@ service cloud.firestore {
     // Function - never a direct client write.
     match /systemSettings/{settingsId} {
       allow read: if signedIn();
-      allow write: if false;
+      // `plans` (what each plan tier includes) is edited by platform admins on the Company plans page.
+      // Everything else here is written only by the server.
+      allow create, update: if settingsId == 'plans' && isPlatformAdmin()
+        && request.resource.data.keys().hasOnly(['tiers', 'updatedAt', 'updatedByUid', 'updatedByEmail'])
+        && request.resource.data.tiers is map;
+      allow delete: if false;
+    }
+
+    // Departments and offices a director defines for their own company (DirectorStructurePage).
+    match /departments/{unitId} {
+      allow get, list: if signedIn() && (isPlatformAdmin()
+        || (currentUser().get('companyCode', '') != '' && resource.data.get('companyCode', '') == currentUser().get('companyCode', '')));
+      allow create: if canManageStructure(request.resource.data.get('companyCode', ''))
+        && request.resource.data.get('companyCode', '') == currentUser().get('companyCode', '');
+      allow update: if canManageStructure(resource.data.get('companyCode', ''))
+        && resource.data.get('companyCode', '') == currentUser().get('companyCode', '')
+        && request.resource.data.get('companyCode', '') == resource.data.get('companyCode', '');
+      allow delete: if false;
+    }
+
+    match /branches/{unitId} {
+      allow get, list: if signedIn() && (isPlatformAdmin()
+        || (currentUser().get('companyCode', '') != '' && resource.data.get('companyCode', '') == currentUser().get('companyCode', '')));
+      allow create: if canManageStructure(request.resource.data.get('companyCode', ''))
+        && request.resource.data.get('companyCode', '') == currentUser().get('companyCode', '');
+      allow update: if canManageStructure(resource.data.get('companyCode', ''))
+        && resource.data.get('companyCode', '') == currentUser().get('companyCode', '')
+        && request.resource.data.get('companyCode', '') == resource.data.get('companyCode', '');
+      allow delete: if false;
     }
 
     match /programs/{programId} {
@@ -354,7 +480,7 @@ service cloud.firestore {
       allow get, list: if signedIn();
 
       allow create: if isOperationsStaff();
-      allow update, delete: if isOperationsStaff() && resource.data.companyCode == currentUser().companyCode;
+      allow update, delete: if isOperationsStaff() && resource.data.companyCode == myCompany();
     }
 
     // ========================================================================
@@ -364,14 +490,21 @@ service cloud.firestore {
     match /applications/{applicationId} {
       function isOwnApplication() {
         return resource.data.participantId == request.auth.uid
+          || isOwnParticipantId(resource.data.participantId)
           || resource.data.uid == request.auth.uid
-          || resource.data.userId == request.auth.uid;
+          || resource.data.userId == request.auth.uid
+          || (request.auth.token.email_verified == true
+            && resource.data.email == request.auth.token.email);
       }
+
+      // applicationsService.hasApplicationForUser first reads applications/{own uid}, which
+      // usually doesn't exist; a missing doc has no data to check, so allow that one read by id.
+      allow get: if signedIn() && applicationId == request.auth.uid && resource == null;
 
       allow get, list: if signedIn() && (
         isOwnApplication()
         || isPlatformAdmin()
-        || (hasRole(operationsRoles()) && resource.data.companyCode == currentUser().companyCode)
+        || (hasRole(operationsRoles()) && resource.data.companyCode == myCompany())
       );
 
       // ProgramApplicationPage / applicantService.submitApplicantApplication:
@@ -379,11 +512,11 @@ service cloud.firestore {
       allow create: if hasRole(['incubatee']) && (
         request.resource.data.participantId == request.auth.uid
         || request.resource.data.uid == request.auth.uid
-      );
+      ) && companyAllowsSelfApplication(request.resource.data.get('companyCode', ''));
 
       // Review/status changes (accept/decline/remove) are operations-only;
       // the applicant never edits their own submitted application.
-      allow update: if isOperationsStaff();
+      allow update: if isOperationsStaff() && hasFeature('manage_applications');
       allow delete: if false;
     }
 
@@ -391,11 +524,23 @@ service cloud.firestore {
       // findParticipant resolves a signed-in SME to this doc either by
       // uid-as-id or by a where('email','==', own email) query - the doc id
       // is not reliably the uid, so both paths need covering.
+      // Also matches the owner fields applicationsService.hasParticipantForUser queries on
+      // (participants are created with uid = the SME's auth uid), so those list queries are allowed.
+      // Plain resource.data.<field> comparisons (not .get()) so Firestore can prove a
+      // where(<field>, '==', uid) query against them.
       function isOwnParticipant() {
-        return participantId == request.auth.uid || resource.data.email == request.auth.token.email;
+        return participantId == request.auth.uid
+          || resource.data.email == request.auth.token.email
+          || resource.data.uid == request.auth.uid
+          || resource.data.userId == request.auth.uid
+          || resource.data.participantId == request.auth.uid
+          || resource.data.ownerUid == request.auth.uid
+          || (request.auth.token.email_verified == true
+            && resource.data.emailLower == request.auth.token.email.lower());
       }
 
-      allow get, list: if signedIn() && (isOwnParticipant() || isOperationsStaff());
+      allow get, list: if signedIn() && (isOwnParticipant() || isOperationsStaff()
+        || (isOwnCompanyDirector() && resource.data.get('companyCode', '') == currentUser().get('companyCode', '')));
 
       // Created only when operations accepts an application
       // (operationsApplicationsService.updateOperationsApplicationStatus).
@@ -440,22 +585,26 @@ service cloud.firestore {
 
     match /diagnosticPlans/{planId} {
       // Doc id is always the owning application's id (diagnosticPlansService.ts).
+      // participantId is the participant record's id, which is not always the SME's uid.
       function isOwnPlan() {
-        return resource.data.participantId == request.auth.uid;
+        return resource.data.participantId == request.auth.uid
+          || isOwnParticipantId(resource.data.participantId);
       }
 
-      allow get: if signedIn() && (isOwnPlan() || isOperationsStaff());
+      // loadIncubateeWorkspace reads the plan before one may exist; a missing doc holds no data.
+      allow get: if signedIn() && (resource == null || isOwnPlan() || isOperationsStaff());
       // operationsParticipantsService / diagnosticPlansService read this
       // collection unfiltered; no equivalent unfiltered path exists for an
       // incubatee, who only ever `get`s their own plan by known id.
       allow list: if isOperationsStaff();
 
-      allow create: if isOperationsStaff();
+      allow create: if isOperationsStaff() && hasFeature('manage_diagnostic_plans');
 
-      // An incubatee may only merge their own confirmation fields into a
-      // plan that is already theirs; everything else is operations-only.
-      allow update: if isOperationsStaff()
-        || (isOwnPlan() && changedKeys().hasOnly(['confirmedBy', 'confirmedMeta']));
+      // An incubatee may only merge their own confirmation fields (and the
+      // updatedAt stamp that write carries) into a plan that is already
+      // theirs; everything else is operations-only.
+      allow update: if (isOperationsStaff() && hasFeature('manage_diagnostic_plans'))
+        || (isOwnPlan() && changedKeys().hasOnly(['confirmedBy', 'confirmedMeta', 'updatedAt']));
 
       allow delete: if false;
     }
@@ -478,14 +627,22 @@ service cloud.firestore {
     // programId, listSurveysForParticipant()/listCoursesForParticipant()
     // with no programId), so the rule cannot depend on `status` or
     // `programId` without breaking those real, already-shipped queries.
+    // Templates carry no company field, so a director may only create templates as themselves and only edit or
+    // delete ones they created. Operations-side staff keep full access.
     match /formTemplates/{templateId} {
       allow get, list: if signedIn();
-      allow create, update, delete: if hasRole(operationsRoles());
+      allow create: if hasRole(operationsStaffRoles())
+        || (isOwnCompanyDirector() && request.resource.data.get('createdBy', '') == request.auth.uid);
+      allow update, delete: if hasRole(operationsStaffRoles())
+        || (isOwnCompanyDirector() && resource.data.get('createdBy', '') == request.auth.uid);
     }
 
     match /courseTemplates/{courseId} {
       allow get, list: if signedIn();
-      allow create, update, delete: if hasRole(operationsRoles());
+      allow create: if hasRole(operationsStaffRoles())
+        || (isOwnCompanyDirector() && request.resource.data.get('createdBy', '') == request.auth.uid);
+      allow update, delete: if hasRole(operationsStaffRoles())
+        || (isOwnCompanyDirector() && resource.data.get('createdBy', '') == request.auth.uid);
     }
 
     // One row per (template, participant). Operations fans these out on
@@ -497,9 +654,9 @@ service cloud.firestore {
         return isOwnParticipantId(resource.data.participantId);
       }
 
-      allow get, list: if isOwnAssignment() || hasRole(operationsRoles());
-      allow create: if hasRole(operationsRoles());
-      allow update: if hasRole(operationsRoles())
+      allow get, list: if isOwnAssignment() || canReadCompanyRecord(resource.data);
+      allow create: if hasRole(operationsStaffRoles());
+      allow update: if hasRole(operationsStaffRoles())
         || (isOwnAssignment() && changedKeys().hasOnly(['status', 'updatedAt']));
       allow delete: if false;
     }
@@ -509,9 +666,9 @@ service cloud.firestore {
         return isOwnParticipantId(resource.data.participantId);
       }
 
-      allow get, list: if isOwnAssignment() || hasRole(operationsRoles());
-      allow create: if hasRole(operationsRoles());
-      allow update: if hasRole(operationsRoles())
+      allow get, list: if isOwnAssignment() || canReadCompanyRecord(resource.data);
+      allow create: if hasRole(operationsStaffRoles());
+      allow update: if hasRole(operationsStaffRoles())
         || (isOwnAssignment() && changedKeys().hasOnly(['status', 'updatedAt']));
       allow delete: if false;
     }
@@ -519,7 +676,7 @@ service cloud.firestore {
     // The SME's own answers; operations reads them per-template
     // (listResponsesForTemplate) to review submissions.
     match /formResponses/{responseId} {
-      allow get, list: if isOwnParticipantId(resource.data.participantId) || hasRole(operationsRoles());
+      allow get, list: if isOwnParticipantId(resource.data.participantId) || canReadCompanyRecord(resource.data);
       // `resource` doesn't exist yet on create, so ownership there can only
       // be checked against the incoming data.
       allow create: if isOwnParticipantId(request.resource.data.participantId);
@@ -534,12 +691,13 @@ service cloud.firestore {
     match /courseMaterialTexts/{materialId} {
       allow get: if signedIn();
       allow list: if false;
-      allow create, update: if hasRole(operationsRoles());
+      allow create: if hasRole(operationsStaffRoles()) || isOwnCompanyDirector();
+      allow update: if hasRole(operationsStaffRoles());
       allow delete: if false;
     }
 
     match /courseProgress/{progressId} {
-      allow get, list: if isOwnParticipantId(resource.data.participantId) || hasRole(operationsRoles());
+      allow get, list: if isOwnParticipantId(resource.data.participantId) || canReadCompanyRecord(resource.data);
       allow create: if isOwnParticipantId(request.resource.data.participantId);
       allow update: if isOwnParticipantId(resource.data.participantId);
       allow delete: if false;
@@ -549,10 +707,38 @@ service cloud.firestore {
     // Operations & Admin
     // ========================================================================
 
+    // How a company's consultants work (src/services/companyWorkSettingsService.ts): company operating hours,
+    // plus each consultant's areas of support and optional own hours. One document per company, keyed by its
+    // code. Everyone in the company reads it (consultants see their own areas and hours); only project admins
+    // and operations set it - consultants can't change their own.
+    match /companyWorkSettings/{companyCode} {
+      allow get: if signedIn() && companyCode == myCompany();
+      allow create, update: if hasRole(['systemadmin', 'admin', 'projectadmin', 'projectmanager', 'operations'])
+        && companyCode == myCompany()
+        && request.resource.data.companyCode == companyCode;
+      allow delete: if false;
+    }
+
+    // Company KPIs, their targets and any hand-entered actuals (src/services/kpiService.ts). Anyone in the
+    // company can read them (consultants and project admins see the KPIs page read-only); operations and the
+    // company's own director set them. Never deleted: archiving sets active=false so past reports stay explainable.
+    match /kpis/{kpiId} {
+      function canEditKpis() {
+        return hasRole(['systemadmin', 'admin', 'operations']) || isOwnCompanyDirector();
+      }
+
+      allow get, list: if signedIn() && resource.data.companyCode == myCompany();
+      allow create: if canEditKpis() && request.resource.data.companyCode == myCompany();
+      allow update: if canEditKpis()
+        && resource.data.companyCode == myCompany()
+        && request.resource.data.companyCode == resource.data.companyCode;
+      allow delete: if false;
+    }
+
     match /operationsTasks/{taskId} {
-      allow get, list: if hasRole(operationsStaffRoles()) && resource.data.companyCode == currentUser().companyCode;
-      allow create: if hasRole(operationsStaffRoles()) && request.resource.data.companyCode == currentUser().companyCode;
-      allow update: if hasRole(operationsStaffRoles()) && resource.data.companyCode == currentUser().companyCode;
+      allow get, list: if (hasRole(operationsStaffRoles()) || hasRole(['director'])) && resource.data.companyCode == myCompany();
+      allow create: if hasRole(operationsStaffRoles()) && request.resource.data.companyCode == myCompany();
+      allow update: if hasRole(operationsStaffRoles()) && resource.data.companyCode == myCompany();
       allow delete: if false;
     }
 
@@ -564,14 +750,14 @@ service cloud.firestore {
         return isOwnParticipantId(participantId);
       }
 
-      allow get: if isOwnRecord() || isOperationsStaff() || hasRole(['director']);
-      allow list: if isOperationsStaff() || hasRole(['director']);
+      allow get: if isOwnRecord() || isOperationsStaff() || directorOwnsParticipant(participantId);
+      allow list: if isOperationsStaff() || directorOwnsParticipant(participantId);
       allow create, update: if isOwnRecord();
       allow delete: if false;
 
       match /history/{monthKey} {
-        allow get: if isOwnRecord() || isOperationsStaff() || hasRole(['director']);
-        allow list: if isOperationsStaff() || hasRole(['director']);
+        allow get: if isOwnRecord() || isOperationsStaff() || directorOwnsParticipant(participantId);
+        allow list: if isOperationsStaff() || directorOwnsParticipant(participantId);
         allow create, update: if isOwnRecord();
         allow delete: if false;
       }
@@ -608,7 +794,7 @@ service cloud.firestore {
       // (reviewSystemSettingsChangeRequest), never a direct client update.
       allow get, list: if isPlatformAdmin() || resource.data.requestedByUid == request.auth.uid;
       allow create: if signedIn() && request.resource.data.requestedByUid == request.auth.uid
-        && request.resource.data.companyCode == currentUser().companyCode
+        && request.resource.data.companyCode == myCompany()
         && request.resource.data.status == 'pending';
       allow update, delete: if false;
     }
@@ -617,11 +803,18 @@ service cloud.firestore {
     // client only ever reads submissions tied to its own company or email.
     match /smeIntakeSubmissions/{submissionId} {
       allow get, list: if signedIn() && (
-        resource.data.companyCode == currentUser().companyCode
+        resource.data.companyCode == myCompany()
         || resource.data.contactEmail == request.auth.token.email
         || resource.data.createdByEmail == request.auth.token.email
       );
       allow write: if false;
+    }
+
+    // Platform (system-development) KPIs on the admin System KPIs page.
+    // Platform admins only; archived, never deleted.
+    match /platformKpis/{kpiId} {
+      allow get, list, create, update: if isPlatformAdmin();
+      allow delete: if false;
     }
 
     // Written by every signed-in user, for every role, purely as
@@ -665,7 +858,7 @@ service cloud.firestore {
 
       allow get, list: if isOwnRating()
         || isPlatformAdmin()
-        || (hasRole(['projectadmin', 'operations']) && resource.data.companyCode == currentUser().companyCode);
+        || (hasRole(['projectadmin', 'operations']) && resource.data.companyCode == myCompany());
 
       allow create: if signedIn() && (
         request.resource.data.userUid == request.auth.uid
@@ -708,6 +901,7 @@ service cloud.firestore {
     // ========================================================================
 
     match /adminAuditLogs/{entryId} { allow read, write: if false; }
+    match /directorInvites/{entryId} { allow read, write: if false; }
     match /authEmailCooldowns/{entryId} { allow read, write: if false; }
     match /deptRequirements/{entryId} { allow read, write: if false; }
     match /requiredDocs/{entryId} { allow read, write: if false; }
@@ -733,7 +927,7 @@ service cloud.firestore {
     // records) - shared reference data any signed-in user may read.
     match /interventions/{interventionId} {
       allow get, list: if signedIn();
-      allow create, update, delete: if hasRole(interventionWorkspaceRoles());
+      allow create, update, delete: if hasRole(interventionWorkspaceRoles()) && hasFeature('manage_interventions');
     }
 
     // The central per-(participant, intervention) record. Every member of
@@ -748,27 +942,64 @@ service cloud.firestore {
         return resource.data.assigneeId == request.auth.uid || resource.data.assigneeEmail == request.auth.token.email;
       }
 
-      allow get, list: if signedIn() && resource.data.companyCode == currentUser().companyCode;
-      allow create: if hasRole(interventionWorkspaceRoles());
-      allow update: if hasRole(interventionWorkspaceRoles())
-        || isOwnAssignee()
-        || isOwnParticipantId(resource.data.participantId);
+      allow get, list: if signedIn() && (resource.data.companyCode == myCompany()
+        || isOwnParticipantId(resource.data.participantId));
+      // The SME's own check-back answers (smeCheckback / smeCheckbackHistory) are written only by the SME, in the
+      // app or through the WhatsApp bot (admin SDK, functions/src/smeCheckbacks.ts); staff and facilitators can't.
+      function keepsSmeCheckback() {
+        return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['smeCheckback', 'smeCheckbackHistory', 'smeCheckbackAsk']);
+      }
+
+      // An SME may answer the round that is open to them (src/services/smeCheckbackService.ts mirrors the round
+      // logic): one answer per round, rounds in order, never past the facilitator's next round.
+      function validSmeCheckback() {
+        let next = request.resource.data.smeCheckback;
+        let previousRound = resource.data.get('smeCheckback', {}).get('round', 0);
+        return next.answer in ['yes', 'partly', 'no']
+          && next.via == 'web'
+          && next.recordedBy.uid == request.auth.uid
+          && next.round is int
+          && next.round > previousRound
+          && next.round <= resource.data.get('followUpRound', 0) + 1
+          && request.resource.data.smeCheckbackHistory.size() == resource.data.get('smeCheckbackHistory', []).size() + 1;
+      }
+
+      // What an SME's own screens may change: accepting, confirming or rejecting, the agent work they drive, and
+      // their check-back answers. Never the facilitator's outcome, the assignment itself, or who owns it. The
+      // follow-up date is set only in the same write that confirms completion, and only as still pending.
+      function smeUpdateAllowed() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return !changed.hasAny([
+            'outcomeResult', 'outcomeHistory', 'followUpRound', 'outcomeDefinition', 'smeCheckbackAsk',
+            'assigneeId', 'assigneeEmail', 'assigneeName', 'companyCode', 'participantId', 'programId', 'interventionId'
+          ])
+          && (!changed.hasAny(['followUpStatus', 'followUpDueAt'])
+            || (request.resource.data.get('participantCompletionStatus', '') == 'confirmed'
+              && resource.data.get('participantCompletionStatus', '') != 'confirmed'
+              && request.resource.data.get('followUpStatus', 'pending') == 'pending'))
+          && (!changed.hasAny(['smeCheckback', 'smeCheckbackHistory']) || validSmeCheckback());
+      }
+
+      allow create: if hasRole(interventionWorkspaceRoles()) && hasFeature('assign_interventions');
+      allow update: if ((hasRole(interventionWorkspaceRoles()) && hasAnyFeature(['assign_interventions', 'track_interventions'])) && keepsSmeCheckback())
+        || (isOwnAssignee() && keepsSmeCheckback())
+        || (isOwnParticipantId(resource.data.participantId) && smeUpdateAllowed());
       allow delete: if false;
     }
 
     match /interventionRequests/{requestId} {
-      allow get, list: if isOwnParticipantId(resource.data.participantId) || hasRole(operationsRoles());
+      allow get, list: if isOwnParticipantId(resource.data.participantId) || canReadCompanyRecord(resource.data);
       allow create: if isOwnParticipantId(request.resource.data.participantId);
       // Accept/decline is an operations/projectadmin-only status change
       // (diagnosticPlansService.acceptDiagnosticInterventionRequest).
-      allow update: if hasRole(operationsRoles());
+      allow update: if hasRole(operationsStaffRoles());
       allow delete: if false;
     }
 
     // Doc id mirrors the source assignedInterventions id; the SME
     // self-confirms their own completion, staff read for reporting.
     match /interventionCompletions/{completionId} {
-      allow get, list: if isOwnParticipantId(resource.data.participantId) || hasRole(operationsRoles());
+      allow get, list: if isOwnParticipantId(resource.data.participantId) || canReadCompanyRecord(resource.data);
       allow create: if isOwnParticipantId(request.resource.data.participantId);
       allow update: if isOwnParticipantId(resource.data.participantId);
       allow delete: if false;
@@ -778,7 +1009,7 @@ service cloud.firestore {
     // path exists client-side; only a create at generation time.
     match /interventionDocuments/{documentId} {
       allow get, list: if isOwnParticipantId(resource.data.participantId)
-        || (hasRole(operationsRoles()) && resource.data.companyCode == currentUser().companyCode);
+        || (hasRole(operationsRoles()) && resource.data.companyCode == myCompany());
       allow create: if isOwnParticipantId(request.resource.data.participantId)
         || hasRole(interventionWorkspaceRoles())
         || hasRole(['consultant']);
@@ -792,13 +1023,13 @@ service cloud.firestore {
     // break that page for the very role it exists for.
     match /appointments/{appointmentId} {
       // A consultant can always read appointments assigned to them, even when they have no company code of their own.
-      allow get, list: if signedIn() && (resource.data.companyCode == currentUser().companyCode
+      allow get, list: if signedIn() && (resource.data.companyCode == myCompany()
         || resource.data.assigneeId == request.auth.uid);
 
-      allow create: if hasRole(interventionWorkspaceRoles())
+      allow create: if (hasRole(interventionWorkspaceRoles()) && hasAnyFeature(['assign_interventions', 'track_interventions']))
         || (hasRole(['consultant']) && request.resource.data.assigneeId == request.auth.uid);
 
-      allow update: if hasRole(interventionWorkspaceRoles())
+      allow update: if (hasRole(interventionWorkspaceRoles()) && hasAnyFeature(['assign_interventions', 'track_interventions']))
         || (hasRole(['consultant']) && resource.data.assigneeId == request.auth.uid);
 
       allow delete: if false;
@@ -826,10 +1057,11 @@ service cloud.firestore {
       }
 
       function isComplianceStaff() {
-        return isPlatformAdmin() || hasRole(applicationReviewRoles());
+        return isPlatformAdmin() || (hasRole(applicationReviewRoles()) && hasFeature('manage_compliance'));
       }
 
-      allow get, list: if isComplianceStaff() || isOwnParticipantId(resource.data.participantId);
+      allow get, list: if isComplianceStaff() || hasRole(operationsStaffRoles()) || isOwnParticipantId(resource.data.participantId)
+        || (isOwnCompanyDirector() && resource.data.get('companyCode', '') == currentUser().get('companyCode', ''));
       allow create: if isComplianceStaff() || isOwnParticipantId(request.resource.data.participantId);
       allow update: if isComplianceStaff()
         || (isOwnParticipantId(resource.data.participantId) && isVerificationUnchanged());

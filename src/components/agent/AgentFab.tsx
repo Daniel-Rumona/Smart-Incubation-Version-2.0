@@ -1,4 +1,4 @@
-import { App, Badge, Button, Input, Modal, Rate, Segmented, Space } from 'antd'
+import { App, Badge, Button, Input, Rate, Segmented, Space } from 'antd'
 import {
     CloseOutlined,
     ExpandOutlined,
@@ -18,6 +18,7 @@ import { AgentTaskPanel } from '@/components/agent/AgentTaskPet'
 import { AgentRichText } from '@/components/agent/AgentRichText'
 import { AgentProposalCard } from '@/components/agent/AgentProposalCard'
 import '@/styles/agent-fab.css'
+import ResponsiveModal from '@/components/shared/ResponsiveModal'
 
 type AgentView = 'assistant' | 'tasks'
 
@@ -201,13 +202,13 @@ export const AgentFab = ({ placement = 'floating' }: { placement?: 'floating' | 
 
     return (
         <>
-            <Modal
+            <ResponsiveModal
                 open={open}
                 centered
-                footer={null}
                 width={expanded ? 1040 : 620}
                 title={t('Thuso')}
-                onCancel={closePanel}
+                onClose={closePanel}
+                destroyOnHidden={false}
                 className="agent-conversation-modal"
             >
                 <section className={`agent-panel agent-modal-panel ${expanded ? 'is-expanded' : ''}`}>
@@ -245,6 +246,7 @@ export const AgentFab = ({ placement = 'floating' }: { placement?: 'floating' | 
                         <Button
                             type="text"
                             shape="circle"
+                            className="agent-expand-button"
                             icon={expanded ? <ShrinkOutlined /> : <ExpandOutlined />}
                             onClick={() => setExpanded((value) => !value)}
                             aria-label={t('agent.toggleFullscreen', 'Toggle fullscreen')}
@@ -253,12 +255,13 @@ export const AgentFab = ({ placement = 'floating' }: { placement?: 'floating' | 
 
                     {view === 'assistant' ? (
                         <div className="agent-panel-body" ref={bodyRef}>
-                            {taskCount > 0 && (
+                            {/* Only failures earn a banner; running and ready jobs are already counted on the Tasks tab. */}
+                            {failedTaskCount > 0 && (
                                 <div className={`agent-task-signal ${failedTaskCount > 0 ? 'is-error' : activeTaskCount > 0 ? 'is-active' : 'is-ready'}`}>
                                     <span className="agent-task-signal-icon">
                                         {activeTaskCount > 0 ? <LoadingOutlined spin /> : failedTaskCount > 0 ? <CloseOutlined /> : <RobotOutlined />}
                                     </span>
-                                    <div className="agent-message-content">
+                                    <div className="agent-task-signal-copy">
                                         <strong>{taskAlertMessage}</strong>
                                         <span>{activeTaskCount > 0 ? t('Continuing while you work') : t('Open Tasks to review the results')}</span>
                                     </div>
@@ -358,7 +361,7 @@ export const AgentFab = ({ placement = 'floating' }: { placement?: 'floating' | 
                         </>
                     )}
                 </section>
-            </Modal>
+            </ResponsiveModal>
 
             {placement === 'topbar' && <Button type="text" shape="circle" icon={<RobotOutlined />} onClick={toggleAgent} className="app-icon-btn agent-topbar-trigger" aria-label={t('agent.title', 'Open Thuso')} />}
         </>

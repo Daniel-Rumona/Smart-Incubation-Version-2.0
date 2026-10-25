@@ -1,8 +1,11 @@
 import { addDoc, collection, deleteDoc, doc, getDocs, query, serverTimestamp, updateDoc, where } from 'firebase/firestore'
 import { getFirebaseAuth, getFirebaseDb } from '@/config/firebase'
 import { hasRolePermission } from '@/config/permissions'
-import type { FullIdentity } from '@/types/identity'
+import type { FullIdentity, IdentityPermission } from '@/types/identity'
 import type { ManagedUser } from '@/types/operations'
+
+/** Staff values sent to the server. `permissions: null` clears a stored override so the person follows their role's defaults. */
+export type StaffValues = Omit<ManagedUser, 'id' | 'permissions'> & { permissions?: IdentityPermission[] | null }
 
 const assertPermission = (user: FullIdentity, permission: 'view_staff' | 'manage_staff') => {
   if (!hasRolePermission(user.role, permission, user.permissions)) throw new Error('forbidden')
@@ -22,7 +25,7 @@ const callStaffEndpoint = async <T>(path: string, body: Record<string, unknown>)
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  const result = await response.json() as T & { error?: string }
+  const result = await response.json().catch(() => ({})) as T & { error?: string }
   if (!response.ok) throw new Error(result.error || 'request-failed')
   return result
 }
@@ -36,7 +39,10 @@ export const listOperationsStaff = async (user: FullIdentity) => {
 
   return snapshot.docs.flatMap((record) => {
     const data = record.data()
-    if (data.role !== 'consultant' && data.role !== 'projectadmin') return []
+    // Operations users are listed for visibility only: the staff Cloud Functions don't let managers change them.
+    if (data.role !== 'consultant' && data.role !== 'projectadmin' && data.role !== 'operations') return []
+    // deleteUserAccount keeps the profile as a tombstone with status 'deleted'; its sign-in no longer exists.
+    if (data.status === 'deleted') return []
     return [{
       id: record.id,
       name: data.name || data.displayName || '',
@@ -45,22 +51,26 @@ export const listOperationsStaff = async (user: FullIdentity) => {
       status: data.status === 'inactive' || data.active === false ? 'inactive' : 'active',
       companyCode: data.companyCode,
       permissions: Array.isArray(data.permissions) ? data.permissions : undefined,
+      phone: data.phone || '',
+      phoneIsWhatsApp: data.phoneIsWhatsApp === true,
+      phoneProvider: data.phoneProvider || '',
     } satisfies ManagedUser]
   })
 }
 
-export const createOperationsStaff = async (user: FullIdentity, values: Omit<ManagedUser, 'id'>) => {
+/** Returns the new staff member's uid. */
+export const createOperationsStaff = async (user: FullIdentity, values: StaffValues) => {
   assertPermission(user, 'manage_staff')
   if (functionsBaseUrl) {
-    await callStaffEndpoint('createPlatformUser', {
+    const result = await callStaffEndpoint<{ uid?: string }>('createPlatformUser', {
       ...values,
       companyCode: user.companyCode || values.companyCode || '',
       sendResetLink: true,
       sendEmail: true,
     })
-    return
+    return String(result.uid || '')
   }
-  await addDoc(collection(getFirebaseDb(), 'users'), {
+  const created = await addDoc(collection(getFirebaseDb(), 'users'), {
     ...values,
     companyCode: user.companyCode || values.companyCode || '',
     active: values.status === 'active',
@@ -69,10 +79,18 @@ export const createOperationsStaff = async (user: FullIdentity, values: Omit<Man
     updatedAt: serverTimestamp(),
     updatedBy: user.uid,
   })
+  return created.id
 }
 
-export const updateOperationsStaff = async (user: FullIdentity, id: string, values: Omit<ManagedUser, 'id'>) => {
+export const updateOperationsStaff = async (user: FullIdentity, id: string, values: StaffValues) => {
   assertPermission(user, 'manage_staff')
+  if (id === user.uid && (values.role !== user.role || values.status === 'inactive')) throw new Error('self_lockout')
+  // Your own access is never sent: the staff function rejects self permission changes, and leaving the field out
+  // keeps whatever you have. Your name, phone and other details still save.
+  if (id === user.uid) {
+    const { permissions: _ownPermissions, ...ownDetails } = values
+    values = ownDetails
+  }
   if (functionsBaseUrl) {
     await callStaffEndpoint('updatePlatformUser', {
       uid: id,
@@ -92,7 +110,7 @@ export const updateOperationsStaff = async (user: FullIdentity, id: string, valu
 
 export const deleteOperationsStaff = async (user: FullIdentity, id: string) => {
   assertPermission(user, 'manage_staff')
-  if (id === user.uid) throw new Error('self-delete')
+  if (id === user.uid) throw new Error('self_delete')
   if (functionsBaseUrl) {
     await callStaffEndpoint('deleteUserAccount', { uid: id, reason: 'Removed from project staff' })
     return

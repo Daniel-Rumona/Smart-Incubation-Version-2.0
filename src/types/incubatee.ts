@@ -1,10 +1,11 @@
 import type { FirestoreDate } from '@/types/interventions'
+import type { SwotItem } from '@/utils/swotOutcomes'
 import type { InterventionDeliveryStrategy } from '@/types/agentOrchestration'
 
 export type IncubateeInterventionStatus =
   | 'Pending Assignment'
   | 'Awaiting Facilitator'
-  | 'Awaiting Your Acceptance'
+  | 'Not Started'
   | 'In Progress'
   | 'Awaiting Confirmation'
   | 'Completed'
@@ -80,6 +81,7 @@ export type IncubateeWorkspace = {
   participantPlanConfirmation?: { name?: string, email?: string, signatureURL?: string, confirmedAt?: string }
   outstandingDocuments: number
   requiredInterventions: IncubateeRequiredIntervention[]
+  swotItems: SwotItem[]
   assignedInterventions: IncubateeIntervention[]
   requests: IncubateeInterventionRequest[]
   forms: IncubateeFormAssignment[]

@@ -1,0 +1,347 @@
+/* =========================================================
+   SME INTERVENTIONS PAGE
+   Same layout as the compliance page: one compact row of plan
+   score + metrics, the next step, then interventions grouped by
+   what they need, and the SME's own requests last.
+   ========================================================= */
+
+.incubatee-interventions-page {
+    --interventions-ease: cubic-bezier(0.23, 1, 0.32, 1);
+    --interventions-accent: #6d5dfb;
+    --interventions-border: rgba(109, 93, 251, 0.12);
+    --interventions-surface: var(--ant-color-bg-container, #fff);
+    --interventions-divider: rgba(15, 23, 42, 0.06);
+    --interventions-muted: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.55));
+    display: grid;
+    /* The page fills the viewport; without this the few rows share the spare height as gaps. */
+    align-content: start;
+    gap: 16px;
+}
+
+/* Sections settle in on first paint; short so the page never feels slow. */
+.interventions-summary,
+.interventions-next,
+.interventions-group {
+    animation: interventions-fade-in 260ms var(--interventions-ease) both;
+}
+
+.interventions-next { animation-delay: 40ms; }
+.interventions-group { animation-delay: 80ms; }
+
+@keyframes interventions-fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/* ---------- score + metrics row ---------- */
+
+.interventions-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+/* The score tile is a dashboard-metric-card; tighten its gap so the ring sits like an icon. */
+.interventions-score-card .dashboard-metric-row {
+    gap: 12px;
+}
+
+.interventions-score-value {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* ---------- next step ---------- */
+
+.interventions-next {
+    display: grid;
+    gap: 8px;
+    padding: 16px 20px;
+    border: 2px solid var(--interventions-accent);
+    border-radius: 14px;
+    background: var(--interventions-surface);
+}
+
+.interventions-next.is-done {
+    border: 1px solid rgba(5, 150, 105, 0.3);
+}
+
+.interventions-next-eyebrow {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--interventions-accent);
+}
+
+.interventions-next-body {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+}
+
+.interventions-next-icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    font-size: 19px;
+    color: var(--interventions-accent);
+    background: rgba(109, 93, 251, 0.1);
+}
+
+.interventions-next.is-confirm .interventions-next-icon,
+.interventions-next.is-done .interventions-next-icon { color: #059669; background: rgba(5, 150, 105, 0.1); }
+.interventions-next.is-accept .interventions-next-icon { color: #d97706; background: rgba(217, 119, 6, 0.1); }
+.interventions-next.is-agent .interventions-next-icon { color: #3b82f6; background: rgba(59, 130, 246, 0.1); }
+
+.interventions-next-text {
+    display: grid;
+    flex: 1;
+    gap: 2px;
+    min-width: 200px;
+}
+
+.interventions-next-title {
+    font-size: 16px;
+}
+
+.interventions-next-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+/* ---------- toolbar ---------- */
+
+.interventions-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.interventions-search {
+    max-width: 320px;
+}
+
+/* ---------- grouped interventions ---------- */
+
+.interventions-groups {
+    display: grid;
+    gap: 16px;
+}
+
+.interventions-group {
+    scroll-margin-top: 80px;
+}
+
+.interventions-group-head {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin: 0 0 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--interventions-muted);
+}
+
+.interventions-group-toggle {
+    margin-left: auto;
+    padding: 0;
+}
+
+.interventions-group.is-action .interventions-group-head > span .anticon { color: #dc2626; }
+.interventions-group.is-active .interventions-group-head > span .anticon { color: #3b82f6; }
+.interventions-group.is-done .interventions-group-head > span .anticon { color: #059669; }
+
+.interventions-list {
+    margin: 0;
+    padding: 0 16px;
+    list-style: none;
+    border: 1px solid var(--interventions-border);
+    border-radius: 14px;
+    background: var(--interventions-surface);
+}
+
+.interventions-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 0;
+    border-top: 1px solid var(--interventions-divider);
+}
+
+.interventions-row:first-child {
+    border-top: none;
+}
+
+.interventions-row.is-request {
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.interventions-row-icon {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    font-size: 16px;
+    color: #94a3b8;
+    background: rgba(148, 163, 184, 0.12);
+}
+
+.interventions-row.is-action .interventions-row-icon { color: var(--interventions-accent); background: rgba(109, 93, 251, 0.1); }
+.interventions-row.is-active .interventions-row-icon { color: #3b82f6; background: rgba(59, 130, 246, 0.1); }
+.interventions-row.is-done .interventions-row-icon { color: #059669; background: rgba(5, 150, 105, 0.1); }
+
+.interventions-row-main {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.interventions-row-meta {
+    overflow: hidden;
+    font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.interventions-row-progress {
+    max-width: 260px;
+    margin: 2px 0 0 !important;
+}
+
+.interventions-row-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+
+/* Press feedback: the interface heard the tap. */
+.incubatee-interventions-page .ant-btn {
+    transition: transform 160ms ease-out, background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.incubatee-interventions-page .ant-btn:not(:disabled):active {
+    transform: scale(0.97);
+}
+
+/* ---------- dark ---------- */
+
+html[data-theme='dark'] .incubatee-interventions-page {
+    --interventions-accent: #8b7dff;
+    --interventions-border: rgba(139, 92, 246, 0.18);
+    --interventions-divider: rgba(255, 255, 255, 0.06);
+    --interventions-muted: var(--ant-color-text-secondary, rgba(255, 255, 255, 0.6));
+}
+
+html[data-theme='dark'] .interventions-next.is-confirm .interventions-next-icon,
+html[data-theme='dark'] .interventions-next.is-done .interventions-next-icon,
+html[data-theme='dark'] .interventions-row.is-done .interventions-row-icon { color: #34d399; background: rgba(52, 211, 153, 0.12); }
+
+html[data-theme='dark'] .interventions-next.is-accept .interventions-next-icon { color: #fbbf24; background: rgba(251, 191, 36, 0.12); }
+
+html[data-theme='dark'] .interventions-next.is-agent .interventions-next-icon,
+html[data-theme='dark'] .interventions-row.is-active .interventions-row-icon { color: #60a5fa; background: rgba(96, 165, 250, 0.12); }
+
+html[data-theme='dark'] .interventions-group.is-action .interventions-group-head > span .anticon { color: #f87171; }
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 1100px) {
+    .interventions-summary {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .interventions-score-card {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 767px) {
+    .interventions-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .interventions-next {
+        padding: 14px 16px;
+    }
+
+    .interventions-next-actions {
+        width: 100%;
+    }
+
+    .interventions-next-actions .ant-btn {
+        flex: 1;
+    }
+
+    .interventions-search {
+        max-width: none;
+        flex: 1;
+    }
+
+    /* Alone on its line, Request support takes the full width; beside search it stays compact. */
+    .interventions-toolbar:not(.has-search) > span:empty {
+        display: none;
+    }
+
+    .interventions-toolbar:not(.has-search) > .ant-btn {
+        flex: 1;
+    }
+
+    .interventions-list {
+        padding: 0 12px;
+    }
+
+    /* Rows with a main action put their buttons on a full-width line; Details alone stays inline. */
+    .interventions-row {
+        gap: 10px;
+    }
+
+    .interventions-row:has(.interventions-row-actions > .ant-btn + .ant-btn) {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .interventions-row:has(.interventions-row-actions > .ant-btn + .ant-btn) .interventions-row-actions {
+        grid-column: 1 / -1;
+    }
+
+    .interventions-row-actions > .ant-btn:first-child:not(:last-child) {
+        flex: 1;
+    }
+
+    .interventions-row-meta {
+        white-space: normal;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    @keyframes interventions-fade-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    .incubatee-interventions-page .ant-btn:not(:disabled):active {
+        transform: none;
+    }
+}
+
+/* SME check-backs (src/components/incubatee/SmeCheckbacks.tsx): one card per open check-back. */
+.sme-checkbacks { display: grid; gap: 10px; margin-bottom: 16px; }
+.sme-checkback { display: grid; gap: 8px; padding: 14px 16px; border: 1px solid var(--ant-color-primary-border); border-radius: 14px; background: var(--ant-color-primary-bg); }
+.sme-checkback-question { font-weight: 500; }

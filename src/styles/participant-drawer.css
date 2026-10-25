@@ -1,0 +1,158 @@
+/* SME details drawer. Colours come from antd's CSS variables so light and dark mode follow the app theme. */
+.pd-hero { display: flex; align-items: center; gap: 16px; width: 100%; padding-right: 8px; text-align: left; }
+.pd-hero-avatar { flex: none; font-weight: 600; box-shadow: 0 0 0 3px var(--ant-color-bg-container, #fff), 0 0 0 5px rgba(109, 93, 251, .35); }
+.pd-hero-main { display: flex; flex-direction: column; justify-content: center; min-width: 0; flex: 1; }
+.pd-hero-name.ant-typography { margin: 0 0 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pd-hero-tags { display: flex; flex: 0 1 auto; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px; }
+.pd-hero-tags .ant-tag { margin: 0; }
+.pd-hero-side { display: flex; flex: none; flex-direction: row; align-items: center; gap: 14px; }
+.pd-hero-nav { display: flex; align-items: center; gap: 6px; }
+.pd-hero-position { font-size: 12px; min-width: 44px; text-align: center; }
+
+.pd-tabs { display: flex; justify-content: center; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--ant-color-border-secondary, rgba(128, 128, 128, .2)); scrollbar-width: none; }
+.pd-tabs::-webkit-scrollbar { display: none; }
+.pd-tab { position: relative; display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border: 0; background: transparent; color: var(--ant-color-text-secondary, #666); font: inherit; font-size: 14px; white-space: nowrap; cursor: pointer; transition: color .2s; }
+.pd-tab:hover { color: var(--ant-color-text, #111); }
+.pd-tab.is-active { color: var(--ant-color-primary, #6d5dfb); font-weight: 600; }
+.pd-tab-indicator { position: absolute; right: 8px; bottom: -1px; left: 8px; height: 3px; border-radius: 3px 3px 0 0; background: var(--ant-color-primary, #6d5dfb); }
+
+.pd-figures { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.pd-figure { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 14px 16px; border: 1px solid var(--ant-color-border-secondary, rgba(128, 128, 128, .2)); border-radius: 14px; background: var(--ant-color-fill-quaternary, rgba(128, 128, 128, .06)); }
+.pd-figure-label { font-size: 12px; letter-spacing: .02em; text-transform: uppercase; }
+.pd-figure-value { font-size: 24px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.pd-figure.is-good .pd-figure-value { color: var(--ant-color-success, #52c41a); }
+.pd-figure.is-warn .pd-figure-value { color: var(--ant-color-warning, #faad14); }
+.pd-figure.is-bad .pd-figure-value { color: var(--ant-color-error, #ff4d4f); }
+.pd-figure-hint { font-size: 12px; }
+
+.pd-skeleton { display: flex; flex-direction: column; gap: 20px; animation: pd-fade-in .3s ease-out; }
+
+.pd-body { display: flex; flex-direction: column; gap: 16px; }
+/* Footer buttons share the full row; on phones each takes its own full-width row. */
+.pd-footer { display: flex; align-items: stretch; gap: 8px; width: 100%; }
+.pd-footer > .ant-btn { flex: 1 1 0; min-width: 0; }
+.pd-modal .ant-modal-footer { margin-top: 12px; }
+.pd-modal .pd-hero { padding-right: 36px; }
+.pd-sheet .ant-drawer-content { border-radius: 18px 18px 0 0; }
+@media (max-width: 575px) {
+  .pd-footer { flex-direction: column; }
+}
+
+/* The detail grids sit in cards; give them the same rounded, soft look as the figures. */
+.pd-drawer .ant-card { border-radius: 14px; border-color: var(--ant-color-border-secondary, rgba(128, 128, 128, .2)); }
+.pd-drawer .ant-drawer-header { padding: 18px 24px; }
+.pd-drawer .ant-drawer-body { padding: 16px 24px 24px; }
+
+/* Field grids: label above value, no heavy borders. */
+.pd-fields .ant-descriptions-item { padding-bottom: 14px !important; }
+.pd-fields .ant-descriptions-item-label { color: var(--ant-color-text-tertiary, #888); font-size: 12px; letter-spacing: .03em; text-transform: uppercase; }
+.pd-fields .ant-descriptions-item-content { font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
+
+.pd-stack { display: flex; flex-direction: column; gap: 12px; }
+.pd-panel { padding: 16px; border: 1px solid var(--ant-color-border-secondary, rgba(128, 128, 128, .2)); border-radius: 14px; background: var(--ant-color-bg-container, #fff); }
+.pd-trends { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.pd-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.pd-summary { display: flex; align-items: center; gap: 18px; }
+.pd-summary-line { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.pd-summary-line .ant-tag { margin: 0; }
+
+.pd-item { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border: 1px solid var(--ant-color-border-secondary, rgba(128, 128, 128, .2)); border-radius: 14px; background: var(--ant-color-bg-container, #fff); transition: box-shadow .2s, transform .2s; }
+.pd-item:hover { box-shadow: 0 6px 18px rgba(0, 0, 0, .08); transform: translateY(-1px); }
+.pd-item-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.pd-item-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.pd-item-title .ant-tag { margin: 0; }
+.pd-steps { display: flex; flex-wrap: wrap; gap: 4px; }
+.pd-steps .ant-tag { margin: 0; }
+
+/* Score and count on the left; documents fill rows of three beside them. */
+.pd-compliance { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 12px; align-items: start; }
+.pd-summary-vertical { flex-direction: column; justify-content: center; text-align: center; gap: 12px; }
+.pd-summary-vertical .pd-summary-line { justify-content: center; }
+.pd-doc-grid.is-three { grid-template-columns: repeat(3, minmax(0, 1fr)); align-content: start; }
+.pd-doc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.pd-doc { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid var(--ant-color-border-secondary, rgba(128, 128, 128, .2)); border-radius: 12px; background: var(--ant-color-fill-quaternary, rgba(128, 128, 128, .06)); }
+.pd-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; }
+.pd-dot.is-green { background: #52c41a; box-shadow: 0 0 0 4px rgba(82, 196, 26, .18); }
+.pd-dot.is-red { background: #ff4d4f; box-shadow: 0 0 0 4px rgba(255, 77, 79, .18); }
+.pd-dot.is-gold { background: #faad14; box-shadow: 0 0 0 4px rgba(250, 173, 20, .18); }
+
+.pd-chart-readout { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+.pd-chart-value { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.pd-chart-svg { display: block; width: 100%; height: auto; cursor: crosshair; }
+.pd-chart-axis { fill: var(--ant-color-text-tertiary, #888); font-size: 11px; }
+
+/* SWOT colour coding: one tone per quadrant, shared by the view cards and the point editor. */
+.is-green { --pd-tone: #52c41a; }
+.is-orange { --pd-tone: #fa8c16; }
+.is-blue { --pd-tone: #1677ff; }
+.is-red { --pd-tone: #ff4d4f; }
+
+/* Point editor (SWOT in edit mode): each point is its own bordered row with a coloured marker. */
+.pd-points { display: flex; flex-direction: column; gap: 8px; }
+.pd-point { display: flex; align-items: center; gap: 10px; }
+.pd-point .ant-input-affix-wrapper { flex: 1; border: 1px solid var(--ant-color-border, rgba(128, 128, 128, .35)); border-radius: 10px; }
+.pd-point .ant-input-affix-wrapper:focus-within { border-color: var(--pd-tone, #6d5dfb); box-shadow: 0 0 0 2px color-mix(in srgb, var(--pd-tone, #6d5dfb) 18%, transparent); }
+.pd-point-bullet { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--pd-tone, #6d5dfb); }
+.pd-swot-field .ant-form-item-label > label { width: 100%; height: auto; }
+.pd-swot-field-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; }
+
+.pd-swot { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.pd-swot-cell { padding: 14px 16px; border-radius: 14px; border: 1px solid var(--pd-tone, var(--ant-color-border-secondary, rgba(128, 128, 128, .3))); background: color-mix(in srgb, var(--pd-tone, #888) 6%, transparent); }
+.pd-swot-cell ul { display: flex; flex-direction: column; gap: 10px; margin: 8px 0 0; padding-left: 18px; }
+.pd-swot-outcome { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.pd-swot-outcome .ant-tag { margin: 0; }
+.pd-swot-summary { display: flex; flex-wrap: wrap; gap: 6px 20px; }
+.pd-swot-cell li::marker { color: var(--pd-tone); }
+
+/* Digital presence: one line per channel, Yes/No cards then the link field. */
+.pd-channels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.pd-channel { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1px solid var(--ant-color-border-secondary, rgba(128, 128, 128, .3)); border-radius: 14px; }
+.pd-channel-question { font-weight: 500; }
+.pd-channel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.pd-channel .ant-form-item { margin-bottom: 0; }
+.pd-channel-field { width: 100%; min-width: 0; animation: pd-reveal .22s ease-out .08s backwards; }
+.pd-yesno { display: flex; flex: none; gap: 6px; width: 164px; }
+.pd-yesno-card { display: inline-flex; flex: 1 1 0; align-items: center; justify-content: center; gap: 7px; min-width: 0; height: 32px; padding: 0 12px; border: 1px solid var(--ant-color-border, rgba(128, 128, 128, .35)); border-radius: 10px; background: transparent; color: inherit; font: inherit; font-size: 14px; cursor: pointer; transition: border-color .15s, background .15s; }
+.pd-yesno-card:hover { border-color: var(--ant-color-primary, #6d5dfb); }
+.pd-yesno-ring { width: 14px; height: 14px; border: 1.5px solid var(--ant-color-border, rgba(128, 128, 128, .5)); border-radius: 50%; }
+.pd-yesno-check { font-size: 15px; }
+.pd-yesno-card.is-selected { border-color: var(--ant-color-primary, #6d5dfb); background: color-mix(in srgb, var(--ant-color-primary, #6d5dfb) 8%, transparent); font-weight: 600; }
+.pd-yesno-card.is-selected .pd-yesno-check { color: var(--ant-color-primary, #6d5dfb); }
+.pd-yesno-card.is-no.is-selected { border-color: var(--ant-color-text-tertiary, #888); background: var(--ant-color-fill-quaternary, rgba(128, 128, 128, .08)); }
+.pd-yesno-card.is-no.is-selected .pd-yesno-check { color: var(--ant-color-text-tertiary, #888); }
+
+/* Other platforms: an entry row on top (platform, link, Add), the added platforms listed underneath. */
+.pd-platforms { display: flex; flex-direction: column; gap: 10px; }
+.pd-platform-entry { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pd-platform-name { flex: 1 1 130px; min-width: 0; }
+.pd-platform-link { flex: 2 1 150px; min-width: 0; }
+.pd-platform-list { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.pd-platform-item { display: flex; align-items: center; gap: 12px; padding: 6px 8px 6px 12px; border: 1px solid var(--ant-color-border-secondary, rgba(128, 128, 128, .3)); border-radius: 10px; background: var(--ant-color-fill-quaternary, rgba(128, 128, 128, .06)); overflow: hidden; }
+.pd-platform-item-name { flex: 0 0 38%; min-width: 0; }
+.pd-platform-item-link { flex: 1; min-width: 0; }
+@keyframes pd-reveal { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+
+@keyframes pd-fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+@media (max-width: 767px) {
+  .pd-hero { align-items: flex-start; flex-wrap: wrap; }
+  .pd-hero-tags { flex-basis: 100%; }
+  .pd-hero-side { flex-direction: row; width: 100%; justify-content: space-between; }
+  .pd-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pd-swot { grid-template-columns: 1fr; }
+  .pd-channels { grid-template-columns: 1fr; }
+  .pd-channel-head { flex-wrap: wrap; }
+  .pd-platform-entry { flex-wrap: wrap; }
+  .pd-platform-name { flex-basis: 100%; }
+  .pd-platform-item-name { flex-basis: 40%; }
+  .pd-trends { grid-template-columns: 1fr; }
+  .pd-compliance { grid-template-columns: 1fr; }
+  .pd-doc-grid.is-three { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pd-tabs { justify-content: flex-start; }
+  .pd-summary { flex-direction: column; align-items: flex-start; }
+  .pd-drawer .ant-drawer-header, .pd-drawer .ant-drawer-body { padding-right: 16px; padding-left: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pd-skeleton { animation: none; }
+}

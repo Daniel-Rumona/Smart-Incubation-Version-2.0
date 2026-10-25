@@ -14,8 +14,11 @@ const firebaseConfig = {
 
 export const isFirebaseConfigured = Object.values(firebaseConfig).every(Boolean)
 
+// Optional: only needed for Google Analytics (see src/lib/analytics.ts).
+const measurementId = import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
+
 export const firebaseApp = isFirebaseConfigured
-  ? getApps()[0] ?? initializeApp(firebaseConfig)
+  ? getApps()[0] ?? initializeApp(measurementId ? { ...firebaseConfig, measurementId } : firebaseConfig)
   : undefined
 
 const requireFirebaseApp = () => {

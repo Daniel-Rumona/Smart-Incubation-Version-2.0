@@ -1,0 +1,521 @@
+/* =========================================================
+   System admin overview (SystemAdminDashboardPage)
+   Soft, rounded cards with charts; accent #6d5dfb.
+   ========================================================= */
+
+.admin-overview,
+.admin-modal {
+    --admin-card-bg: #ffffff;
+    --admin-card-border: rgba(31, 36, 51, 0.06);
+    --admin-ink: #1f2433;
+    --admin-muted: #8a8fa3;
+    --admin-accent: #6d5dfb;
+    --admin-accent-soft: rgba(109, 93, 251, 0.14);
+    --admin-track: #eceaf8;
+}
+
+html[data-theme='dark'] .admin-overview,
+html[data-theme='dark'] .admin-modal {
+    --admin-card-bg: #1b1e2a;
+    --admin-card-border: rgba(255, 255, 255, 0.06);
+    --admin-ink: #e5e7eb;
+    --admin-muted: #9ca3af;
+    --admin-accent-soft: rgba(109, 93, 251, 0.22);
+    --admin-track: rgba(255, 255, 255, 0.08);
+}
+
+.admin-hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+.admin-hero h2 {
+    margin: 0;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--admin-ink);
+}
+
+.admin-hero p {
+    margin: 4px 0 0;
+    color: var(--admin-muted);
+    font-size: 13px;
+}
+
+.admin-hero-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.admin-overview-row {
+    margin-top: 16px;
+}
+
+.admin-card.ant-card {
+    height: 100%;
+    background: var(--admin-card-bg);
+    border: 1px solid var(--admin-card-border);
+    border-radius: 24px;
+    box-shadow: 0 1px 2px rgba(31, 36, 51, 0.04), 0 8px 24px -12px rgba(31, 36, 51, 0.08);
+}
+
+.admin-card.ant-card .ant-card-body {
+    padding: 20px 22px;
+}
+
+.admin-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.admin-card-head h3 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--admin-ink);
+}
+
+.admin-card-head span {
+    display: block;
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--admin-muted);
+}
+
+.admin-card-head .ant-btn {
+    color: var(--admin-muted);
+    font-size: 12px;
+}
+
+/* ---------- KPI tiles ---------- */
+
+.admin-kpi-body {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.admin-kpi-copy {
+    min-width: 0;
+}
+
+.admin-kpi-label.ant-typography {
+    display: block;
+    margin-bottom: 12px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--admin-ink);
+}
+
+.admin-kpi-value-line {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.admin-kpi-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    flex: none;
+    border-radius: 50%;
+    background: var(--admin-accent-soft);
+    color: var(--admin-accent);
+    font-size: 17px;
+}
+
+.admin-kpi-value {
+    font-size: 32px;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--admin-ink);
+    font-variant-numeric: tabular-nums;
+}
+
+.admin-kpi-trend {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--admin-muted);
+}
+
+.admin-kpi-trend .anticon {
+    font-size: 10px;
+}
+
+.admin-kpi-trend.is-good { color: #15803d; }
+.admin-kpi-trend.is-bad { color: #dc2626; }
+
+.admin-kpi-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 5px;
+    height: 64px;
+    flex: none;
+}
+
+.admin-kpi-bar-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    height: 100%;
+}
+
+.admin-kpi-bar-col small {
+    font-size: 9px;
+    line-height: 1;
+    color: var(--admin-muted);
+}
+
+.admin-kpi-bar {
+    display: block;
+    width: 12px;
+    border-radius: 4px 4px 3px 3px;
+    background: var(--admin-accent-soft);
+    transition: height 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.admin-kpi-bar.is-current {
+    background: var(--admin-accent);
+}
+
+/* ---------- Users by role ---------- */
+
+.admin-donut {
+    position: relative;
+}
+
+.admin-donut-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.admin-donut-center strong {
+    font-size: 34px;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--admin-ink);
+}
+
+.admin-donut-center span {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--admin-muted);
+}
+
+.admin-legend {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 16px;
+    margin: 12px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.admin-legend li,
+.admin-pipeline-steps li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    font-size: 12px;
+    color: var(--admin-muted);
+}
+
+.admin-legend i,
+.admin-pipeline-steps i {
+    width: 10px;
+    height: 10px;
+    flex: none;
+    border-radius: 50%;
+}
+
+.admin-legend b,
+.admin-pipeline-steps b {
+    margin-left: auto;
+    font-weight: 600;
+    color: var(--admin-ink);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Applications ---------- */
+
+.admin-card-accent.ant-card {
+    background: linear-gradient(160deg, rgba(109, 93, 251, 0.12), rgba(109, 93, 251, 0.02) 60%), var(--admin-card-bg);
+}
+
+.admin-pipeline-hero {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin: 6px 0 16px;
+    color: var(--admin-muted);
+    font-size: 13px;
+}
+
+.admin-pipeline-total {
+    font-size: 40px;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--admin-ink);
+}
+
+.admin-pipeline-bar {
+    display: flex;
+    gap: 4px;
+    height: 12px;
+    margin-bottom: 18px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: var(--admin-track);
+}
+
+.admin-pipeline-bar span {
+    border-radius: 999px;
+}
+
+.admin-pipeline-steps {
+    display: grid;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.admin-pipeline-steps li {
+    font-size: 13px;
+}
+
+.admin-pipeline-foot {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 18px;
+    padding: 10px 14px;
+    border-radius: 16px;
+    background: var(--admin-card-bg);
+    border: 1px solid var(--admin-card-border);
+    font-size: 13px;
+    color: var(--admin-muted);
+}
+
+.admin-pipeline-foot b {
+    color: var(--admin-ink);
+}
+
+/* ---------- Delivery errors ---------- */
+
+.admin-timeline {
+    position: relative;
+    margin: 0;
+    padding: 0 0 0 18px;
+    list-style: none;
+}
+
+.admin-timeline::before {
+    content: '';
+    position: absolute;
+    top: 6px;
+    bottom: 6px;
+    left: 4px;
+    border-left: 1px dashed var(--admin-track);
+}
+
+.admin-timeline li {
+    position: relative;
+    padding-bottom: 10px;
+}
+
+.admin-timeline li::before {
+    content: '';
+    position: absolute;
+    top: 6px;
+    left: -18px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--admin-card-bg);
+    border: 2px solid var(--admin-accent);
+}
+
+.admin-timeline-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.admin-timeline-top time {
+    font-size: 11px;
+    color: var(--admin-muted);
+    white-space: nowrap;
+}
+
+.admin-timeline .ant-typography {
+    margin: 0;
+    font-size: 13px;
+    color: var(--admin-ink);
+}
+
+@media (max-width: 575px) {
+    .admin-hero h2 { font-size: 22px; }
+    .admin-hero-actions .ant-btn { width: 100%; }
+    .admin-kpi-value { font-size: 28px; }
+    .admin-kpi-bar { width: 10px; }
+}
+
+/* ---------- Shared bits (AdminKpiTile.tsx) ---------- */
+
+/* Text figures (a duration, a page name) are smaller than counts and wrap onto a second line rather than being cut. */
+.admin-kpi-value.is-text {
+    display: -webkit-box;
+    min-width: 0;
+    overflow: hidden;
+    font-size: 22px;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.admin-kpi-value-line:has(.is-text) {
+    flex-wrap: nowrap;
+    min-width: 0;
+}
+
+.admin-kpi-copy:has(.is-text) {
+    flex: 1;
+}
+
+.admin-role-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: var(--admin-accent-soft, rgba(109, 93, 251, .14));
+    color: var(--admin-accent, #6d5dfb);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.admin-share-ring-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--admin-ink);
+}
+
+/* ---------- Ranked lists (usage: top pages and users; email: sources) ---------- */
+
+.usage-rank-list {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.usage-rank-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.usage-rank-index {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--admin-accent-soft);
+  color: var(--admin-accent);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.usage-rank-avatar.ant-avatar {
+  flex: none;
+  background: var(--admin-accent-soft);
+  color: var(--admin-accent);
+  font-weight: 600;
+}
+
+.usage-rank-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.usage-rank-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.usage-rank-top strong {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--admin-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.usage-rank-top b {
+  flex: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--admin-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-rank-bar {
+  height: 6px;
+  margin: 6px 0 4px;
+  border-radius: 999px;
+  background: var(--admin-track);
+  overflow: hidden;
+}
+
+.usage-rank-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--admin-accent);
+}
+
+.usage-rank-copy small {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--admin-muted);
+}
+

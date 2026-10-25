@@ -1,39 +1,40 @@
-import { Alert, App, Button, Card, Col, Descriptions, Divider, Empty, Form, Grid, Input, List, Modal, Progress, Rate, Row, Segmented, Select, Skeleton, Space, Tag, Typography, type TableProps } from 'antd'
-import { ArrowLeftOutlined, CheckCircleOutlined, ClockCircleOutlined, EyeOutlined, FileSearchOutlined, LineChartOutlined, PlusOutlined, RobotOutlined, SendOutlined } from '@ant-design/icons'
-import { useEffect, useMemo, useState } from 'react'
+import { App, Button, Card, Col, Descriptions, Divider, Empty, Form, Grid, Input, List, Progress, Rate, Row, Segmented, Select, Skeleton, Space, Tag, Typography } from 'antd'
+import { ArrowLeftOutlined, ArrowRightOutlined, CheckCircleFilled, CheckCircleOutlined, ClockCircleOutlined, DownOutlined, ExclamationCircleFilled, EyeOutlined, FileDoneOutlined, LineChartOutlined, PlusOutlined, RobotOutlined, SearchOutlined, SendOutlined, UpOutlined } from '@ant-design/icons'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
-import { LoadingOverlay } from '@/components/shared/LoadingOverlay'
+import ResponsiveModal from '@/components/shared/ResponsiveModal'
+import SignDocumentModal from '@/components/shared/SignDocumentModal'
+import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import { AppointmentInvitations } from '@/components/incubatee/AppointmentInvitations'
-import MetricsGrid from '@/components/shared/MetricsGrid'
-import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
+import { SmeCheckbacks } from '@/components/incubatee/SmeCheckbacks'
 import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { useLanguage, tEnglish } from '@/providers/LanguageProvider'
 import { guideTarget, useRegisterPageGuide, type PageGuideRegistration } from '@/components/guide/PageGuideContext'
 import { meetingTypeLabel, toDayjs } from '@/components/interventions/appointmentSchedule'
 import {
-    acceptIncubateeIntervention,
-    canAcceptIncubateeIntervention,
     canConfirmIncubateeIntervention,
     confirmIncubateeCompletion,
     confirmIncubateeGrowthPlan,
-    declineIncubateeIntervention,
+    requestInterventionChange,
     loadIncubateeInterventionAppointments,
     loadIncubateeWorkspace,
     rejectIncubateeCompletion,
     requestIncubateeIntervention,
 } from '@/services/incubateeWorkspaceService'
 import type { IncubateeIntervention, IncubateeInterventionAppointment, IncubateeWorkspace } from '@/types/incubatee'
+import { openChangeRequest, type InterventionChangeKind } from '@/utils/interventionStart'
 import { getAgentWorkspaceUrl } from '@/services/agentOrchestrationService'
 import { listAgents } from '@/services/agentRegistryService'
 import type { AgentDefinition } from '@/types/agentOrchestration'
 import type { Dayjs } from 'dayjs'
 import type { DriveStep, Driver } from 'driver.js'
 import '@/styles/incubatee.css'
+import '@/styles/incubatee-interventions.css'
 
-type Action = 'decline' | 'confirm' | 'reject'
+type Action = 'change' | 'confirm' | 'reject'
 
 type ProgressEventKind = 'assigned' | 'appointment' | 'completed'
 
@@ -69,10 +70,32 @@ const statusColor = (status: string) => {
     if (status === 'Declined' || status === 'Rejected') return 'red'
     if (status === 'In Progress') return 'blue'
     if (status === 'Awaiting Confirmation') return 'purple'
-    if (status === 'Awaiting Your Acceptance') return 'gold'
+    if (status === 'Not Started') return 'gold'
     if (status === 'Awaiting Facilitator') return 'cyan'
     return 'orange'
 }
+
+type GroupKey = 'action' | 'active' | 'waiting' | 'done'
+
+/** Above this many interventions a search box earns its place; below it the groups are enough. */
+const SEARCH_THRESHOLD = 8
+
+const groupOf = (item: IncubateeIntervention): GroupKey => {
+    if (canConfirmIncubateeIntervention(item)) return 'action'
+    if (item.status === 'In Progress') return 'active'
+    if (item.status === 'Completed' || item.status === 'Declined' || item.status === 'Rejected') return 'done'
+    return 'waiting'
+}
+
+/** An agent-delivered intervention can be opened once it is assigned: opening it is what starts the work. */
+const canOpenAgent = (item: IncubateeIntervention) => !!item.agentId && (item.status === 'In Progress' || item.status === 'Not Started')
+
+const GROUPS: { key: GroupKey, label: string, icon: ReactNode }[] = [
+    { key: 'action', label: 'Needs your action', icon: <ExclamationCircleFilled /> },
+    { key: 'active', label: 'In progress', icon: <LineChartOutlined /> },
+    { key: 'waiting', label: 'Not started yet', icon: <ClockCircleOutlined /> },
+    { key: 'done', label: 'Completed', icon: <CheckCircleOutlined /> },
+]
 
 export const IncubateeInterventionsPage = () => {
     const { message } = App.useApp()
@@ -82,12 +105,12 @@ export const IncubateeInterventionsPage = () => {
     const screens = Grid.useBreakpoint()
     const isMobile = !screens.md
     const [requestForm] = Form.useForm<{ areaOfSupport: string, interventionTitle: string, reason: string }>()
-    const [actionForm] = Form.useForm<{ reason?: string, rating?: number, feedback?: string }>()
+    const [actionForm] = Form.useForm<{ reason?: string, rating?: number, feedback?: string, kind?: InterventionChangeKind }>()
     const [workspace, setWorkspace] = useState<IncubateeWorkspace | null>()
-    const [status, setStatus] = useState('All')
     const [search, setSearch] = useState('')
-    const [trackerView, setTrackerView] = useState<'interventions' | 'requests'>('interventions')
+    const [showDone, setShowDone] = useState(false)
     const [requestOpen, setRequestOpen] = useState(false)
+    const [signingPlan, setSigningPlan] = useState(false)
     const [requestedArea, setRequestedArea] = useState('')
     const [selected, setSelected] = useState<IncubateeIntervention>()
     const [action, setAction] = useState<Action>()
@@ -117,7 +140,8 @@ export const IncubateeInterventionsPage = () => {
         if (!user) return
         try {
             setWorkspace(await loadIncubateeWorkspace(user))
-        } catch {
+        } catch (error) {
+            console.error('Could not load the incubatee workspace.', error)
             message.error(t('incubatee.common.loadError'))
             setWorkspace(null)
         }
@@ -128,12 +152,17 @@ export const IncubateeInterventionsPage = () => {
         return () => window.clearTimeout(timeout)
     }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 
+    const showSearch = (workspace?.assignedInterventions.length || 0) > SEARCH_THRESHOLD
     const rows = useMemo(() => workspace?.assignedInterventions.filter((item) => {
         const needle = search.trim().toLowerCase()
-        const matchesStatus = status === 'All' || item.status === status
-        const matchesSearch = !needle || `${item.title} ${item.areaOfSupport || ''} ${item.assigneeName || ''}`.toLowerCase().includes(needle)
-        return matchesStatus && matchesSearch
-    }) || [], [search, status, workspace])
+        return !needle || `${item.title} ${item.areaOfSupport || ''} ${item.assigneeName || ''}`.toLowerCase().includes(needle)
+    }) || [], [search, workspace])
+
+    const grouped = useMemo(() => {
+        const groups: Record<GroupKey, IncubateeIntervention[]> = { action: [], active: [], waiting: [], done: [] }
+        rows.forEach((item) => groups[groupOf(item)].push(item))
+        return groups
+    }, [rows])
 
     const areas = useMemo(() => [...new Set((workspace?.requiredInterventions || []).map((item) => item.areaOfSupport).filter(Boolean))] as string[], [workspace])
 
@@ -151,12 +180,17 @@ export const IncubateeInterventionsPage = () => {
         return options
     }, [workspace])
 
-    const metrics = useMemo(() => ({
-        required: workspace?.requiredInterventions.length || 0,
-        inProgress: workspace?.assignedInterventions.filter((item) => item.status === 'In Progress').length || 0,
-        awaiting: workspace?.assignedInterventions.filter(canConfirmIncubateeIntervention).length || 0,
-        completed: workspace?.assignedInterventions.filter((item) => item.status === 'Completed').length || 0,
-    }), [workspace])
+    const metrics = useMemo(() => {
+        const assigned = workspace?.assignedInterventions || []
+        const count = (group: GroupKey) => assigned.filter((item) => groupOf(item) === group).length
+        return {
+            required: workspace?.requiredInterventions.length || 0,
+            needsYou: count('action'),
+            inProgress: count('active'),
+            notStarted: count('waiting'),
+            completed: assigned.filter((item) => item.status === 'Completed').length,
+        }
+    }, [workspace])
 
     const guideRegistration = useMemo<PageGuideRegistration>(() => ({
         pageId: 'incubatee-interventions',
@@ -165,10 +199,10 @@ export const IncubateeInterventionsPage = () => {
             {
                 id: 'interventions-overview', title: t('Quick tour'), description: t('Understand the views, counts and filters on this tracker.'), kind: 'page', order: 1,
                 steps: [
-                    { element: guideTarget('intervention-metrics'), popover: { title: t('Your current workload'), description: t('These counts separate required, active, awaiting-confirmation and completed interventions so you can prioritise the next action.'), side: 'bottom' } },
-                    { element: guideTarget('intervention-view-switch'), popover: { title: t('Interventions and requests'), description: t('Switch between assigned work and your submitted support requests.'), side: 'bottom' } },
-                    { element: guideTarget('intervention-table-filters'), popover: { title: t('Find the right intervention'), description: t('Search by name, area or facilitator, then narrow the table by status.'), side: 'bottom' } },
-                    { element: guideTarget('intervention-records'), popover: { title: t('Your intervention records'), description: t('Each row shows the support area, delivery owner, current status and actions that are available to you.'), side: 'top' } },
+                    { element: guideTarget('intervention-metrics'), popover: { title: t('Your current workload'), description: t('Your growth plan progress, then what needs you, what is under way, what has not started and what is complete.'), side: 'bottom' } },
+                    { element: guideTarget('intervention-next-step'), popover: { title: t('Next step'), description: t('The most urgent thing for you to do, with the button to do it.'), side: 'bottom' } },
+                    { element: guideTarget('intervention-records'), popover: { title: t('Your intervention records'), description: t('Interventions are grouped by what they need. Each row shows the support area, who delivers it and the action available to you.'), side: 'top' } },
+                    ...(workspace?.requests.length ? [{ element: guideTarget('intervention-requests'), popover: { title: t('Your requests'), description: t('Support you asked for, and where each request stands.'), side: 'top' as const } }] : []),
                 ],
             },
             {
@@ -190,12 +224,12 @@ export const IncubateeInterventionsPage = () => {
                     { element: guideTarget('request-intervention-submit'), waitForElement: 5000, popover: { title: t('Submit when ready'), description: t('Review the area, intervention and reason, then submit the request.'), side: 'top' } },
                 ],
             },
-            ...(rows.some((item) => item.agentId && item.status === 'In Progress') ? [{
+            ...(rows.some(canOpenAgent) ? [{
                 id: 'interventions-agent-work', title: t('Continue with an agent'), description: t('Open the agent-led workspace for the selected intervention.'), kind: 'task' as const, order: 4,
                 steps: [{ element: '[data-guide-agent-intervention]', waitForElement: 1200, popover: { title: t('Open the agent workspace'), description: t('Use this for agent-led interventions. The agent workspace has its own focused guide menu.'), side: 'left' as const } }],
             }] : []),
         ],
-    }), [rows, t])
+    }), [rows, t, workspace?.requests.length])
 
     useRegisterPageGuide(guideRegistration)
 
@@ -203,17 +237,17 @@ export const IncubateeInterventionsPage = () => {
         pageKey: 'incubatee-intervention-tracker',
         pageName: tEnglish('incubatee.tracker.title'),
         purpose: tEnglish('incubatee.tracker.subtitle'),
-        filters: { search, status },
+        filters: { search },
         metrics,
         tables: { visibleInterventions: rows.length },
         selectedRecord: selected?.title,
     })
 
-    const act = async (item: IncubateeIntervention, nextAction: Action, values: { reason?: string, rating?: number, feedback?: string }) => {
-        if (!workspace) return
+    const act = async (item: IncubateeIntervention, nextAction: Action, values: { reason?: string, rating?: number, feedback?: string, kind?: InterventionChangeKind }) => {
+        if (!workspace || !user) return
 
         try {
-            if (nextAction === 'decline') await declineIncubateeIntervention(workspace, item, values.reason || '')
+            if (nextAction === 'change') await requestInterventionChange(item, user.uid, values.kind || 'change', values.reason || '')
             if (nextAction === 'confirm') await confirmIncubateeCompletion(workspace, item, values.rating || 0, values.feedback || '')
             if (nextAction === 'reject') await rejectIncubateeCompletion(workspace, item, values.reason || '')
             message.success(t('incubatee.tracker.updated'))
@@ -221,20 +255,9 @@ export const IncubateeInterventionsPage = () => {
             setAction(undefined)
             actionForm.resetFields()
             await load()
-        } catch {
-            message.error(t('incubatee.tracker.updateError'))
-        }
-    }
-
-    const accept = async (item: IncubateeIntervention) => {
-        if (!workspace) return
-
-        try {
-            await acceptIncubateeIntervention(workspace, item)
-            message.success(t('incubatee.tracker.updated'))
-            await load()
-        } catch {
-            message.error(t('incubatee.tracker.updateError'))
+        } catch (error) {
+            const reason = error instanceof Error && error.message.includes('has not been uploaded yet') ? error.message : ''
+            message.error(reason || t('incubatee.tracker.updateError'))
         }
     }
 
@@ -417,120 +440,259 @@ export const IncubateeInterventionsPage = () => {
         )
     }
 
-    const actions = (item: IncubateeIntervention) => {
+    const deliveredBy = (item: IncubateeIntervention) => (item.agentId
+        ? item.agentName || agentNameFor(item.agentId) || t('Agent')
+        : item.assigneeName || '')
+
+    const openReview = (item: IncubateeIntervention) => { setSelected(item); setAction(undefined) }
+    const startAction = (item: IncubateeIntervention, nextAction: Action) => { setSelected(item); setAction(nextAction) }
+
+    // Signing happens in SignDocumentModal, which writes the signature out while this saves.
+    const confirmPlan = async () => {
+        if (!user || !workspace) throw new Error('not-ready')
+        await confirmIncubateeGrowthPlan(workspace, user)
+    }
+    const planSignError = (error: unknown) => (error instanceof Error && error.message === 'missing-signature'
+        ? t('Set up your signature before acknowledging the growth plan.')
+        : t('incubatee.tracker.updateError'))
+
+    /** The one button a row offers; everything else lives behind Details. */
+    const rowAction = (item: IncubateeIntervention) => {
         const agentId = item.agentId
-        return <Space wrap>
-            {!agentId && !item.id.startsWith('unassigned-') && (
-                <Button icon={<EyeOutlined />} onClick={() => void openProgressView(item)}>{t('incubatee.tracker.viewProgress', 'View Progress')}</Button>
-            )}
-            <Button data-guide="incubatee-intervention-review" onClick={() => { setSelected(item); setAction(undefined) }}>{t('common.review')}</Button>
-            {agentId && item.status === 'In Progress' && (
-                <Button data-guide-agent-intervention type="primary" icon={<RobotOutlined />} onClick={() => void openAgentWorkspace(agentId, item.id)}>
-                    {t('Open')} {item.agentName || agentNameFor(agentId) || 'agent'}
+        if (canConfirmIncubateeIntervention(item)) return <Button onClick={() => startAction(item, 'confirm')}>{t('incubatee.tracker.confirm')}</Button>
+        if (agentId && canOpenAgent(item)) {
+            return (
+                <Button data-guide-agent-intervention icon={<RobotOutlined />} onClick={() => void openAgentWorkspace(agentId, item.id)}>
+                    {t('Open agent')}
                 </Button>
-            )}
-            {canAcceptIncubateeIntervention(item) && (
-                <>
-                    <Button type="primary" onClick={() => void accept(item)}>{t('incubatee.tracker.accept')}</Button>
-                    <Button danger onClick={() => { setSelected(item); setAction('decline') }}>{t('incubatee.tracker.decline')}</Button>
-                </>
-            )}
-            {canConfirmIncubateeIntervention(item) && (
-                <>
-                    <Button type="primary" onClick={() => { setSelected(item); setAction('confirm') }}>{t('incubatee.tracker.confirm')}</Button>
-                    <Button danger onClick={() => { setSelected(item); setAction('reject') }}>{t('incubatee.tracker.reject')}</Button>
-                </>
-            )}
-        </Space>
+            )
+        }
+        return null
     }
 
-    const columns: TableProps<IncubateeIntervention>['columns'] = [
-        { title: t('incubatee.tracker.intervention'), dataIndex: 'title' },
-        { title: t('incubatee.tracker.area'), dataIndex: 'areaOfSupport', render: (value?: string) => value || t('common.unassigned') },
-        { title: t('Delivery'), render: (_, item) => item.agentId ? <Space direction="vertical" size={0}><Tag icon={<RobotOutlined />} color="purple">{item.agentName || agentNameFor(item.agentId) || t('Agent')}</Tag>{item.reviewRequired && <Typography.Text type="secondary">{item.reviewerType === 'consultant' ? t('Consultant review') : t('Operations review')}</Typography.Text>}</Space> : <Tag color="blue">{item.assigneeName || t('common.unassigned')}</Tag> },
-        { title: t('common.status'), dataIndex: 'status', render: (value: string) => <Tag color={statusColor(value)}>{value}</Tag> },
-        { title: t('common.actions'), render: (_, item) => actions(item) },
-    ]
-
-    if (workspace === undefined) return <LoadingOverlay tip={t('incubatee.tracker.loading')} />
+    if (workspace === undefined) return <PageSkeleton variant="dashboard" label={t('incubatee.tracker.loading')} />
     if (!workspace) return <DashboardPage><Empty description={t('incubatee.common.noAcceptedProgram')} /></DashboardPage>
 
-    return <DashboardPage className="incubatee-page">
-        {progressItem ? renderProgressView() : <>
-        {workspace.growthPlanAvailable && !workspace.growthPlanConfirmed && (
-            <Alert
-                type="info"
-                showIcon
-                message={t('incubatee.tracker.planReady')}
-                action={
-                    <Button
-                        type="primary"
-                        onClick={async () => {
-                            if (!user) return
-                            try {
-                                await confirmIncubateeGrowthPlan(workspace, user)
-                                message.success(t('incubatee.tracker.planConfirmed'))
-                                await load()
-                            } catch (error) {
-                                message.error(error instanceof Error && error.message === 'missing-signature' ? t('Set up your signature before acknowledging the growth plan.') : t('incubatee.tracker.updateError'))
-                            }
-                        }}
-                    >
-                        {t('incubatee.tracker.confirmPlan')}
-                    </Button>
-                }
-            />
-        )}
+    const planTotal = metrics.required || workspace.assignedInterventions.length
+    const planScore = planTotal ? Math.round((metrics.completed / planTotal) * 100) : 0
+    const planPending = workspace.growthPlanAvailable && !workspace.growthPlanConfirmed
+    // GROUPS order is the priority order: confirming finished work comes before accepting new work.
+    const nextItem = grouped.action.find(canConfirmIncubateeIntervention)
+        || grouped.action[0]
+        || grouped.active.find((item) => item.agentId)
 
+    const jumpTo = (group: GroupKey) => {
+        if (group === 'done') setShowDone(true)
+        window.setTimeout(() => window.document.getElementById(`intervention-group-${group}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
+    }
+
+    const tiles: { key: string, group: GroupKey, label: string, value: number, icon: ReactNode }[] = [
+        { key: 'needs', group: 'action', label: t('Needs you'), value: metrics.needsYou, icon: <ExclamationCircleFilled /> },
+        { key: 'active', group: 'active', label: t('incubatee.tracker.inProgress'), value: metrics.inProgress, icon: <LineChartOutlined /> },
+        { key: 'waiting', group: 'waiting', label: t('Not started'), value: metrics.notStarted, icon: <ClockCircleOutlined /> },
+        { key: 'done', group: 'done', label: t('incubatee.tracker.completed'), value: metrics.completed, icon: <CheckCircleOutlined /> },
+    ]
+
+    const nextStep = () => {
+        if (planPending) {
+            return {
+                key: 'plan', tone: 'plan', icon: <FileDoneOutlined />, title: t('Acknowledge your growth plan'), text: t('incubatee.tracker.planReady'),
+                buttons: <Button type="primary" size="large" onClick={() => setSigningPlan(true)}>{t('incubatee.tracker.confirmPlan')}</Button>,
+            }
+        }
+        if (!nextItem) return null
+        const who = deliveredBy(nextItem)
+        if (canConfirmIncubateeIntervention(nextItem)) {
+            return {
+                key: nextItem.id, tone: 'confirm', icon: <CheckCircleOutlined />, title: t('Confirm "{title}" is complete', undefined, { title: nextItem.title }),
+                text: who ? t('{name} marked this as done. Rate the support to close it off.', undefined, { name: who }) : t('This was marked as done. Rate the support to close it off.'),
+                buttons: <>
+                    <Button type="primary" size="large" onClick={() => startAction(nextItem, 'confirm')}>{t('incubatee.tracker.confirm')}</Button>
+                    <Button size="large" onClick={() => startAction(nextItem, 'reject')}>{t('Not done')}</Button>
+                </>,
+            }
+        }
+        const agentId = nextItem.agentId as string
+        return {
+            key: nextItem.id, tone: 'agent', icon: <RobotOutlined />, title: t('Continue "{title}"', undefined, { title: nextItem.title }),
+            text: t('Pick up where you left off with {name}.', undefined, { name: who }),
+            buttons: <Button type="primary" size="large" icon={<RobotOutlined />} onClick={() => void openAgentWorkspace(agentId, nextItem.id)}>{t('Open agent')}</Button>,
+        }
+    }
+    const step = nextStep()
+
+    // Rows show one button; the rest of an intervention's actions sit in the Details footer.
+    const detailActions: ReactNode[] = []
+    if (selected) {
+        const item = selected
+        if (!item.agentId && !item.id.startsWith('unassigned-')) {
+            detailActions.push(<Button key="progress" icon={<EyeOutlined />} onClick={() => { setSelected(undefined); void openProgressView(item) }}>{t('incubatee.tracker.viewProgress', 'View Progress')}</Button>)
+        }
+        if (item.agentId && canOpenAgent(item)) {
+            const agentId = item.agentId
+            detailActions.push(<Button key="agent" icon={<RobotOutlined />} onClick={() => void openAgentWorkspace(agentId, item.id)}>{t('Open agent')}</Button>)
+        }
+        // Not a decline: a request to the programme team, who decide whether to change or drop it.
+        if (['Not Started', 'In Progress'].includes(item.status) && !item.id.startsWith('unassigned-') && !openChangeRequest(item.raw as Record<string, unknown>)) {
+            detailActions.push(<Button key="change" onClick={() => { actionForm.setFieldsValue({ kind: 'change', reason: '' }); setAction('change') }}>{t('Ask for a change')}</Button>)
+        }
+        if (canConfirmIncubateeIntervention(item)) {
+            detailActions.push(
+                <Button key="reject" danger onClick={() => setAction('reject')}>{t('incubatee.tracker.reject')}</Button>,
+                <Button key="confirm" type="primary" onClick={() => setAction('confirm')}>{t('incubatee.tracker.confirm')}</Button>,
+            )
+        }
+    }
+
+    return <DashboardPage className="incubatee-page incubatee-interventions-page">
+        {progressItem ? renderProgressView() : <>
         <AppointmentInvitations workspace={workspace} onChanged={() => void load()} />
 
-        <div data-guide-target="intervention-metrics">
-            <MetricsGrid>
-                <DashboardMetricCard icon={<FileSearchOutlined />} label={t('incubatee.tracker.required')} value={metrics.required} />
-                <DashboardMetricCard icon={<LineChartOutlined />} label={t('incubatee.tracker.inProgress')} mobileTitle={t('incubatee.tracker.inProgressMobile', 'Active')} value={metrics.inProgress} />
-                <DashboardMetricCard icon={<ClockCircleOutlined />} label={t('incubatee.tracker.awaiting')} mobileTitle={t('incubatee.tracker.awaitingMobile', 'Awaiting')} value={metrics.awaiting} />
-                <DashboardMetricCard icon={<CheckCircleOutlined />} label={t('incubatee.tracker.completed')} value={metrics.completed} />
-            </MetricsGrid>
+        <section data-guide-target="intervention-metrics" className="interventions-summary">
+            {/* The shared metric card has no ring, so the plan score borrows its card styles. */}
+            <Card className="dashboard-metric-card interventions-score-card" bordered>
+                <div className="dashboard-metric-row">
+                    <Progress
+                        type="circle"
+                        percent={planScore}
+                        size={44}
+                        strokeWidth={10}
+                        strokeColor="#6d5dfb"
+                        format={(percent) => <span className="interventions-score-value">{percent}%</span>}
+                    />
+                    <div className="dashboard-metric-copy">
+                        <Typography.Text strong>{t('Growth plan')}</Typography.Text>
+                        <Typography.Text type="secondary" className="dashboard-metric-label">
+                            {t('{done} of {total} completed', undefined, { done: metrics.completed, total: planTotal })}
+                        </Typography.Text>
+                    </div>
+                </div>
+            </Card>
+
+            {tiles.map((tile) => (
+                <DashboardMetricCard
+                    key={tile.key}
+                    icon={tile.icon}
+                    label={tile.label}
+                    value={tile.value}
+                    onClick={tile.value > 0 ? () => jumpTo(tile.group) : undefined}
+                />
+            ))}
+        </section>
+
+        <div data-guide-target="intervention-next-step">
+            {step ? (
+                <section className={`interventions-next is-${step.tone}`}>
+                    <span className="interventions-next-eyebrow"><ArrowRightOutlined /> {t('Next step')}</span>
+                    <div className="interventions-next-body">
+                        <span className="interventions-next-icon" aria-hidden="true">{step.icon}</span>
+                        <div className="interventions-next-text">
+                            <Typography.Text strong className="interventions-next-title">{step.title}</Typography.Text>
+                            <Typography.Text type="secondary">{step.text}</Typography.Text>
+                        </div>
+                        <div className="interventions-next-actions">{step.buttons}</div>
+                    </div>
+                </section>
+            ) : (
+                <section className="interventions-next is-done">
+                    <div className="interventions-next-body">
+                        <span className="interventions-next-icon" aria-hidden="true"><CheckCircleFilled /></span>
+                        <div className="interventions-next-text">
+                            <Typography.Text strong className="interventions-next-title">{t('Nothing needs your attention right now.')}</Typography.Text>
+                            {metrics.inProgress + metrics.notStarted > 0 && (
+                                <Typography.Text type="secondary">{t('Your facilitators will let you know when something needs you.')}</Typography.Text>
+                            )}
+                        </div>
+                    </div>
+                </section>
+            )}
         </div>
 
-        <Card className="incubatee-card incubatee-tracker-switcher" style={{ marginBottom: 12 }}>
-            <div className="incubatee-tracker-switcher-row">
-                <Segmented
-                    id="guide-intervention-view-switch"
-                    data-guide-target="intervention-view-switch"
-                    block
-                    value={trackerView}
-                    onChange={(value) => setTrackerView(value as 'interventions' | 'requests')}
-                    options={[
-                        { value: 'interventions', label: <Space size={6}><FileSearchOutlined />{t('Interventions')} <Tag>{workspace.assignedInterventions.length}</Tag></Space> },
-                        { value: 'requests', label: <Space size={6}><SendOutlined />{t('Requests')} <Tag>{workspace.requests.length}</Tag></Space> },
-                    ]}
-                />
-                <Button id="guide-request-intervention" data-guide-target="request-intervention" data-guide-request-intervention block type="primary" icon={<PlusOutlined />} onClick={() => { setRequestedArea(''); requestForm.resetFields(); setRequestOpen(true) }}>{t('incubatee.tracker.request')}</Button>
-            </div>
-        </Card>
+        {workspace && <SmeCheckbacks interventions={workspace.assignedInterventions} onAnswered={() => void load()} />}
 
-        <Card data-guide-target="intervention-records" className="incubatee-card">
-            {trackerView === 'interventions' ? <>
-                <div id="guide-intervention-table-filters" data-guide-target="intervention-table-filters" className="incubatee-table-filter-panel">
-                    <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('incubatee.tracker.search')} allowClear />
-                    <Select value={status} onChange={setStatus} options={['All', 'Pending Assignment', 'Awaiting Facilitator', 'Awaiting Your Acceptance', 'In Progress', 'Awaiting Confirmation', 'Completed', 'Declined', 'Rejected'].map((value) => ({ value, label: value === 'All' ? t('incubatee.tracker.allStatuses') : value }))} />
-                </div>
-                <ResponsiveDataView rowKey="id" rows={rows} columns={columns} emptyText={t('incubatee.tracker.empty')} renderCard={(item) => (
-                    <Space direction="vertical" size={8} style={{ width: '100%' }}>
-                        <Typography.Text strong>{item.title}</Typography.Text>
-                        <Space wrap><Tag color={statusColor(item.status)}>{item.status}</Tag>{item.agentId && <Tag icon={<RobotOutlined />} color="purple">{item.agentName || agentNameFor(item.agentId) || t('Agent')}</Tag>}<Typography.Text type="secondary">{item.areaOfSupport || t('common.unassigned')}</Typography.Text></Space>
-                        <Progress percent={item.progress} size="small" />
-                        {actions(item)}
-                    </Space>
-                )} />
-            </> : <List dataSource={workspace.requests} locale={{ emptyText: <Empty description={t('incubatee.tracker.noRequests')} /> }} renderItem={(request) => (
-                <List.Item><List.Item.Meta title={request.interventionTitle} description={<Space wrap><Typography.Text type="secondary">{request.areaOfSupport}</Typography.Text><Tag>{request.status}</Tag></Space>} /></List.Item>
-            )} />}
-        </Card>
+        <div className={`interventions-toolbar${showSearch ? ' has-search' : ''}`}>
+            {showSearch ? (
+                <Input
+                    className="interventions-search"
+                    prefix={<SearchOutlined />}
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder={t('incubatee.tracker.search')}
+                    allowClear
+                />
+            ) : <span />}
+            <Button id="guide-request-intervention" data-guide-target="request-intervention" data-guide-request-intervention icon={<PlusOutlined />} onClick={() => { setRequestedArea(''); requestForm.resetFields(); setRequestOpen(true) }}>
+                {t('Request support')}
+            </Button>
+        </div>
+
+        <div data-guide-target="intervention-records" className="interventions-groups">
+            {rows.length === 0 && (
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={search ? t('No interventions match your search.') : t('incubatee.tracker.empty')} />
+            )}
+            {GROUPS.filter((group) => grouped[group.key].length > 0).map((group) => {
+                const collapsed = group.key === 'done' && !showDone && !search
+                return (
+                    <section key={group.key} id={`intervention-group-${group.key}`} className={`interventions-group is-${group.key}`}>
+                        <h3 className="interventions-group-head">
+                            <span aria-hidden="true">{group.icon}</span> {t(group.label)}
+                            {group.key === 'done' && !search && (
+                                <Button type="link" size="small" className="interventions-group-toggle" onClick={() => setShowDone((value) => !value)} icon={showDone ? <UpOutlined /> : <DownOutlined />} iconPlacement="end">
+                                    {showDone ? t('Hide') : t('Show {count}', undefined, { count: grouped.done.length })}
+                                </Button>
+                            )}
+                        </h3>
+                        {!collapsed && (
+                            <ul className="interventions-list">
+                                {grouped[group.key].map((item) => {
+                                    const who = deliveredBy(item)
+                                    return (
+                                        <li key={item.id} className={`interventions-row is-${group.key}${item.agentId ? ' is-agent' : ''}`}>
+                                            <span className="interventions-row-icon" aria-hidden="true">
+                                                {item.agentId ? <RobotOutlined /> : group.icon}
+                                            </span>
+                                            <div className="interventions-row-main">
+                                                <Typography.Text strong>{item.title}</Typography.Text>
+                                                <Typography.Text type="secondary" className="interventions-row-meta">
+                                                    {[item.areaOfSupport || t('common.unassigned'), who, t(item.status)].filter(Boolean).join(' · ')}
+                                                </Typography.Text>
+                                                {group.key === 'active' && (
+                                                    <Progress className="interventions-row-progress" percent={item.progress} size="small" strokeColor="#6d5dfb" />
+                                                )}
+                                            </div>
+                                            <div className="interventions-row-actions">
+                                                {rowAction(item)}
+                                                <Button data-guide="incubatee-intervention-review" type="text" onClick={() => openReview(item)}>{t('Details')}</Button>
+                                            </div>
+                                        </li>
+                                    )
+                                })}
+                            </ul>
+                        )}
+                    </section>
+                )
+            })}
+        </div>
+
+        {workspace.requests.length > 0 && (
+            <section data-guide-target="intervention-requests" className="interventions-group is-requests">
+                <h3 className="interventions-group-head"><SendOutlined aria-hidden="true" /> {t('Your requests')}</h3>
+                <ul className="interventions-list">
+                    {workspace.requests.map((request) => (
+                        <li key={request.id} className="interventions-row is-request">
+                            <div className="interventions-row-main">
+                                <Typography.Text strong>{request.interventionTitle}</Typography.Text>
+                                <Typography.Text type="secondary" className="interventions-row-meta">{request.areaOfSupport}</Typography.Text>
+                            </div>
+                            <Tag>{t(request.status)}</Tag>
+                        </li>
+                    ))}
+                </ul>
+            </section>
+        )}
         </>}
 
-        <Modal className="guide-incubatee-intervention-detail" open={!!selected && !action} onCancel={() => setSelected(undefined)} title={selected?.title} footer={null}>
+        <ResponsiveModal className="guide-incubatee-intervention-detail" open={!!selected && !action} onClose={() => setSelected(undefined)} title={selected?.title} destroyOnHidden={false} footer={detailActions.length ? detailActions : null}>
             {selected && (
                 <Space direction="vertical" className="incubatee-detail" style={{ width: '100%' }}>
                     <Descriptions
@@ -541,7 +703,7 @@ export const IncubateeInterventionsPage = () => {
                         items={[
                             { key: 'area', label: t('incubatee.tracker.area'), children: selected.areaOfSupport || t('common.unassigned') },
                             { key: 'facilitator', label: selected.agentId ? t('Agent and reviewer') : t('incubatee.tracker.facilitator'), children: selected.agentId ? `${selected.agentName || agentNameFor(selected.agentId) || 'Agent'}${selected.reviewRequired ? ` · ${selected.reviewerType === 'consultant' ? 'Consultant' : 'Operations'} review` : ''}` : selected.assigneeName || t('common.unassigned') },
-                            { key: 'status', label: t('common.status'), children: <Tag color={statusColor(selected.status)}>{selected.status}</Tag> },
+                            { key: 'status', label: t('common.status'), children: <Space wrap size={4}><Tag color={statusColor(selected.status)}>{t(selected.status)}</Tag>{openChangeRequest(selected.raw as Record<string, unknown>) && <Tag color="orange">{t('Change requested')}</Tag>}</Space> },
                         ]}
                     />
                     <div data-guide-target="intervention-detail-progress"><Progress percent={selected.progress} />
@@ -550,23 +712,31 @@ export const IncubateeInterventionsPage = () => {
                         {selected.feedback && <Card size="small" title={t('incubatee.tracker.feedback')}><Rate disabled value={selected.feedback.rating} /><Typography.Paragraph>{selected.feedback.comments}</Typography.Paragraph></Card>}</div>
                 </Space>
             )}
-        </Modal>
+        </ResponsiveModal>
 
-        <Modal open={!!action} onCancel={() => setAction(undefined)} title={t(`incubatee.tracker.${action || 'confirm'}`)} footer={null}>
+        <ResponsiveModal open={!!action} onClose={() => setAction(undefined)} title={action === 'change' ? t('Ask for a change') : t(`incubatee.tracker.${action || 'confirm'}`)} destroyOnHidden={false}>
             <Form form={actionForm} layout="vertical" onFinish={(values) => selected && action && void act(selected, action, values)}>
                 {action === 'confirm' ? (
                     <>
                         <Form.Item name="rating" label={t('incubatee.tracker.rating')} rules={[{ required: true }]}><Rate /></Form.Item>
                         <Form.Item name="feedback" label={t('incubatee.tracker.feedback')} rules={[{ required: true }]}><Input.TextArea rows={4} /></Form.Item>
                     </>
+                ) : action === 'change' ? (
+                    <>
+                        <Typography.Paragraph type="secondary">{t('Your programme team will look at this and get back to you. The intervention carries on as planned until they decide.')}</Typography.Paragraph>
+                        <Form.Item name="kind" label={t('What would you like?')} initialValue="change" rules={[{ required: true }]}>
+                            <Segmented block options={[{ value: 'change', label: t('Change it') }, { value: 'drop', label: t('I no longer need it') }]} />
+                        </Form.Item>
+                        <Form.Item name="reason" label={t('Tell us why')} rules={[{ required: true, message: t('Please tell the programme team why.') }]}><Input.TextArea rows={4} maxLength={500} /></Form.Item>
+                    </>
                 ) : (
                     <Form.Item name="reason" label={t('incubatee.tracker.reason')} rules={[{ required: true }]}><Input.TextArea rows={4} /></Form.Item>
                 )}
-                <Button block type="primary" danger={action !== 'confirm'} htmlType="submit">{t('common.continue')}</Button>
+                <Button block type="primary" danger={action === 'reject'} htmlType="submit">{action === 'change' ? t('Send request') : t('common.continue')}</Button>
             </Form>
-        </Modal>
+        </ResponsiveModal>
 
-        <Modal open={requestOpen} onCancel={() => { setRequestOpen(false); setRequestedArea(''); requestForm.resetFields() }} title={t('incubatee.tracker.request')} footer={null}>
+        <ResponsiveModal open={requestOpen} destroyOnHidden={false} onClose={() => { setRequestOpen(false); setRequestedArea(''); requestForm.resetFields() }} title={t('incubatee.tracker.request')}>
             <Form
                 id="guide-request-intervention-form"
                 data-guide-target="request-intervention-form"
@@ -586,7 +756,19 @@ export const IncubateeInterventionsPage = () => {
                 <div data-guide-target="request-intervention-reason"><Form.Item name="reason" label={t('incubatee.tracker.reason')} rules={[{ required: true }]}><Input.TextArea rows={4} /></Form.Item></div>
                 <div data-guide-target="request-intervention-submit"><Button block type="primary" htmlType="submit">{t('incubatee.tracker.submitRequest')}</Button></div>
             </Form>
-        </Modal>
+        </ResponsiveModal>
+
+        <SignDocumentModal
+            open={signingPlan}
+            onClose={() => setSigningPlan(false)}
+            title={t('Sign your growth plan')}
+            description={t('This applies your saved signature and accepts the interventions on the plan.')}
+            signLabel={t('Sign and confirm')}
+            onSign={confirmPlan}
+            onSigned={() => void load()}
+            signedText={t('incubatee.tracker.planConfirmed')}
+            errorText={planSignError}
+        />
     </DashboardPage>
 }
 

@@ -1,7 +1,8 @@
-import { Alert, App, Button, Card, Col, DatePicker, Descriptions, Empty, Grid, Input, Modal, Progress, Row, Segmented, Select, Space, Tag, Typography, type TableProps } from 'antd'
+import { Alert, App, Avatar, Button, Card, Col, DatePicker, Descriptions, Empty, Grid, Input, Modal, Progress, Row, Segmented, Select, Space, Tag, Typography, type TableProps } from 'antd'
 import { AppstoreOutlined, BarChartOutlined, CheckCircleOutlined, ClockCircleOutlined, CloseCircleOutlined, DownloadOutlined, FileOutlined, SearchOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import isBetween from 'dayjs/plugin/isBetween'
+import { motion, useReducedMotion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
@@ -12,6 +13,7 @@ import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { useLanguage } from '@/providers/LanguageProvider'
 import { listOperationsApplications, updateOperationsApplicationStatus } from '@/services/operationsApplicationsService'
 import { CHART_COLORS, CHART_PALETTE } from '@/config/chartPalette'
+import { initialsOf } from '@/utils/initials'
 import type { OperationsApplication } from '@/types/operations'
 import '@/styles/applications-review.css'
 
@@ -66,6 +68,7 @@ export const ApplicationsReviewPage = () => {
     const { t } = useLanguage()
     const screens = Grid.useBreakpoint()
     const isCompact = !screens.xl
+    const reduceMotion = useReducedMotion()
     const { user } = useFullIdentity()
     const [applications, setApplications] = useState<OperationsApplication[]>([])
     const [loading, setLoading] = useState(false)
@@ -79,6 +82,7 @@ export const ApplicationsReviewPage = () => {
     const [beeLevel, setBeeLevel] = useState('All')
     const [gender, setGender] = useState('All')
     const [pendingUpdate, setPendingUpdate] = useState<{ row: OperationsApplication, status: string }>()
+    const [rejectionReason, setRejectionReason] = useState('')
     const [analyticsOpen, setAnalyticsOpen] = useState(false)
 
     const load = async () => {
@@ -132,11 +136,14 @@ export const ApplicationsReviewPage = () => {
     }
     const confirmStatusChange = async () => {
         if (!user || !pendingUpdate) return
+        const reason = rejectionReason.trim()
+        if (pendingUpdate.status === 'Rejected' && !reason) { message.warning(t('Please provide a reason for rejection')); return }
         try {
             setLoading(true)
-            await updateOperationsApplicationStatus(user, pendingUpdate.row.id, pendingUpdate.status)
+            await updateOperationsApplicationStatus(user, pendingUpdate.row.id, pendingUpdate.status, reason)
             message.success(t('operations.applications.updated'))
             setPendingUpdate(undefined)
+            setRejectionReason('')
             await load()
         } catch {
             message.error(t('operations.applications.updateError'))
@@ -145,7 +152,7 @@ export const ApplicationsReviewPage = () => {
     }
 
     const columns: TableProps<OperationsApplication>['columns'] = [
-        { title: t('operations.participants.enterprise'), dataIndex: 'businessName', render: (value: string, row) => <Space orientation="vertical" size={0}><Typography.Text strong>{value}</Typography.Text><Typography.Text type="secondary">{row.email}</Typography.Text></Space> },
+        { title: t('operations.participants.enterprise'), dataIndex: 'businessName', render: (value: string, row) => <Space size={10}><Avatar src={row.imageUrl} size={36}>{initialsOf(value)}</Avatar><Space orientation="vertical" size={0}><Typography.Text strong>{value}</Typography.Text><Typography.Text type="secondary">{row.email}</Typography.Text></Space></Space> },
         { title: t('operations.applications.applied'), dataIndex: 'submittedAt', render: (value: unknown) => toDate(value)?.format('DD MMM YYYY') || t('N/A') },
         { title: t('operations.applications.aiScore'), dataIndex: 'aiScore', render: (value?: string | number) => value ?? t('N/A') },
         { title: t('common.status'), dataIndex: 'applicationStatus', render: (value: string, row) => <Space wrap><Tag color={statusColor(normalizeStatus(value))}>{normalizeStatus(value)}</Tag>{row.supportFitStatus === 'await_review' ? <Tag color="orange">{t('External review')}</Tag> : null}</Space> },
@@ -154,12 +161,19 @@ export const ApplicationsReviewPage = () => {
     const hasAiReview = !!selected && (selected.aiScore !== undefined && selected.aiScore !== null || !!selected.aiRecommendation || !!selected.aiJustification)
 
     const details = selected ? (
-        <div className="applications-detail-body">
+        <motion.div
+            key={selected.id}
+            className="applications-detail-body"
+            initial={reduceMotion ? false : { opacity: 0, x: 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+        >
             <div className="applications-detail-heading">
-                <div><Typography.Title level={4}>{selected.businessName}</Typography.Title><Typography.Text type="secondary">{selected.email}</Typography.Text></div>
+                <Space size={12} align="start"><Avatar src={selected.imageUrl} size={48}>{initialsOf(selected.businessName)}</Avatar><div><Typography.Title level={4}>{selected.businessName}</Typography.Title><Typography.Text type="secondary">{selected.email}</Typography.Text></div></Space>
                 <Tag color={statusColor(normalizeStatus(selected.applicationStatus))}>{normalizeStatus(selected.applicationStatus)}</Tag>
             </div>
             <Segmented block value={section} onChange={(value) => setSection(value as DetailSection)} options={[{ label: t('common.overview'), value: 'overview' }, { label: t('operations.applications.decision'), value: 'ai' }, { label: t('operations.compliance.documents'), value: 'documents' }]} />
+            <motion.div key={section} initial={reduceMotion ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, ease: 'easeOut' }}>
             {section === 'overview' && <Descriptions bordered size="small" column={1} items={[
                 { key: 'program', label: t('operations.applications.program'), children: selected.programName || t('common.unassigned') },
                 { key: 'date', label: t('operations.applications.applied'), children: toDate(selected.submittedAt)?.format('DD MMM YYYY') || 'N/A' },
@@ -181,7 +195,7 @@ export const ApplicationsReviewPage = () => {
                                     key={value}
                                     type="button"
                                     className={`applications-decision-card is-${value.toLowerCase()}${isActive ? ' is-active' : ''}`}
-                                    onClick={() => { if (!isActive) setPendingUpdate({ row: selected, status: value }) }}
+                                    onClick={() => { if (!isActive) { setRejectionReason(''); setPendingUpdate({ row: selected, status: value }) } }}
                                 >
                                     <span className="applications-decision-icon">{icon}</span>
                                     <span className="applications-decision-label">{t(`operations.applications.${value.toLowerCase()}`)}</span>
@@ -189,6 +203,7 @@ export const ApplicationsReviewPage = () => {
                             )
                         })}
                     </div>
+                    {normalizeStatus(selected.applicationStatus) === 'Rejected' && <Alert type="error" showIcon style={{ marginTop: 10 }} message={t('Reason for rejection')} description={selected.rejectionReason || t('No reason recorded')} />}
                 </div>
                 {hasAiReview ? <>
                     <div><Typography.Text strong>{t('operations.applications.aiRecommendation')}</Typography.Text><Tag color={statusColor(normalizeStatus(selected.aiRecommendation))}>{selected.aiRecommendation || t('operations.applications.pending')}</Tag></div>
@@ -204,11 +219,12 @@ export const ApplicationsReviewPage = () => {
             </Space>}
             {section === 'documents' && <Space orientation="vertical" className="applications-detail-stack">
                 {selected.documents.length || selected.growthPlanDocUrl ? <>
-                    {selected.documents.map((document, index) => <Card size="small" key={`${document.type}-${index}`}><Space><FileOutlined /><Typography.Text>{document.type || `${t('common.document')} ${index + 1}`}</Typography.Text><Button icon={<DownloadOutlined />} href={document.url} target="_blank" disabled={!document.url}>{t('common.download')}</Button></Space></Card>)}
-                    {selected.growthPlanDocUrl && <Card size="small"><Space><FileOutlined /><Typography.Text>{t('operations.applications.growthPlan')}</Typography.Text><Button icon={<DownloadOutlined />} href={selected.growthPlanDocUrl} target="_blank">{t('common.download')}</Button></Space></Card>}
+                    {selected.documents.map((document, index) => <Card size="small" className="applications-document-card" key={`${document.type}-${index}`}><div className="applications-document-row"><FileOutlined /><Typography.Text className="applications-document-name">{document.type || `${t('common.document')} ${index + 1}`}</Typography.Text><Button icon={<DownloadOutlined />} href={document.url} target="_blank" disabled={!document.url}>{t('common.download')}</Button></div></Card>)}
+                    {selected.growthPlanDocUrl && <Card size="small" className="applications-document-card"><div className="applications-document-row"><FileOutlined /><Typography.Text className="applications-document-name">{t('operations.applications.growthPlan')}</Typography.Text><Button icon={<DownloadOutlined />} href={selected.growthPlanDocUrl} target="_blank">{t('common.download')}</Button></div></Card>}
                 </> : <Empty description={t('operations.compliance.noDocuments')} />}
             </Space>}
-        </div>
+            </motion.div>
+        </motion.div>
     ) : <Empty description={t('operations.applications.select')} />
 
     return <DashboardPage className="applications-review-page">
@@ -220,11 +236,11 @@ export const ApplicationsReviewPage = () => {
         </Row>
         <FilterBar primary={<><Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('operations.applications.search')} allowClear /><Select value={status} onChange={setStatus} options={['All', ...STATUSES].map((value) => ({ value, label: t(`operations.applications.${value.toLowerCase()}`) }))} /><RangePicker value={dateRange} onChange={(value) => setDateRange(value as [Dayjs, Dayjs] | null)} /></>} advanced={<><Select value={province} onChange={setProvince} options={[{ value: 'All', label: t('operations.applications.allProvinces') }, ...uniqueOptions(applications, 'province')]} /><Select value={beeLevel} onChange={setBeeLevel} options={[{ value: 'All', label: t('operations.applications.allBeeLevels') }, ...uniqueOptions(applications, 'beeLevel')]} /><Select value={gender} onChange={setGender} options={[{ value: 'All', label: t('operations.applications.allGenders') }, ...uniqueOptions(applications, 'gender')]} /></>} actions={<Button icon={<BarChartOutlined />} onClick={() => setAnalyticsOpen(true)}>{t('operations.applications.analytics')}</Button>} />
         <Row gutter={[16, 16]} align="top">
-            <Col xs={24} xl={14}><Card className="applications-panel"><ResponsiveDataView rowKey="id" loading={loading} columns={columns} rows={rows} emptyText={t('operations.applications.empty')} onRowClick={chooseApplication} rowClassName={(row) => `applications-row${row.id === selected?.id ? ' applications-selected-row' : ''}`} renderCard={(row) => <Space orientation="vertical" size={8} onClick={() => chooseApplication(row)}><Typography.Text strong>{row.businessName}</Typography.Text><Typography.Text type="secondary">{row.email}</Typography.Text><Space wrap><Tag color={statusColor(normalizeStatus(row.applicationStatus))}>{normalizeStatus(row.applicationStatus)}</Tag><Typography.Text type="secondary">{toDate(row.submittedAt)?.format('DD MMM YYYY') || t('N/A')}</Typography.Text></Space></Space>} /></Card></Col>
+            <Col xs={24} xl={14}><Card className="applications-panel"><ResponsiveDataView rowKey="id" loading={loading} columns={columns} rows={rows} emptyText={t('operations.applications.empty')} onRowClick={chooseApplication} rowClassName={(row) => `applications-row${row.id === selected?.id ? ' applications-selected-row' : ''}`} renderCard={(row) => <Space orientation="vertical" size={8} onClick={() => chooseApplication(row)}><Space size={10}><Avatar src={row.imageUrl} size={36}>{initialsOf(row.businessName)}</Avatar><Space orientation="vertical" size={0}><Typography.Text strong>{row.businessName}</Typography.Text><Typography.Text type="secondary">{row.email}</Typography.Text></Space></Space><Space wrap><Tag color={statusColor(normalizeStatus(row.applicationStatus))}>{normalizeStatus(row.applicationStatus)}</Tag><Typography.Text type="secondary">{toDate(row.submittedAt)?.format('DD MMM YYYY') || t('N/A')}</Typography.Text></Space></Space>} /></Card></Col>
             {!isCompact && <Col xl={10}><Card className="applications-panel">{details}</Card></Col>}
         </Row>
         <Modal open={detailOpen} title={t('operations.applications.details')} footer={null} onCancel={() => setDetailOpen(false)} width={760}>{details}</Modal>
-        <Modal open={!!pendingUpdate} title={t('operations.applications.confirmDecision')} onCancel={() => setPendingUpdate(undefined)} onOk={() => void confirmStatusChange()} okText={t('operations.applications.updateStatus')}>{t('operations.applications.change')} {pendingUpdate?.row.businessName} {t('operations.applications.to')} <strong>{pendingUpdate?.status}</strong>?</Modal>
+        <Modal open={!!pendingUpdate} title={t('operations.applications.confirmDecision')} onCancel={() => { setPendingUpdate(undefined); setRejectionReason('') }} onOk={() => void confirmStatusChange()} okText={t('operations.applications.updateStatus')}>{t('operations.applications.change')} {pendingUpdate?.row.businessName} {t('operations.applications.to')} <strong>{pendingUpdate?.status}</strong>?{pendingUpdate?.status === 'Rejected' && <Input.TextArea style={{ marginTop: 12 }} rows={3} value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} placeholder={t('Reason for rejection')} maxLength={500} showCount />}</Modal>
         <Modal open={analyticsOpen} title={t('operations.applications.analytics')} footer={null} centered width={640} onCancel={() => setAnalyticsOpen(false)} className="applications-analytics-modal">
             <div className="applications-analytics-grid">
                 <div className="applications-analytics-card applications-analytics-gauge">
@@ -234,7 +250,7 @@ export const ApplicationsReviewPage = () => {
                         : <Progress type="circle" percent={complianceAverage} gapDegree={180} gapPosition="bottom" strokeColor={complianceColor(complianceAverage)} />}
                 </div>
 
-                <div className="applications-analytics-card">
+                <div className="applications-analytics-card applications-analytics-gender">
                     <Typography.Text strong>{t('operations.applications.genderBreakdown')}</Typography.Text>
                     {genderBreakdown.length
                         ? genderBreakdown.map((item) => (
@@ -247,7 +263,7 @@ export const ApplicationsReviewPage = () => {
                         : <Empty description={t('operations.applications.noData')} image={Empty.PRESENTED_IMAGE_SIMPLE} />}
                 </div>
 
-                <div className="applications-analytics-card">
+                <div className="applications-analytics-card applications-analytics-bee">
                     <Typography.Text strong>{t('common.beeLevel')}</Typography.Text>
                     {beeBreakdown.length
                         ? beeBreakdown.map((item) => (

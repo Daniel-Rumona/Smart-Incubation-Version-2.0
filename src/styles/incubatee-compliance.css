@@ -1,0 +1,386 @@
+/* =========================================================
+   SME COMPLIANCE PAGE
+   One compact row of score + metrics, the next step, then the
+   documents grouped by what they need.
+   ========================================================= */
+
+.incubatee-compliance-page {
+    --compliance-ease: cubic-bezier(0.23, 1, 0.32, 1);
+    --compliance-accent: #6d5dfb;
+    --compliance-border: rgba(109, 93, 251, 0.12);
+    --compliance-surface: var(--ant-color-bg-container, #fff);
+    --compliance-divider: rgba(15, 23, 42, 0.06);
+    --compliance-muted: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.55));
+    display: grid;
+    /* The page fills the viewport; without this the few rows share the spare height as gaps. */
+    align-content: start;
+    gap: 16px;
+}
+
+/* Sections settle in on first paint; short so the page never feels slow. */
+.compliance-summary,
+.compliance-next,
+.compliance-group {
+    animation: compliance-fade-in 260ms var(--compliance-ease) both;
+}
+
+.compliance-next { animation-delay: 40ms; }
+.compliance-group { animation-delay: 80ms; }
+
+@keyframes compliance-fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/* ---------- score + metrics row ---------- */
+
+.compliance-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+/* The score tile is a dashboard-metric-card; tighten its gap so the ring sits like an icon. */
+.compliance-score-card .dashboard-metric-row {
+    gap: 12px;
+}
+
+.compliance-score-value {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* ---------- next step ---------- */
+
+.compliance-next {
+    display: grid;
+    gap: 8px;
+    padding: 16px 20px;
+    border: 2px solid var(--compliance-accent);
+    border-radius: 14px;
+    background: var(--compliance-surface);
+}
+
+.compliance-next.is-done {
+    border: 1px solid rgba(5, 150, 105, 0.3);
+}
+
+.compliance-next-eyebrow {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--compliance-accent);
+}
+
+.compliance-next-body {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+}
+
+.compliance-next-icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    font-size: 19px;
+    color: #64748b;
+    background: rgba(148, 163, 184, 0.14);
+}
+
+.compliance-next.is-queried .compliance-next-icon { color: #dc2626; background: rgba(220, 38, 38, 0.1); }
+.compliance-next.is-expired .compliance-next-icon,
+.compliance-next.is-expiring .compliance-next-icon { color: #d97706; background: rgba(217, 119, 6, 0.1); }
+.compliance-next.is-done .compliance-next-icon { color: #059669; background: rgba(5, 150, 105, 0.1); }
+
+.compliance-next-text {
+    display: grid;
+    flex: 1;
+    gap: 2px;
+    min-width: 200px;
+}
+
+.compliance-next-name {
+    font-size: 16px;
+}
+
+/* ---------- grouped documents ---------- */
+
+.compliance-group {
+    scroll-margin-top: 80px;
+}
+
+.compliance-group-head {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin: 4px 0 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--compliance-muted);
+}
+
+.compliance-group.is-action .compliance-group-head .anticon { color: #dc2626; }
+.compliance-group.is-review .compliance-group-head .anticon { color: #3b82f6; }
+.compliance-group.is-good .compliance-group-head .anticon { color: #059669; }
+
+.compliance-list {
+    margin: 0;
+    padding: 0 16px;
+    list-style: none;
+    border: 1px solid var(--compliance-border);
+    border-radius: 14px;
+    background: var(--compliance-surface);
+}
+
+.compliance-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 0;
+    border-top: 1px solid var(--compliance-divider);
+}
+
+.compliance-row:first-child {
+    border-top: none;
+}
+
+.compliance-row-icon {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    font-size: 16px;
+    color: #94a3b8;
+    background: rgba(148, 163, 184, 0.12);
+}
+
+.compliance-row.is-valid .compliance-row-icon { color: #059669; background: rgba(5, 150, 105, 0.1); }
+.compliance-row.is-pending .compliance-row-icon { color: #3b82f6; background: rgba(59, 130, 246, 0.1); }
+.compliance-row.is-queried .compliance-row-icon { color: #dc2626; background: rgba(220, 38, 38, 0.1); }
+.compliance-row.is-expired .compliance-row-icon,
+.compliance-row.is-valid.is-expiring .compliance-row-icon { color: #d97706; background: rgba(217, 119, 6, 0.1); }
+
+.compliance-row.is-valid.is-expiring .compliance-row-meta {
+    color: #b45309;
+}
+
+.compliance-row-main {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.compliance-row-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.compliance-tags {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.compliance-tags .ant-tag {
+    margin: 0;
+}
+
+.compliance-row-meta {
+    overflow: hidden;
+    font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.compliance-row-comment {
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(220, 38, 38, 0.07);
+    color: #991b1b;
+    font-size: 13px;
+}
+
+.compliance-row-comment .anticon {
+    margin-top: 3px;
+}
+
+.compliance-row-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Press feedback: the interface heard the tap. */
+.incubatee-compliance-page .ant-btn {
+    transition: transform 160ms ease-out, background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.incubatee-compliance-page .ant-btn:not(:disabled):active {
+    transform: scale(0.97);
+}
+
+/* ---------- empty / no programme ---------- */
+
+.compliance-empty {
+    padding: 48px 16px;
+    border: 1px dashed var(--compliance-border);
+    border-radius: 18px;
+    background: var(--compliance-surface);
+}
+
+.compliance-empty-icon {
+    font-size: 48px;
+    color: #8b7dff;
+}
+
+.compliance-empty h5 {
+    margin: 8px 0 4px !important;
+}
+
+/* ---------- modal ---------- */
+
+.compliance-modal {
+    display: grid;
+    gap: 14px;
+}
+
+.compliance-modal-current {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(109, 93, 251, 0.06);
+}
+
+.compliance-modal-dates {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.compliance-modal-dates label {
+    display: grid;
+    gap: 6px;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+/* ---------- dark ---------- */
+
+html[data-theme='dark'] .incubatee-compliance-page {
+    --compliance-accent: #8b7dff;
+    --compliance-border: rgba(139, 92, 246, 0.18);
+    --compliance-divider: rgba(255, 255, 255, 0.06);
+    --compliance-muted: var(--ant-color-text-secondary, rgba(255, 255, 255, 0.6));
+}
+
+html[data-theme='dark'] .compliance-row.is-valid .compliance-row-icon,
+html[data-theme='dark'] .compliance-next.is-done .compliance-next-icon { color: #34d399; background: rgba(52, 211, 153, 0.12); }
+
+html[data-theme='dark'] .compliance-row.is-queried .compliance-row-icon,
+html[data-theme='dark'] .compliance-next.is-queried .compliance-next-icon { color: #f87171; background: rgba(248, 113, 113, 0.12); }
+
+html[data-theme='dark'] .compliance-row.is-pending .compliance-row-icon { color: #60a5fa; background: rgba(96, 165, 250, 0.12); }
+
+html[data-theme='dark'] .compliance-row.is-expired .compliance-row-icon,
+html[data-theme='dark'] .compliance-row.is-valid.is-expiring .compliance-row-icon,
+html[data-theme='dark'] .compliance-next.is-expired .compliance-next-icon,
+html[data-theme='dark'] .compliance-next.is-expiring .compliance-next-icon { color: #fbbf24; background: rgba(251, 191, 36, 0.12); }
+
+html[data-theme='dark'] .compliance-row.is-valid.is-expiring .compliance-row-meta {
+    color: #fbbf24;
+}
+
+html[data-theme='dark'] .compliance-row-comment {
+    color: #fca5a5;
+    background: rgba(248, 113, 113, 0.12);
+}
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 1100px) {
+    .compliance-summary {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .compliance-score-card {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 767px) {
+    .compliance-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .compliance-next {
+        padding: 14px 16px;
+    }
+
+    .compliance-next-body .ant-btn {
+        width: 100%;
+    }
+
+    .compliance-list {
+        padding: 0 12px;
+    }
+
+    /* A lone Upload button stays inline; with view and edit beside it, the actions take a full row. */
+    .compliance-row {
+        gap: 10px;
+    }
+
+    .compliance-row.has-file {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .compliance-row.has-file .compliance-row-actions {
+        grid-column: 1 / -1;
+    }
+
+    .compliance-row.has-file .compliance-row-actions > .ant-btn:last-child {
+        flex: 1;
+    }
+
+    .compliance-row-meta {
+        white-space: normal;
+    }
+
+    .compliance-modal-dates {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    @keyframes compliance-fade-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    .incubatee-compliance-page .ant-btn:not(:disabled):active {
+        transform: none;
+    }
+}

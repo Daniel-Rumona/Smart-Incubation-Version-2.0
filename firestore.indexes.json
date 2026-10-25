@@ -1,4 +1,13 @@
 {
-  "indexes": [],
+  "indexes": [
+    {
+      "collectionGroup": "assignedInterventions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "companyCode", "order": "ASCENDING" },
+        { "fieldPath": "followUpDueAt", "order": "ASCENDING" }
+      ]
+    }
+  ],
   "fieldOverrides": []
 }

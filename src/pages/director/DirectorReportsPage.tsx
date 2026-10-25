@@ -175,10 +175,15 @@ export const DirectorReportsPage = () => {
     let mounted = true
     const load = async () => {
       if (!user) return
+      // No company code means no company data to show; never query without the company filter.
+      if (!user.companyCode) {
+        setLoading(false)
+        return
+      }
       setLoading(true)
       try {
         const db = getFirebaseDb()
-        const constraints = user.companyCode ? [where('companyCode', '==', user.companyCode)] : []
+        const constraints = [where('companyCode', '==', user.companyCode)]
         const [portfolioRows, compliance, assigned, appts, taskRows] = await Promise.all([
           listDirectorPortfolio(user, activeProgramId),
           safeDocs(query(collection(db, 'complianceDocuments'), ...constraints)),

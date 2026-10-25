@@ -1,31 +1,78 @@
-.auth-page { height: 100vh; height: 100dvh; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px; padding: 18px; overflow: hidden; background: radial-gradient(720px 420px at 12% 4%, rgba(109, 93, 251, .12), transparent 68%), radial-gradient(680px 420px at 92% 96%, rgba(59, 130, 246, .1), transparent 68%), #f7f8fc; }
-.auth-floating-actions { flex: 0 0 auto; display: flex; justify-content: space-between; }
-.auth-floating-btn { border-radius: 999px !important; }
+.auth-page { --auth-accent: #6d5dfb; --auth-accent-2: #3b82f6; --auth-muted: #5b6478; height: 100vh; height: 100dvh; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; padding: 14px 18px 18px; overflow: hidden; background: radial-gradient(720px 420px at 12% 4%, rgba(109, 93, 251, .12), transparent 68%), radial-gradient(680px 420px at 92% 96%, rgba(59, 130, 246, .1), transparent 68%), #f7f8fc; }
+
+/* ---------- top bar (matches the landing page) ---------- */
+
+/* Floating corner controls over the page, so the card gets the full height. */
+.auth-page { position: relative; }
+.auth-topbar { position: absolute; top: 14px; left: 18px; right: 18px; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 10px; pointer-events: none; }
+.auth-topbar > *, .auth-topbar .ant-space { pointer-events: auto; }
+.auth-brand-mark { width: 34px; height: 34px; border-radius: 12px; display: grid; place-content: center; color: #fff; background: linear-gradient(135deg, var(--auth-accent), var(--auth-accent-2)); }
+.auth-icon-btn { color: #334155 !important; border: 1px solid rgba(15, 23, 42, .08) !important; background: rgba(255, 255, 255, .86) !important; backdrop-filter: blur(10px); box-shadow: 0 8px 22px rgba(15, 23, 42, .08); }
+.auth-language-btn { border-radius: 999px !important; padding-inline: 10px !important; font-size: 12px !important; font-weight: 700 !important; }
+
+/* ---------- card ---------- */
+
 .auth-shell { width: 100%; min-height: 0; flex: 1 1 auto; display: grid; place-items: center; }
-.auth-card { width: min(620px, 100%); height: min(680px, 100%); min-height: 0; display: grid; overflow: hidden; border: 1px solid rgba(109, 93, 251, .12); border-radius: 28px; background: #fff; box-shadow: 0 24px 70px rgba(15, 23, 42, 0.12); }
-.auth-form-panel { padding: clamp(22px, 2.5vh, 36px) clamp(28px, 4vw, 48px); }
-.auth-form-panel { display: flex; flex-direction: column; justify-content: center; }
+/* minmax(0, 1fr) caps the row at the card's max-height, so a tall form scrolls inside its panel
+   instead of being cut off by the card. */
+.auth-card { width: min(520px, 100%); max-height: 100%; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr); overflow: hidden; border: 1px solid rgba(109, 93, 251, .12); border-radius: 28px; background: #fff; box-shadow: 0 24px 70px rgba(15, 23, 42, 0.12); }
+
+/* ---------- brand panel (desktop only) ---------- */
+
+.auth-brand-panel { display: none; position: relative; overflow: hidden; color: #fff; background: #3f35b8; }
+.auth-brand-panel-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 25%; }
+/* Brand-tinted shade, darkest at the bottom where the text sits, so it stays readable over the photo. */
+.auth-brand-panel-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(63, 53, 184, .15) 0%, rgba(40, 34, 120, .35) 40%, rgba(24, 20, 72, .92) 100%); }
+.auth-brand-panel-content { position: relative; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; justify-content: flex-end; padding: 36px 34px 30px; }
+.auth-brand-panel-kicker { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; opacity: .9; }
+.auth-brand-panel p { margin: 10px 0 0; font-size: 15px; line-height: 1.5; text-shadow: 0 1px 8px rgba(0, 0, 0, .3); }
+.auth-brand-panel ul { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 10px; }
+.auth-brand-panel li { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; line-height: 1.45; }
+.auth-brand-panel li .anticon { margin-top: 2px; font-size: 16px; color: #a7f3d0; }
+.auth-brand-panel-foot { margin-top: 18px; font-size: 12px; opacity: .75; }
+
+/* ---------- form panel ---------- */
+
+.auth-form-panel { min-height: 0; overflow-y: auto; padding: clamp(20px, 2.5vh, 32px) clamp(24px, 3.5vw, 40px); display: flex; flex-direction: column; }
 .auth-segmented, .auth-motion-panel { width: 100%; flex-shrink: 0; }
 .auth-segmented { padding: 5px !important; border: 1px solid #e2e7f1; border-radius: 999px !important; background: #f3f5fa !important; box-shadow: inset 0 1px 3px rgba(15, 23, 42, .05); }
 .auth-segmented .ant-segmented-item, .auth-segmented .ant-segmented-thumb { border-radius: 999px !important; }
-.auth-segmented .ant-segmented-item { min-height: 42px; color: #687287; font-weight: 650; transition: color .2s ease, transform .2s ease, box-shadow .2s ease; }
+.auth-segmented .ant-segmented-item { min-height: 40px; color: #687287; font-weight: 650; transition: color .2s ease, transform .2s ease, box-shadow .2s ease; }
 .auth-segmented .ant-segmented-item:hover { color: #5147cf; }
-.auth-segmented .ant-segmented-item-label { min-height: 42px; display: flex; align-items: center; justify-content: center; padding: 0 16px; line-height: 1; }
+.auth-segmented .ant-segmented-item-label { min-height: 40px; display: flex; align-items: center; justify-content: center; padding: 0 12px; line-height: 1; }
 .auth-segmented .ant-segmented-item-selected { color: #fff !important; background: linear-gradient(135deg, #6d5dfb, #4f7df3) !important; box-shadow: 0 8px 18px rgba(91, 83, 226, .25) !important; }
-.auth-segment-label { display: inline-flex; align-items: center; justify-content: center; gap: 9px; }
-.auth-segment-label > .anticon { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; color: #6257dc; background: rgba(109, 93, 251, .1); font-size: 14px; }
+.auth-segment-label { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.auth-segment-label > .anticon { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; color: #6257dc; background: rgba(109, 93, 251, .1); font-size: 13px; }
 .auth-segmented .ant-segmented-item-selected .auth-segment-label > .anticon { color: #fff; background: rgba(255, 255, 255, .18); }
-.auth-heading { margin-top: 20px; text-align: center; }
-.auth-heading h1 { margin-bottom: 6px !important; font-size: 30px !important; }
-.auth-heading p { margin-bottom: 0 !important; }
-.auth-form { margin-top: 18px; }
-.auth-forgot-row { margin: -12px 0 8px; text-align: right; }
+
+.auth-heading { margin-top: 18px; text-align: center; }
+.auth-heading h1 { margin-bottom: 4px !important; font-size: 26px !important; }
+.auth-heading p { margin-bottom: 0 !important; color: var(--auth-muted) !important; font-size: 14px; }
+
+.auth-form { margin-top: 16px; }
+.auth-form .ant-form-item { margin-bottom: 14px; }
+.auth-form .ant-form-item-label { padding-bottom: 4px !important; }
+.auth-form .ant-form-item-label > label { width: 100%; font-weight: 600; font-size: 13px; }
+.auth-forgot-row { margin: -8px 0 10px; text-align: right; }
+.auth-forgot-link { height: auto !important; padding: 0 !important; font-size: 13px; }
+.auth-form .ant-form-item-extra { font-size: 12px; margin-top: 4px; }
+
+.auth-error { margin-bottom: 14px; border-radius: 12px !important; }
+.auth-error .ant-btn-link { padding-inline: 4px; }
+
 .auth-submit-btn, .auth-social-btn { border-radius: 12px !important; }
-.auth-divider { margin: 18px 0 14px !important; color: #7b8498 !important; }
+.auth-consent { margin: 10px 0 0; text-align: center; font-size: 12px; color: var(--auth-muted); }
+
+.auth-divider { margin: 16px 0 12px !important; color: #7b8498 !important; }
 .auth-divider .ant-typography { color: #7b8498 !important; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
 .auth-socials { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .auth-social-btn { min-width: 0; padding-inline: 10px !important; }
-html[data-theme='dark'] .auth-page { background: radial-gradient(720px 420px at 12% 4%, rgba(109, 93, 251, .12), transparent 68%), radial-gradient(680px 420px at 92% 96%, rgba(59, 130, 246, .08), transparent 68%), #0f1117; }
+
+/* ---------- dark theme ---------- */
+
+html[data-theme='dark'] .auth-page { --auth-muted: #9aa2b7; background: radial-gradient(720px 420px at 12% 4%, rgba(109, 93, 251, .12), transparent 68%), radial-gradient(680px 420px at 92% 96%, rgba(59, 130, 246, .08), transparent 68%), #0f1117; }
+html[data-theme='dark'] .auth-icon-btn { background: rgba(27, 30, 42, .88) !important; }
+html[data-theme='dark'] .auth-icon-btn { color: #cbd5e1 !important; border-color: rgba(255, 255, 255, .12) !important; }
 html[data-theme='dark'] .auth-card { border-color: #2e3549; background: #1b1e2a; }
 html[data-theme='dark'] .auth-segmented { border-color: #30384d; background: #11141d !important; }
 html[data-theme='dark'] .auth-segmented .ant-segmented-item { color: #aeb7ca; }
@@ -33,21 +80,137 @@ html[data-theme='dark'] .auth-segmented .ant-segmented-item:hover { color: #d8d4
 html[data-theme='dark'] .auth-segment-label > .anticon { color: #a99fff; background: rgba(139, 126, 255, .12); }
 html[data-theme='dark'] .auth-divider .ant-typography { color: #aab2c5 !important; }
 
-@media (max-height: 680px) and (min-width: 768px) {
-  .auth-heading { margin-top: 12px; }
-  .auth-form { margin-top: 14px; }
-  .auth-divider { margin: 14px 0 12px !important; }
+/* Narrower than the card plus the corner buttons: drop the card below them so they never overlap. */
+@media (min-width: 768px) and (max-width: 1179px) {
+  .auth-shell { padding-top: 46px; }
 }
 
+/* ---------- desktop: brand panel beside the form ---------- */
+
+@media (min-width: 992px) {
+  .auth-card { width: min(980px, 100%); grid-template-columns: 5fr 6fr; }
+  .auth-brand-panel { display: block; }
+}
+
+@media (max-height: 720px) and (min-width: 768px) {
+  .auth-heading { margin-top: 12px; }
+  .auth-heading h1 { font-size: 24px !important; }
+  .auth-form { margin-top: 12px; }
+  .auth-form .ant-form-item { margin-bottom: 10px; }
+  .auth-divider { margin: 12px 0 10px !important; }
+  .auth-brand-panel-content { padding: 28px 28px 24px; }
+}
+
+/* Laptops at 125–150% display scaling (~630px tall): tighter still, so Create account fits unscrolled. */
+@media (max-height: 680px) and (min-width: 768px) {
+  .auth-page { gap: 10px; padding-top: 10px; padding-bottom: 12px; }
+  .auth-form-panel { padding-block: 16px; }
+  .auth-segmented .ant-segmented-item, .auth-segmented .ant-segmented-item-label { min-height: 34px; }
+  .auth-segment-label > .anticon { width: 22px; height: 22px; font-size: 12px; }
+  .auth-heading { margin-top: 10px; }
+  .auth-heading h1 { font-size: 22px !important; }
+  .auth-heading p { font-size: 13px; }
+  .auth-form { margin-top: 10px; }
+  .auth-form .ant-form-item { margin-bottom: 8px; }
+  .auth-form .ant-form-item-label { padding-bottom: 2px !important; }
+  .auth-form .ant-form-item-extra { margin-top: 2px; }
+  .auth-consent { margin-top: 6px; }
+  .auth-divider { margin: 10px 0 8px !important; }
+  .auth-brand-panel p { font-size: 14px; }
+  .auth-brand-panel ul { margin-top: 14px; gap: 8px; }
+  .auth-brand-panel li { font-size: 13px; }
+  .auth-brand-panel-foot { margin-top: 14px; }
+}
+
+/* ---------- phones ---------- */
+
+.auth-mobile-brand { display: none; }
+
+/* Phones: no card. The form sits straight on the page under a soft glow, with the logo centred above it. */
 @media (max-width: 767px) {
-  .auth-page { min-height: 100dvh; height: auto; display: block; overflow-y: auto; padding: 12px 10px; }
-  .auth-floating-actions { position: static; padding-inline: 16px; }
-  .auth-shell { min-height: calc(100dvh - 58px); padding-top: 10px; align-content: center; }
-  .auth-card { width: 100%; height: auto; border-radius: 28px; }
-  .auth-form-panel { justify-content: center; padding: 22px 20px; }
-  .auth-heading { margin-top: 6px; }
+  .auth-page { min-height: 100dvh; height: auto; display: block; overflow-y: auto; padding: 10px 18px 28px; background: radial-gradient(120% 55% at 50% 0%, rgba(109, 93, 251, .22), transparent 70%), #f7f8fc; }
+  html[data-theme='dark'] .auth-page { background: radial-gradient(120% 55% at 50% 0%, rgba(109, 93, 251, .42), transparent 70%), #0f1117; }
+
+  /* Phones scroll the page, so the controls sit in a plain row at the top instead of floating. */
+  .auth-topbar { position: static; padding: 4px 0; }
+
+  .auth-shell { padding-top: 8px; }
+  .auth-card { width: 100%; max-height: none; border: none; border-radius: 0; background: transparent; box-shadow: none; overflow: visible; }
+  html[data-theme='dark'] .auth-card { background: transparent; }
+  .auth-form-panel { overflow: visible; padding: 8px 0 0; }
+
+  .auth-mobile-brand { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: 8px 0 20px; font-size: 18px; font-weight: 800; color: #5b4bd9; }
+  html[data-theme='dark'] .auth-mobile-brand { color: #d6cfff; }
+  .auth-mobile-brand .auth-brand-mark { width: 52px; height: 52px; border-radius: 16px; font-size: 24px; box-shadow: 0 12px 30px rgba(109, 93, 251, .35); }
+
+  .auth-heading { margin-top: 20px; }
+  .auth-heading h1 { font-size: 24px !important; }
+
+  /* Pill inputs and full-width pill buttons, as on native sign-in screens. */
+  .auth-form .ant-input-affix-wrapper { height: 48px; padding-block: 0; padding-inline: 16px; border-radius: 999px !important; }
+  .auth-submit-btn, .auth-social-btn { height: 48px !important; border-radius: 999px !important; }
+  html[data-theme='dark'] .auth-form .ant-input-affix-wrapper { background: rgba(255, 255, 255, .05); border-color: rgba(255, 255, 255, .1); }
+  html[data-theme='dark'] .auth-social-btn { background: rgba(255, 255, 255, .05) !important; border-color: rgba(255, 255, 255, .1) !important; }
 }
 
 @media (max-width: 520px) {
   .auth-socials { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 400px) {
+  .auth-language-btn > span:not(.ant-btn-icon) { display: none; }
+  .auth-language-btn { width: 32px; padding-inline: 0 !important; }
+}
+
+/* ===== Entrance: the card settles in, then its contents drift up one after another =====
+ * Long, soft ease-out with a touch of blur so items resolve into place rather than pop. The form side
+ * replays whenever Sign in / Create account is switched (AuthPage restarts these animations).
+ */
+.auth-page { --auth-enter-ease: cubic-bezier(0.22, 1, 0.36, 1); }
+
+.auth-card { animation: auth-card-in 700ms var(--auth-enter-ease) both; }
+
+.auth-form-panel > :not(.auth-form),
+.auth-form > *,
+.auth-brand-panel-content > *,
+.auth-brand-panel-content li {
+    animation: auth-rise-in 650ms var(--auth-enter-ease) both;
+    animation-delay: var(--enter-delay, 0ms);
+}
+
+/* Form side: logo, switch, heading, then each field in order. */
+.auth-form-panel > :nth-child(1) { --enter-delay: 80ms; }
+.auth-form-panel > :nth-child(2) { --enter-delay: 140ms; }
+.auth-form-panel > :nth-child(3) { --enter-delay: 200ms; }
+.auth-form > :nth-child(1) { --enter-delay: 260ms; }
+.auth-form > :nth-child(2) { --enter-delay: 315ms; }
+.auth-form > :nth-child(3) { --enter-delay: 370ms; }
+.auth-form > :nth-child(4) { --enter-delay: 425ms; }
+.auth-form > :nth-child(5) { --enter-delay: 480ms; }
+.auth-form > :nth-child(n + 6) { --enter-delay: 535ms; }
+.auth-form-panel > :nth-child(n + 5) { --enter-delay: 560ms; }
+
+/* Photo side: kicker, line, then the checklist one point at a time. */
+.auth-brand-panel-content > :nth-child(1) { --enter-delay: 180ms; }
+.auth-brand-panel-content > :nth-child(2) { --enter-delay: 250ms; }
+.auth-brand-panel-content > ul { animation: none; }
+.auth-brand-panel-content li:nth-child(1) { --enter-delay: 320ms; }
+.auth-brand-panel-content li:nth-child(2) { --enter-delay: 380ms; }
+.auth-brand-panel-content li:nth-child(3) { --enter-delay: 440ms; }
+.auth-brand-panel-content li:nth-child(n + 4) { --enter-delay: 500ms; }
+.auth-brand-panel-content > :last-child { --enter-delay: 560ms; }
+
+@keyframes auth-card-in {
+    from { opacity: 0; transform: translateY(16px) scale(0.98); }
+    to { opacity: 1; transform: none; }
+}
+
+@keyframes auth-rise-in {
+    from { opacity: 0; transform: translateY(12px); filter: blur(4px); }
+    to { opacity: 1; transform: none; filter: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    @keyframes auth-card-in { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes auth-rise-in { from { opacity: 0; } to { opacity: 1; } }
 }

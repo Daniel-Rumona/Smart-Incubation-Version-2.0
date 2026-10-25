@@ -273,3 +273,50 @@ html[data-theme='dark'] .operations-facilitator-card {
     }
 }
 
+
+/* Project admin reports: hint, Applications sub-tabs, Needs attention list, programme figures, drill-down cards. */
+.project-admin-reports-page .pa-report-hint { display: block; margin: 0 0 12px; font-size: 12px; }
+.project-admin-reports-page .pa-report-subtabs { margin-bottom: 16px; }
+@media (max-width: 767px) {
+  .project-admin-reports-page .pa-report-subtabs { display: flex; width: 100%; }
+  .project-admin-reports-page .pa-report-subtabs .ant-segmented-group { width: 100%; }
+  .project-admin-reports-page .pa-report-subtabs .ant-segmented-item { flex: 1; }
+}
+
+.pa-attention-list { display: grid; gap: 6px; }
+.pa-attention-item { display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid var(--ant-color-border-secondary); border-radius: 10px; background: var(--ant-color-bg-container); color: var(--ant-color-text); text-align: left; cursor: pointer; transition: border-color 150ms ease, background-color 150ms ease, transform 120ms cubic-bezier(0.23, 1, 0.32, 1); }
+.pa-attention-item:active { transform: scale(0.99); }
+.pa-attention-item .ant-tag { flex: none; margin-inline-end: 0; }
+.pa-attention-text { display: grid; flex: 1; min-width: 0; }
+.pa-attention-text .ant-typography-secondary { font-size: 12px; }
+.pa-attention-more { display: block; margin-top: 10px; font-size: 12px; }
+@media (hover: hover) and (pointer: fine) {
+  .pa-attention-item:hover { border-color: var(--ant-color-border); background: var(--ant-color-fill-quaternary); }
+}
+
+.pa-report-figures { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 24px; }
+.pa-report-figures > div { display: grid; gap: 2px; padding: 10px 12px; border-radius: 10px; background: var(--ant-color-fill-quaternary); }
+.pa-report-figures strong { font-size: 22px; line-height: 1.2; }
+.pa-report-figures strong.is-risk { color: var(--ant-color-error); }
+@media (max-width: 575px) { .pa-report-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.pa-drill-card { display: grid; gap: 6px; justify-items: start; }
+.pa-drill-card .ant-progress { width: 100%; margin: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pa-attention-item { transition: none; }
+  .pa-attention-item:active { transform: none; }
+}
+
+/* Project admin reports on phones: the three rates as rows in one card. */
+.pa-rate-list { display: grid; }
+.pa-rate-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; }
+.pa-rate-row + .pa-rate-row { border-top: 1px solid var(--ant-color-border-secondary); }
+.pa-rate-row:first-child { padding-top: 0; }
+.pa-rate-row:last-child { padding-bottom: 0; }
+.pa-rate-icon { display: grid; flex: none; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: var(--ant-color-primary-bg); color: var(--ant-color-primary); font-size: 16px; }
+.pa-rate-text { display: grid; flex: 1; min-width: 0; }
+.pa-rate-text .ant-typography-secondary { font-size: 12px; }
+.pa-rate-figure { display: grid; flex: none; justify-items: end; }
+.pa-rate-figure strong { font-size: 22px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.pa-rate-delta { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }

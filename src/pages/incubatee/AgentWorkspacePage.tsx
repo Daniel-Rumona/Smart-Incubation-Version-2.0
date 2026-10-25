@@ -25,8 +25,10 @@ import {
 import { Helmet } from 'react-helmet'
 import { useSearchParams } from 'react-router-dom'
 import DashboardPage from '@/components/shared/DashboardPage'
-import { LoadingOverlay } from '@/components/shared/LoadingOverlay'
+import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
+import { useEntitlements } from '@/hooks/useEntitlements'
+import { FeatureLocked } from '@/components/shared/FeatureLocked'
 import { useTopbarBackButton } from '@/contexts/SystemLayoutTopbarContext'
 import { useRegisterAgentPageContext } from '@/shared/hooks/useRegisterAgentPageContext'
 import {
@@ -84,7 +86,7 @@ const renderPreviewValue = (value: unknown): ReactNode => {
     return <span>{String(value || 'To be confirmed')}</span>
 }
 
-const AgentWorkspacePage = ({ agentId = 'business-plan' }: Props) => {
+const AgentWorkspaceContent = ({ agentId = 'business-plan' }: Props) => {
     const { t } = useLanguage()
     const { message } = App.useApp()
     const { user } = useFullIdentity()
@@ -414,7 +416,7 @@ const AgentWorkspacePage = ({ agentId = 'business-plan' }: Props) => {
     }
 
     if (definition === undefined) {
-        return <LoadingOverlay tip={t('Loading agent')} />
+        return <PageSkeleton variant="detail" label={t('Loading agent')} />
     }
 
     if (definition === null) {
@@ -430,7 +432,7 @@ const AgentWorkspacePage = ({ agentId = 'business-plan' }: Props) => {
     }
 
     if (assignment === undefined && !assignmentError) {
-        return <LoadingOverlay tip={t('Opening conversational agent')} />
+        return <PageSkeleton variant="detail" label={t('Opening conversational agent')} />
     }
 
     if (!assignment) {
@@ -730,6 +732,13 @@ const AgentWorkspacePage = ({ agentId = 'business-plan' }: Props) => {
             </Modal>
         </div>
     )
+}
+
+const AgentWorkspacePage = (props: Props) => {
+    const { has } = useEntitlements()
+    // The agent workspaces (business plan, strategic plan) are part of agentic support.
+    if (!has('agenticSupport')) return <FeatureLocked feature="agenticSupport" />
+    return <AgentWorkspaceContent {...props} />
 }
 
 export default AgentWorkspacePage

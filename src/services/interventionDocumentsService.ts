@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, limit, query, where } from 'firebase/firestore'
 import { getFirebaseDb } from '@/config/firebase'
 import { agentApiBaseUrl, isAgentApiConfigured } from '@/config/agent'
 import { getAgentAuthHeaders } from '@/services/agentAuth'
@@ -45,6 +45,16 @@ const participantIdsFor = async (user: FullIdentity) => {
     byEmail.docs.forEach(record => ids.add(record.id))
   }
   return [...ids]
+}
+
+/** Whether an SME has any intervention documents yet (used to show the library only once there is something in it). */
+export const hasOwnInterventionDocuments = async (user: FullIdentity) => {
+  const db = getFirebaseDb()
+  for (const participantId of await participantIdsFor(user)) {
+    const snapshot = await getDocs(query(collection(db, 'interventionDocuments'), where('participantId', '==', participantId), limit(1)))
+    if (!snapshot.empty) return true
+  }
+  return false
 }
 
 export const listInterventionDocuments = async (user: FullIdentity): Promise<InterventionDocument[]> => {

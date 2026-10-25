@@ -1,7 +1,11 @@
-import { addDoc, collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
+import { addDoc, collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore'
 import { getFirebaseDb } from '@/config/firebase'
-import { COMPLIANCE_DOCUMENT_TYPES } from '@/services/complianceService'
+import { buildFollowUpFields, deliverableBlockReason } from '@/services/interventionOutcomeConfig'
+import { loadProgramDocumentRequirements, requirementKeyFor } from '@/config/complianceDocuments'
+import { loadDefinitions } from '@/services/interventionDefinitionLookup'
 import type { FullIdentity } from '@/types/identity'
+import { readSwotItems } from '@/utils/swotOutcomes'
+import { hasWorkStarted, type InterventionChangeKind } from '@/utils/interventionStart'
 import type { IncubateeFormAssignment, IncubateeIntervention, IncubateeInterventionAppointment, IncubateeInterventionRequest, IncubateeNotification, IncubateeRequiredIntervention, IncubateeResource, IncubateeWorkspace } from '@/types/incubatee'
 import type { FirestoreDate } from '@/types/interventions'
 
@@ -20,7 +24,6 @@ const timestampValue = (value: unknown) => {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-export const canAcceptIncubateeIntervention = (row: IncubateeIntervention) => row.status === 'Awaiting Your Acceptance'
 export const canConfirmIncubateeIntervention = (row: IncubateeIntervention) => row.status === 'Awaiting Confirmation'
 
 const displayStatus = (row: Record<string, unknown>): IncubateeIntervention['status'] => {
@@ -29,8 +32,9 @@ const displayStatus = (row: Record<string, unknown>): IncubateeIntervention['sta
   if (getCompletionStatus(row) === 'rejected') return 'Rejected'
   if (getCompletionStatus(row) === 'confirmed' || row.completionConfirmedAt) return 'Completed'
   if (getAssigneeCompletionStatus(row) === 'done' || progressValue(row) >= 100 || ['submitted', 'awaiting_confirmation'].includes(getCompletionStatus(row))) return 'Awaiting Confirmation'
-  if (getAssigneeStatus(row) === 'accepted' && (!getParticipantStatus(row) || getParticipantStatus(row) === 'pending')) return 'Awaiting Your Acceptance'
-  if (getAssigneeStatus(row) === 'accepted' && getParticipantStatus(row) === 'accepted') return 'In Progress'
+  // No separate SME acceptance: the confirmed plan covers it. Work starts at the first appointment
+  // accepted or attended, progress recorded, or an agent run (src/utils/interventionStart.ts).
+  if (getAssigneeStatus(row) === 'accepted') return hasWorkStarted(row) ? 'In Progress' : 'Not Started'
   if (getAssigneeStatus(row) && getAssigneeStatus(row) !== 'accepted') return 'Awaiting Facilitator'
   return 'Pending Assignment'
 }
@@ -39,6 +43,9 @@ export const findParticipant = async (user: FullIdentity) => {
   const db = getFirebaseDb()
   const direct = await getDoc(doc(db, 'participants', user.uid))
   if (direct.exists()) return { id: direct.id, ...direct.data() } as LooseDocument
+  // Participant records are created with uid = the SME's account, even when the doc id differs.
+  const byUid = await getDocs(query(collection(db, 'participants'), where('uid', '==', user.uid)))
+  if (!byUid.empty) return { id: byUid.docs[0].id, ...byUid.docs[0].data() } as LooseDocument
   const snapshot = await getDocs(query(collection(db, 'participants'), where('email', '==', user.email)))
   return snapshot.empty ? null : { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as LooseDocument
 }
@@ -51,10 +58,10 @@ export const listIncubateeOutstandingComplianceDocuments = async (user: FullIden
     where('participantId', '==', participantId),
   ))
   const documents = snapshot.docs.map((row) => ({ id: row.id, ...row.data() } as LooseDocument))
+  const requirements = await loadProgramDocumentRequirements(String(participant?.programId || '') || null)
 
-  return COMPLIANCE_DOCUMENT_TYPES.flatMap((title) => {
-    const key = cleanKey(title)
-    const document = documents.find((item) => cleanKey(item.key || item.type) === key)
+  return requirements.filter((requirement) => requirement.required).flatMap(({ key, name: title }) => {
+    const document = documents.find((item) => requirementKeyFor(item.type || item.key) === key)
     const status = norm(document?.currentStatus || document?.status || 'missing')
     if (['valid', 'approved'].includes(status)) return []
 
@@ -76,11 +83,11 @@ export const loadIncubateeWorkspace = async (user: FullIdentity): Promise<Incuba
   const participantIds = [...new Set([participantId, user.uid].filter(Boolean))]
   const [applicationSnapshots, assignments, timeline, requests, forms, assessments, notifications] = await Promise.all([
     Promise.all([
-      getDocs(query(collection(db, 'applications'), where('participantId', 'in', participantIds))),
+      ...participantIds.map((id) => getDocs(query(collection(db, 'applications'), where('participantId', '==', id)))),
       getDocs(query(collection(db, 'applications'), where('uid', '==', user.uid))),
       getDocs(query(collection(db, 'applications'), where('userId', '==', user.uid))),
     ]),
-    getDocs(query(collection(db, 'assignedInterventions'), where('participantId', 'in', participantIds))),
+    Promise.all(participantIds.map((id) => getDocs(query(collection(db, 'assignedInterventions'), where('participantId', '==', id))))).then((snaps) => ({ docs: snaps.flatMap((snap) => snap.docs) })),
     getDocs(query(collection(db, 'complianceDocuments'), where('participantId', '==', participantId))),
     getDocs(query(collection(db, 'interventionRequests'), where('participantId', '==', participantId))),
     getDocs(query(collection(db, 'formAssignments'), where('participantId', '==', participantId))),
@@ -101,14 +108,14 @@ export const loadIncubateeWorkspace = async (user: FullIdentity): Promise<Incuba
   const growthPlanAvailable = diagnosticPlan.exists() && (operationsConfirmation === true || typeof operationsConfirmation === 'object' || norm(planData.status) === 'confirmed')
   const programId = typeof accepted.programId === 'string' ? accepted.programId : undefined
   const required = growthPlanAvailable && Array.isArray(planData.interventions) ? planData.interventions : []
-  const definitionIds = [...new Set(required.map(item => String((item as Record<string, unknown>).interventionId || '')).filter(Boolean))]
-  const definitionSnapshots = await Promise.all(definitionIds.map(id => getDoc(doc(db, 'interventions', id))))
-  const definitionsById = new Map(definitionSnapshots.filter(snapshot => snapshot.exists()).map(snapshot => [snapshot.id, snapshot.data()]))
+  const planCompanyCode = String(planData.companyCode || accepted.companyCode || '')
+  const definitions = await loadDefinitions(db, required.map(item => ({ interventionId: String((item as Record<string, unknown>).interventionId || ''), companyCode: planCompanyCode })).filter(ref => ref.interventionId))
   const supportAreaByIntervention = new Map<string, string>()
-  definitionsById.forEach((row, id) => {
-    const area = String(row.areaOfSupport || row.department || row.departmentName || '').trim()
-    if (!area) return
-    supportAreaByIntervention.set(cleanKey(id), area)
+  required.forEach(item => {
+    const interventionId = String((item as Record<string, unknown>).interventionId || '')
+    const row = definitions.get(interventionId, planCompanyCode)
+    const area = String(row?.areaOfSupport || row?.department || row?.departmentName || '').trim()
+    if (area && interventionId) supportAreaByIntervention.set(cleanKey(interventionId), area)
   })
   required.forEach((item) => {
     const row = item as Record<string, unknown>
@@ -150,7 +157,7 @@ export const loadIncubateeWorkspace = async (user: FullIdentity): Promise<Incuba
   const assignedInterventions = mappedAssignments.sort((a, b) => timestampValue(b.raw.updatedAt || b.raw.createdAt) - timestampValue(a.raw.updatedAt || a.raw.createdAt))
   const assignedKeys = new Set(assignedInterventions.flatMap((row) => [cleanKey(row.interventionId), cleanKey(row.title)].filter(Boolean)))
   const requiredInterventions = required.map((row: Record<string, unknown>) => {
-    const catalogue = definitionsById.get(String(row.interventionId || row.id || '')) || {}
+    const catalogue = definitions.get(String(row.interventionId || row.id || ''), planCompanyCode) || {}
     return {
       id: String(row.interventionId || row.id || cleanKey(row.title)),
       title: String(row.title || 'Untitled intervention'),
@@ -159,7 +166,10 @@ export const loadIncubateeWorkspace = async (user: FullIdentity): Promise<Incuba
       steps: Array.isArray(row.steps) ? row.steps as IncubateeRequiredIntervention['steps'] : Array.isArray(catalogue.steps) ? catalogue.steps as IncubateeRequiredIntervention['steps'] : [],
     } satisfies IncubateeRequiredIntervention
   })
-  const outstandingDocuments = Math.max(0, COMPLIANCE_DOCUMENT_TYPES.length - timeline.docs.filter((row) => ['valid', 'approved'].includes(norm(row.data().currentStatus))).length)
+  // Outstanding = the programme's required documents that are not yet valid.
+  const requiredDocuments = (await loadProgramDocumentRequirements(String(participant?.programId || '') || null)).filter((requirement) => requirement.required)
+  const validKeys = new Set(timeline.docs.filter((row) => ['valid', 'approved'].includes(norm(row.data().currentStatus))).map((row) => requirementKeyFor(row.data().type || row.data().key)))
+  const outstandingDocuments = requiredDocuments.filter((requirement) => !validKeys.has(requirement.key)).length
   const formRows: IncubateeFormAssignment[] = [
     ...forms.docs.map((row) => ({ id: row.id, kind: 'survey' as const, title: String(row.data().templateTitle || row.data().title || 'Survey'), status: String(row.data().status || 'pending'), updatedAt: row.data().updatedAt || row.data().createdAt })),
     ...assessments.docs.map((row) => ({ id: row.id, kind: 'assessment' as const, title: String(row.data().formTitle || row.data().title || 'Assessment'), status: String(row.data().status || 'pending'), dueAt: row.data().dueAt, updatedAt: row.data().updatedAt || row.data().sentAt })),
@@ -176,6 +186,7 @@ export const loadIncubateeWorkspace = async (user: FullIdentity): Promise<Incuba
     participantPlanConfirmation: typeof participantConfirmation === 'object' ? participantConfirmation as IncubateeWorkspace['participantPlanConfirmation'] : undefined,
     outstandingDocuments,
     requiredInterventions,
+    swotItems: readSwotItems(accepted),
     assignedInterventions: [...assignedInterventions, ...requiredInterventions.filter((row: IncubateeRequiredIntervention) => !assignedKeys.has(cleanKey(row.id)) && !assignedKeys.has(cleanKey(row.title))).map((row: IncubateeRequiredIntervention) => ({ id: `unassigned-${row.id}`, interventionId: row.id, participantId, programId, title: row.title, areaOfSupport: row.areaOfSupport, progress: 0, status: 'Pending Assignment' as const, resources: [], raw: {} }))],
     requests: requests.docs.map((row) => ({ id: row.id, ...row.data() })) as IncubateeInterventionRequest[],
     forms: formRows,
@@ -188,19 +199,33 @@ export const loadIncubateeWorkspace = async (user: FullIdentity): Promise<Incuba
   }
 }
 
-export const acceptIncubateeIntervention = async (_workspace: IncubateeWorkspace, intervention: IncubateeIntervention) => {
-  await updateDoc(doc(getFirebaseDb(), 'assignedInterventions', intervention.id), { participantStatus: 'accepted', participantAcceptedAt: serverTimestamp(), status: 'in-progress', updatedAt: serverTimestamp() })
-}
-
-export const declineIncubateeIntervention = async (_workspace: IncubateeWorkspace, intervention: IncubateeIntervention, reason: string) => {
-  await updateDoc(doc(getFirebaseDb(), 'assignedInterventions', intervention.id), { participantStatus: 'declined', declineReason: reason, status: 'declined', updatedAt: serverTimestamp() })
+/**
+ * The SME asks the programme team to change or drop an intervention. Nothing stops until operations decides
+ * (InterventionsAssignmentsPage: confirm the drop, or keep it as planned). Stored as `declineRequest`, the same
+ * field the appointment RSVP flow uses for "no longer needed".
+ */
+export const requestInterventionChange = async (intervention: IncubateeIntervention, requesterUid: string, kind: InterventionChangeKind, reason: string) => {
+  await updateDoc(doc(getFirebaseDb(), 'assignedInterventions', intervention.id), {
+    declineRequest: {
+      status: 'requested',
+      kind,
+      reasonCode: kind === 'drop' ? 'no_longer_needed' : 'change_requested',
+      reasonText: reason.trim(),
+      requestedVia: 'web',
+      requestedByUid: requesterUid,
+      requestedAt: serverTimestamp(),
+    },
+    updatedAt: serverTimestamp(),
+  })
 }
 
 export const confirmIncubateeCompletion = async (workspace: IncubateeWorkspace, intervention: IncubateeIntervention, rating: number, comments: string) => {
   const db = getFirebaseDb()
   const feedback = { rating, comments }
+  const blocked = deliverableBlockReason(intervention.raw)
+  if (blocked) throw new Error(blocked)
   await Promise.all([
-    updateDoc(doc(db, 'assignedInterventions', intervention.id), { participantCompletionStatus: 'confirmed', completionStatus: 'confirmed', completionConfirmedAt: serverTimestamp(), completedAt: serverTimestamp(), progress: 100, feedback, updatedAt: serverTimestamp() }),
+    updateDoc(doc(db, 'assignedInterventions', intervention.id), { ...buildFollowUpFields(intervention.raw), participantCompletionStatus: 'confirmed', completionStatus: 'confirmed', completionConfirmedAt: serverTimestamp(), completedAt: serverTimestamp(), progress: 100, feedback, updatedAt: serverTimestamp() }),
     setDoc(doc(db, 'interventionCompletions', intervention.id), { assignedInterventionId: intervention.id, participantId: workspace.participantId, interventionId: intervention.interventionId, programId: workspace.programId || null, completedAt: serverTimestamp(), feedback, snapshot: { businessName: workspace.businessName, interventionTitle: intervention.title, departmentName: intervention.areaOfSupport || null, assigneeName: intervention.assigneeName || null } }, { merge: true }),
   ])
 }
@@ -218,14 +243,25 @@ export const confirmIncubateeGrowthPlan = async (workspace: IncubateeWorkspace, 
   if (!user.signatureURL) throw new Error('missing-signature')
   const confirmation = { uid: user.uid, name: user.displayName || user.name || user.email, email: user.email, signatureURL: user.signatureURL, confirmedAt: new Date().toISOString() }
 
-  await setDoc(doc(getFirebaseDb(), 'diagnosticPlans', workspace.applicationId), {
-    participantId: workspace.participantId,
-    applicationId: workspace.applicationId,
-    programId: workspace.programId || null,
+  const db = getFirebaseDb()
+  // Only the confirmation fields (and updatedAt): the rules let the SME change nothing else on the plan.
+  await setDoc(doc(db, 'diagnosticPlans', workspace.applicationId), {
     confirmedBy: { participant: confirmation, incubatee: confirmation },
     confirmedMeta: { participant: confirmation, incubatee: confirmation },
     updatedAt: serverTimestamp(),
   }, { merge: true })
+
+  // Confirming the plan accepts every intervention on it; there is no per-intervention accept step.
+  // Interventions assigned after this point are created already accepted (InterventionsAssignmentsPage).
+  const snapshot = await getDocs(query(collection(db, 'assignedInterventions'), where('participantId', '==', workspace.participantId)))
+  const pending = snapshot.docs.filter((row) => {
+    const data = row.data()
+    return String(data.applicationId || '') === workspace.applicationId && ['', 'pending'].includes(norm(data.participantStatus))
+  })
+  if (!pending.length) return
+  const batch = writeBatch(db)
+  pending.forEach((row) => batch.update(row.ref, { participantStatus: 'accepted', participantAcceptedVia: 'plan', participantAcceptedAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+  await batch.commit()
 }
 
 // Human-delivered interventions are scheduled as one-off `appointments` docs

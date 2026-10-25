@@ -4,14 +4,20 @@
    the builder previews.
    ========================================================= */
 
-.survey-response-page,
-.incubatee-surveys-page {
+.survey-response-page {
     display: flex;
     flex-direction: column;
 
     gap: 12px;
 
     min-height: 100%;
+}
+
+/* On desktop the one question card sits in the middle of the page, both ways. */
+@media (min-width: 768px) {
+    .survey-response-page {
+        justify-content: center;
+    }
 }
 
 .survey-response-card {
@@ -159,13 +165,6 @@ html[data-theme='dark'] .survey-answer-copy span {
 
 @media (max-width: 767px) {
     .survey-answer-status {
-        display: none;
-    }
-
-    /* incubatee.css turns the shared "2 metrics on mobile" rule back off for
-       every `.incubatee-page` (compliance has room for all of its metrics on a
-       phone). This page doesn't, so opt back in with a more specific selector. */
-    .incubatee-page.incubatee-surveys-page .dashboard-metrics-row>div:nth-child(n + 3) {
         display: none;
     }
 }

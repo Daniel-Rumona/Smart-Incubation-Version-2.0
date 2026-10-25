@@ -129,17 +129,19 @@ const getLatestPerformance = async (participantId: string) => {
 }
 
 export const listDirectorPortfolio = async (user: FullIdentity, activeProgramId?: string): Promise<DirectorPortfolioSme[]> => {
+  // A director is scoped to their own company. With no company code there is nothing they may see, so never
+  // fall back to an unfiltered read (that would return every organisation's data).
+  const companyCode = String(user.companyCode || '').trim()
+  if (!companyCode) return []
+
   const db = getFirebaseDb()
-  const applicationConstraints = [
-    ...(user.companyCode ? [where('companyCode', '==', user.companyCode)] : []),
-    where('applicationStatus', '==', 'accepted'),
-  ]
+  const companyConstraint = where('companyCode', '==', companyCode)
 
   const [applicationsSnap, participantsSnap, programsSnap, assignmentsSnap] = await Promise.all([
-    getDocs(query(collection(db, 'applications'), ...applicationConstraints)),
-    getDocs(user.companyCode ? query(collection(db, 'participants'), where('companyCode', '==', user.companyCode)) : collection(db, 'participants')),
-    getDocs(collection(db, 'programs')),
-    getDocs(user.companyCode ? query(collection(db, 'assignedInterventions'), where('companyCode', '==', user.companyCode)) : collection(db, 'assignedInterventions')),
+    getDocs(query(collection(db, 'applications'), companyConstraint, where('applicationStatus', '==', 'accepted'))),
+    getDocs(query(collection(db, 'participants'), companyConstraint)),
+    getDocs(query(collection(db, 'programs'), companyConstraint)),
+    getDocs(query(collection(db, 'assignedInterventions'), companyConstraint)),
   ])
 
   const accepted = new Map<string, { acceptedAt?: string | null; programId?: string; programName?: string; required: number }>()

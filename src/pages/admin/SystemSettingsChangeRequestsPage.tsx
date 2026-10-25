@@ -4,7 +4,7 @@ import { CheckOutlined, CloseOutlined, ReloadOutlined, SettingOutlined } from '@
 import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
 import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
-import { LoadingOverlay } from '@/components/shared/LoadingOverlay'
+import { PageLoadingBar } from '@/components/shared/PageSkeleton'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { listSystemSettingsChangeRequests, reviewSystemSettingsChangeRequest } from '@/services/companySettingsService'
 import { useRegisterAgentPageContext } from '@/shared/hooks/useRegisterAgentPageContext'
@@ -111,7 +111,7 @@ export const SystemSettingsChangeRequestsPage = () => {
 
   return (
     <DashboardPage>
-      {loading && <LoadingOverlay tip={t('Loading change requests')} />}
+      <PageLoadingBar active={Boolean(loading)} label={t('Loading change requests')} />
 
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         <div className="dashboard-metrics-row">

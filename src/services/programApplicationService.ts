@@ -28,6 +28,7 @@ export const DEFAULT_INTERVENTION_POLICY: ProgramInterventionPolicy = {
   forcedInterventionIds: [],
   forcedInterventions: [],
   allowSmeSelection: true,
+  maxSelections: null,
 }
 
 export function shouldRequireExpiry(name: string, category?: string) {

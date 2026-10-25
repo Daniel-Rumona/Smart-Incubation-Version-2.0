@@ -12,12 +12,15 @@ export type UserProfileValues = {
   profileImageUrl: string
 }
 
-export const getUserProfile = async (uid: string): Promise<UserProfileValues & { saved: boolean }> => {
+export type WhatsAppConsentStatus = 'opted_in' | 'declined' | 'opted_out' | null
+
+export const getUserProfile = async (uid: string): Promise<UserProfileValues & { saved: boolean, whatsappConsent: WhatsAppConsentStatus }> => {
   const snapshot = await getDoc(doc(getFirebaseDb(), 'users', uid))
   const data = snapshot.data() || {}
   return {
     name: String(data.displayName || data.name || ''),
     saved: Boolean(data.profileSavedAt),
+    whatsappConsent: ['opted_in', 'declined', 'opted_out'].includes(data.whatsappConsent?.status) ? data.whatsappConsent.status : null,
     bio: String(data.bio || ''),
     phone: String(data.phone || ''),
     phoneIsWhatsApp: data.phoneIsWhatsApp === true,

@@ -7,6 +7,8 @@ export type WorkspaceCompany = {
   code: string
   name: string
   isPlatformOwner?: boolean
+  /** 'consultants_register_smes' = the company's team registers SMEs; SMEs cannot apply for themselves. */
+  smeOnboardingModel?: string
 }
 
 export const PLATFORM_OWNER_CODE = 'QTX'
@@ -16,7 +18,7 @@ const ADMIN_ROLES = new Set(['systemadmin', 'admin'])
 
 export const isPlatformAdmin = (user?: FullIdentity | null) => Boolean(user && ADMIN_ROLES.has(user.role))
 
-type CompanyScoped = Pick<FullIdentity, 'companyCode'> & { role?: FullIdentity['role'] }
+type CompanyScoped = Pick<FullIdentity, 'companyCode'> & { role?: FullIdentity['role'], isApplicant?: FullIdentity['isApplicant'] }
 
 const rawCompanyCode = (user?: CompanyScoped | null) => String(user?.companyCode || '').trim()
 
@@ -48,7 +50,8 @@ export const hasConsultantMarketplaceProfile = (user?: CompanyScoped | null) =>
 
 /** Where "My profile" leads for each kind of user. */
 export const profilePathForUser = (user?: CompanyScoped | null) => {
-  if (user?.role === 'incubatee') return '/applicant/profile'
+  // Applicants and accepted SMEs share the incubatee role; `isApplicant` tells them apart.
+  if (user?.role === 'incubatee') return user.isApplicant === false ? '/incubatee/profile' : '/applicant/profile'
   if (hasConsultantMarketplaceProfile(user)) return '/consultant/profile'
   return '/profile'
 }
@@ -71,6 +74,7 @@ const upsertCompany = (
     code,
     name: name || code,
     isPlatformOwner: data.isPlatformOwner === true,
+    smeOnboardingModel: typeof data.smeOnboardingModel === 'string' ? data.smeOnboardingModel : undefined,
   })
 }
 
@@ -84,6 +88,12 @@ const fetchAllCompanies = async () => {
   return [...companies.values()].sort((left, right) => left.name.localeCompare(right.name))
 }
 
+/** Codes of companies whose team registers SMEs themselves, so their programmes are not offered for self-application. */
+export const listTeamRegisteredCompanyCodes = async () => {
+  const companies = await fetchAllCompanies()
+  return new Set(companies.filter((company) => company.smeOnboardingModel === 'consultants_register_smes').map((company) => company.code))
+}
+
 export const listWorkspaceCompanies = async (user?: FullIdentity | null) => {
   if (!isPlatformAdmin(user)) throw new Error('forbidden')
 
@@ -93,7 +103,7 @@ export const listWorkspaceCompanies = async (user?: FullIdentity | null) => {
 /** Any authenticated user can read the company directory to pick their company during onboarding. */
 export const listCompaniesForOnboarding = async () => {
   const companies = await fetchAllCompanies()
-  return companies.filter((company) => !company.isPlatformOwner)
+  return companies.filter((company) => !company.isPlatformOwner && company.smeOnboardingModel !== 'consultants_register_smes')
 }
 
 export const ensureWorkspaceCompany = async (companyCode: string, name?: string, updatedBy?: string) => {

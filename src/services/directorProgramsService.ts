@@ -42,8 +42,12 @@ export const listDirectorProgramPerformance = async (
   user: FullIdentity,
   activeProgramId?: string,
 ): Promise<DirectorProgramPerformance[]> => {
+  // Directors only ever see their own company; without a company code return nothing rather than everything.
+  const companyCode = String(user.companyCode || '').trim()
+  if (!companyCode) return []
+
   const db = getFirebaseDb()
-  const companyConstraint = user.companyCode ? [where('companyCode', '==', user.companyCode)] : []
+  const companyConstraint = [where('companyCode', '==', companyCode)]
 
   const [programsSnap, applicationsSnap, assignmentsSnap, portfolio] = await Promise.all([
     getDocs(query(collection(db, 'programs'), ...companyConstraint)),

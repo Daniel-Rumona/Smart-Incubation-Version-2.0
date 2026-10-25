@@ -12,6 +12,58 @@ export const zuLanding: Record<string, string> = {
   "Access support, mentorship, funding opportunities and clear growth tracking.": "Finyelela usizo, ukululeka, amathuba okuxhaswa ngezimali nokulandelela ukukhula okucacile.",
   "Manage programs, interventions, evidence, reporting and stakeholder visibility.": "Phatha izinhlelo, ukungenelela, ubufakazi, ukubika nokubonakala kwababambiqhaza.",
   "View verified pipelines, performance signals and funding impact.": "Buka amapayipilayini aqinisekisiwe, izimpawu zokusebenza nomthelela wokuxhaswa ngezimali.",
+  "Smart Incubation connects SMEs, incubators, funders and ecosystem partners with funding, mentorship, diagnostics and real-time oversight — all in one place.": "I-Smart Incubation ixhumanisa ama-SME, abafukanisi, abaxhasi nabalingani bemvelo yebhizinisi ngokuxhaswa ngezimali, ukululeka, ukuhlolwa nokuqapha ngesikhathi sangempela — konke endaweni eyodwa.",
+  "Whichever seat you sit in, Smart Incubation gives you the tools and visibility to move faster.": "Noma ngabe uhlezi kuphi, i-Smart Incubation ikunikeza amathuluzi nokubonakala ukuze uhambe ngokushesha.",
+  "Sign in": "Ngena",
+  "Apply now": "Faka isicelo manje",
+  "Book a demo": "Bhukha umboniso",
+  "Talk to us": "Khuluma nathi",
+
+  // how it works
+  "How it works": "Indlela esebenza ngayo",
+  "From application to measurable impact": "Kusukela esicelweni kuya emthelelweni olinganisekayo",
+  "Incubators, SMEs, facilitators and funders work through one shared journey, so nothing gets lost between them.": "Abafukanisi, ama-SME, abaqondisi nabaxhasi basebenza ohambweni olulodwa olwabelwana ngalo, ngakho akukho okulahleka phakathi kwabo.",
+  "Launch a programme": "Qalisa uhlelo",
+  "Incubators set up the programme, its entry criteria and the support on offer. Funders can sponsor it.": "Abafukanisi bamisa uhlelo, imibandela yokungena nosizo olutholakalayo. Abaxhasi bangaluxhasa.",
+  "Apply and get selected": "Faka isicelo bese ukhethwa",
+  "SMEs apply online in minutes, and the incubator reviews and accepts them.": "Ama-SME afaka isicelo ku-inthanethi ngemizuzu embalwa, bese umfukanisi ewabuyekeza futhi awamukele.",
+  "Diagnose and plan": "Hlola futhi uhlele",
+  "A business diagnostic pinpoints gaps and turns into a support plan made for that SME.": "Ukuhlolwa kwebhizinisi kuveza izikhala bese kuba uhlelo losizo olwenzelwe leyo SME.",
+  "Deliver support": "Letha usizo",
+  "Facilitators deliver interventions, with proof of evidence captured along the way.": "Abaqondisi baletha ukungenelela, kuqoshwa ubufakazi njengoba kuqhubeka.",
+  "Report impact": "Bika umthelela",
+  "Verified outcomes feed live dashboards and funder reports.": "Imiphumela eqinisekisiwe ingena kumadeshibhodi abukhoma nasemibikweni yabaxhasi.",
+  "Incubator": "Umfukanisi",
+  "Funder": "Umxhasi",
+  "Facilitator": "Umqondisi",
+
+  // hero product preview (illustrative)
+  "Programme overview": "Ukubuka konke kohlelo",
+  "Interventions completed": "Ukungenelela okuqediwe",
+  "Diagnostic": "Ukuhlola",
+  "In support": "Kusizo",
+  "Graduating": "Kuyaphothula",
+  "Diagnostic complete": "Ukuhlola kuqediwe",
+  "Support plan ready for review": "Uhlelo losizo selulungele ukubuyekezwa",
+
+  // highlights and stats
+  "Built for the way SMEs work": "Yakhelwe indlela ama-SME asebenza ngayo",
+  "Updates on WhatsApp": "Izibuyekezo ku-WhatsApp",
+  "SMEs and staff check plans, interventions and appointments, and get reminders, straight from WhatsApp.": "Ama-SME nabasebenzi bahlola izinhlelo, ukungenelela nama-aphoyintimenti, futhi bathole izikhumbuzo, ngqo ku-WhatsApp.",
+  "English and isiZulu": "IsiNgisi nesiZulu",
+  "Use the platform in the language you are most comfortable with.": "Sebenzisa iplathifomu ngolimi olukhululekile kakhulu kulo.",
+  "AI assistant built in": "Umsizi we-AI wakhelwe ngaphakathi",
+  "Get help drafting business plans, practising your pitch and understanding every page.": "Thola usizo lokubhala izinhlelo zebhizinisi, ukuzijwayeza ukwethula kwakho nokuqonda wonke amakhasi.",
+  "Platform in numbers": "Iplathifomu ngezinombolo",
+
+  // footer
+  "Incubation, funding and oversight in one place.": "Ukufukamela, ukuxhaswa ngezimali nokuqapha endaweni eyodwa.",
+  "Who it is for": "Okwenzelwe bani",
+  "Contact us": "Xhumana nathi",
+  "Legal": "Ezomthetho",
+  "Privacy policy": "Inqubomgomo yobumfihlo",
+  "Terms of use": "Imigomo yokusetshenziswa",
+  "Built by Quantilytix": "Yakhiwe yi-Quantilytix",
 
   // holiday banner
   "{name} (observed)": "{name} (kubhekwa)",

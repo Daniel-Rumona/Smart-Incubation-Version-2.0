@@ -1,4 +1,5 @@
 import type { UserRole } from '@/config/roles'
+import type { SignatureStrokes } from '@/utils/signatureStrokes'
 
 export type IdentityPermission =
   | 'view_dashboard'
@@ -37,9 +38,17 @@ export type FullIdentity = {
   branchId?: string | null
   departmentId?: string | null
   signatureURL?: string | null
+  /** Pen movement recorded when a drawn signature was set up; null for typed, uploaded or older signatures. */
+  signatureStrokes?: SignatureStrokes | null
   profileImageUrl?: string | null
   assignedProgramIds: string[]
   permissions: IdentityPermission[]
   consultingBudget?: number
   smeOnboardingComplete: boolean
+  /** SMEs only. 'programme': joined or applying through a programme; 'independent': marketplace and Agentic. */
+  smeJourney?: SmeJourney
+  /** A programme whose link this person opened but has not joined yet (kept on the account, not just the browser). */
+  pendingProgramId?: string | null
 }
+
+export type SmeJourney = 'programme' | 'independent'

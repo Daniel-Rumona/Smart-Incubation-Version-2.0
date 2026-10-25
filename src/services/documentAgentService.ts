@@ -1,4 +1,4 @@
-import { addDoc, collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
+import { arrayUnion, collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, Timestamp, updateDoc, where } from 'firebase/firestore'
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { agentApiBaseUrl, isAgentApiConfigured } from '@/config/agent'
 import { getFirebaseDb, getFirebaseStorage } from '@/config/firebase'
@@ -20,6 +20,8 @@ export type DocumentAgentAssignment = {
   programName?: string
   deliveryStrategy?: string
   reviewRequired: boolean
+  /** Current progress, recorded as the starting point of the evidence step the deliverable adds. */
+  progress?: number
   reviewerType?: string
   executionMode: 'single_session' | 'multi_step'
   steps: AgentInterventionStep[]
@@ -227,6 +229,7 @@ export const getDocumentAgentAssignment = async (
     programName: data.programName ? String(data.programName) : undefined,
     deliveryStrategy: data.deliveryStrategy ? String(data.deliveryStrategy) : undefined,
     reviewRequired: data.reviewRequired === true,
+    progress: typeof data.progress === 'number' ? data.progress : Number((data.progress as { percentage?: unknown } | undefined)?.percentage || 0),
     reviewerType: data.reviewerType ? String(data.reviewerType) : undefined,
     executionMode: data.executionMode === 'multi_step' ? 'multi_step' : 'single_session',
     steps: (Array.isArray(data.steps) ? data.steps : []).map((step: Record<string, unknown>, index: number) => ({
@@ -420,8 +423,11 @@ export const downloadDocumentAgentOutput = async (
   const completedWeight = steps.filter((step) => step.status === 'completed').reduce((sum, step) => sum + step.weight, 0)
   const stepProgress = totalWeight ? Math.round((completedWeight / totalWeight) * 100) : 100
   const db = getFirebaseDb()
+  // The id is reserved up front so the intervention's proof of evidence can link to this document.
+  const documentRef = doc(collection(db, 'interventionDocuments'))
+  const progressAfter = !stepsSatisfied ? Math.min(90, stepProgress) : needsReview ? 90 : 100
   await Promise.all([
-    addDoc(collection(db, 'interventionDocuments'), firestoreSafe({
+    setDoc(documentRef, firestoreSafe({
       companyCode: assignment.companyCode,
       assignmentId: assignment.id,
       participantId: assignment.participantId,
@@ -458,10 +464,23 @@ export const downloadDocumentAgentOutput = async (
     updateDoc(doc(db, 'assignedInterventions', assignment.id), firestoreSafe({
       agentWorkStatus: !stepsSatisfied ? 'in_progress' : needsReview ? 'awaiting_review' : 'completed',
       reviewStatus: needsReview ? 'pending' : null,
-      progress: !stepsSatisfied ? Math.min(90, stepProgress) : needsReview ? 90 : 100,
+      progress: progressAfter,
       assigneeCompletionStatus: !stepsSatisfied ? 'pending' : needsReview ? 'pending_review' : 'done',
       status: stepsSatisfied ? 'awaiting_confirmation' : 'in-progress',
       updatedAt: serverTimestamp(),
+      // The deliverable becomes proof of evidence on the intervention itself, next to facilitator uploads,
+      // so operations reviews it there rather than in a separate library.
+      progressSteps: arrayUnion(firestoreSafe({
+        createdAt: Timestamp.now(),
+        actorUid: user.uid,
+        actorRole: 'agent',
+        source: 'agent',
+        progressBefore: Number(assignment.progress || 0),
+        progressAfter,
+        notes: `${assignment.agentName || 'Agent'} generated ${fileName}`,
+        evidenceFiles: [fileName],
+        evidenceLinks: [{ name: fileName, url: fileUrl, documentId: documentRef.id }],
+      })),
     })),
   ])
 

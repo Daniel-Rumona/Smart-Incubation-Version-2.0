@@ -1,4 +1,55 @@
 /* Full-screen animated report player */
+
+/* Theme. Light is the default; html[data-theme='dark'] swaps the set. Tone colours are a step
+   darker in light mode so icons and rings stay readable on a pale background. */
+.rp-overlay {
+  --rp-bg: #f6f5fc;
+  --rp-fg: #0f172a;
+  --rp-fg-strong: #0b1020;
+  --rp-fg-soft: rgba(15, 23, 42, 0.82);
+  --rp-fg-muted: rgba(15, 23, 42, 0.56);
+  --rp-fg-faint: rgba(15, 23, 42, 0.42);
+  --rp-surface: rgba(255, 255, 255, 0.78);
+  --rp-surface-hover: rgba(255, 255, 255, 0.95);
+  --rp-border: rgba(15, 23, 42, 0.09);
+  --rp-border-strong: rgba(15, 23, 42, 0.14);
+  --rp-track: rgba(15, 23, 42, 0.08);
+  --rp-glow-2: rgba(99, 102, 241, 0.1);
+  --rp-orb-opacity: 0.16;
+  --rp-shimmer-a: rgba(15, 23, 42, 0.05);
+  --rp-shimmer-b: rgba(15, 23, 42, 0.12);
+  --rp-good: #059669;
+  --rp-warn: #b45309;
+  --rp-risk: #dc2626;
+  --rp-info: #2563eb;
+  --rp-scroll: rgba(109, 93, 251, 0.5);
+  --rp-scroll-hover: rgba(109, 93, 251, 0.76);
+}
+
+html[data-theme='dark'] .rp-overlay {
+  --rp-bg: #0b0b12;
+  --rp-fg: #f8fafc;
+  --rp-fg-strong: #ffffff;
+  --rp-fg-soft: rgba(248, 250, 252, 0.82);
+  --rp-fg-muted: rgba(248, 250, 252, 0.6);
+  --rp-fg-faint: rgba(248, 250, 252, 0.5);
+  --rp-surface: rgba(255, 255, 255, 0.06);
+  --rp-surface-hover: rgba(255, 255, 255, 0.16);
+  --rp-border: rgba(255, 255, 255, 0.12);
+  --rp-border-strong: rgba(255, 255, 255, 0.18);
+  --rp-track: rgba(255, 255, 255, 0.1);
+  --rp-glow-2: rgba(99, 102, 241, 0.18);
+  --rp-orb-opacity: 0.35;
+  --rp-shimmer-a: rgba(255, 255, 255, 0.06);
+  --rp-shimmer-b: rgba(255, 255, 255, 0.2);
+  --rp-good: #34d399;
+  --rp-warn: #fbbf24;
+  --rp-risk: #f0808a;
+  --rp-info: #60a5fa;
+  --rp-scroll: rgba(167, 139, 250, 0.58);
+  --rp-scroll-hover: rgba(196, 181, 253, 0.82);
+}
+
 .rp-overlay {
   position: fixed;
   inset: 0;
@@ -6,16 +57,37 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  color: #f8fafc;
-  background: #0b0b12;
+  color: var(--rp-fg);
+  background: var(--rp-bg);
   font-family: Inter, system-ui, sans-serif;
-  animation: rp-fade 0.35s ease both;
 }
+
+/* Ripple open and close. A wash in the first slide's accent grows from the Play button, and the
+   player follows 70ms behind it. Closing reverses the order and runs quicker. The radius is
+   150vmax so it covers the screen from any origin, even if the window goes fullscreen mid-way. */
+.rp-ripple-wash {
+  position: fixed;
+  inset: 0;
+  z-index: 2999;
+  background: var(--rp-wash, #8b5cf6);
+}
+.rp-ripple-wash,
+.rp-overlay {
+  clip-path: circle(0px at var(--rp-x, 50%) var(--rp-y, 50%));
+}
+.rp-ripple-wash[data-phase='open'],
+.rp-overlay[data-phase='open'] {
+  clip-path: circle(150vmax at var(--rp-x, 50%) var(--rp-y, 50%));
+}
+.rp-ripple-wash[data-phase='open'] { transition: clip-path 620ms cubic-bezier(0.32, 0.72, 0, 1); }
+.rp-overlay[data-phase='open'] { transition: clip-path 620ms cubic-bezier(0.32, 0.72, 0, 1) 70ms; }
+.rp-overlay[data-phase='closing'] { transition: clip-path 380ms cubic-bezier(0.23, 1, 0.32, 1); }
+.rp-ripple-wash[data-phase='closing'] { transition: clip-path 380ms cubic-bezier(0.23, 1, 0.32, 1) 50ms; }
 
 .rp-backdrop {
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 20% 15%, var(--rp-accent-soft) 0%, transparent 45%), radial-gradient(circle at 85% 90%, rgba(99, 102, 241, 0.18) 0%, transparent 50%), #0b0b12;
+  background: radial-gradient(circle at 20% 15%, var(--rp-accent-soft) 0%, transparent 45%), radial-gradient(circle at 85% 90%, var(--rp-glow-2) 0%, transparent 50%), var(--rp-bg);
   transition: background 0.8s ease;
 }
 
@@ -23,13 +95,13 @@
   position: absolute;
   border-radius: 50%;
   filter: blur(70px);
-  opacity: 0.35;
+  opacity: var(--rp-orb-opacity);
   background: var(--rp-accent);
   animation: rp-float 14s ease-in-out infinite;
 }
 
 .rp-orb.is-a { width: 420px; height: 420px; top: -120px; right: -80px; }
-.rp-orb.is-b { width: 320px; height: 320px; bottom: -100px; left: -60px; animation-delay: -6s; opacity: 0.22; }
+.rp-orb.is-b { width: 320px; height: 320px; bottom: -100px; left: -60px; animation-delay: -6s; opacity: calc(var(--rp-orb-opacity) * 0.63); }
 
 .rp-topbar {
   position: relative;
@@ -41,7 +113,7 @@
 }
 
 .rp-timeline { display: flex; flex: 1; gap: 6px; }
-.rp-timeline-seg { position: relative; flex: 1; height: 4px; overflow: hidden; border-radius: 999px; background: rgba(255, 255, 255, 0.16); cursor: pointer; }
+.rp-timeline-seg { position: relative; flex: 1; height: 4px; overflow: hidden; border-radius: 999px; background: var(--rp-track); cursor: pointer; }
 .rp-timeline-seg > span { position: absolute; inset: 0; transform-origin: left; background: var(--rp-accent); }
 .rp-timeline-seg.is-done > span { transform: scaleX(1); }
 .rp-timeline-seg.is-current > span { animation: rp-timer var(--rp-duration) linear forwards; }
@@ -53,15 +125,16 @@
   justify-content: center;
   width: 38px;
   height: 38px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid var(--rp-border-strong);
   border-radius: 50%;
-  color: #f8fafc;
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--rp-fg);
+  background: var(--rp-surface);
   cursor: pointer;
   transition: background 0.2s ease, transform 0.2s ease;
 }
-.rp-icon-btn:hover { background: rgba(255, 255, 255, 0.16); transform: scale(1.06); }
+.rp-icon-btn:hover { background: var(--rp-surface-hover); transform: scale(1.06); }
 
+/* The stage is the player's one scroller, styled like the app's main content scroller. */
 .rp-stage {
   position: relative;
   z-index: 1;
@@ -71,7 +144,13 @@
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--rp-scroll) transparent;
 }
+.rp-stage::-webkit-scrollbar { width: 10px; }
+.rp-stage::-webkit-scrollbar-track { margin-block: 10px; border-radius: 999px; background: transparent; }
+.rp-stage::-webkit-scrollbar-thumb { border-radius: 999px; border: 3px solid transparent; background: var(--rp-scroll); background-clip: padding-box; }
+.rp-stage::-webkit-scrollbar-thumb:hover { background: var(--rp-scroll-hover); background-clip: padding-box; }
 
 .rp-slide { width: min(1180px, 100%); min-width: 0; margin: auto; animation: rp-slide-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
 .rp-slide.is-back { animation-name: rp-slide-in-back; }
@@ -85,9 +164,9 @@
   box-shadow: 0 10px 36px var(--rp-accent-soft);
   animation: rp-pop 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s both;
 }
-.rp-eyebrow { font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: rgba(248, 250, 252, 0.6); }
-.rp-title { margin: 2px 0 0; font-size: clamp(28px, 4vw, 46px); font-weight: 800; line-height: 1.1; color: #fff; }
-.rp-lead { margin: 6px 0 0; max-width: 780px; overflow-wrap: anywhere; font-size: clamp(15px, 1.5vw, 19px); color: rgba(248, 250, 252, 0.78); }
+.rp-eyebrow { font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: var(--rp-fg-muted); }
+.rp-title { margin: 2px 0 0; font-size: clamp(28px, 4vw, 46px); font-weight: 800; line-height: 1.1; color: var(--rp-fg-strong); }
+.rp-lead { margin: 6px 0 0; max-width: 780px; overflow-wrap: anywhere; font-size: clamp(15px, 1.5vw, 19px); color: var(--rp-fg-soft); }
 
 .rp-body { display: grid; gap: 22px; grid-template-columns: minmax(0, 1fr); }
 .rp-body.has-side { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); }
@@ -96,37 +175,72 @@
 .rp-stats { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); align-content: start; }
 .rp-body.has-side .rp-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .rp-stat {
-  position: relative; padding: 20px 22px; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 22px;
-  background: rgba(255, 255, 255, 0.06); backdrop-filter: blur(14px);
+  position: relative; padding: 20px 22px; border: 1px solid var(--rp-border); border-radius: 22px;
+  background: var(--rp-surface); backdrop-filter: blur(14px);
   animation: rp-fade-up 0.6s ease both; animation-delay: calc(0.25s + var(--rp-i) * 0.12s);
 }
 .rp-stat-icon { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; margin-bottom: 12px; border-radius: 12px; font-size: 20px; color: var(--rp-tone); background: color-mix(in srgb, var(--rp-tone) 18%, transparent); }
-.rp-stat-value { font-size: clamp(34px, 4vw, 52px); font-weight: 800; line-height: 1; color: #fff; font-variant-numeric: tabular-nums; }
-.rp-stat-label { margin-top: 8px; font-size: 15px; font-weight: 600; color: rgba(248, 250, 252, 0.9); }
-.rp-stat-hint { margin-top: 2px; font-size: 13px; color: rgba(248, 250, 252, 0.55); }
+.rp-stat-value { font-size: clamp(34px, 4vw, 52px); font-weight: 800; line-height: 1; color: var(--rp-fg-strong); font-variant-numeric: tabular-nums; }
+.rp-stat-label { margin-top: 8px; font-size: 15px; font-weight: 600; color: var(--rp-fg-soft); }
+.rp-stat-hint { margin-top: 2px; font-size: 13px; color: var(--rp-fg-muted); }
 
-.rp-panel { padding: 22px 24px; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 24px; background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(14px); animation: rp-fade-up 0.7s ease 0.5s both; }
+.rp-panel { padding: 22px 24px; border: 1px solid var(--rp-border); border-radius: 24px; background: var(--rp-surface); backdrop-filter: blur(14px); animation: rp-fade-up 0.7s ease 0.5s both; }
 .rp-ring-wrap { position: relative; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; }
 .rp-ring-center { position: absolute; text-align: center; }
-.rp-ring-center strong { display: block; font-size: 44px; font-weight: 800; line-height: 1; }
-.rp-ring-center span { font-size: 13px; letter-spacing: 2px; text-transform: uppercase; color: rgba(248, 250, 252, 0.6); }
+.rp-ring-center strong { display: block; font-size: 44px; font-weight: 800; line-height: 1; color: var(--rp-fg-strong); }
+.rp-ring-center span { font-size: 13px; letter-spacing: 2px; text-transform: uppercase; color: var(--rp-fg-muted); }
+.rp-ring-track { stroke: var(--rp-track); }
 .rp-ring-arc { transition: stroke-dashoffset 1.6s cubic-bezier(0.22, 1, 0.36, 1) 0.3s; }
-.rp-ring-caption { text-align: center; font-size: 14px; color: rgba(248, 250, 252, 0.7); }
+.rp-ring-caption { text-align: center; font-size: 14px; color: var(--rp-fg-soft); }
 
 .rp-bars { display: grid; gap: 14px; }
 .rp-bar-row { animation: rp-fade-up 0.5s ease both; animation-delay: calc(0.5s + var(--rp-i) * 0.1s); }
 .rp-bar-top { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 14px; }
-.rp-bar-top span:last-child { color: rgba(248, 250, 252, 0.7); font-variant-numeric: tabular-nums; }
-.rp-bar-track { height: 10px; overflow: hidden; border-radius: 999px; background: rgba(255, 255, 255, 0.1); }
+.rp-bar-top span:last-child { color: var(--rp-fg-soft); font-variant-numeric: tabular-nums; }
+.rp-bar-track { height: 10px; overflow: hidden; border-radius: 999px; background: var(--rp-track); }
 .rp-bar-fill { height: 100%; border-radius: 999px; transform-origin: left; animation: rp-bar-grow 1.2s cubic-bezier(0.22, 1, 0.36, 1) both; animation-delay: calc(0.7s + var(--rp-i) * 0.1s); }
 
 .rp-narrative { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
-.rp-paragraph { max-width: 900px; overflow-wrap: anywhere; font-size: clamp(17px, 1.9vw, 24px); line-height: 1.55; color: rgba(248, 250, 252, 0.92); animation: rp-fade-up 0.7s ease 0.3s both; }
-.rp-point > span:last-child { min-width: 0; overflow-wrap: anywhere; }
-.rp-point { display: flex; align-items: flex-start; gap: 14px; padding: 16px 18px; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 18px; background: rgba(255, 255, 255, 0.06); font-size: clamp(15px, 1.5vw, 19px); line-height: 1.45; animation: rp-fade-up 0.6s ease both; animation-delay: calc(0.35s + var(--rp-i) * 0.14s); }
-.rp-point-icon { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 34px; height: 34px; border-radius: 10px; font-size: 17px; color: var(--rp-tone); background: color-mix(in srgb, var(--rp-tone) 20%, transparent); }
-.rp-note { margin-top: 6px; font-size: 13px; color: rgba(248, 250, 252, 0.5); }
-.rp-shimmer { height: 18px; border-radius: 9px; background: linear-gradient(90deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.06)); background-size: 200% 100%; animation: rp-shimmer 1.4s linear infinite; }
+.rp-paragraph { max-width: 900px; overflow-wrap: anywhere; font-size: clamp(17px, 1.9vw, 24px); line-height: 1.55; color: var(--rp-fg-soft); animation: rp-fade-up 0.7s ease 0.3s both; }
+/* Points as one compact list on a shared surface: rows split by hairlines, not a card each. */
+.rp-points { display: grid; max-width: 900px; overflow: hidden; border: 1px solid var(--rp-border); border-radius: 18px; background: var(--rp-surface); }
+.rp-point { display: flex; align-items: flex-start; gap: 12px; padding: 14px 18px; font-size: clamp(15px, 1.5vw, 19px); line-height: 1.45; animation: rp-fade-up 0.6s ease both; animation-delay: calc(0.35s + var(--rp-i) * 0.12s); }
+.rp-point + .rp-point { border-top: 1px solid var(--rp-border); }
+.rp-point-icon { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 26px; height: 26px; margin-top: 1px; border-radius: 50%; font-size: 14px; color: var(--rp-tone); background: color-mix(in srgb, var(--rp-tone) 18%, transparent); }
+.rp-point-text { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.rp-point-meta { font-size: 0.82em; color: var(--rp-fg-muted); }
+/* A commentary slide's lead is a framing line, not a paragraph: two lines at most. */
+.rp-narrative-slide .rp-lead { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+
+/* Phones: a small icon beside the title so the title keeps its line, and tighter spacing all round. */
+@media (max-width: 600px) {
+  .rp-slide:not(.rp-hero) .rp-head { align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+  .rp-slide:not(.rp-hero) .rp-head-icon { width: 40px; height: 40px; border-radius: 12px; font-size: 19px; box-shadow: 0 6px 18px var(--rp-accent-soft); }
+  .rp-slide:not(.rp-hero) .rp-title { font-size: 24px; }
+  .rp-lead { font-size: 14px; }
+  .rp-point { gap: 10px; padding: 12px 14px; font-size: 14px; }
+  .rp-paragraph { font-size: 16px; }
+}
+.rp-note { margin-top: 6px; font-size: 13px; color: var(--rp-fg-faint); }
+.rp-shimmer { height: 18px; border-radius: 9px; background: linear-gradient(90deg, var(--rp-shimmer-a), var(--rp-shimmer-b), var(--rp-shimmer-a)); background-size: 200% 100%; animation: rp-shimmer 1.4s linear infinite; }
+
+/* Focus slide: the lead, one large figure, one visual. */
+.rp-focus { display: grid; gap: clamp(24px, 4vw, 56px); grid-template-columns: minmax(0, 1fr); align-items: center; margin-top: clamp(8px, 3vh, 32px); }
+.rp-focus.has-figure { grid-template-columns: auto minmax(0, 1fr); }
+@media (max-width: 900px) { .rp-focus.has-figure { grid-template-columns: minmax(0, 1fr); } }
+.rp-focus-figure { display: grid; gap: 6px; animation: rp-fade-up 0.6s ease 0.2s both; }
+.rp-focus-figure strong { font-size: clamp(64px, 9vw, 128px); font-weight: 800; line-height: 0.95; letter-spacing: -0.03em; color: var(--rp-fg-strong); }
+.rp-focus-figure span { font-size: 15px; letter-spacing: 2px; text-transform: uppercase; color: var(--rp-fg-muted); }
+.rp-focus-visual { display: grid; gap: 28px; max-width: 760px; min-width: 0; }
+
+/* Part-to-whole: one bar, 3px gaps, the legend carries the counts. */
+.rp-breakdown { display: grid; gap: 14px; animation: rp-fade-up 0.6s ease 0.35s both; }
+.rp-breakdown-bar { display: flex; gap: 3px; height: 18px; overflow: hidden; border-radius: 999px; transform-origin: left; animation: rp-bar-grow 1.1s cubic-bezier(0.22, 1, 0.36, 1) 0.5s both; }
+.rp-breakdown-bar > span { flex-basis: 0; min-width: 6px; }
+.rp-breakdown-legend { display: flex; flex-wrap: wrap; gap: 10px 28px; font-size: clamp(15px, 1.4vw, 18px); color: var(--rp-fg-soft); }
+.rp-breakdown-legend > span { display: inline-flex; align-items: center; gap: 8px; animation: rp-fade-up 0.5s ease both; animation-delay: calc(0.8s + var(--rp-i) * 0.08s); }
+.rp-breakdown-legend i { width: 10px; height: 10px; border-radius: 999px; flex: none; }
+.rp-breakdown-legend strong { font-weight: 800; color: var(--rp-fg-strong); font-variant-numeric: tabular-nums; }
 
 .rp-hero { text-align: center; }
 .rp-hero .rp-head { flex-direction: column; margin-bottom: 8px; }
@@ -135,7 +249,7 @@
 .rp-hero .rp-lead { margin-inline: auto; }
 
 .rp-controls { position: relative; z-index: 2; display: flex; align-items: center; justify-content: center; gap: 14px; padding: 0 28px 22px; }
-.rp-counter { min-width: 64px; text-align: center; font-size: 13px; letter-spacing: 1px; color: rgba(248, 250, 252, 0.6); font-variant-numeric: tabular-nums; }
+.rp-counter { min-width: 64px; text-align: center; font-size: 13px; letter-spacing: 1px; color: var(--rp-fg-muted); font-variant-numeric: tabular-nums; }
 
 @keyframes rp-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes rp-slide-in { from { opacity: 0; transform: translateX(60px) scale(0.98); } to { opacity: 1; transform: none; } }
@@ -150,4 +264,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .rp-overlay *, .rp-overlay { animation-duration: 0.01s !important; animation-delay: 0s !important; transition-duration: 0.01s !important; }
+  /* No growing circle; a short fade still shows the player arriving and leaving. */
+  .rp-ripple-wash { display: none; }
+  .rp-overlay,
+  .rp-overlay[data-phase='open'] { clip-path: none; opacity: 1; transition: opacity 200ms ease !important; }
+  .rp-overlay[data-phase='entering'],
+  .rp-overlay[data-phase='closing'] { opacity: 0; }
 }

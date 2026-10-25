@@ -1,9 +1,11 @@
-import { Alert, Button, Card, Col, Divider, Form, Input, InputNumber, Modal, Progress, Row, Segmented, Space, Tag, Typography, Upload } from 'antd'
+import { Alert, App, Button, Card, Col, Divider, Form, Input, InputNumber, Modal, Progress, Row, Segmented, Space, Tag, Typography, Upload } from 'antd'
 import type { UploadFile } from 'antd'
 import { BulbOutlined, CheckCircleOutlined, FileTextOutlined, RobotOutlined, SaveOutlined, UploadOutlined, WarningOutlined } from '@ant-design/icons'
 import { useMemo, useState } from 'react'
 import { analyseInterventionUpdate } from '@/services/interventionAiService'
 import type { AiReview, InterventionRow, ProgressUpdateForm, UpdateMode } from '@/types/interventions'
+import { deliverableLabel } from '@/services/interventionOutcomeConfig'
+import { EVIDENCE_ACCEPT, evidenceFileProblem } from '@/services/interventionOverrideService'
 import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 const { Text, Paragraph } = Typography
@@ -52,6 +54,7 @@ type FormValues = Omit<ProgressUpdateForm, 'evidenceFiles'> & { sourceText?: str
 
 export const AIInterventionUpdateModal = ({ open, row, mode, saving, onCancel, onApply }: AIInterventionUpdateModalProps) => {
   const { t } = useLanguage()
+  const { message } = App.useApp()
   const [form] = Form.useForm<FormValues>()
   const [activeMode, setActiveMode] = useState<UpdateMode>(mode)
   const [review, setReview] = useState<AiReview>()
@@ -63,6 +66,9 @@ export const AIInterventionUpdateModal = ({ open, row, mode, saving, onCancel, o
   }, [activeMode, row])
 
   const targetField = row ? targetFieldFor(row) : null
+  const outcomeDefinition = row?.raw.outcomeDefinition
+  const evidenceName = deliverableLabel(outcomeDefinition, '')
+  const evidenceLabel = evidenceName || t('Proof of evidence')
 
   const resetAndClose = () => {
     setReview(undefined)
@@ -122,6 +128,10 @@ export const AIInterventionUpdateModal = ({ open, row, mode, saving, onCancel, o
         </Col>
       </Row>
 
+      {outcomeDefinition?.intendedOutcome && (
+        <Alert type="info" showIcon style={{ marginBottom: 12 }} message={t('Intended outcome')} description={outcomeDefinition.intendedOutcome} />
+      )}
+
       <Form.Item name="notes" label={t('Final progress notes')}>
         <Input.TextArea rows={4} />
       </Form.Item>
@@ -133,15 +143,15 @@ export const AIInterventionUpdateModal = ({ open, row, mode, saving, onCancel, o
             showIcon
             style={{ marginBottom: 12 }}
             message={t('This marks the intervention 100% complete.')}
-            description={t('Attach proof of evidence below before applying the update.')}
+            description={evidenceName ? `${t('Attach')} ${evidenceName} ${t('below before applying the update.')}` : t('Attach proof of evidence below before applying the update.')}
           />
         )}
       </Form.Item>
 
       <Form.Item
         name="evidenceFiles"
-        label={t('Proof of evidence')}
-        extra={tr('Optional unless this update reaches 100%.')}
+        label={evidenceLabel}
+        extra={outcomeDefinition?.deliverableDescription || tr('Optional unless this update reaches 100%.')}
         valuePropName="fileList"
         getValueFromEvent={(event) => (Array.isArray(event) ? event : event?.fileList)}
         dependencies={['progressAfter']}
@@ -149,15 +159,26 @@ export const AIInterventionUpdateModal = ({ open, row, mode, saving, onCancel, o
           ({ getFieldValue }) => ({
             validator(_, value: UploadFile[] | undefined) {
               if ((getFieldValue('progressAfter') ?? 0) >= 100 && !(value && value.length > 0)) {
-                return Promise.reject(new Error('Attach proof of evidence before marking this 100% complete.'))
+                return Promise.reject(new Error(evidenceName ? `Attach ${evidenceName} before marking this 100% complete.` : 'Attach proof of evidence before marking this 100% complete.'))
               }
               return Promise.resolve()
             },
           }),
         ]}
       >
-        <Upload beforeUpload={() => false} multiple>
-          <Button icon={<UploadOutlined />}>{t('Attach evidence')}</Button>
+        <Upload
+          multiple
+          accept={EVIDENCE_ACCEPT}
+          beforeUpload={(file) => {
+            const problem = evidenceFileProblem(file)
+            if (problem) {
+              message.error(problem)
+              return Upload.LIST_IGNORE
+            }
+            return false
+          }}
+        >
+          <Button icon={<UploadOutlined />}>{evidenceName ? `${t('Upload')} ${evidenceName}` : t('Attach evidence')}</Button>
         </Upload>
       </Form.Item>
     </>
@@ -168,7 +189,12 @@ export const AIInterventionUpdateModal = ({ open, row, mode, saving, onCancel, o
       open={open}
       title={title}
       onCancel={resetAndClose}
-      footer={null}
+      // One full-width action; closing is the X. It submits the form below.
+      footer={row ? (
+        <Button type="primary" icon={<SaveOutlined />} loading={saving || analysing} disabled={activeMode === 'ai' && !review} onClick={() => form.submit()}>
+          {t('Apply update')}
+        </Button>
+      ) : null}
       width={900}
       destroyOnClose
       afterOpenChange={(isOpen) => {
@@ -179,7 +205,14 @@ export const AIInterventionUpdateModal = ({ open, row, mode, saving, onCancel, o
         <Form
           form={form}
           layout="vertical"
-          onFinish={(values) => onApply({ ...values, evidenceFiles: (values.evidenceFiles || []).map((file) => file.name) }, activeMode)}
+          onFinish={(values) => {
+            const chosen = values.evidenceFiles || []
+            onApply({
+              ...values,
+              evidenceFiles: chosen.map((file) => file.name),
+              evidenceUploads: chosen.map((file) => file.originFileObj as File | undefined).filter((file): file is File => Boolean(file)),
+            }, activeMode)
+          }}
         >
           <Space direction="vertical" size={16} style={{ width: '100%' }}>
             <Card size="small">
@@ -310,12 +343,6 @@ export const AIInterventionUpdateModal = ({ open, row, mode, saving, onCancel, o
               </Card>
             )}
 
-            <Space style={{ justifyContent: 'flex-end', width: '100%' }}>
-              <Button onClick={resetAndClose}>{t('Cancel')}</Button>
-              <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={saving || analysing} disabled={activeMode === 'ai' && !review}>
-                {t('Apply update')}
-              </Button>
-            </Space>
           </Space>
         </Form>
       )}

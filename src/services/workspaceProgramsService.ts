@@ -1,7 +1,7 @@
 import { collection, getDocs, query, where } from 'firebase/firestore'
 import { getFirebaseDb } from '@/config/firebase'
 import type { FullIdentity } from '@/types/identity'
-import { isPlatformAdmin } from '@/services/companiesService'
+import { isPlatformAdmin, listTeamRegisteredCompanyCodes } from '@/services/companiesService'
 
 export type WorkspaceProgram = {
   id: string
@@ -85,9 +85,12 @@ export type OpenWorkspaceProgram = WorkspaceProgram & { companyCode: string; com
 
 /** Programs any company has flagged as open to SMEs outside their own company ("outsourced" consulting programs). */
 export const listOpenPrograms = async (): Promise<OpenWorkspaceProgram[]> => {
-  const snapshot = await getDocs(query(collection(getFirebaseDb(), 'programs'), where('openToExternalSmes', '==', true)))
+  const [snapshot, teamRegistered] = await Promise.all([
+    getDocs(query(collection(getFirebaseDb(), 'programs'), where('openToExternalSmes', '==', true))),
+    listTeamRegisteredCompanyCodes().catch(() => new Set<string>()),
+  ])
 
-  return snapshot.docs.map((row) => {
+  return snapshot.docs.filter((row) => !teamRegistered.has(String(row.data().companyCode || '').trim())).map((row) => {
     const data = row.data()
     return {
       id: row.id,

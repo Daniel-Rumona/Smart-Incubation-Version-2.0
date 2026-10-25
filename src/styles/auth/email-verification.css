@@ -92,3 +92,13 @@ html[data-theme='dark'] .email-verification-card p {
     font-size: 26px !important;
   }
 }
+
+/* Set-password page (SetPasswordPage) reuses this card; its form reads left-aligned like other forms. */
+.set-password-form {
+  margin-top: 22px;
+  text-align: left;
+}
+
+.set-password-error {
+  margin-bottom: 16px;
+}

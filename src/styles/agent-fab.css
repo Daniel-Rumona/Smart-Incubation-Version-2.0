@@ -175,9 +175,11 @@
     border: 1px solid rgba(109, 93, 251, .18);
     border-radius: 14px;
     background: rgba(109, 93, 251, .06);
-    display: flex;
+    /* Icon | text | button. A grid so the button can never squeeze the text into a sliver. */
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
-    gap: 9px;
+    gap: 10px;
 }
 
 .agent-task-signal.is-ready {
@@ -211,14 +213,15 @@
     background: rgba(239, 68, 68, .11);
 }
 
-.agent-task-signal > div {
+.agent-task-signal-copy {
     min-width: 0;
-    flex: 1;
+    text-align: left;
 }
 
-.agent-task-signal strong,
-.agent-task-signal span {
+.agent-task-signal-copy strong,
+.agent-task-signal-copy span {
     display: block;
+    overflow-wrap: anywhere;
 }
 
 .agent-task-signal strong {
@@ -227,7 +230,7 @@
     line-height: 1.25;
 }
 
-.agent-task-signal span {
+.agent-task-signal-copy span {
     margin-top: 2px;
     color: #748097;
     font-size: 10px;
@@ -235,8 +238,8 @@
 }
 
 .agent-task-signal .ant-btn {
+    width: auto;
     height: 28px;
-    flex: 0 0 auto;
     padding-inline: 8px;
     border-radius: 8px;
     font-size: 11px;
@@ -364,7 +367,7 @@ html[data-theme='dark'] .agent-task-signal strong {
     color: #e5e7eb;
 }
 
-html[data-theme='dark'] .agent-task-signal span {
+html[data-theme='dark'] .agent-task-signal-copy span {
     color: #aeb9ca;
 }
 
@@ -400,4 +403,54 @@ html[data-theme='dark'] .agent-task-signal span {
         transform: translateY(-4px);
         opacity: 1;
     }
+}
+
+
+/* ===== Phones: Thuso opens as a bottom sheet (ResponsiveModal) ===== */
+.responsive-modal-sheet.agent-conversation-modal .ant-drawer-body {
+    padding: 0;
+}
+
+.responsive-modal-sheet.agent-conversation-modal .agent-modal-panel {
+    height: min(640px, calc(100dvh - 120px));
+}
+
+/* Full screen means nothing in a sheet that already spans the width. */
+.responsive-modal-sheet.agent-conversation-modal .agent-expand-button {
+    display: none;
+}
+
+.responsive-modal-sheet.agent-conversation-modal .agent-modal-header {
+    min-height: 0;
+    padding: 10px 14px;
+}
+
+/* The sheet's own title already says Thuso, so the header row is just the Helper / Tasks switch. */
+.responsive-modal-sheet.agent-conversation-modal .agent-assistant-identity {
+    display: none;
+}
+
+.responsive-modal-sheet.agent-conversation-modal .agent-header-segmented {
+    width: 100%;
+    margin-left: 0;
+}
+
+.responsive-modal-sheet.agent-conversation-modal .agent-header-segmented .ant-segmented-group {
+    width: 100%;
+}
+
+.responsive-modal-sheet.agent-conversation-modal .agent-header-segmented .ant-segmented-item {
+    flex: 1 1 0;
+    text-align: center;
+}
+
+/*
+ * global.css makes every button in a phone modal/drawer full width (good for form actions). Thuso's
+ * small inline buttons sit beside text, so they keep their own width.
+ */
+.agent-conversation-modal .agent-task-panel .ant-btn:not(.ant-btn-icon-only),
+.agent-conversation-modal .agent-task-signal .ant-btn:not(.ant-btn-icon-only),
+.ant-drawer.agent-conversation-modal .agent-task-panel .ant-btn:not(.ant-btn-icon-only),
+.ant-drawer.agent-conversation-modal .agent-task-signal .ant-btn:not(.ant-btn-icon-only) {
+    width: auto;
 }

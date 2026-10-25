@@ -144,10 +144,15 @@ export const DirectorSectorsPage = () => {
     let mounted = true
     const load = async () => {
       if (!user) return
+      // A director without a company code has no company data; never query without the company filter.
+      if (!user.companyCode) {
+        setLoading(false)
+        return
+      }
       setLoading(true)
       try {
         const data = await listDirectorPortfolio(user, activeProgramId)
-        const assignmentDocs = await getDocs(query(collection(getFirebaseDb(), 'assignedInterventions'), ...(user.companyCode ? [where('companyCode', '==', user.companyCode)] : [])))
+        const assignmentDocs = await getDocs(query(collection(getFirebaseDb(), 'assignedInterventions'), where('companyCode', '==', user.companyCode)))
           .then(snapshot => snapshot.docs.map(row => row.data()))
           .catch(() => [])
         if (mounted) {

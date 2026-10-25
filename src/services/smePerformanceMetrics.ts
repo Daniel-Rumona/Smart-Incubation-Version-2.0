@@ -136,6 +136,10 @@ const historyEntries = (history: PerformanceSourceRow['revenueHistory'] | Perfor
   return entries.sort((a, b) => a.date.valueOf() - b.date.valueOf() || a.period.localeCompare(b.period))
 }
 
+/** Every recorded figure for one metric, oldest first; monthly entries are dated to the 1st, annual ones to 31 December. */
+export const metricHistory = (row: PerformanceSourceRow, metric: 'revenue' | 'headcount') =>
+  historyEntries(metric === 'revenue' ? row.revenueHistory : row.headcountHistory)
+
 export const revenueInRange = (row: PerformanceSourceRow, range: [Dayjs, Dayjs]) => {
   const entries = historyEntries(row.revenueHistory)
   const ranged = entries.filter(entry => inRange(entry.date, range))

@@ -4,7 +4,7 @@ import { CheckOutlined, CloseOutlined, PhoneOutlined, ReloadOutlined, TeamOutlin
 import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
 import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
-import { LoadingOverlay } from '@/components/shared/LoadingOverlay'
+import { PageLoadingBar } from '@/components/shared/PageSkeleton'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { listConnectionRequests, updateConnectionRequestStatus } from '@/services/connectionRequestService'
 import type { ConnectionRequest, ConnectionRequestDeliveryMode, ConnectionRequestStatus } from '@/types/connectionRequest'
@@ -117,7 +117,7 @@ export default function ConsultantConnectionRequestsPage() {
 
   return (
     <DashboardPage>
-      {loading && <LoadingOverlay tip={t('Loading connection requests')} />}
+      <PageLoadingBar active={Boolean(loading)} label={t('Loading connection requests')} />
 
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         <div className="dashboard-metrics-row">

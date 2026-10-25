@@ -1,0 +1,43 @@
+/* Impact analysis (src/pages/operations/ImpactAnalysisPage.tsx). */
+.operations-impact-analysis-page .dashboard-section-card { margin-bottom: 0; }
+.operations-impact-analysis-page > .ant-row + .ant-row,
+.operations-impact-analysis-page .impact-note { margin-bottom: 16px; }
+.operations-impact-analysis-page .filter-bar { margin-top: 16px; }
+
+.impact-headline { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
+.impact-headline strong { flex: none; font-size: 34px; line-height: 1; font-variant-numeric: tabular-nums; }
+.impact-headline strong.is-up { color: var(--ant-color-success); }
+.impact-headline strong.is-down { color: var(--ant-color-error); }
+.impact-headline span { color: var(--ant-color-text-secondary); font-size: 13px; }
+
+.impact-compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.impact-compare > div { display: grid; gap: 4px; padding: 14px 16px; border-radius: 12px; background: var(--ant-color-fill-quaternary); }
+.impact-compare strong { font-size: 30px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.impact-compare small { color: var(--ant-color-text-secondary); }
+.impact-footnote { display: block; margin-top: 12px; font-size: 12px; }
+
+.impact-change { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.impact-change .ant-tag { margin-inline-end: 0; }
+
+.impact-sme-card { display: grid; gap: 10px; }
+.impact-sme-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.impact-sme-card dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 12px; margin: 0; font-size: 13px; }
+.impact-sme-card dt { color: var(--ant-color-text-secondary); }
+.impact-sme-card dd { margin: 0; }
+
+@media (max-width: 575px) {
+  .impact-headline { align-items: flex-start; }
+  .impact-headline strong { font-size: 28px; }
+}
+
+/* Check-backs: four small figures in a 2 × 2 grid. */
+.impact-checkbacks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.impact-checkbacks > div { display: grid; gap: 2px; padding: 12px 14px; border-radius: 12px; background: var(--ant-color-fill-quaternary); }
+.impact-checkbacks strong { font-size: 24px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.impact-checkbacks span { font-weight: 600; font-size: 13px; }
+.impact-checkbacks small { color: var(--ant-color-text-secondary); font-size: 12px; }
+.impact-checkbacks > div.is-risk strong { color: var(--ant-color-error); }
+
+/* Disputed outcomes: achieved per the facilitator, "No" per the SME. */
+.impact-disputes { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.impact-disputes > div { display: grid; gap: 2px; padding: 12px 14px; border: 1px solid var(--ant-color-error-border); border-radius: 12px; background: var(--ant-color-error-bg); }

@@ -65,7 +65,7 @@ const launchTour = (steps: DriveStep[]) => {
 const orientedSteps = (mode: GuideMeProps['mode'], pageName: string): DriveStep[] => {
     const steps: DriveStep[] = [
         { element: '#guide-app-topbar', popover: { title: tr('Welcome to Smart Incubation'), description: tr('This top bar keeps your workspace controls, guide and account tools within reach.'), side: 'bottom', align: 'center' } },
-        { element: '#guide-mode-switch', popover: { title: tr('Choose your working mode'), description: tr('Agentic is for guided, conversational work. Workspace gives you the full set of tools and records.'), side: 'bottom', align: 'center' } },
+        { element: '#guide-mode-switch', skipMissingElement: true, popover: { title: tr('Choose your working mode'), description: tr('Agentic is for guided, conversational work. Workspace gives you the full set of tools and records.'), side: 'bottom', align: 'center' } },
     ]
     if (mode === 'workspace') {
         steps.push(
@@ -121,7 +121,7 @@ export const GuideMe = ({ mode, pageName, role, hideTrigger = false, open: contr
     const start = (steps: DriveStep[]) => { setOpen(false); window.setTimeout(() => launchTour(steps), 180) }
 
     return <>
-        {!hideTrigger && <Button id="guide-me-launcher" className="guide-me-launcher" icon={<CompassOutlined />} onClick={() => setOpen(true)}>{t('Guide me')}</Button>}
+        {!hideTrigger && <Button id="guide-me-launcher" className="guide-me-launcher" icon={<CompassOutlined />} title={t('Guide me')} aria-label={t('Guide me')} onClick={() => setOpen(true)}>{t('Guide me')}</Button>}
         <Modal open={open} footer={null} width={500} centered onCancel={() => setOpen(false)} className="guide-me-modal" title={null}>
             <div className="guide-me-options guide-me-general-options">
                 <button type="button" onClick={() => start(orientedSteps(mode, pageName))}><span className="guide-me-option-icon is-violet"><PlayCircleOutlined /></span><span><strong>{t('Get oriented')}</strong></span></button>

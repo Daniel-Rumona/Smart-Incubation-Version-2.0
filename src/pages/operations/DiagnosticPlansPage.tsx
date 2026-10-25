@@ -4,6 +4,7 @@ import { doc, getDoc } from 'firebase/firestore'
 import { useEffect, useMemo, useState } from 'react'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
+import SignDocumentModal from '@/components/shared/SignDocumentModal'
 import { FilterBar } from '@/components/shared/FilterBar'
 import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
 import { getFirebaseDb, isFirebaseConfigured } from '@/config/firebase'
@@ -21,7 +22,9 @@ import {
 } from '@/services/diagnosticPlansService'
 import type { DiagnosticInterventionOption, DiagnosticPlanParticipant } from '@/types/diagnosticPlan'
 import { useAssignedInterventions } from '@/contexts/AssignedInterventionsContext'
-import { buildLivePlanItems, livePlanProgress } from '@/utils/liveDiagnosticPlan'
+import { buildLivePlanItems, livePlanProgress, planStatusColor, type LivePlanItem } from '@/utils/liveDiagnosticPlan'
+import SwotOutcomeCard from '@/components/interventions/SwotOutcomeCard'
+import PlanOutcomeChips from '@/components/interventions/PlanOutcomeChips'
 import '@/styles/operations-diagnostics.css'
 
 type StatusFilter = 'All' | 'Draft' | 'Confirmed'
@@ -156,6 +159,7 @@ export const DiagnosticPlansPage = () => {
     const [catalogue, setCatalogue] = useState<DiagnosticInterventionOption[]>([])
     const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)
+    const [signing, setSigning] = useState(false)
     const [search, setSearch] = useState('')
     const [status, setStatus] = useState<StatusFilter>('All')
     const [selected, setSelected] = useState<DiagnosticPlanParticipant>()
@@ -249,30 +253,38 @@ export const DiagnosticPlansPage = () => {
         setSelectedInterventions(participant.plan.interventions.map((item) => known.get(item.interventionId) || item))
     }
 
-    const persist = async (confirm = false) => {
+    const saveErrorText = (error: unknown) => {
+        const detail = error instanceof Error ? error.message : ''
+        return detail && detail !== 'forbidden'
+            ? `${t('operations.diagnostics.saveError')} (${detail})`
+            : t('operations.diagnostics.saveError')
+    }
+
+    const persist = async () => {
         if (!user || !selected) return
-
-        if (confirm && !user.signatureURL) {
-            message.error(t('Set up your signature before confirming the growth plan.'))
-            return
-        }
-
         try {
             setSaving(true)
             await saveDiagnosticPlan(user, selected, selectedInterventions)
-            if (confirm) await confirmDiagnosticPlan(user, selected, user.signatureURL)
-
-            message.success(t(confirm ? 'operations.diagnostics.confirmedMessage' : 'operations.diagnostics.saved'))
+            message.success(t('operations.diagnostics.saved'))
             await load()
             setSelected(undefined)
         } catch (error) {
-            console.error('[DIAGNOSTIC PLANS] Save/confirmation failed:', error)
-            const detail = error instanceof Error ? error.message : ''
-            message.error(detail && detail !== 'forbidden'
-                ? `${t('operations.diagnostics.saveError')} (${detail})`
-                : t('operations.diagnostics.saveError'))
+            console.error('[DIAGNOSTIC PLANS] Save failed:', error)
+            message.error(saveErrorText(error))
         } finally {
             setSaving(false)
+        }
+    }
+
+    // Confirming signs the plan in SignDocumentModal, which writes the signature out while this saves.
+    const signAndConfirm = async () => {
+        if (!user || !selected) throw new Error('not-ready')
+        try {
+            await saveDiagnosticPlan(user, selected, selectedInterventions)
+            await confirmDiagnosticPlan(user, selected, user.signatureURL)
+        } catch (error) {
+            console.error('[DIAGNOSTIC PLANS] Confirmation failed:', error)
+            throw error
         }
     }
 
@@ -609,7 +621,7 @@ export const DiagnosticPlansPage = () => {
                                     type="primary"
                                     loading={saving}
                                     disabled={!selectedInterventions.length || !user?.signatureURL}
-                                    onClick={() => void persist(true)}
+                                    onClick={() => setSigning(true)}
                                 >
                                     {t('operations.diagnostics.confirmPlan')}
                                 </Button>
@@ -709,6 +721,8 @@ export const DiagnosticPlansPage = () => {
                                 </table>
                             </div>
 
+                            <SwotOutcomeCard items={selected.swotItems} planItems={liveForParticipant(selected) as unknown as LivePlanItem[]} />
+
                             {aiSuggestions.length > 0 && (
                                 <>
                                     <DividerTitle>{tt('operations.diagnostics.aiSuggestedInterventions', 'AI Suggested Interventions')}</DividerTitle>
@@ -752,6 +766,7 @@ export const DiagnosticPlansPage = () => {
                                             <th>{t('incubatee.tracker.area')}</th>
                                             <th>{t('Status')}</th>
                                             <th>{t('Progress')}</th>
+                                            <th>{t('Outcome')}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -760,12 +775,13 @@ export const DiagnosticPlansPage = () => {
                                                 <td>{index + 1}</td>
                                                 <td>{item.title}</td>
                                                 <td>{item.areaOfSupport || emptyValue}</td>
-                                                <td><Tag color={item.status === 'Completed' ? 'green' : item.status === 'In progress' ? 'blue' : item.status === 'Awaiting action' ? 'orange' : 'default'}>{item.status}</Tag></td>
+                                                <td><Tag color={planStatusColor(item.status)}>{item.status}</Tag>{item.totalSteps > 1 && <span style={{ display: 'block', fontSize: 12, opacity: 0.65 }}>{item.completedSteps}/{item.totalSteps} {t('steps confirmed')}</span>}</td>
                                                 <td>{item.progress}%</td>
+                                                <td><PlanOutcomeChips outcome={item.outcome} /></td>
                                             </tr>
                                         )) : (
                                             <tr>
-                                                <td colSpan={5}>{t('operations.diagnostics.noSelectedInterventions')}</td>
+                                                <td colSpan={6}>{t('operations.diagnostics.noSelectedInterventions')}</td>
                                             </tr>
                                         )}
                                     </tbody>
@@ -810,6 +826,18 @@ export const DiagnosticPlansPage = () => {
                     </Space>
                 )}
             </Modal>
+
+            <SignDocumentModal
+                open={signing}
+                onClose={() => setSigning(false)}
+                title={t('Sign the growth plan')}
+                description={selected ? t('This applies your saved signature and approves the plan for {name}.', undefined, { name: selected.businessName }) : undefined}
+                signLabel={t('Sign and confirm')}
+                onSign={signAndConfirm}
+                onSigned={() => { setSelected(undefined); void load() }}
+                signedText={t('operations.diagnostics.confirmedMessage')}
+                errorText={saveErrorText}
+            />
         </DashboardPage>
     )
 }

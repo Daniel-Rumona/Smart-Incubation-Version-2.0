@@ -1217,6 +1217,85 @@ html[data-theme='dark'] .apt-panel-group-title span { background: rgba(255, 255,
     padding-top: 4px;
 }
 
+/* Filters in the sheet each take the full width. */
+.filter-modal-grid > *,
+.filter-modal-grid > .ant-picker,
+.filter-modal-grid > .ant-select {
+    width: 100%;
+}
+
+/* FilterBar on phones when the page has a search box: search plus a Filters
+   button, then any view switches, then the page's actions. */
+.filter-bar-mobile {
+    display: grid;
+    gap: 8px;
+}
+
+.filter-bar-search-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.filter-bar-search-row > .ant-input-affix-wrapper,
+.filter-bar-search-row > .ant-input,
+.filter-bar-search-row > .ant-input-search {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto;
+}
+
+/* View switches fill the row; one with more options than fit (report sections) scrolls sideways instead of squashing. */
+.filter-bar-views {
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.filter-bar-views::-webkit-scrollbar {
+    display: none;
+}
+
+.filter-bar-views > .ant-segmented {
+    display: flex;
+    min-width: 100%;
+    width: max-content;
+}
+
+.filter-bar-views .ant-segmented-group {
+    width: 100%;
+}
+
+.filter-bar-views .ant-segmented-item {
+    flex: 1 0 auto;
+}
+
+/* A long view switch shown as a dropdown on phones (FilterBar's PhoneViewSwitch). */
+.filter-bar-views > .filter-bar-view-select {
+    width: 100%;
+}
+
+.filter-bar-view-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.filter-bar-filters-block {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.filter-bar-mobile-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.filter-bar-mobile-actions > *:not(.ant-btn-icon-only) {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
 
 /* =========================================================
    Responsive List
@@ -1703,4 +1782,58 @@ html[data-theme='dark'] .loading-overlay-copy span {
     .loading-overlay-progress i {
         animation-duration: 5s;
     }
+}
+
+/* Optional trend line on metric cards: change vs an earlier period, and a small sparkline. */
+.dashboard-metric-trend { display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px; border-radius: 999px; font-size: 12px; font-weight: 700; line-height: 18px; white-space: nowrap; font-variant-numeric: tabular-nums; background: rgba(100, 116, 139, .12); }
+.dashboard-metric-trend .anticon { font-size: 10px; }
+.dashboard-metric-trend.is-good { color: #15803D; background: rgba(21, 128, 61, .1); }
+.dashboard-metric-trend.is-bad { color: #DC2626; background: rgba(220, 38, 38, .1); }
+.dashboard-metric-trend.is-neutral { color: var(--ant-color-text-secondary); }
+/* Sits between the figures and the arrow, so the card stays two lines tall. */
+.dashboard-metric-value-line { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; min-width: 0; }
+.dashboard-metric-sparkline { display: block; flex: 0 0 64px; width: 64px; min-width: 0; height: 28px; align-self: center; overflow: visible; }
+/* A sparkline takes room from the label, so these cards sit their parts closer together. */
+.dashboard-metric-row.has-sparkline { gap: 12px; }
+.dashboard-metric-row.has-sparkline .dashboard-metric-copy { padding-left: 4px; }
+.dashboard-metric-sparkline-line { fill: none; stroke: #6d5dfb; stroke-width: 1.75; stroke-linejoin: round; stroke-linecap: round; }
+.dashboard-metric-sparkline-area { fill: rgba(109, 93, 251, .1); }
+html[data-theme='dark'] .dashboard-metric-trend.is-good { color: #4ade80; background: rgba(74, 222, 128, .12); }
+html[data-theme='dark'] .dashboard-metric-trend.is-bad { color: #f87171; background: rgba(248, 113, 113, .12); }
+html[data-theme='dark'] .dashboard-metric-sparkline-line { stroke: #a59bff; }
+html[data-theme='dark'] .dashboard-metric-sparkline-area { fill: rgba(165, 155, 255, .14); }
+
+/* =========================================================
+   FilterBar fit (desktop). Set by FilterBar when the row would overflow, in this order:
+   optional detail text, then buttons down to their icons (the name stays for screen readers and as a
+   tooltip), then the unselected view labels, and only then a second row.
+   ========================================================= */
+
+.filter-bar-controls[data-fit~='detail'] .filter-bar-detail { display: none; }
+
+.filter-bar-controls[data-fit~='buttons'] .ant-btn:has(> .ant-btn-icon) > :not(.ant-btn-icon):not(.filter-bar-keep) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.filter-bar-controls[data-fit~='buttons'] .ant-btn:has(> .ant-btn-icon) { gap: 4px; }
+
+.filter-bar-controls[data-fit~='views'] .ant-segmented-item:not(.ant-segmented-item-selected) .ant-segmented-item-icon + * { display: none; }
+
+.filter-bar-controls[data-fit~='wrap'] { flex-wrap: wrap; row-gap: 8px; }
+
+/* A card too narrow for its label, figure and sparkline drops the sparkline; the label matters more. */
+.dashboard-metric-card { container-type: inline-size; }
+
+@container (max-width: 270px) {
+    .dashboard-metric-sparkline { display: none; }
+}
+
+/* On a phone-sized card the whole card is the tap target, so the arrow gives its room to the label. */
+@container (max-width: 200px) {
+    .dashboard-metric-arrow { display: none; }
 }

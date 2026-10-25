@@ -1,127 +1,183 @@
 import { useEffect, useMemo, useState } from 'react'
-import { App, Button, Col, Empty, Row, Select, Tag } from 'antd'
-import { CheckCircleOutlined, ClockCircleOutlined, FormOutlined, RightOutlined } from '@ant-design/icons'
+import { Alert, Button, Card, Progress, Tag, Typography } from 'antd'
+import {
+    ArrowRightOutlined,
+    CheckCircleFilled,
+    CheckCircleOutlined,
+    DownOutlined,
+    EditOutlined,
+    FileAddOutlined,
+    UnorderedListOutlined,
+    UpOutlined,
+} from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import DashboardPage from '@/components/shared/DashboardPage'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
-import { FilterBar } from '@/components/shared/FilterBar'
-import { MotionCard } from '@/components/shared/MotionCard'
+import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { listSurveysForParticipant, type SurveyToAnswer } from '@/services/surveyResponsesService'
-import '@/styles/survey-response.css'
+import '@/styles/incubatee-surveys.css'
 import { useLanguage } from '@/providers/LanguageProvider'
 
-const STATUS_TONE: Record<SurveyToAnswer['status'], string> = {
-    'not started': 'gold',
-    'in progress': 'blue',
-    submitted: 'green',
-}
+const { Text } = Typography
+
+/** Started surveys come before untouched ones; each keeps the order the service returned. */
+const STATUS_ORDER: Record<SurveyToAnswer['status'], number> = { 'in progress': 0, 'not started': 1, submitted: 2 }
+
+const toneOf = (status: SurveyToAnswer['status']) => status.replace(' ', '-')
 
 export default function IncubateeSurveysPage() {
     const { t } = useLanguage()
-    const { message } = App.useApp()
     const { user } = useFullIdentity()
     const navigate = useNavigate()
 
-    const [surveys, setSurveys] = useState<SurveyToAnswer[]>()
-    const [statusFilter, setStatusFilter] = useState('open')
+    // `undefined` is still loading; `null` means the load failed.
+    const [surveys, setSurveys] = useState<SurveyToAnswer[] | null>()
+    const [showSubmitted, setShowSubmitted] = useState(false)
+
+    const load = () => {
+        if (!user) return
+        void listSurveysForParticipant(user)
+            .then(setSurveys)
+            .catch((error) => {
+                console.error('Could not load surveys.', error)
+                setSurveys(null)
+            })
+    }
 
     useEffect(() => {
         if (!user) return
-        const timeout = window.setTimeout(() => {
-            void listSurveysForParticipant(user)
-                .then(setSurveys)
-                .catch(() => {
-                    message.error(t('Your surveys could not be loaded.'))
-                    setSurveys([])
-                })
-        }, 0)
+        const timeout = window.setTimeout(load, 0)
         return () => window.clearTimeout(timeout)
     }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    const rows = useMemo(() => surveys || [], [surveys])
-    // One count per status, so the three add up to the list rather than overlapping.
-    const notStarted = rows.filter((row) => row.status === 'not started').length
-    const inProgress = rows.filter((row) => row.status === 'in progress').length
-    const submitted = rows.filter((row) => row.status === 'submitted').length
+    const todo = useMemo(() => (surveys || [])
+        .map((survey, index) => ({ survey, index }))
+        .filter(({ survey }) => survey.status !== 'submitted')
+        .sort((left, right) => STATUS_ORDER[left.survey.status] - STATUS_ORDER[right.survey.status] || left.index - right.index)
+        .map(({ survey }) => survey), [surveys])
+    const submitted = useMemo(() => (surveys || []).filter((survey) => survey.status === 'submitted'), [surveys])
 
-    const visible = useMemo(() => rows.filter((row) => {
-        if (statusFilter === 'all') return true
-        if (statusFilter === 'open') return row.status !== 'submitted'
-        return row.status === statusFilter
-    }), [rows, statusFilter])
+    if (surveys === undefined) return <PageSkeleton variant="dashboard" label={t('Loading your surveys')} />
+
+    if (surveys === null) {
+        return (
+            <DashboardPage className="incubatee-page incubatee-surveys-page">
+                <Alert type="error" showIcon message={t('Your surveys could not be loaded.')} action={<Button onClick={() => { setSurveys(undefined); load() }}>{t('Try again')}</Button>} />
+            </DashboardPage>
+        )
+    }
+
+    const total = surveys.length
+    const notStarted = todo.filter((survey) => survey.status === 'not started').length
+    const inProgress = todo.length - notStarted
+    const score = total ? Math.round((submitted.length / total) * 100) : 0
+    const next = todo[0]
+
+    const open = (survey: SurveyToAnswer) => navigate(`/incubatee/surveys/${survey.templateId}`)
+    const actionLabel = (survey: SurveyToAnswer) => survey.status === 'not started' ? t('Start') : survey.status === 'in progress' ? t('Continue') : t('View')
+    const statusLabel = (survey: SurveyToAnswer) => survey.status === 'not started' ? t('Not started') : survey.status === 'in progress' ? t('In progress') : t('Submitted')
+
+    const meta = (survey: SurveyToAnswer) => [
+        survey.category,
+        t('{count} questions', undefined, { count: survey.questionCount }),
+        survey.submittedAt
+            ? t('submitted {date}', undefined, { date: dayjs(survey.submittedAt).format('D MMM') })
+            : survey.updatedAt ? t('saved {date}', undefined, { date: dayjs(survey.updatedAt).format('D MMM') }) : '',
+    ].filter(Boolean).join(' · ')
+
+    const renderRow = (survey: SurveyToAnswer) => (
+        <li key={survey.templateId} className={`surveys-row is-${toneOf(survey.status)}`}>
+            <span className="surveys-row-icon" aria-hidden="true">
+                {survey.status === 'submitted' ? <CheckCircleOutlined /> : survey.status === 'in progress' ? <EditOutlined /> : <FileAddOutlined />}
+            </span>
+            <div className="surveys-row-main">
+                <span className="surveys-row-title">
+                    <Text strong>{survey.title}</Text>
+                    {survey.status === 'in progress' && <Tag color="blue">{statusLabel(survey)}</Tag>}
+                </span>
+                <Text type="secondary" className="surveys-row-meta">{meta(survey)}</Text>
+            </div>
+            <Button onClick={() => open(survey)}>{actionLabel(survey)}</Button>
+        </li>
+    )
 
     return (
         <DashboardPage className="incubatee-page incubatee-surveys-page">
-            <Row gutter={[12, 12]} className="dashboard-metrics-row">
-                <Col xs={12} lg={8}>
-                    <DashboardMetricCard loading={!surveys} icon={<FormOutlined />} label={t('Not started')} value={notStarted} />
-                </Col>
-                <Col xs={12} lg={8}>
-                    <DashboardMetricCard loading={!surveys} icon={<ClockCircleOutlined />} label={t('In progress')} value={inProgress} />
-                </Col>
-                <Col xs={12} lg={8}>
-                    <DashboardMetricCard loading={!surveys} icon={<CheckCircleOutlined />} label={t('Submitted')} value={submitted} />
-                </Col>
-            </Row>
+            <section className="surveys-summary">
+                {/* The shared metric card has no ring, so the completion score borrows its card styles. */}
+                <Card className="dashboard-metric-card surveys-score-card" bordered>
+                    <div className="dashboard-metric-row">
+                        <Progress
+                            type="circle"
+                            percent={score}
+                            size={44}
+                            strokeWidth={10}
+                            strokeColor="#6d5dfb"
+                            format={(percent) => <span className="surveys-score-value">{percent}%</span>}
+                        />
+                        <div className="dashboard-metric-copy">
+                            <Text strong>{t('Surveys')}</Text>
+                            <Text type="secondary" className="dashboard-metric-label">
+                                {t('{done} of {total} submitted', undefined, { done: submitted.length, total })}
+                            </Text>
+                        </div>
+                    </div>
+                </Card>
+                <DashboardMetricCard icon={<FileAddOutlined />} label={t('Not started')} value={notStarted} />
+                <DashboardMetricCard icon={<EditOutlined />} label={t('In progress')} value={inProgress} />
+                <DashboardMetricCard icon={<CheckCircleOutlined />} label={t('Submitted')} value={submitted.length} />
+            </section>
 
-            <FilterBar
-                compact
-                primary={
-                    <Select
-                        value={statusFilter}
-                        onChange={setStatusFilter}
-                        options={[
-                            { value: 'open', label: t('Still to do') },
-                            { value: 'in progress', label: t('Started') },
-                            { value: 'submitted', label: t('Submitted') },
-                            { value: 'all', label: t('All surveys') },
-                        ]}
-                    />
-                }
-            />
+            {next ? (
+                <section className={`surveys-next is-${toneOf(next.status)}`}>
+                    <span className="surveys-next-eyebrow"><ArrowRightOutlined /> {t('Next step')}</span>
+                    <div className="surveys-next-body">
+                        <span className="surveys-next-icon" aria-hidden="true">{next.status === 'in progress' ? <EditOutlined /> : <FileAddOutlined />}</span>
+                        <div className="surveys-next-text">
+                            <Text strong className="surveys-next-title">
+                                {next.status === 'in progress'
+                                    ? t('Continue "{title}"', undefined, { title: next.title })
+                                    : t('Start "{title}"', undefined, { title: next.title })}
+                            </Text>
+                            <Text type="secondary">{next.description || meta(next)}</Text>
+                        </div>
+                        <div className="surveys-next-actions">
+                            <Button type="primary" size="large" onClick={() => open(next)}>{actionLabel(next)}</Button>
+                        </div>
+                    </div>
+                </section>
+            ) : (
+                <section className="surveys-next is-done">
+                    <div className="surveys-next-body">
+                        <span className="surveys-next-icon" aria-hidden="true"><CheckCircleFilled /></span>
+                        <div className="surveys-next-text">
+                            <Text strong className="surveys-next-title">{total ? t("You're all caught up") : t('No surveys right now')}</Text>
+                            <Text type="secondary">{t('New surveys from your programme will appear here.')}</Text>
+                        </div>
+                    </div>
+                </section>
+            )}
 
-            <MotionCard loading={!surveys} className="survey-answer-panel" title={t('Your surveys')}>
-                {visible.length ? (
-                    <ul className="survey-answer-list">
-                        {visible.map((row) => (
-                            <li className="survey-answer-row" key={row.templateId}>
-                                <span className={`survey-answer-icon is-${row.status.replace(' ', '-')}`}>
-                                    {row.status === 'submitted' ? <CheckCircleOutlined /> : <FormOutlined />}
-                                </span>
+            {todo.length > 0 && (
+                <section className="surveys-group is-todo">
+                    <h3 className="surveys-group-head"><UnorderedListOutlined aria-hidden="true" /> {t('To do')}</h3>
+                    <ul className="surveys-list">{todo.map(renderRow)}</ul>
+                </section>
+            )}
 
-                                <span className="survey-answer-copy">
-                                    <strong>{row.title}</strong>
-                                    <span>
-                                        {[
-                                            row.category,
-                                            `${row.questionCount} question${row.questionCount === 1 ? '' : 's'}`,
-                                            row.submittedAt ? `Submitted ${dayjs(row.submittedAt).format('DD MMM')}` : row.updatedAt ? `Saved ${dayjs(row.updatedAt).format('DD MMM')}` : '',
-                                        ].filter(Boolean).join(' · ')}
-                                    </span>
-                                </span>
-
-                                <Tag color={STATUS_TONE[row.status]} className="survey-answer-status">
-                                    {row.status === 'not started' ? t('Not started') : row.status === 'in progress' ? t('In progress') : t('Submitted')}
-                                </Tag>
-
-                                <Button
-                                    type={row.status === 'submitted' ? 'default' : 'primary'}
-                                    size="small"
-                                    icon={<RightOutlined />}
-                                    iconPosition="end"
-                                    onClick={() => navigate(`/incubatee/surveys/${row.templateId}`)}
-                                >
-                                    {row.status === 'not started' ? t('Start') : row.status === 'in progress' ? t('Continue') : t('View')}
-                                </Button>
-                            </li>
-                        ))}
-                    </ul>
-                ) : (
-                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('Nothing to complete right now.')} />
-                )}
-            </MotionCard>
+            {submitted.length > 0 && (
+                <section className="surveys-group is-submitted">
+                    <h3 className="surveys-group-head">
+                        <CheckCircleOutlined aria-hidden="true" /> {t('Submitted')}
+                        <Button type="link" size="small" className="surveys-group-toggle" onClick={() => setShowSubmitted((value) => !value)} icon={showSubmitted ? <UpOutlined /> : <DownOutlined />} iconPlacement="end">
+                            {showSubmitted ? t('Hide') : t('Show {count}', undefined, { count: submitted.length })}
+                        </Button>
+                    </h3>
+                    {showSubmitted && <ul className="surveys-list">{submitted.map(renderRow)}</ul>}
+                </section>
+            )}
         </DashboardPage>
     )
 }

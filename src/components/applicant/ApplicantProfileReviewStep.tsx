@@ -76,6 +76,11 @@ export default function ApplicantProfileReviewStep({ values }: ApplicantProfileR
           <Descriptions.Item label={t('Youth-owned %')}>{display(values.youthOwnedPercent)}</Descriptions.Item>
           <Descriptions.Item label={t('Female-owned %')}>{display(values.femaleOwnedPercent)}</Descriptions.Item>
           <Descriptions.Item label={t('Black-owned %')}>{display(values.blackOwnedPercent)}</Descriptions.Item>
+          <Descriptions.Item label={t('Directors and shareholders')} span={2}>
+            {values.directors?.length
+              ? values.directors.map((director) => `${director.fullName} (${Number(director.sharePercent) || 0}%)`).join(', ')
+              : '—'}
+          </Descriptions.Item>
           <Descriptions.Item label={t('Nature of business')} span={2}>
             <Text>{display(values.natureOfBusiness)}</Text>
           </Descriptions.Item>

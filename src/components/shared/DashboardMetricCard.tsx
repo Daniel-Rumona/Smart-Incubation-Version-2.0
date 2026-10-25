@@ -1,7 +1,7 @@
 import type { ReactNode, RefObject } from 'react'
 import { useEffect, useRef } from 'react'
 import { Card, Grid, Skeleton, Typography } from 'antd'
-import { RightOutlined } from '@ant-design/icons'
+import { ArrowDownOutlined, ArrowUpOutlined, MinusOutlined, RightOutlined } from '@ant-design/icons'
 import { useCountUp } from 'react-countup'
 
 import '@/styles/dashboard.css'
@@ -21,6 +21,59 @@ type DashboardMetricCardProps = {
     /** Set to false to omit this card entirely on mobile. Defaults to true. */
     onMobile?: boolean
     onClick?: () => void
+    /**
+     * Change against an earlier period. Shown as a compact badge beside the figure (an arrow and `amount`, e.g. "12");
+     * `text` is the full sentence ("+12 vs 30 days ago") for the tooltip and screen readers. `tone` says whether it's good news.
+     */
+    trend?: { text: string; amount?: string; direction?: 'up' | 'down' | 'flat'; tone: 'good' | 'bad' | 'neutral' }
+    /** A few recent values (oldest first) drawn as a small line, to show direction at a glance. */
+    sparkline?: number[]
+}
+
+/**
+ * A smooth path through the points using monotone cubic interpolation (Fritsch–Carlson): it curves like a
+ * spline but never overshoots, so a count never appears to dip below zero or peak above its real value.
+ */
+const smoothPath = (points: Array<[number, number]>) => {
+    const count = points.length
+    const slopes = points.slice(0, -1).map(([x, y], index) => (points[index + 1][1] - y) / (points[index + 1][0] - x))
+    const tangents = points.map((_, index) => {
+        if (index === 0) return slopes[0]
+        if (index === count - 1) return slopes[count - 2]
+        const before = slopes[index - 1]
+        const after = slopes[index]
+        return before * after <= 0 ? 0 : (before + after) / 2
+    })
+    // Keep the curve monotone between points where the data is.
+    slopes.forEach((slope, index) => {
+        if (slope === 0) { tangents[index] = 0; tangents[index + 1] = 0; return }
+        const a = tangents[index] / slope
+        const b = tangents[index + 1] / slope
+        const length = Math.hypot(a, b)
+        if (length > 3) { tangents[index] = (3 / length) * a * slope; tangents[index + 1] = (3 / length) * b * slope }
+    })
+    return points.reduce((path, [x, y], index) => {
+        if (index === 0) return `M${x},${y}`
+        const [x0, y0] = points[index - 1]
+        const step = (x - x0) / 3
+        return `${path} C${x0 + step},${y0 + tangents[index - 1] * step} ${x - step},${y - tangents[index] * step} ${x},${y}`
+    }, '')
+}
+
+/** A tiny trend curve: no axes or labels, the card's value and trend text carry the numbers. */
+function Sparkline({ values }: { values: number[] }) {
+    if (values.length < 2) return null
+    const max = Math.max(...values)
+    const min = Math.min(...values)
+    const span = max - min || 1
+    const points = values.map((value, index): [number, number] => [(index / (values.length - 1)) * 100, 26 - ((value - min) / span) * 22])
+    const line = smoothPath(points)
+    return (
+        <svg className="dashboard-metric-sparkline" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true">
+            <path d={`${line} L100,28 L0,28 Z`} className="dashboard-metric-sparkline-area" />
+            <path d={line} className="dashboard-metric-sparkline-line" vectorEffect="non-scaling-stroke" />
+        </svg>
+    )
 }
 
 type AnimatedMetricValueProps = {
@@ -66,6 +119,8 @@ export default function DashboardMetricCard({
     loading = false,
     onMobile = true,
     onClick,
+    trend,
+    sparkline,
 }: DashboardMetricCardProps) {
     const isMobile = !Grid.useBreakpoint().md
 
@@ -134,7 +189,7 @@ export default function DashboardMetricCard({
             onClick={onClick}
         >
             <div
-                className="dashboard-metric-row"
+                className={sparkline ? 'dashboard-metric-row has-sparkline' : 'dashboard-metric-row'}
                 title={hint}
             >
                 {icon && (
@@ -151,13 +206,22 @@ export default function DashboardMetricCard({
                         {displayLabel}
                     </Typography.Text>
 
-                    <span className="dashboard-metric-value">
-                        {isNumericValue ? (
-                            <AnimatedMetricValue value={value} />
-                        ) : (
-                            value
+                    {/* The change sits beside the figure it describes, keeping the card to two lines. */}
+                    <div className="dashboard-metric-value-line">
+                        <span className="dashboard-metric-value">
+                            {isNumericValue ? (
+                                <AnimatedMetricValue value={value} />
+                            ) : (
+                                value
+                            )}
+                        </span>
+                        {trend && (
+                            <span className={`dashboard-metric-trend is-${trend.tone}`} title={trend.text} aria-label={trend.text}>
+                                {trend.direction === 'up' ? <ArrowUpOutlined /> : trend.direction === 'down' ? <ArrowDownOutlined /> : trend.direction === 'flat' ? <MinusOutlined /> : null}
+                                {trend.amount ?? trend.text}
+                            </span>
                         )}
-                    </span>
+                    </div>
 
                     {hint && (
                         <Typography.Text
@@ -168,6 +232,8 @@ export default function DashboardMetricCard({
                         </Typography.Text>
                     )}
                 </div>
+
+                {sparkline && <Sparkline values={sparkline} />}
 
                 {(clickable || Boolean(onClick)) && (
                     <span

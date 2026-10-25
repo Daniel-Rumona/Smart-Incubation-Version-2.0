@@ -43,16 +43,17 @@ export const buildDemoIncubateeWorkspace = (): IncubateeWorkspace => ({
     growthPlanConfirmed: true,
     growthPlanAvailable: true,
     outstandingDocuments: 3,
+    swotItems: [],
     requiredInterventions: [
         { id: 'req-1', title: 'Financial management fundamentals', areaOfSupport: 'Finance', executionMode: 'multi_step' },
         { id: 'req-2', title: 'Market access readiness', areaOfSupport: 'Market access', executionMode: 'single_session' },
     ],
     assignedInterventions: [
-        intervention('demo-1', 'Cash flow forecasting workshop', 'Finance', 'Awaiting Your Acceptance', 0, {
+        intervention('demo-1', 'Cash flow forecasting workshop', 'Finance', 'Not Started', 0, {
             assigneeName: 'Nomsa Dlamini',
             dueDate: daysFromNow(5),
         }),
-        intervention('demo-2', 'Retail compliance pack review', 'Compliance', 'Awaiting Your Acceptance', 0, {
+        intervention('demo-2', 'Retail compliance pack review', 'Compliance', 'Not Started', 0, {
             assigneeName: 'Sipho Ndlovu',
             dueDate: daysFromNow(9),
         }),

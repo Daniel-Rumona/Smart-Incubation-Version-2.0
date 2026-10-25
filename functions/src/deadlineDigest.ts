@@ -1,4 +1,7 @@
 import { FieldValue, Timestamp, type Firestore } from 'firebase-admin/firestore'
+import { canReceiveWhatsAppAlerts } from './whatsappConsent.js'
+import { companyHasFeature } from './entitlements.js'
+import { alertPlainText, type AlertParts } from './alertMessages.js'
 
 /*
  * Daily overdue / near-due intervention digest for operations staff.
@@ -24,7 +27,7 @@ export type DigestDeps = {
   db: Firestore
   appUrl: string
   sendEmail: (to: string, template: DigestTemplate) => Promise<'queued' | 'suppressed' | 'invalid'>
-  sendWhatsApp: (phone: string, text: string) => Promise<boolean>
+  sendWhatsApp: (phone: string, text: string, parts?: AlertParts) => Promise<boolean>
   now?: Date
   dueSoonDays?: number
   dryRun?: boolean
@@ -225,10 +228,19 @@ export async function runInterventionDeadlineDigest(deps: DigestDeps): Promise<D
       }
 
       const numbers = whatsappNumbers(user)
-      if (numbers.length) {
-        const text = `Smart Incubation: ${countsLine(overdue, dueSoon)} intervention${items.length === 1 ? '' : 's'} need attention.\n${top.slice(0, 3).map(item => `• ${item.title} (${item.sme}): ${dueLabel(item)}`).join('\n')}\n${link}`
+      if (!(await companyHasFeature(db, companyCode, 'whatsappComms'))) {
+        channels.whatsapp = 'not_in_plan'
+      } else if (!canReceiveWhatsAppAlerts(user)) {
+        channels.whatsapp = 'not_consented'
+      } else if (numbers.length) {
+        const parts: AlertParts = {
+          firstName: String(user.displayName || user.name || '').trim().split(/\s+/)[0] || '',
+          headline: `${items.length} intervention${items.length === 1 ? '' : 's'} needing attention`,
+          items: top.map(item => ({ title: item.title, sme: item.sme, overdue: item.level === 'overdue', when: dueLabel(item) })),
+        }
+        const text = alertPlainText(parts, `Review them here: ${link}`)
         try {
-          channels.whatsapp = (await deps.sendWhatsApp(numbers[0], text)) ? 'sent' : 'failed'
+          channels.whatsapp = (await deps.sendWhatsApp(numbers[0], text, parts)) ? 'sent' : 'failed'
         } catch {
           channels.whatsapp = 'failed'
         }

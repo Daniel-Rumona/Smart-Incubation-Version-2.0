@@ -1,13 +1,15 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { App, Button, Card, Descriptions, InputNumber, Radio, Select, Space, Steps, Typography } from 'antd'
 import { useNavigate } from 'react-router-dom'
 import DashboardHeader from '@/components/shared/DashboardHeader'
 import DashboardPage from '@/components/shared/DashboardPage'
-import { LoadingOverlay } from '@/components/shared/LoadingOverlay'
+import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { listCompaniesForOnboarding, type WorkspaceCompany } from '@/services/companiesService'
 import { getApplicantProfileBundle, isApplicantProfileComplete } from '@/services/applicantService'
 import { completeSmeOnboarding, skipSmeOnboarding } from '@/services/smeOnboardingService'
+import { callableMessage, forgetProgramLink, joinProgramAsSme, readPendingProgramLink } from '@/services/programLinkService'
+import { ProgramLinkJoin } from '@/components/applicant/ProgramLinkJoin'
 import { listOpenPrograms, listProgramsForCompany, type OpenWorkspaceProgram, type WorkspaceProgram } from '@/services/workspaceProgramsService'
 import type { SmeOnboardingPath } from '@/types/smeOnboarding'
 import { useLanguage, tr } from '@/providers/LanguageProvider'
@@ -49,6 +51,13 @@ export default function SmeOnboardingPage() {
   const [selectedProgramId, setSelectedProgramId] = useState<string>()
   const [currentKey, setCurrentKey] = useState<StepKey>('start')
   const [submitting, setSubmitting] = useState(false)
+  // A programme link already names the programme, so there is nothing for the SME to choose. The link is
+  // read from this browser or, when sign-up was finished elsewhere, from the account.
+  const [localProgramId] = useState(() => readPendingProgramLink())
+  const pendingProgramId = localProgramId || user?.pendingProgramId || ''
+  const [autoJoinFailed, setAutoJoinFailed] = useState(false)
+  const autoJoining = Boolean(pendingProgramId) && !autoJoinFailed
+  const autoJoinStarted = useRef(false)
 
   const stepKeys = useMemo<StepKey[]>(() => {
     if (hasCompany === true) return ['start', 'company', 'program', 'review']
@@ -109,7 +118,7 @@ export default function SmeOnboardingPage() {
   const skip = async () => {
     if (!user) return
     try {
-      await skipSmeOnboarding(user.uid, user.companyCode)
+      await skipSmeOnboarding()
     } catch {
       // Non-blocking — the applicant profile page still works even if this write fails.
     }
@@ -121,7 +130,7 @@ export default function SmeOnboardingPage() {
     setSubmitting(true)
     try {
       const path: SmeOnboardingPath = hasCompany ? 'company_program' : wantsSpecificProgram ? 'open_program' : 'marketplace'
-      await completeSmeOnboarding(user.uid, {
+      await completeSmeOnboarding({
         hasCompany: Boolean(hasCompany),
         companyCode: hasCompany ? companyCode : undefined,
         companyName: hasCompany ? selectedCompany?.name : undefined,
@@ -146,7 +155,25 @@ export default function SmeOnboardingPage() {
     }
   }
 
-  if (!user) return <LoadingOverlay tip={t('Loading your account')} />
+  useEffect(() => {
+    if (!user || !pendingProgramId || autoJoinStarted.current) return
+    autoJoinStarted.current = true
+    void (async () => {
+      try {
+        const joined = await joinProgramAsSme({ path: 'program_link', programId: pendingProgramId })
+        void forgetProgramLink(user.uid)
+        const bundle = await getApplicantProfileBundle(user.uid, user.email)
+        // Details first, then straight into the application for the programme from the link.
+        navigate(isApplicantProfileComplete(bundle) ? `/applicant/programs/${joined.programId}/apply` : '/applicant/profile', { replace: true })
+      } catch (error) {
+        void forgetProgramLink(user.uid)
+        message.error(callableMessage(error, t('We could not use that programme link. You can choose a company below.')))
+        setAutoJoinFailed(true)
+      }
+    })()
+  }, [message, navigate, pendingProgramId, t, user])
+
+  if (!user || autoJoining) return <PageSkeleton variant="detail" label={autoJoining ? t('Setting up your programme') : t('Loading your account')} />
 
   return (
     <DashboardPage className="applicant-page">
@@ -173,6 +200,7 @@ export default function SmeOnboardingPage() {
               buttonStyle="solid"
               options={[{ label: t('Yes, we already use this platform'), value: true }, { label: t('No, I\'m a general SME'), value: false }]}
             />
+            <ProgramLinkJoin />
           </Space>
         )}
 

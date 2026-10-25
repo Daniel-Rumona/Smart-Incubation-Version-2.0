@@ -1,0 +1,141 @@
+/* =========================================================
+   DIRECTORS EDITOR
+   Used in the applicant wizard's compliance step and in the
+   business profile's Directors and ownership section.
+   ========================================================= */
+
+.directors-editor {
+    --directors-accent: #6d5dfb;
+    --directors-divider: rgba(15, 23, 42, 0.06);
+    display: grid;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.directors-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.directors-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-top: 1px solid var(--directors-divider);
+}
+
+.directors-row:first-child {
+    border-top: none;
+}
+
+.directors-avatar {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--directors-accent);
+    background: rgba(109, 93, 251, 0.1);
+}
+
+.directors-row-main {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.directors-row-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.directors-row-title .ant-tag {
+    margin: 0;
+}
+
+.directors-row-meta {
+    font-size: 13px;
+}
+
+.directors-row-actions {
+    display: flex;
+    gap: 2px;
+}
+
+.directors-add {
+    justify-self: start;
+}
+
+.directors-ownership {
+    display: grid;
+    gap: 8px;
+    padding: 12px;
+    border-radius: 12px;
+    background: rgba(109, 93, 251, 0.05);
+}
+
+.directors-ownership-label {
+    font-size: 12px;
+}
+
+.directors-ownership-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.directors-ownership-grid > div {
+    display: grid;
+}
+
+.directors-ownership-grid .ant-typography:first-child {
+    font-size: 16px;
+}
+
+.directors-ownership-grid .ant-typography + .ant-typography {
+    font-size: 12px;
+}
+
+html[data-theme='dark'] .directors-editor {
+    --directors-accent: #8b7dff;
+    --directors-divider: rgba(255, 255, 255, 0.08);
+}
+
+html[data-theme='dark'] .directors-ownership {
+    background: rgba(139, 92, 246, 0.1);
+}
+
+@media (max-width: 767px) {
+    .directors-add {
+        justify-self: stretch;
+    }
+
+    .directors-ownership-grid {
+        grid-template-columns: 1fr;
+        gap: 6px;
+    }
+
+    .directors-ownership-grid > div {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+    }
+}
+
+/* The SME's own row before they have finished it. */
+.directors-row.is-pending .directors-avatar {
+    border: 1px dashed var(--directors-accent);
+    background: transparent;
+}
+
+.directors-more-toggle {
+    padding: 0;
+    margin: -4px 0 8px;
+}

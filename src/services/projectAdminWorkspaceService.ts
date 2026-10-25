@@ -81,6 +81,8 @@ export type ProjectAdminIntervention = {
 
 export type ProjectAdminComplianceDocument = {
   id: string
+  /** The document's name, e.g. "Tax compliance (PIN or clearance)". */
+  type: string
   participantId: string
   programId: string
   status: string
@@ -189,7 +191,7 @@ export const loadProjectAdminWorkspace = async (
   ] = await Promise.all([
     getDocs(query(collection(db, 'applications'), ...companyConstraints)),
     getDocs(query(collection(db, 'participants'), ...companyConstraints)),
-    getDocs(collection(db, 'assignedInterventions')),
+    getDocs(query(collection(db, 'assignedInterventions'), ...companyConstraints)),
     getDocs(query(collection(db, 'complianceDocuments'), ...companyConstraints)),
     getDocs(query(collection(db, 'users'), ...companyConstraints)),
     getDocs(query(collection(db, 'programs'), ...companyConstraints)),
@@ -340,6 +342,7 @@ export const loadProjectAdminWorkspace = async (
 
     return [{
       id: row.id,
+      type: String(data.type || data.documentName || data.key || 'Compliance document'),
       participantId: String(data.participantId || ''),
       programId,
       status: String(data.verificationStatus || data.currentStatus || data.status || 'pending'),

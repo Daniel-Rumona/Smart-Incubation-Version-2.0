@@ -1,31 +1,40 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { App, Button, Card, Col, DatePicker, Empty, Modal, Progress, Row, Segmented, Space, Table, Tag, theme, Typography } from 'antd'
+import { useNavigate } from 'react-router-dom'
+import { App, Button, Card, Col, DatePicker, Empty, Grid, Progress, Row, Segmented, Space, Tag, theme, Typography } from 'antd'
 import {
     AppstoreOutlined,
     AuditOutlined,
+    BulbOutlined,
     CheckCircleOutlined,
     DashboardOutlined,
     DollarCircleOutlined,
-    ExclamationCircleOutlined,
     FallOutlined,
     FileProtectOutlined,
     FundOutlined,
     MinusOutlined,
+    PlayCircleOutlined,
     RiseOutlined,
     TeamOutlined,
+    WarningOutlined,
 } from '@ant-design/icons'
 import type Highcharts from 'highcharts'
 import dayjs, { type Dayjs } from 'dayjs'
 import quarterOfYear from 'dayjs/plugin/quarterOfYear'
-import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
+import ResponsiveModal from '@/components/shared/ResponsiveModal'
+import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
 import { ReportExportButton } from '@/components/shared/ReportExportButton'
+import { ReportPlayer, type PlayerSlide } from '@/components/reports/ReportPlayer'
 import { ThemedHighcharts } from '@/components/shared/ThemedHighcharts'
 import { CHART_COLORS, CHART_PALETTE } from '@/config/chartPalette'
 import { useActiveProgramId } from '@/hooks/useActiveProgramId'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import type { ReportExportData } from '@/services/reportExport'
+import { resolveReportInsights } from '@/services/reportExport/insights'
+import type { ReportInsights } from '@/services/reportExport/types'
+import { getCompanyName } from '@/services/userProfileService'
+import { useThemeMode } from '@/providers/ThemeProvider'
 import {
     filterProjectAdminDataByRange,
     isComplianceAttentionStatus,
@@ -196,34 +205,61 @@ const ProgrammeCard = ({ row, onClick }: { row: ProgrammeRow, onClick: () => voi
     )
 }
 
-const RateChangeCard = ({ title, icon, value, previousValue, caption, loading }: {
+type RateItem = {
     title: string
     icon: ReactNode
     value: number
-    previousValue: number
+    /** null when the previous period had no records, so there is nothing to compare with. */
+    previousValue: number | null
     caption: string
-    loading?: boolean
-}) => {
+}
+
+/** The change in points against the previous period, or a plain note when there's no earlier figure. */
+const RateDelta = ({ value, previousValue }: Pick<RateItem, 'value' | 'previousValue'>) => {
     const { t } = useLanguage()
     const { token } = theme.useToken()
+    if (previousValue === null) return <Typography.Text type="secondary" className="pa-rate-delta">{t('New this period')}</Typography.Text>
     const delta = value - previousValue
-    const deltaColor = delta > 0 ? token.colorSuccess : delta < 0 ? token.colorError : token.colorTextSecondary
+    const color = delta > 0 ? token.colorSuccess : delta < 0 ? token.colorError : token.colorTextSecondary
     const DeltaIcon = delta > 0 ? RiseOutlined : delta < 0 ? FallOutlined : MinusOutlined
+    return (
+        <span className="pa-rate-delta" style={{ color }}>
+            <DeltaIcon />
+            <Typography.Text strong style={{ color }}>{delta === 0 ? t('No change') : t('{points} pts', undefined, { points: Math.abs(delta) })}</Typography.Text>
+        </span>
+    )
+}
 
+const RateChangeCard = ({ title, icon, value, previousValue, caption, loading }: RateItem & { loading?: boolean }) => {
+    const { t } = useLanguage()
     return (
         <Card loading={loading} className="dashboard-section-card motion-card" title={<Space>{icon} {title}</Space>}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
                 <Typography.Text strong style={{ fontSize: 34, lineHeight: 1 }}>{value}%</Typography.Text>
-                <Space size={4} style={{ color: deltaColor }}>
-                    <DeltaIcon />
-                    <Typography.Text strong style={{ color: deltaColor }}>{Math.abs(delta)}{t('pt')}{Math.abs(delta) === 1 ? '' : 's'}</Typography.Text>
-                </Space>
+                <RateDelta value={value} previousValue={previousValue} />
             </div>
-            <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 6 }}>{t('vs')} {previousValue}{t('% previous period')}</Typography.Text>
+            <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 6 }}>
+                {previousValue === null ? t('No records in the previous period to compare with') : t('vs {rate}% in the previous period', undefined, { rate: previousValue })}
+            </Typography.Text>
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>{caption}</Typography.Text>
         </Card>
     )
 }
+
+/** Phone version: one row per rate inside a single card. */
+const RateRow = ({ title, icon, value, previousValue, caption }: RateItem) => (
+    <div className="pa-rate-row">
+        <span className="pa-rate-icon" aria-hidden>{icon}</span>
+        <span className="pa-rate-text">
+            <Typography.Text strong>{title}</Typography.Text>
+            <Typography.Text type="secondary">{caption}</Typography.Text>
+        </span>
+        <span className="pa-rate-figure">
+            <strong>{value}%</strong>
+            <RateDelta value={value} previousValue={previousValue} />
+        </span>
+    </div>
+)
 
 const PerformanceStatCard = ({ title, icon, formattedValue, deltaLabel, deltaPositive, headline, caption, loading }: {
     title: string
@@ -329,6 +365,7 @@ const buildTimeBuckets = (dates: Array<Date | null>, range: [Dayjs, Dayjs] | nul
 
 export default function ProjectAdminReportsPage() {
     const { t } = useLanguage()
+    const navigate = useNavigate()
     const { message } = App.useApp()
     const { user, loading: identityLoading } = useFullIdentity()
     const { activeProgramId } = useActiveProgramId()
@@ -337,8 +374,13 @@ export default function ProjectAdminReportsPage() {
     const [view, setView] = useState<ReportView>('overview')
     const [data, setData] = useState<ProjectAdminWorkspaceData>(emptyWorkspace)
     const [selectedProgramme, setSelectedProgramme] = useState<string>()
-    const [applicantProfileOpen, setApplicantProfileOpen] = useState(false)
+    const [applicationsTab, setApplicationsTab] = useState<'trends' | 'profile'>('trends')
     const [drilldown, setDrilldown] = useState<DrilldownState | null>(null)
+    const { mode: playerMode } = useThemeMode()
+    const [playerOpen, setPlayerOpen] = useState(false)
+    const [playerOrigin, setPlayerOrigin] = useState<{ x: number, y: number } | null>(null)
+    const [playerInsights, setPlayerInsights] = useState<{ insights: ReportInsights, aiGenerated: boolean } | null>(null)
+    const [companyName, setCompanyName] = useState('')
 
     const rangePresets = useMemo(() => {
         const now = dayjs()
@@ -593,18 +635,18 @@ export default function ProjectAdminReportsPage() {
         const applications = periodData.applications
         const definitions = [
             { key: 'gender', title: t('Gender'), type: 'pie' as const, read: (row: typeof applications[number]) => row.gender },
-            { key: 'age', title: t('Age Group'), type: 'column' as const, read: (row: typeof applications[number]) => row.ageGroup },
+            { key: 'age', title: t('Age group'), type: 'column' as const, read: (row: typeof applications[number]) => row.ageGroup },
             { key: 'province', title: t('Province'), type: 'bar' as const, read: (row: typeof applications[number]) => row.province },
             { key: 'city', title: t('City'), type: 'bar' as const, read: (row: typeof applications[number]) => row.city },
-            { key: 'sector', title: t('Business Sector'), type: 'bar' as const, read: (row: typeof applications[number]) => row.sector },
-            { key: 'stage', title: t('Business Stage'), type: 'column' as const, read: (row: typeof applications[number]) => row.stage },
+            { key: 'sector', title: t('Business sector'), type: 'bar' as const, read: (row: typeof applications[number]) => row.sector },
+            { key: 'stage', title: t('Business stage'), type: 'column' as const, read: (row: typeof applications[number]) => row.stage },
             { key: 'bee', title: t('B-BBEE Level'), type: 'column' as const, read: (row: typeof applications[number]) => row.beeLevel },
             { key: 'hub', title: t('Hub'), type: 'bar' as const, read: (row: typeof applications[number]) => row.hub },
-            { key: 'location', title: t('Location Type'), type: 'pie' as const, read: (row: typeof applications[number]) => row.locationType },
-            { key: 'disability', title: t('Disability Status'), type: 'pie' as const, read: (row: typeof applications[number]) => row.disabilityStatus },
-            { key: 'education', title: t('Education Level'), type: 'bar' as const, read: (row: typeof applications[number]) => row.educationLevel },
-            { key: 'employment', title: t('Employment Status'), type: 'column' as const, read: (row: typeof applications[number]) => row.employmentStatus },
-            { key: 'marital', title: t('Marital Status'), type: 'pie' as const, read: (row: typeof applications[number]) => row.maritalStatus },
+            { key: 'location', title: t('Location type'), type: 'pie' as const, read: (row: typeof applications[number]) => row.locationType },
+            { key: 'disability', title: t('Disability status'), type: 'pie' as const, read: (row: typeof applications[number]) => row.disabilityStatus },
+            { key: 'education', title: t('Education level'), type: 'bar' as const, read: (row: typeof applications[number]) => row.educationLevel },
+            { key: 'employment', title: t('Employment status'), type: 'column' as const, read: (row: typeof applications[number]) => row.employmentStatus },
+            { key: 'marital', title: t('Marital status'), type: 'pie' as const, read: (row: typeof applications[number]) => row.maritalStatus },
         ]
         return definitions
             .filter((definition) => applications.some((application) => Boolean(definition.read(application).trim())))
@@ -895,37 +937,232 @@ export default function ProjectAdminReportsPage() {
         }
     }
 
+    const pageLoading = identityLoading || loading
+    const isMobile = !Grid.useBreakpoint().md
+
+    // A rate can only be compared with the previous period if that period had records to measure.
+    const rateItems = [
+        {
+            key: 'acceptance',
+            title: t('Acceptance rate'),
+            icon: <AuditOutlined />,
+            value: metrics.acceptanceRate,
+            previousValue: previousPeriodData.applications.length ? previousRates.acceptanceRate : null,
+            caption: t('{open} of {total} still open', undefined, { open: metrics.openApplications, total: periodData.applications.length }),
+        },
+        {
+            key: 'delivery',
+            title: t('Delivery rate'),
+            icon: <CheckCircleOutlined />,
+            value: metrics.deliveryRate,
+            previousValue: previousPeriodData.interventions.length ? previousRates.deliveryRate : null,
+            caption: t('{done} of {total} completed', undefined, { done: metrics.completedInterventions, total: periodData.interventions.length }),
+        },
+        {
+            key: 'compliance',
+            title: t('Compliance rate'),
+            icon: <FileProtectOutlined />,
+            value: metrics.complianceRate,
+            previousValue: previousPeriodData.complianceDocuments.length ? previousRates.complianceRate : null,
+            caption: t('{count} of {total} need attention', undefined, { count: metrics.complianceAttention, total: periodData.complianceDocuments.length }),
+        },
+    ]
+    // Compliance documents only carry the participant's id.
+    const participantNameById = useMemo(() => new Map(data.participants.map((participant) => [participant.id, participant.businessName])), [data.participants])
+
+    // The few records to act on first: overdue interventions (oldest first), then compliance documents needing attention.
+    const attentionItems = useMemo(() => {
+        const overdue = periodData.interventions
+            .filter((intervention) => isOverdueIntervention(intervention))
+            .sort((left, right) => (left.dueDate?.getTime() ?? 0) - (right.dueDate?.getTime() ?? 0))
+            .map((intervention) => ({
+                key: `intervention-${intervention.id}`,
+                title: intervention.title || tr('Untitled intervention'),
+                detail: intervention.dueDate
+                    ? tr('{sme} · {days} days overdue', undefined, { sme: intervention.participantName, days: Math.max(dayjs().diff(intervention.dueDate, 'day'), 1) })
+                    : intervention.participantName,
+                tag: { label: tr('Overdue'), color: 'red' },
+                route: '/operations/interventions',
+                state: { focusInterventionId: intervention.id },
+            }))
+        const compliance = periodData.complianceDocuments
+            .filter((document) => isComplianceAttentionStatus(document.status))
+            .map((document) => ({
+                key: `compliance-${document.id}`,
+                title: participantNameById.get(document.participantId) || tr('Unknown SME'),
+                detail: document.type || tr('Compliance document'),
+                tag: { label: statusLabel(document.status), color: 'orange' },
+                route: '/operations/participants/compliance',
+                state: { focusParticipantId: document.participantId },
+            }))
+        return { items: [...overdue, ...compliance].slice(0, 5), total: overdue.length + compliance.length }
+    }, [participantNameById, periodData])
+
+    const startPlayer = (event?: { currentTarget: Element }) => {
+        // The player ripples open from the button that started it, and takes the browser fullscreen itself.
+        const rect = event?.currentTarget.getBoundingClientRect()
+        setPlayerOrigin(rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null)
+        setPlayerInsights(null)
+        setPlayerOpen(true)
+        if (user?.companyCode) void getCompanyName(user.companyCode).then(setCompanyName)
+        void resolveReportInsights(buildExportData(), 'executive').then(setPlayerInsights)
+    }
+
+    // Same slide grammar as the Operations report: each slide says every number once (lead sentence, then a
+    // rate the lead doesn't state, then the split). Player text stays English, like the exported report.
+    const playerSlides = useMemo<PlayerSlide[]>(() => {
+        const [start, end] = dateRange
+        const periodLabel = start.isSame(end, 'month') ? start.format('MMMM YYYY') : `${start.format('DD MMM YYYY')} – ${end.format('DD MMM YYYY')}`
+        const tone = playerMode === 'dark'
+            ? { good: '#16A34A', warn: '#B48C08', risk: '#DC2626', info: '#3B82F6', neutral: '#94A3B8' }
+            : { good: '#15803D', warn: '#CA8A04', risk: '#DC2626', info: '#2563EB', neutral: '#64748B' }
+        const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`
+        // Below this many items a percentage overstates what we know, so no large figure is shown.
+        const enough = (count: number) => count >= 5
+        const versus = (current: number, previous: number) =>
+            current === previous ? `, the same as the previous period` : `, ${current > previous ? 'up' : 'down'} from ${previous}% the previous period`
+        const insights = playerInsights?.insights
+
+        const applications = periodData.applications.length
+        const declined = Math.max(applications - metrics.acceptedApplications - metrics.openApplications, 0)
+        const interventions = periodData.interventions.length
+        const underway = Math.max(interventions - metrics.completedInterventions - metrics.overdueInterventions, 0)
+        const documents = periodData.complianceDocuments.length
+        const compliant = Math.max(documents - metrics.complianceAttention, 0)
+        const revenue = performanceData.revenue
+        const steady = Math.max(performanceData.smeCount - revenue.growing - revenue.declining, 0)
+
+        const slides: PlayerSlide[] = [
+            {
+                kind: 'title',
+                eyebrow: 'Programme report',
+                title: periodLabel,
+                subtitle: `${companyName ? `${companyName} · ` : ''}Applications, intervention delivery, compliance and SME performance across your programmes.`,
+                icon: <FundOutlined />,
+                accent: '#8b5cf6',
+            },
+            {
+                kind: 'focus',
+                title: 'Applications',
+                lead: applications
+                    ? `${plural(applications, 'application')} in the period: ${metrics.acceptedApplications} accepted and ${metrics.openApplications} still open.`
+                    : 'No applications were received in this period.',
+                icon: <AuditOutlined />,
+                accent: '#a78bfa',
+                figure: enough(applications) ? { value: `${metrics.acceptanceRate}%`, label: `accepted${versus(metrics.acceptanceRate, previousRates.acceptanceRate)}` } : undefined,
+                breakdownTitle: 'Where applications stand',
+                breakdown: [
+                    { label: 'Declined or withdrawn', value: declined, total: applications, color: tone.risk },
+                    { label: 'Open', value: metrics.openApplications, total: applications, color: tone.neutral, note: '' },
+                    { label: 'Accepted', value: metrics.acceptedApplications, total: applications, color: tone.good, note: '' },
+                ],
+            },
+            {
+                kind: 'focus',
+                title: 'Intervention delivery',
+                lead: interventions
+                    ? `${metrics.completedInterventions} of ${plural(interventions, 'intervention')} completed${metrics.overdueInterventions ? `, and ${metrics.overdueInterventions} ${metrics.overdueInterventions === 1 ? 'is' : 'are'} overdue` : ', with nothing overdue'}.`
+                    : 'No interventions were active in this period.',
+                icon: <RiseOutlined />,
+                accent: '#38bdf8',
+                figure: enough(interventions) ? { value: `${metrics.deliveryRate}%`, label: `delivered${versus(metrics.deliveryRate, previousRates.deliveryRate)}` } : undefined,
+                breakdownTitle: 'Where the work stands',
+                breakdown: [
+                    { label: 'Overdue', value: metrics.overdueInterventions, total: interventions, color: tone.risk, note: '' },
+                    { label: 'Under way', value: underway, total: interventions, color: tone.info },
+                    { label: 'Completed', value: metrics.completedInterventions, total: interventions, color: tone.good, note: '' },
+                ],
+            },
+            {
+                kind: 'focus',
+                title: 'Compliance',
+                lead: documents
+                    ? `${compliant} of ${plural(documents, 'compliance document')} ${compliant === 1 ? 'is' : 'are'} in good standing, and ${metrics.complianceAttention} ${metrics.complianceAttention === 1 ? 'needs' : 'need'} attention.`
+                    : 'No compliance documents were on record for this period.',
+                icon: <FileProtectOutlined />,
+                accent: '#f59e0b',
+                figure: enough(documents) ? { value: `${metrics.complianceRate}%`, label: `compliant${versus(metrics.complianceRate, previousRates.complianceRate)}` } : undefined,
+                breakdownTitle: 'Documents',
+                breakdown: [
+                    { label: 'Need attention', value: metrics.complianceAttention, total: documents, color: tone.risk, note: '' },
+                    { label: 'In good standing', value: compliant, total: documents, color: tone.good, note: '' },
+                ],
+            },
+        ]
+
+        if (programmeRows.length) {
+            slides.push({
+                kind: 'focus',
+                title: 'Programmes',
+                lead: `${plural(programmeRows.length, 'programme')} with ${plural(metrics.participants, 'participant')} between them.`,
+                icon: <AppstoreOutlined />,
+                accent: '#818cf8',
+                barsTitle: 'Interventions completed per programme',
+                bars: programmeRows
+                    .filter((row) => row.interventions)
+                    .slice(0, 5)
+                    .map((row) => ({ label: row.programme, value: row.completed, total: row.interventions, color: row.overdue ? tone.warn : tone.good, note: row.overdue ? `${row.overdue} overdue` : undefined })),
+            })
+        }
+
+        if (performanceData.smeCount) {
+            slides.push({
+                kind: 'focus',
+                title: 'SME performance',
+                lead: `Revenue across ${plural(performanceData.smeCount, 'SME')} came to ${formatCurrencyZAR(revenue.current)}, ${revenue.delta.label} on the previous period. Employees: ${performanceData.employees.current}, ${performanceData.employees.delta.label}.`,
+                icon: <FundOutlined />,
+                accent: '#34d399',
+                breakdownTitle: 'SMEs by revenue direction',
+                breakdown: [
+                    { label: 'Declining', value: revenue.declining, total: performanceData.smeCount, color: tone.risk },
+                    { label: 'Steady or not reported', value: steady, total: performanceData.smeCount, color: tone.neutral },
+                    { label: 'Growing', value: revenue.growing, total: performanceData.smeCount, color: tone.good },
+                ],
+            })
+        }
+
+        slides.push(
+            {
+                kind: 'narrative',
+                title: 'What the figures say',
+                icon: <BulbOutlined />,
+                accent: '#fbbf24',
+                loading: !insights,
+                paragraph: insights?.executiveSummary,
+                points: insights?.highlights.slice(0, 3).map((text) => ({ icon: <CheckCircleOutlined />, text, tone: 'good' as const })),
+                note: insights ? (playerInsights?.aiGenerated ? 'Commentary written by AI from the report figures.' : 'Commentary compiled from the report figures.') : undefined,
+            },
+            // Risks and actions answer different questions, so each gets its own slide that fits a phone.
+            {
+                kind: 'narrative',
+                title: 'Watch points',
+                lead: insights?.outlook,
+                icon: <WarningOutlined />,
+                accent: '#f0808a',
+                loading: !insights,
+                points: insights?.risks.slice(0, 3).map((text) => ({ icon: <WarningOutlined />, text, tone: 'warn' as const })),
+            },
+            {
+                kind: 'narrative',
+                title: 'Next steps',
+                icon: <BulbOutlined />,
+                accent: '#60a5fa',
+                loading: !insights,
+                points: insights?.actionPlan.slice(0, 3).map((item) => ({ icon: <BulbOutlined />, text: item.action, meta: [item.owner, item.due].filter(Boolean).join(' · '), tone: 'info' as const })),
+            },
+            {
+                kind: 'closing',
+                title: 'End of report',
+                subtitle: 'Use “Export report” for the full document with data tables.',
+                icon: <CheckCircleOutlined />,
+                accent: '#8b5cf6',
+            },
+        )
+        return slides
+    }, [companyName, dateRange, metrics, performanceData, periodData, playerInsights, playerMode, previousRates, programmeRows])
+
     return (
         <DashboardPage className="operations-reports-page project-admin-reports-page">
-            <Row gutter={[12, 12]} className="dashboard-metrics-row operations-reports-metrics">
-                {(identityLoading || loading || metrics.openApplications > 0) && (
-                    <Col xs={12} lg={{ flex: 1 }}>
-                        <DashboardMetricCard
-                            loading={identityLoading || loading}
-                            icon={<AuditOutlined />}
-                            iconClassName="is-applications"
-                            label={t('Open Applications')}
-                            value={metrics.openApplications}
-                            hint={`${metrics.acceptedApplications} accepted`} />
-                    </Col>
-                )}
-                {(identityLoading || loading || metrics.participants > 0) && (
-                    <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={identityLoading || loading} icon={<TeamOutlined />} iconClassName="is-participants" label={t('Participants')} value={metrics.participants} /></Col>
-                )}
-                {(identityLoading || loading || metrics.completedInterventions > 0) && (
-                    <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={identityLoading || loading} icon={<CheckCircleOutlined />} iconClassName="is-delivery" label={t('Completed interventions')} value={metrics.completedInterventions} hint={`${metrics.completionRate}% rate`} /></Col>
-                )}
-                {(identityLoading || loading || metrics.overdueInterventions > 0) && (
-                    <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={identityLoading || loading} icon={<ExclamationCircleOutlined />} iconClassName="is-attention" label={t('Overdue interventions')} value={metrics.overdueInterventions} /></Col>
-                )}
-                {(identityLoading || loading || metrics.complianceAttention > 0) && (
-                    <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={identityLoading || loading} icon={<FileProtectOutlined />} iconClassName="is-attention" label={t('Compliance alerts')} value={metrics.complianceAttention} /></Col>
-                )}
-                {(identityLoading || loading || programmeRows.length > 0) && (
-                    <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={identityLoading || loading} icon={<AppstoreOutlined />} iconClassName="is-users" label={t('Programmes')} value={programmeRows.length} /></Col>
-                )}
-            </Row>
-
             <FilterBar
                 primary={(
                     <>
@@ -950,51 +1187,74 @@ export default function ProjectAdminReportsPage() {
                         />
                     </>
                 )}
-                actions={<ReportExportButton buildData={buildExportData} disabled={identityLoading || loading} />}
+                actions={(
+                    <>
+                        <Button icon={<PlayCircleOutlined />} onClick={(event) => startPlayer(event)} disabled={identityLoading || loading}>{t('Play report')}</Button>
+                        <ReportExportButton buildData={buildExportData} disabled={identityLoading || loading} />
+                    </>
+                )}
             />
+
+            {/* One hint for the page instead of one per chart; the charts show a pointer where they can be clicked. */}
+            {(view === 'applications' || view === 'interventions' || view === 'compliance') && (
+                <Typography.Text type="secondary" className="pa-report-hint">{t('Select a bar or segment in any chart to see the records behind it.')}</Typography.Text>
+            )}
 
             {view === 'overview' && (
                 <>
-                    <Row gutter={[16, 16]} className="project-admin-report-chart-grid">
-                        <Col xs={24} lg={8}>
-                            <RateChangeCard
-                                loading={identityLoading || loading}
-                                title={t('Acceptance Rate')}
-                                icon={<AuditOutlined />}
-                                value={metrics.acceptanceRate}
-                                previousValue={previousRates.acceptanceRate}
-                                caption={`${metrics.openApplications} of ${periodData.applications.length} still open`}
-                            />
-                        </Col>
-                        <Col xs={24} lg={8}>
-                            <RateChangeCard
-                                loading={identityLoading || loading}
-                                title={t('Delivery Rate')}
-                                icon={<CheckCircleOutlined />}
-                                value={metrics.deliveryRate}
-                                previousValue={previousRates.deliveryRate}
-                                caption={`${metrics.completedInterventions} of ${periodData.interventions.length} completed`}
-                            />
-                        </Col>
-                        <Col xs={24} lg={8}>
-                            <RateChangeCard
-                                loading={identityLoading || loading}
-                                title={t('Compliance Rate')}
-                                icon={<FileProtectOutlined />}
-                                value={metrics.complianceRate}
-                                previousValue={previousRates.complianceRate}
-                                caption={`${metrics.complianceAttention} of ${periodData.complianceDocuments.length} need attention`}
-                            />
-                        </Col>
-                    </Row>
+                    {/* Three cards side by side on desktop; on phones one card with a row per rate, so they don't fill the screen. */}
+                    {isMobile ? (
+                        <Card loading={pageLoading} className="dashboard-section-card motion-card" title={t('Rates this period')}>
+                            <div className="pa-rate-list">
+                                {rateItems.map(({ key, ...item }) => <RateRow key={key} {...item} />)}
+                            </div>
+                        </Card>
+                    ) : (
+                        <Row gutter={[16, 16]} className="project-admin-report-chart-grid">
+                            {rateItems.map(({ key, ...item }) => (
+                                <Col xs={24} lg={8} key={key}>
+                                    <RateChangeCard loading={pageLoading} {...item} />
+                                </Col>
+                            ))}
+                        </Row>
+                    )}
 
                     <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-                        <Col span={24}>
-                            <Card loading={identityLoading || loading} className="dashboard-section-card motion-card" title={t('Programme Health')} extra={<Typography.Text type="secondary">{t('Click a programme for its breakdown')}</Typography.Text>}>
+                        <Col xs={24} xl={9}>
+                            <Card
+                                loading={pageLoading}
+                                className="dashboard-section-card motion-card"
+                                title={t('Needs attention')}
+                                extra={<Button type="link" size="small" onClick={() => navigate('/operations/risk-register')}>{t('Risk register')}</Button>}
+                            >
+                                {attentionItems.items.length ? (
+                                    <>
+                                        <div className="pa-attention-list">
+                                            {attentionItems.items.map((item) => (
+                                                <button key={item.key} type="button" className="pa-attention-item" onClick={() => navigate(item.route, { state: item.state })}>
+                                                    <span className="pa-attention-text">
+                                                        <Typography.Text strong ellipsis>{item.title}</Typography.Text>
+                                                        <Typography.Text type="secondary" ellipsis>{item.detail}</Typography.Text>
+                                                    </span>
+                                                    <Tag color={item.tag.color}>{item.tag.label}</Tag>
+                                                </button>
+                                            ))}
+                                        </div>
+                                        {attentionItems.total > attentionItems.items.length && (
+                                            <Typography.Text type="secondary" className="pa-attention-more">
+                                                {t('{count} more in the risk register.', undefined, { count: attentionItems.total - attentionItems.items.length })}
+                                            </Typography.Text>
+                                        )}
+                                    </>
+                                ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('Nothing overdue and no compliance alerts in this period.')} />}
+                            </Card>
+                        </Col>
+                        <Col xs={24} xl={15}>
+                            <Card loading={pageLoading} className="dashboard-section-card motion-card" title={t('Programme health')}>
                                 {programmeRows.length ? (
                                     <Row gutter={[10, 10]}>
                                         {programmeRows.map((row) => (
-                                            <Col xs={24} sm={12} xl={8} key={row.key}>
+                                            <Col xs={24} sm={12} key={row.key}>
                                                 <ProgrammeCard row={row} onClick={() => setSelectedProgramme(row.programme)} />
                                             </Col>
                                         ))}
@@ -1006,22 +1266,21 @@ export default function ProjectAdminReportsPage() {
                 </>
             )}
 
-            <Modal
+            <ResponsiveModal
                 open={!!selectedProgrammeDetail}
-                onCancel={() => setSelectedProgramme(undefined)}
-                footer={<Button onClick={() => setSelectedProgramme(undefined)}>{t('Close')}</Button>}
-                title={selectedProgrammeDetail ? `${selectedProgrammeDetail.row.programme} — Programme Breakdown` : ''}
+                onClose={() => setSelectedProgramme(undefined)}
+                title={selectedProgrammeDetail?.row.programme}
                 width={760}
-                destroyOnClose
+                centered
             >
                 {selectedProgrammeDetail && (
                     <>
-                        <Row gutter={[12, 12]} style={{ marginBottom: 24 }}>
-                            <Col xs={12} md={6}><Typography.Text type="secondary">{t('Applications')}</Typography.Text><div style={{ fontSize: 22, fontWeight: 700 }}>{selectedProgrammeDetail.row.applications}</div></Col>
-                            <Col xs={12} md={6}><Typography.Text type="secondary">{t('Participants')}</Typography.Text><div style={{ fontSize: 22, fontWeight: 700 }}>{selectedProgrammeDetail.row.participants}</div></Col>
-                            <Col xs={12} md={6}><Typography.Text type="secondary">{t('Interventions')}</Typography.Text><div style={{ fontSize: 22, fontWeight: 700 }}>{selectedProgrammeDetail.row.interventions}</div></Col>
-                            <Col xs={12} md={6}><Typography.Text type="secondary">{t('Overdue')}</Typography.Text><div style={{ fontSize: 22, fontWeight: 700, color: selectedProgrammeDetail.row.overdue > 0 ? '#EF4444' : undefined }}>{selectedProgrammeDetail.row.overdue}</div></Col>
-                        </Row>
+                        <div className="pa-report-figures">
+                            <div><Typography.Text type="secondary">{t('Applications')}</Typography.Text><strong>{selectedProgrammeDetail.row.applications}</strong></div>
+                            <div><Typography.Text type="secondary">{t('Participants')}</Typography.Text><strong>{selectedProgrammeDetail.row.participants}</strong></div>
+                            <div><Typography.Text type="secondary">{t('Interventions')}</Typography.Text><strong>{selectedProgrammeDetail.row.interventions}</strong></div>
+                            <div><Typography.Text type="secondary">{t('Overdue')}</Typography.Text><strong className={selectedProgrammeDetail.row.overdue > 0 ? 'is-risk' : undefined}>{selectedProgrammeDetail.row.overdue}</strong></div>
+                        </div>
                         <Row gutter={[24, 24]}>
                             <Col xs={24} md={8}>
                                 <Typography.Text strong style={{ display: 'block', marginBottom: 12 }}>{t('Applications')}</Typography.Text>
@@ -1038,72 +1297,69 @@ export default function ProjectAdminReportsPage() {
                         </Row>
                     </>
                 )}
-            </Modal>
+            </ResponsiveModal>
 
             {view === 'applications' && (
-                <Row gutter={[20, 20]} className="project-admin-report-chart-grid">
-                    <Col xs={24}>
-                        <Card
-                            loading={identityLoading || loading}
-                            className="dashboard-section-card motion-card"
-                            title={t('Applications And Statuses Over Time')}
-                            extra={<Button onClick={() => setApplicantProfileOpen(true)}>{t('View applicant profile')}</Button>}
-                        >
-                            {periodData.applications.length ? <ThemedHighcharts options={applicationTimelineChart} /> : <Empty description={t('No applications found for this period.')} />}
-                        </Card>
-                    </Col>
-                    <Col xs={24}>
-                        <Card
-                            loading={identityLoading || loading}
-                            className="dashboard-section-card motion-card"
-                            title={t('Application Status Mix')}
-                            extra={<Typography.Text type="secondary">{t('Click a bar for details')}</Typography.Text>}
-                        >
-                            {periodData.applications.length ? <ThemedHighcharts options={applicationStatusChart} /> : <Empty description={t('No application statuses found.')} />}
-                        </Card>
-                    </Col>
-                </Row>
+                <>
+                    {/* The applicant profile is a tab here rather than a wide modal of charts, which read poorly on phones. */}
+                    <Segmented<'trends' | 'profile'>
+                        className="pa-report-subtabs"
+                        value={applicationsTab}
+                        onChange={setApplicationsTab}
+                        options={[{ label: t('Trends'), value: 'trends' }, { label: t('Applicant profile'), value: 'profile' }]}
+                    />
+                    {applicationsTab === 'trends' ? (
+                        <Row gutter={[20, 20]} className="project-admin-report-chart-grid">
+                            <Col xs={24}>
+                                <Card loading={pageLoading} className="dashboard-section-card motion-card" title={t('Applications and statuses over time')}>
+                                    {periodData.applications.length ? <ThemedHighcharts options={applicationTimelineChart} /> : <Empty description={t('No applications found for this period.')} />}
+                                </Card>
+                            </Col>
+                            <Col xs={24}>
+                                <Card loading={pageLoading} className="dashboard-section-card motion-card" title={t('Application status mix')}>
+                                    {periodData.applications.length ? <ThemedHighcharts options={applicationStatusChart} /> : <Empty description={t('No application statuses found.')} />}
+                                </Card>
+                            </Col>
+                        </Row>
+                    ) : (
+                        <Row gutter={[20, 20]} className="project-admin-report-chart-grid">
+                            {ownershipChart && (
+                                <Col xs={24} xl={12}>
+                                    <Card loading={pageLoading} className="dashboard-section-card motion-card" title={t('Ownership profile')}>
+                                        <ThemedHighcharts options={ownershipChart} />
+                                    </Card>
+                                </Col>
+                            )}
+                            {applicantDemographicCharts.map((chart) => (
+                                <Col xs={24} xl={12} key={chart.key}>
+                                    <Card loading={pageLoading} className="dashboard-section-card motion-card" title={chart.title}>
+                                        <ThemedHighcharts options={chart.options} />
+                                    </Card>
+                                </Col>
+                            ))}
+                            {sectorBubbleChart && (
+                                <Col xs={24}>
+                                    <Card loading={pageLoading} className="dashboard-section-card motion-card" title={t('Sector profile: applicant age, trading experience and volume')}>
+                                        <ThemedHighcharts options={sectorBubbleChart} />
+                                    </Card>
+                                </Col>
+                            )}
+                            {!applicantDemographicCharts.length && !ownershipChart && !sectorBubbleChart && (
+                                <Col xs={24}>
+                                    <Card className="dashboard-section-card motion-card">
+                                        <Empty description={t('Applicant demographic fields have not been captured for this period.')} />
+                                    </Card>
+                                </Col>
+                            )}
+                        </Row>
+                    )}
+                </>
             )}
-
-            <Modal
-                open={applicantProfileOpen}
-                onCancel={() => setApplicantProfileOpen(false)}
-                footer={<Button onClick={() => setApplicantProfileOpen(false)}>{t('Close')}</Button>}
-                title={t('Applicant Profile')}
-                width={960}
-                destroyOnClose
-            >
-                <Row gutter={[16, 16]}>
-                    {ownershipChart && (
-                        <Col xs={24} xl={12}>
-                            <Typography.Text strong>{t('Ownership Profile')}</Typography.Text>
-                            <ThemedHighcharts options={ownershipChart} />
-                        </Col>
-                    )}
-                    {sectorBubbleChart && (
-                        <Col xs={24}>
-                            <Typography.Text strong>{t('Sector Profile: Applicant Age, Trading Experience And Volume')}</Typography.Text>
-                            <ThemedHighcharts options={sectorBubbleChart} />
-                        </Col>
-                    )}
-                    {applicantDemographicCharts.map((chart) => (
-                        <Col xs={24} xl={12} key={chart.key}>
-                            <Typography.Text strong>{chart.title}</Typography.Text>
-                            <ThemedHighcharts options={chart.options} />
-                        </Col>
-                    ))}
-                    {!applicantDemographicCharts.length && !ownershipChart && !sectorBubbleChart && (
-                        <Col xs={24}>
-                            <Empty description={t('Applicant demographic fields have not been captured for this period.')} />
-                        </Col>
-                    )}
-                </Row>
-            </Modal>
 
             {view === 'interventions' && (
                 <Row gutter={[20, 20]} className="project-admin-report-chart-grid">
                     <Col xs={24}>
-                        <Card loading={identityLoading || loading} className="dashboard-section-card motion-card" title={t('Intervention Activity Over Time')}>
+                        <Card loading={identityLoading || loading} className="dashboard-section-card motion-card" title={t('Intervention activity over time')}>
                             {periodData.interventions.length ? <ThemedHighcharts options={interventionTimelineChart} /> : <Empty description={t('No intervention activity found.')} />}
                         </Card>
                     </Col>
@@ -1111,8 +1367,7 @@ export default function ProjectAdminReportsPage() {
                         <Card
                             loading={identityLoading || loading}
                             className="dashboard-section-card motion-card"
-                            title={t('Intervention Status Mix')}
-                            extra={<Typography.Text type="secondary">{t('Click a segment for details')}</Typography.Text>}
+                            title={t('Intervention status mix')}
                         >
                             {periodData.interventions.length ? <ThemedHighcharts options={interventionChart} /> : <Empty description={t('No interventions found.')} />}
                         </Card>
@@ -1121,8 +1376,7 @@ export default function ProjectAdminReportsPage() {
                         <Card
                             loading={identityLoading || loading}
                             className="dashboard-section-card motion-card"
-                            title={t('Intervention Progress Distribution')}
-                            extra={<Typography.Text type="secondary">{t('Click a bar for details')}</Typography.Text>}
+                            title={t('Intervention progress distribution')}
                         >
                             {periodData.interventions.length ? <ThemedHighcharts options={interventionProgressChart} /> : <Empty description={t('No intervention progress found.')} />}
                         </Card>
@@ -1136,8 +1390,7 @@ export default function ProjectAdminReportsPage() {
                         <Card
                             loading={identityLoading || loading}
                             className="dashboard-section-card motion-card"
-                            title={t('Compliance Status Mix')}
-                            extra={<Typography.Text type="secondary">{t('Click a segment for details')}</Typography.Text>}
+                            title={t('Compliance status mix')}
                         >
                             {periodData.complianceDocuments.length ? <ThemedHighcharts options={complianceStatusChart} /> : <Empty description={t('No compliance records found.')} />}
                         </Card>
@@ -1146,8 +1399,7 @@ export default function ProjectAdminReportsPage() {
                         <Card
                             loading={identityLoading || loading}
                             className="dashboard-section-card motion-card"
-                            title={t('Compliance Action Summary')}
-                            extra={<Typography.Text type="secondary">{t('Click a bar for details')}</Typography.Text>}
+                            title={t('Compliance action summary')}
                         >
                             {periodData.complianceDocuments.length ? <ThemedHighcharts options={complianceHealthChart} /> : <Empty description={t('No compliance records found.')} />}
                         </Card>
@@ -1182,43 +1434,46 @@ export default function ProjectAdminReportsPage() {
                         />
                     </Col>
                     <Col span={24}>
-                        <Card loading={identityLoading || loading} className="dashboard-section-card motion-card" title={<Space><FundOutlined /> {t('Revenue & Employees Trend')}</Space>}>
+                        <Card loading={identityLoading || loading} className="dashboard-section-card motion-card" title={<Space><FundOutlined /> {t('Revenue and employees trend')}</Space>}>
                             {performanceData.smeCount ? <ThemedHighcharts options={performanceTrendOptions} /> : <Empty description={t('No SME revenue or employee data for this programme scope.')} />}
                         </Card>
                     </Col>
                 </Row>
             )}
 
-            <Modal
+            {/* Chart drill-downs: a table on desktop, cards on phones (ResponsiveDataView). */}
+            <ResponsiveModal
                 open={!!drilldown}
-                onCancel={() => setDrilldown(null)}
-                footer={<Button onClick={() => setDrilldown(null)}>{t('Close')}</Button>}
+                onClose={() => setDrilldown(null)}
                 title={drilldown?.title}
                 width={800}
-                destroyOnClose
+                centered
             >
                 {drilldown?.kind === 'applications' && (
-                    <Table<ProjectAdminApplication>
+                    <ResponsiveDataView<ProjectAdminApplication>
                         rowKey="id"
-                        size="small"
-                        dataSource={drilldown.rows}
-                        pagination={{ pageSize: 8, showSizeChanger: false }}
-                        locale={{ emptyText: t('No applications match this selection.') }}
+                        rows={drilldown.rows}
+                        emptyText={t('No applications match this selection.')}
                         columns={[
                             { title: t('Business'), dataIndex: 'businessName' },
                             { title: t('Programme'), dataIndex: 'programName' },
                             { title: t('Status'), dataIndex: 'status', render: (value: string) => <Tag color={statusColor(value)}>{statusLabel(value)}</Tag> },
                             { title: t('Submitted'), dataIndex: 'submittedAt', render: (value: Date | null) => value ? dayjs(value).format('DD MMM YYYY') : '—' },
                         ]}
+                        renderCard={(row) => (
+                            <div className="pa-drill-card">
+                                <Typography.Text strong>{row.businessName}</Typography.Text>
+                                <Typography.Text type="secondary">{row.programName}{row.submittedAt ? ` · ${dayjs(row.submittedAt).format('DD MMM YYYY')}` : ''}</Typography.Text>
+                                <Tag color={statusColor(row.status)}>{statusLabel(row.status)}</Tag>
+                            </div>
+                        )}
                     />
                 )}
                 {drilldown?.kind === 'interventions' && (
-                    <Table<ProjectAdminIntervention>
+                    <ResponsiveDataView<ProjectAdminIntervention>
                         rowKey="id"
-                        size="small"
-                        dataSource={drilldown.rows}
-                        pagination={{ pageSize: 8, showSizeChanger: false }}
-                        locale={{ emptyText: t('No interventions match this selection.') }}
+                        rows={drilldown.rows}
+                        emptyText={t('No interventions match this selection.')}
                         columns={[
                             { title: t('Intervention'), dataIndex: 'title' },
                             { title: t('SME'), dataIndex: 'participantName' },
@@ -1226,24 +1481,39 @@ export default function ProjectAdminReportsPage() {
                             { title: t('Progress'), dataIndex: 'progress', width: 140, render: (value: number) => <Progress percent={value} size="small" /> },
                             { title: t('Status'), dataIndex: 'status', render: (value: string) => <Tag color={statusColor(value)}>{statusLabel(value)}</Tag> },
                         ]}
+                        renderCard={(row) => (
+                            <div className="pa-drill-card">
+                                <Typography.Text strong>{row.title}</Typography.Text>
+                                <Typography.Text type="secondary">{row.participantName}{row.owner ? ` · ${row.owner}` : ''}</Typography.Text>
+                                <Progress percent={row.progress} size="small" />
+                                <Tag color={statusColor(row.status)}>{statusLabel(row.status)}</Tag>
+                            </div>
+                        )}
                     />
                 )}
                 {drilldown?.kind === 'compliance' && (
-                    <Table<ProjectAdminComplianceDocument>
+                    <ResponsiveDataView<ProjectAdminComplianceDocument>
                         rowKey="id"
-                        size="small"
-                        dataSource={drilldown.rows}
-                        pagination={{ pageSize: 8, showSizeChanger: false }}
-                        locale={{ emptyText: t('No compliance documents match this selection.') }}
+                        rows={drilldown.rows}
+                        emptyText={t('No compliance documents match this selection.')}
                         columns={[
-                            { title: t('Participant'), dataIndex: 'participantId' },
+                            { title: t('SME'), dataIndex: 'participantId', render: (value: string) => participantNameById.get(value) || t('Unknown SME') },
+                            { title: t('Document'), dataIndex: 'type', render: (value: string) => value || '—' },
                             { title: t('Status'), dataIndex: 'status', render: (value: string) => <Tag color={statusColor(value)}>{statusLabel(value)}</Tag> },
                             { title: t('Expiry'), dataIndex: 'expiryDate', render: (value: Date | null) => value ? dayjs(value).format('DD MMM YYYY') : '—' },
-                            { title: t('Updated'), dataIndex: 'updatedAt', render: (value: Date | null) => value ? dayjs(value).format('DD MMM YYYY') : '—' },
                         ]}
+                        renderCard={(row) => (
+                            <div className="pa-drill-card">
+                                <Typography.Text strong>{participantNameById.get(row.participantId) || t('Unknown SME')}</Typography.Text>
+                                <Typography.Text type="secondary">{row.type || '—'}{row.expiryDate ? ` · ${t('Expires {date}', undefined, { date: dayjs(row.expiryDate).format('DD MMM YYYY') })}` : ''}</Typography.Text>
+                                <Tag color={statusColor(row.status)}>{statusLabel(row.status)}</Tag>
+                            </div>
+                        )}
                     />
                 )}
-            </Modal>
+            </ResponsiveModal>
+
+            <ReportPlayer open={playerOpen} onClose={() => setPlayerOpen(false)} slides={playerSlides} origin={playerOrigin} />
         </DashboardPage>
     )
 }

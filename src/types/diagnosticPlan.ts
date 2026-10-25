@@ -1,4 +1,5 @@
 import type { OperationsParticipant } from '@/types/operationsParticipant'
+import type { SwotItem } from '@/utils/swotOutcomes'
 
 export type DiagnosticPlanIntervention = {
   interventionId: string
@@ -57,6 +58,7 @@ export type DiagnosticApplicationSummary = {
 export type DiagnosticPlanParticipant = OperationsParticipant & {
   plan: DiagnosticPlan
   swot: DiagnosticSwot
+  swotItems: SwotItem[]
   applicationSummary: DiagnosticApplicationSummary
   aiRecommendation?: Record<string, unknown>
 }

@@ -1,6 +1,6 @@
-import { App, Button, Card, Col, Divider, Form, Input, InputNumber, Modal, Popconfirm, Row, Select, Space, Tag, theme, Typography, type TableProps } from 'antd'
-import { CheckCircleOutlined, CloseCircleOutlined, DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, RobotOutlined, SearchOutlined, SettingOutlined, StopOutlined, SyncOutlined, ToolOutlined } from '@ant-design/icons'
-import { addDoc, collection, deleteDoc, doc, getDocs, query, updateDoc, where } from 'firebase/firestore'
+import { Alert, App, Button, Card, Checkbox, Col, Collapse, Divider, Empty, Form, Input, InputNumber, Modal, Popconfirm, Row, Select, Space, Switch, Tag, theme, Typography, type TableProps } from 'antd'
+import { BulbOutlined, CheckCircleOutlined, CloseCircleOutlined, DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, RobotOutlined, SearchOutlined, SettingOutlined, StopOutlined, SyncOutlined, ToolOutlined } from '@ant-design/icons'
+import { addDoc, collection, deleteDoc, deleteField, doc, getDocs, query, updateDoc, where } from 'firebase/firestore'
 import dayjs from 'dayjs'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
@@ -12,8 +12,13 @@ import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { useSystemSettings } from '@/contexts/SystemSettingsContext'
 import { DELIVERY_STRATEGY_OPTIONS, getCompanyAvailableAgents, isAgentStrategy } from '@/services/agentOrchestrationService'
+import { useEntitlements } from '@/hooks/useEntitlements'
 import { listAgents } from '@/services/agentRegistryService'
 import type { AgentDefinition, InterventionDeliveryStrategy } from '@/types/agentOrchestration'
+import type { InterventionOutcomeDefinition } from '@/types/interventions'
+import { OUTCOME_TYPE_OPTIONS, cleanOutcomeDefinition, suggestOutcomeDefaults } from '@/services/interventionOutcomeConfig'
+import { hasOutcomeCheckBack, suggestOutcomeCheckBacks, type OutcomeMigrationSuggestion } from '@/services/interventionOutcomeMigrationService'
+import { isAgentApiConfigured } from '@/config/agent'
 import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 type RecurrenceUnit = 'day' | 'week' | 'month' | 'year'
@@ -43,6 +48,7 @@ type InterventionRow = {
     agentId?: string | null
     reviewRequired?: boolean
     reviewerType?: 'operations' | 'consultant' | null
+    outcomeDefinition?: InterventionOutcomeDefinition
     createdAt?: string
     [key: string]: unknown
 }
@@ -161,6 +167,7 @@ export const InterventionsSetupPage = () => {
     const { message } = App.useApp()
     const { user, loading: identityLoading } = useFullIdentity()
     const { settings, getSetting } = useSystemSettings()
+    const agenticAllowed = useEntitlements().has('agenticSupport')
     const interventionScopeModel = getSetting<InterventionScopeModel>('interventionScopeModel', 'company')
     const hasDepartments = !!settings?.hasDepartments
     const [form] = Form.useForm()
@@ -172,6 +179,14 @@ export const InterventionsSetupPage = () => {
     const [newAreaText, setNewAreaText] = useState('')
     const [enabledAgents, setEnabledAgents] = useState<AgentDefinition[]>([])
     const [allAgents, setAllAgents] = useState<AgentDefinition[]>([])
+    const [migrationOpen, setMigrationOpen] = useState(false)
+    const [migrationSelected, setMigrationSelected] = useState<string[]>([])
+    const [migrationSuggestions, setMigrationSuggestions] = useState<OutcomeMigrationSuggestion[]>([])
+    const [migrationIncluded, setMigrationIncluded] = useState<string[]>([])
+    const [migrationWarnings, setMigrationWarnings] = useState<string[]>([])
+    const [migrationProgress, setMigrationProgress] = useState<number | null>(null)
+    const [migrationSaving, setMigrationSaving] = useState(false)
+    const [draftingOutcome, setDraftingOutcome] = useState(false)
 
     const companyCode = String(user?.companyCode || '')
 
@@ -244,6 +259,9 @@ export const InterventionsSetupPage = () => {
         longTerm: rows.filter((item) => item.durationTerm === 'long_term').length,
     }), [rows])
 
+    /** Interventions set up before outcome tracking, with no follow-up to check the change stuck. */
+    const withoutCheckBack = useMemo(() => interventions.filter((item) => !hasOutcomeCheckBack(item.outcomeDefinition)), [interventions])
+
     useRegisterAgentPageContext({
         pageKey: 'operations-interventions-setup',
         pageName: 'Interventions setup',
@@ -296,6 +314,10 @@ export const InterventionsSetupPage = () => {
         cleaned.durationTerm = (cleaned.durationTerm || 'short_term') as InterventionDurationTerm
         cleaned.executionMode = (cleaned.executionMode || 'single_session') as ExecutionMode
         cleaned.deliveryStrategy = (cleaned.deliveryStrategy || 'human_only') as InterventionDeliveryStrategy
+
+        if (isAgentStrategy(cleaned.deliveryStrategy) && !agenticAllowed) {
+            throw new Error('Agent delivery is not included in your organisation\u2019s plan.')
+        }
 
         if (isAgentStrategy(cleaned.deliveryStrategy)) {
             if (!cleaned.agentId || !enabledAgents.some((agent) => agent.id === cleaned.agentId)) {
@@ -352,6 +374,10 @@ export const InterventionsSetupPage = () => {
             }
         }
 
+        const outcomeDefinition = cleanOutcomeDefinition(cleaned.outcomeDefinition)
+        if (outcomeDefinition) cleaned.outcomeDefinition = outcomeDefinition
+        else delete cleaned.outcomeDefinition
+
         const steps = Array.isArray(cleaned.steps) ? cleaned.steps : []
         const normalizedSteps = steps
             .filter((step: Record<string, unknown>) => String(step?.title || '').trim())
@@ -375,7 +401,7 @@ export const InterventionsSetupPage = () => {
     }
 
     const syncRequiredInterventionSnapshots = async (interventionId: string, values: Record<string, any>) => {
-        const applicationsSnapshot = await getDocs(collection(db, 'applications'))
+        const applicationsSnapshot = await getDocs(companyCode ? query(collection(db, 'applications'), where('companyCode', '==', companyCode)) : collection(db, 'applications'))
         for (const applicationDoc of applicationsSnapshot.docs) {
             const application = applicationDoc.data()
             const required = application.interventions?.required || []
@@ -395,6 +421,7 @@ export const InterventionsSetupPage = () => {
                         agentId: values.agentId || null,
                         reviewRequired: values.reviewRequired || false,
                         reviewerType: values.reviewerType || null,
+                        outcomeDefinition: values.outcomeDefinition || null,
                     }
                 }
                 if (typeof item === 'object' && item && 'id' in item && item.id === interventionId) {
@@ -410,6 +437,7 @@ export const InterventionsSetupPage = () => {
                         agentId: values.agentId || null,
                         reviewRequired: values.reviewRequired || false,
                         reviewerType: values.reviewerType || null,
+                        outcomeDefinition: values.outcomeDefinition || null,
                     }
                 }
                 return item
@@ -433,7 +461,7 @@ export const InterventionsSetupPage = () => {
             }
 
             if (editingRecord) {
-                await updateDoc(doc(db, 'interventions', editingRecord.id), payload)
+                await updateDoc(doc(db, 'interventions', editingRecord.id), { ...payload, ...(cleaned.outcomeDefinition ? {} : { outcomeDefinition: deleteField() }) })
                 await syncRequiredInterventionSnapshots(editingRecord.id, payload)
                 message.success(t('Intervention updated.'))
             } else {
@@ -455,7 +483,7 @@ export const InterventionsSetupPage = () => {
             setLoading(true)
             await deleteDoc(doc(db, 'interventions', interventionId))
 
-            const applicationsSnapshot = await getDocs(collection(db, 'applications'))
+            const applicationsSnapshot = await getDocs(companyCode ? query(collection(db, 'applications'), where('companyCode', '==', companyCode)) : collection(db, 'applications'))
             for (const applicationDoc of applicationsSnapshot.docs) {
                 const required = applicationDoc.data().interventions?.required || []
                 if (!Array.isArray(required)) continue
@@ -471,6 +499,91 @@ export const InterventionsSetupPage = () => {
             message.error(t('Intervention could not be deleted.'))
         } finally {
             setLoading(false)
+        }
+    }
+
+    const openMigration = () => {
+        setMigrationSelected(withoutCheckBack.map((item) => item.id))
+        setMigrationSuggestions([])
+        setMigrationIncluded([])
+        setMigrationWarnings([])
+        setMigrationProgress(null)
+        setMigrationOpen(true)
+    }
+
+    const generateMigration = async () => {
+        const selected = withoutCheckBack.filter((item) => migrationSelected.includes(item.id))
+        if (!selected.length) return
+        try {
+            setMigrationProgress(0)
+            const result = await suggestOutcomeCheckBacks(selected, setMigrationProgress)
+            setMigrationSuggestions(result.suggestions)
+            setMigrationIncluded(result.suggestions.map((item) => item.id))
+            setMigrationWarnings(result.warnings)
+        } catch (error: any) {
+            message.error(error?.message || t('Outcome suggestions could not be generated.'))
+        } finally {
+            setMigrationProgress(null)
+        }
+    }
+
+    const updateSuggestion = (id: string, patch: Partial<InterventionOutcomeDefinition>) => {
+        setMigrationSuggestions((current) => current.map((item) => item.id === id ? { ...item, definition: { ...item.definition, ...patch } } : item))
+    }
+
+    /** Saves the reviewed check-backs, then refreshes the snapshots applications already hold of these interventions. */
+    const applyMigration = async () => {
+        const chosen = migrationSuggestions
+            .filter((item) => migrationIncluded.includes(item.id))
+            .map((item) => ({ id: item.id, definition: cleanOutcomeDefinition(item.definition) }))
+            .filter((item): item is { id: string; definition: InterventionOutcomeDefinition } => Boolean(item.definition))
+        if (!chosen.length) return
+        try {
+            setMigrationSaving(true)
+            for (const item of chosen) {
+                await updateDoc(doc(db, 'interventions', item.id), { outcomeDefinition: item.definition })
+            }
+
+            const definitions = new Map(chosen.map((item) => [item.id, item.definition]))
+            const applicationsSnapshot = await getDocs(query(collection(db, 'applications'), where('companyCode', '==', companyCode)))
+            for (const applicationDoc of applicationsSnapshot.docs) {
+                const required = applicationDoc.data().interventions?.required
+                if (!Array.isArray(required)) continue
+                let changed = false
+                const updatedRequired = required.map((entry: any) => {
+                    const definition = entry && typeof entry === 'object' ? definitions.get(entry.id) : undefined
+                    if (!definition) return entry
+                    changed = true
+                    return { ...entry, outcomeDefinition: definition }
+                })
+                if (changed) await updateDoc(doc(db, 'applications', applicationDoc.id), { 'interventions.required': updatedRequired })
+            }
+
+            message.success(t('Check-backs added to {count} intervention(s).', undefined, { count: chosen.length }))
+            setMigrationOpen(false)
+            await fetchInterventions()
+        } catch (error: any) {
+            message.error(error?.message || t('Check-backs could not be saved.'))
+        } finally {
+            setMigrationSaving(false)
+        }
+    }
+
+    const draftOutcomeWithAi = async () => {
+        const values = form.getFieldsValue(true)
+        if (!String(values.interventionTitle || '').trim()) {
+            message.info(t('Add the intervention title first.'))
+            return
+        }
+        try {
+            setDraftingOutcome(true)
+            const { suggestions } = await suggestOutcomeCheckBacks([{ ...values, id: editingRecord?.id || 'draft', outcomeDefinition: cleanOutcomeDefinition(values.outcomeDefinition) }])
+            if (!suggestions[0]) throw new Error(t('No suggestion was produced. Try again.'))
+            form.setFieldsValue({ outcomeDefinition: suggestions[0].definition })
+        } catch (error: any) {
+            message.error(error?.message || t('Outcome suggestions could not be generated.'))
+        } finally {
+            setDraftingOutcome(false)
         }
     }
 
@@ -523,6 +636,12 @@ export const InterventionsSetupPage = () => {
             render: (_, row) => <Tag>{Array.isArray(row.steps) ? row.steps.length : 0}</Tag>,
         },
         {
+            title: t('Check-back'),
+            render: (_, row) => hasOutcomeCheckBack(row.outcomeDefinition)
+                ? <Tag color="green">{t('After {days} days', undefined, { days: Number(row.outcomeDefinition?.followUpDays) })}</Tag>
+                : <Tag color="orange">{t('Not set')}</Tag>,
+        },
+        {
             title: t('Actions'),
             render: (_, row) => (
                 <Space>
@@ -557,6 +676,9 @@ export const InterventionsSetupPage = () => {
                     <>
                         <Button icon={<ReloadOutlined />} onClick={() => setFilters(emptyFilters)}>{t('Reset')}</Button>
                         <Button icon={<ReloadOutlined />} onClick={() => void fetchInterventions()}>{t('Refresh')}</Button>
+                        {isAgentApiConfigured && withoutCheckBack.length > 0 && (
+                            <Button icon={<RobotOutlined />} onClick={openMigration}>{t('Add check-backs with AI ({count})', undefined, { count: withoutCheckBack.length })}</Button>
+                        )}
                         <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>{t('Add intervention')}</Button>
                     </>
                 )}
@@ -579,6 +701,7 @@ export const InterventionsSetupPage = () => {
                                     <Tag color={option.color}>{option.label}</Tag>
                                     <Tag>{row.executionMode === 'multi_step' ? t('Multi-step') : t('Single session')}</Tag>
                                     <Tag>{row.isRecurring === 'yes' ? t('Recurring') : t('Not recurring')}</Tag>
+                                    {!hasOutcomeCheckBack(row.outcomeDefinition) && <Tag color="orange">{t('No check-back')}</Tag>}
                                     <Tag icon={isAgentStrategy(row.deliveryStrategy) ? <RobotOutlined /> : undefined} color={isAgentStrategy(row.deliveryStrategy) ? 'purple' : 'blue'}>{DELIVERY_STRATEGY_OPTIONS.find((item) => item.value === (row.deliveryStrategy || 'human_only'))?.label}</Tag>
                                 </Space>
                                 <Space>
@@ -665,7 +788,7 @@ export const InterventionsSetupPage = () => {
 
                     <Card size="small" title={<Space><RobotOutlined /> {t('Delivery orchestration')}</Space>} style={{ marginBottom: 16 }}>
                         <Form.Item name="deliveryStrategy" label={t('Who performs this intervention?')} rules={[{ required: true }]}>
-                            <Select options={DELIVERY_STRATEGY_OPTIONS.map((option) => ({ value: option.value, label: option.label, title: option.description }))} />
+                            <Select options={DELIVERY_STRATEGY_OPTIONS.filter((option) => agenticAllowed || !isAgentStrategy(option.value)).map((option) => ({ value: option.value, label: option.label, title: option.description }))} />
                         </Form.Item>
                         <Form.Item noStyle shouldUpdate={(previous, current) => previous.deliveryStrategy !== current.deliveryStrategy}>
                             {({ getFieldValue }) => {
@@ -789,11 +912,191 @@ export const InterventionsSetupPage = () => {
                         }}
                     </Form.Item>
 
+                    <Collapse
+                        ghost
+                        style={{ marginBottom: 16 }}
+                        defaultActiveKey={editingRecord?.outcomeDefinition ? ['outcome'] : []}
+                        items={[{
+                            key: 'outcome',
+                            label: <Typography.Text strong>{t('Outcome & deliverable (optional)')}</Typography.Text>,
+                            forceRender: true,
+                            children: (
+                                <>
+                                    <Space direction="vertical" size={8} style={{ width: '100%', marginBottom: 12 }}>
+                                        <Typography.Text type="secondary">{t('What should be different once this is delivered, and what tangible output will the SME have? Facilitators will see the deliverable name when uploading evidence.')}</Typography.Text>
+                                        <Space wrap>
+                                        <Button
+                                            icon={<BulbOutlined />}
+                                            onClick={() => {
+                                                const suggestion = suggestOutcomeDefaults(form.getFieldValue('interventionTitle'), form.getFieldValue('areaOfSupport'))
+                                                if (!suggestion) {
+                                                    message.info(t('No suggestion for this intervention yet. Fill in the fields below.'))
+                                                    return
+                                                }
+                                                const current = form.getFieldValue('outcomeDefinition') || {}
+                                                form.setFieldsValue({
+                                                    outcomeDefinition: {
+                                                        ...current,
+                                                        outcomeType: current.outcomeType || suggestion.outcomeType,
+                                                        deliverableName: current.deliverableName || suggestion.deliverableName,
+                                                        intendedOutcome: current.intendedOutcome || suggestion.intendedOutcome,
+                                                        followUpDays: current.followUpDays || suggestion.followUpDays,
+                                                    },
+                                                })
+                                            }}
+                                        >
+                                            {t('Suggest defaults')}
+                                        </Button>
+                                        {isAgentApiConfigured && (
+                                            <Button icon={<RobotOutlined />} loading={draftingOutcome} onClick={() => void draftOutcomeWithAi()}>
+                                                {t('Draft with AI')}
+                                            </Button>
+                                        )}
+                                        </Space>
+                                    </Space>
+                                    <Row gutter={12}>
+                                        <Col xs={24} md={12}>
+                                            <Form.Item name={['outcomeDefinition', 'deliverableName']} label={t('Deliverable name')} extra={t('e.g. Cash Flow Forecast. Shown instead of "POE".')}>
+                                                <Input placeholder={t('e.g. Cash Flow Forecast')} />
+                                            </Form.Item>
+                                        </Col>
+                                        <Col xs={24} md={12}>
+                                            <Form.Item name={['outcomeDefinition', 'outcomeType']} label={t('Kind of change')}>
+                                                <Select allowClear placeholder={t('Select')} options={OUTCOME_TYPE_OPTIONS.map((option) => ({ value: option.value, label: t(option.label) }))} />
+                                            </Form.Item>
+                                        </Col>
+                                        <Col span={24}>
+                                            <Form.Item name={['outcomeDefinition', 'intendedOutcome']} label={t('Intended outcome')}>
+                                                <Input.TextArea rows={2} placeholder={t('e.g. The SME actively maintains a forward-looking cash-flow forecast.')} />
+                                            </Form.Item>
+                                        </Col>
+                                        <Col span={24}>
+                                            <Form.Item name={['outcomeDefinition', 'deliverableDescription']} label={t('Deliverable description')}>
+                                                <Input.TextArea rows={2} />
+                                            </Form.Item>
+                                        </Col>
+                                        <Col xs={24} md={12}>
+                                            <Form.Item name={['outcomeDefinition', 'deliverableRequired']} label={t('Deliverable required?')} valuePropName="checked">
+                                                <Switch />
+                                            </Form.Item>
+                                        </Col>
+                                        <Col xs={24} md={12}>
+                                            <Form.Item name={['outcomeDefinition', 'followUpDays']} label={t('Follow-up after (days)')} extra={t('Counted from confirmed completion. Facilitators are prompted to check the change has stuck.')}>
+                                                <InputNumber min={1} style={{ width: '100%' }} />
+                                            </Form.Item>
+                                        </Col>
+                                    </Row>
+                                </>
+                            ),
+                        }]}
+                    />
+
                     <Space style={{ justifyContent: 'flex-end', width: '100%' }}>
                         <Button onClick={() => setModalOpen(false)}>{t('Cancel')}</Button>
                         <Button type="primary" htmlType="submit" loading={loading}>{t('Save intervention')}</Button>
                     </Space>
                 </Form>
+            </Modal>
+
+            <Modal
+                open={migrationOpen}
+                onCancel={() => setMigrationOpen(false)}
+                width={860}
+                destroyOnClose
+                title={t('Add outcome check-backs with AI')}
+                footer={migrationSuggestions.length ? (
+                    <Space>
+                        <Button onClick={() => setMigrationSuggestions([])} disabled={migrationSaving}>{t('Back')}</Button>
+                        <Button type="primary" loading={migrationSaving} disabled={!migrationIncluded.length} onClick={() => void applyMigration()}>
+                            {t('Save {count} check-back(s)', undefined, { count: migrationIncluded.length })}
+                        </Button>
+                    </Space>
+                ) : (
+                    <Button block type="primary" icon={<RobotOutlined />} loading={migrationProgress !== null} disabled={!migrationSelected.length} onClick={() => void generateMigration()}>
+                        {migrationProgress !== null
+                            ? t('Drafting {done} of {total}', undefined, { done: migrationProgress, total: migrationSelected.length })
+                            : t('Draft check-backs')}
+                    </Button>
+                )}
+            >
+                {!migrationSuggestions.length ? (
+                    <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                        <Typography.Text type="secondary">
+                            {t('These interventions have no follow-up, so facilitators are never prompted to check the change stuck. The AI drafts an intended outcome, deliverable and follow-up window for each; you review them before anything is saved.')}
+                        </Typography.Text>
+                        {withoutCheckBack.length ? (
+                            <>
+                                {withoutCheckBack.length > 1 && <Checkbox
+                                    checked={migrationSelected.length === withoutCheckBack.length}
+                                    indeterminate={migrationSelected.length > 0 && migrationSelected.length < withoutCheckBack.length}
+                                    onChange={(event) => setMigrationSelected(event.target.checked ? withoutCheckBack.map((item) => item.id) : [])}
+                                >
+                                    {t('Select all ({count})', undefined, { count: withoutCheckBack.length })}
+                                </Checkbox>}
+                                <Checkbox.Group value={migrationSelected} onChange={(values) => setMigrationSelected(values as string[])} style={{ width: '100%' }}>
+                                    <Space direction="vertical" size={6} style={{ width: '100%', maxHeight: 360, overflowY: 'auto' }}>
+                                        {withoutCheckBack.map((item) => (
+                                            <Checkbox key={item.id} value={item.id}>
+                                                <Typography.Text strong>{item.interventionTitle || t('Untitled intervention')}</Typography.Text>
+                                                <Typography.Text type="secondary"> · {item.areaOfSupport || t('No support area')}</Typography.Text>
+                                            </Checkbox>
+                                        ))}
+                                    </Space>
+                                </Checkbox.Group>
+                            </>
+                        ) : <Empty description={t('Every intervention already has a check-back.')} />}
+                    </Space>
+                ) : (
+                    <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                        {migrationWarnings.length > 0 && <Alert type="warning" showIcon message={migrationWarnings.join(' · ')} />}
+                        <Typography.Text type="secondary">{t('Edit anything that is off, untick what you do not want, then save. Assignments already in progress keep their original setup.')}</Typography.Text>
+                        {migrationSuggestions.map((suggestion) => {
+                            const source = interventions.find((item) => item.id === suggestion.id)
+                            const included = migrationIncluded.includes(suggestion.id)
+                            const definition = suggestion.definition
+                            return (
+                                <Card
+                                    key={suggestion.id}
+                                    size="small"
+                                    style={{ opacity: included ? 1 : 0.55 }}
+                                    title={(
+                                        <Checkbox
+                                            checked={included}
+                                            onChange={(event) => setMigrationIncluded((current) => event.target.checked ? [...current, suggestion.id] : current.filter((id) => id !== suggestion.id))}
+                                        >
+                                            {source?.interventionTitle || t('Untitled intervention')}
+                                        </Checkbox>
+                                    )}
+                                    extra={<Typography.Text type="secondary">{source?.areaOfSupport}</Typography.Text>}
+                                >
+                                    <Row gutter={12}>
+                                        <Col xs={24} md={12}>
+                                            <Typography.Text type="secondary">{t('Deliverable name')}</Typography.Text>
+                                            <Input value={definition.deliverableName} disabled={!included} onChange={(event) => updateSuggestion(suggestion.id, { deliverableName: event.target.value })} />
+                                        </Col>
+                                        <Col xs={24} md={12}>
+                                            <Typography.Text type="secondary">{t('Kind of change')}</Typography.Text>
+                                            <Select allowClear style={{ width: '100%' }} value={definition.outcomeType} disabled={!included} onChange={(value) => updateSuggestion(suggestion.id, { outcomeType: value })} options={OUTCOME_TYPE_OPTIONS.map((option) => ({ value: option.value, label: t(option.label) }))} />
+                                        </Col>
+                                        <Col span={24} style={{ marginTop: 8 }}>
+                                            <Typography.Text type="secondary">{t('Intended outcome')}</Typography.Text>
+                                            <Input.TextArea rows={2} value={definition.intendedOutcome} disabled={!included} onChange={(event) => updateSuggestion(suggestion.id, { intendedOutcome: event.target.value })} />
+                                        </Col>
+                                        <Col xs={24} md={12} style={{ marginTop: 8 }}>
+                                            <Typography.Text type="secondary">{t('Follow-up after (days)')}</Typography.Text>
+                                            <InputNumber min={1} style={{ width: '100%' }} value={definition.followUpDays} disabled={!included} onChange={(value) => updateSuggestion(suggestion.id, { followUpDays: Number(value) || undefined })} />
+                                        </Col>
+                                        <Col xs={24} md={12} style={{ marginTop: 8 }}>
+                                            <Typography.Text type="secondary">{t('Deliverable required?')}</Typography.Text>
+                                            <div><Switch checked={Boolean(definition.deliverableRequired)} disabled={!included} onChange={(checked) => updateSuggestion(suggestion.id, { deliverableRequired: checked })} /></div>
+                                        </Col>
+                                    </Row>
+                                    {suggestion.rationale && <Typography.Paragraph type="secondary" style={{ margin: '8px 0 0' }}><BulbOutlined /> {suggestion.rationale}</Typography.Paragraph>}
+                                </Card>
+                            )
+                        })}
+                    </Space>
+                )}
             </Modal>
         </DashboardPage>
     )

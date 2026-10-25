@@ -11,14 +11,16 @@ import {
   writeBatch,
 } from 'firebase/firestore'
 import { getFirebaseDb } from '@/config/firebase'
-import { resolveSmeCompanyCode } from '@/services/companiesService'
+import { listTeamRegisteredCompanyCodes, resolveSmeCompanyCode } from '@/services/companiesService'
 import type { FullIdentity } from '@/types/identity'
+import { ownershipFromDirectors } from '@/utils/businessDirectors'
 import type {
   ApplicantApplication,
   ApplicantProfile,
   ApplicantProfileBundle,
   ApplicantProfileInput,
   ApplicantProgram,
+  BusinessDirector,
   BusinessProfile,
 } from '@/types/applicant'
 
@@ -64,6 +66,9 @@ export const saveApplicantProfile = async (uid: string, email: string, values: A
   const db = getFirebaseDb()
   const batch = writeBatch(db)
   const normalizedEmail = email.trim().toLowerCase()
+  // Firestore rejects `undefined`, so optional director fields are dropped rather than sent empty.
+  const directors = (values.directors || []).map((director) =>
+    Object.fromEntries(Object.entries(director).filter(([, value]) => value !== undefined && value !== '')) as unknown as BusinessDirector)
   const [applicantSnapshot, businessSnapshot] = await Promise.all([
     getDoc(doc(db, 'applicantProfiles', uid)),
     getDoc(doc(db, 'businessProfiles', uid)),
@@ -101,11 +106,13 @@ export const saveApplicantProfile = async (uid: string, email: string, values: A
     registrationNumber: values.registrationNumber || null,
     dateOfRegistration: values.dateOfRegistration || null,
     yearsOfTrading: values.yearsOfTrading ?? null,
-    ownership: {
+    // With directors captured, ownership is always their sum, so the two can never disagree.
+    ownership: directors.length ? ownershipFromDirectors(directors) : {
       youthOwnedPercent: values.youthOwnedPercent ?? null,
       femaleOwnedPercent: values.femaleOwnedPercent ?? null,
       blackOwnedPercent: values.blackOwnedPercent ?? null,
     },
+    directors,
     province: values.province || null,
     city: values.city || null,
     businessAddress: values.businessAddress || null,
@@ -124,14 +131,40 @@ export const saveApplicantProfile = async (uid: string, email: string, values: A
  * opened to external SMEs. Independently registered SMEs resolve to the platform owner (QTX),
  * so they see QTX's programs rather than every company's intake.
  */
-export const listApplicantPrograms = async (user?: Pick<FullIdentity, 'companyCode'> | null) => {
-  const snapshot = await getDocs(collection(getFirebaseDb(), 'programs'))
+export const listApplicantPrograms = async (user?: Pick<FullIdentity, 'companyCode'> & Partial<Pick<FullIdentity, 'smeJourney' | 'assignedProgramIds'>> | null) => {
+  const [snapshot, teamRegistered] = await Promise.all([
+    getDocs(collection(getFirebaseDb(), 'programs')),
+    listTeamRegisteredCompanyCodes().catch(() => new Set<string>()),
+  ])
   const activeStatuses = new Set(['active', 'planned', 'upcoming'])
   const companyCode = resolveSmeCompanyCode(user)
 
-  return toRows<ApplicantProgram>(snapshot)
+  const rows = toRows<ApplicantProgram>(snapshot)
+
+  // A programme SME (link or chosen programme) sees only their own programme(s), even if it has since
+  // closed, so they can still follow their application.
+  const own = new Set(user?.assignedProgramIds || [])
+  if (user?.smeJourney === 'programme' && own.size) {
+    return rows.filter((program) => own.has(program.id))
+  }
+
+  return rows
     .filter((program) => !program.status || activeStatuses.has(program.status.toLowerCase()))
+    .filter((program) => !teamRegistered.has(String(program.companyCode || '').trim()))
     .filter((program) => program.openToExternalSmes === true || String(program.companyCode || '').trim() === companyCode)
+}
+
+/**
+ * The SME's own applications, using only the lookups the security rules allow for an SME
+ * (applications they submitted carry their uid as participantId / uid).
+ */
+export const listMyApplications = async (uid: string) => {
+  const db = getFirebaseDb()
+  const snapshots = await Promise.all(['participantId', 'uid', 'userId'].map((field) =>
+    getDocs(query(collection(db, 'applications'), where(field, '==', uid)))))
+  const applications = new Map<string, ApplicantApplication>()
+  snapshots.forEach((snapshot) => toRows<ApplicantApplication>(snapshot).forEach((row) => applications.set(row.id, row)))
+  return [...applications.values()]
 }
 
 export const listApplicantApplications = async (uid: string, email: string) => {

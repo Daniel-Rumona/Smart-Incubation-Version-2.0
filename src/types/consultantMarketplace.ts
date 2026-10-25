@@ -32,6 +32,8 @@ export type ConsultantMarketplaceProfile = {
   alternativePhone: string
   phoneIsWhatsApp: boolean
   alternativePhoneIsWhatsApp: boolean
+  phoneProvider: string
+  alternativePhoneProvider: string
   profileImageUrl: string
   verificationStatus: ConsultantVerificationStatus
   verifiedAt?: unknown

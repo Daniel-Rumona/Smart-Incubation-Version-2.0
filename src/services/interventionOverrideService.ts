@@ -1,6 +1,8 @@
-import { arrayUnion, collection, doc, getDocs, query, serverTimestamp, where, writeBatch } from 'firebase/firestore'
+import { arrayUnion, collection, doc, getDocs, query, serverTimestamp, Timestamp, updateDoc, where, writeBatch } from 'firebase/firestore'
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { getFirebaseDb, getFirebaseStorage } from '@/config/firebase'
+import { buildFollowUpFields } from '@/services/interventionOutcomeConfig'
+import { assignmentStartsAccepted, getCompanyWorkSettings } from '@/services/companyWorkSettingsService'
 import type { FullIdentity } from '@/types/identity'
 
 /*
@@ -15,7 +17,7 @@ export type ReassignCandidate = { id: string, name: string, email: string, role:
 
 export type EvidenceFile = { name: string, url: string, storagePath: string, contentType: string, size: number }
 
-type AssignmentLike = { id: string, companyCode?: string | null, assigneeId?: string, assigneeName?: string }
+type AssignmentLike = { id: string, companyCode?: string | null, assigneeId?: string, assigneeName?: string, outcomeDefinition?: unknown }
 
 const OPEN_APPOINTMENT_STATUSES = ['pending', 'accepted']
 
@@ -77,12 +79,14 @@ export const takeOverIntervention = async (user: FullIdentity, assignment: Assig
  *  - continue: progress, history and upcoming appointments stay; the appointments move to the new consultant.
  *  - restart: progress and completion reset to zero and the upcoming appointments are cancelled so the new
  *    consultant schedules afresh (appointments already held stay as history).
- * Either way the new consultant has to accept it.
+ * Either way the new consultant accepts it first if the company requires acceptance.
  */
 export const reassignIntervention = async (user: FullIdentity, assignment: AssignmentLike, candidate: ReassignCandidate, mode: ReassignMode, note = '') => {
   const db = getFirebaseDb()
   const batch = writeBatch(db)
   const open = await openAppointmentsFor(assignment.id)
+  // Candidates are this company's consultants, so the company's acceptance setting decides whether they accept first.
+  const startsAccepted = assignmentStartsAccepted({ assignee: { id: candidate.id, role: candidate.role, companyCode: user.companyCode }, assignerUid: user.uid, settings: await getCompanyWorkSettings(String(user.companyCode || '')).catch(() => null) })
 
   batch.update(doc(db, 'assignedInterventions', assignment.id), {
     assigneeId: candidate.id,
@@ -90,7 +94,7 @@ export const reassignIntervention = async (user: FullIdentity, assignment: Assig
     assigneeName: candidate.name,
     assigneeEmail: candidate.email,
     assigneeType: 'consultant',
-    assigneeStatus: 'pending',
+    assigneeStatus: startsAccepted ? 'accepted' : 'pending',
     deliveryActorType: 'human',
     ...(mode === 'restart'
       ? {
@@ -129,6 +133,18 @@ export const reassignIntervention = async (user: FullIdentity, assignment: Assig
   await batch.commit()
 }
 
+/** POE accepted on interventions: PDF, images or Office documents, up to 10 MB each. */
+export const EVIDENCE_ACCEPT = '.pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx'
+export const MAX_EVIDENCE_BYTES = 10 * 1024 * 1024
+
+/** Why a file cannot be used as POE, or undefined when it is fine. */
+export const evidenceFileProblem = (file: { name: string, size?: number }) => {
+  const extension = `.${file.name.split('.').pop()?.toLowerCase() || ''}`
+  if (!EVIDENCE_ACCEPT.split(',').includes(extension)) return `${file.name} is not a PDF, image or Office document.`
+  if ((file.size || 0) > MAX_EVIDENCE_BYTES) return `${file.name} is larger than 10 MB.`
+  return undefined
+}
+
 export const uploadEvidenceFiles = async (companyCode: string, assignmentId: string, files: File[]): Promise<EvidenceFile[]> =>
   Promise.all(files.map(async (file) => {
     const safeName = file.name.replace(/[^\w.-]/g, '_')
@@ -154,6 +170,7 @@ export const completeInterventionWithEvidence = async (user: FullIdentity, assig
     assigneeCompletionStatus: 'done',
     participantCompletionStatus: 'confirmed',
     progress: 100,
+    ...buildFollowUpFields(assignment as Record<string, unknown>),
     completedAt: serverTimestamp(),
     completedBy: user.uid,
     completedByOperations: true,
@@ -172,4 +189,70 @@ export const completeInterventionWithEvidence = async (user: FullIdentity, assig
     })
   }
   await batch.commit()
+}
+
+/*
+ * Long-overdue work: the assigned consultant asks operations to extend the due date or close the intervention
+ * (it's no longer needed). The request sits on the assignment until operations approve or decline it; nothing
+ * changes until then. Both steps are kept in `overrideHistory`.
+ */
+
+export type ChangeRequestType = 'extend' | 'close'
+
+export type ChangeRequest = {
+  type: ChangeRequestType
+  requestedDueDate?: string | null
+  reason: string
+  status: 'pending' | 'approved' | 'declined'
+  requestedBy: { uid: string, name: string }
+  requestedAt: string
+  reviewedBy?: { uid: string, name: string }
+  reviewedAt?: string
+  reviewNote?: string
+}
+
+/** The open request on an assignment, if there is one. */
+export const pendingChangeRequest = (assignment: { changeRequest?: unknown }) => {
+  const request = assignment.changeRequest as ChangeRequest | undefined
+  return request?.status === 'pending' ? request : null
+}
+
+export const requestInterventionChange = async (user: FullIdentity, assignment: AssignmentLike, input: { type: ChangeRequestType, dueDate?: Date | null, reason: string }) => {
+  const actor = actorOf(user)
+  const request: ChangeRequest = {
+    type: input.type,
+    requestedDueDate: input.type === 'extend' && input.dueDate ? input.dueDate.toISOString() : null,
+    reason: input.reason.trim(),
+    status: 'pending',
+    requestedBy: { uid: user.uid, name: String(actor.name || '') },
+    requestedAt: new Date().toISOString(),
+  }
+  await updateDoc(doc(getFirebaseDb(), 'assignedInterventions', assignment.id), {
+    changeRequest: request,
+    overrideHistory: arrayUnion(historyEntry(user, { action: input.type === 'extend' ? 'extension_requested' : 'closure_requested', requestedDueDate: request.requestedDueDate, note: request.reason })),
+    updatedAt: serverTimestamp(),
+    updatedBy: user.uid,
+  })
+}
+
+/** Operations' answer. Approving an extension moves the due date; approving a closure cancels the intervention. */
+export const resolveInterventionChange = async (user: FullIdentity, assignment: AssignmentLike & { changeRequest?: unknown }, approve: boolean, note = '') => {
+  const request = pendingChangeRequest(assignment)
+  if (!request) throw new Error('There is no open request on this intervention.')
+  const actor = actorOf(user)
+  const reviewed: ChangeRequest = { ...request, status: approve ? 'approved' : 'declined', reviewedBy: { uid: user.uid, name: String(actor.name || '') }, reviewedAt: new Date().toISOString(), reviewNote: note.trim() }
+  const changes: Record<string, unknown> = {}
+  if (approve && request.type === 'extend' && request.requestedDueDate) changes.dueDate = Timestamp.fromDate(new Date(request.requestedDueDate))
+  if (approve && request.type === 'close') Object.assign(changes, { status: 'Cancelled', closedReason: request.reason, closedAt: serverTimestamp() })
+  await updateDoc(doc(getFirebaseDb(), 'assignedInterventions', assignment.id), {
+    ...changes,
+    changeRequest: reviewed,
+    overrideHistory: arrayUnion(historyEntry(user, {
+      action: `${request.type === 'extend' ? 'extension' : 'closure'}_${approve ? 'approved' : 'declined'}`,
+      requestedDueDate: request.requestedDueDate || null,
+      note: note.trim(),
+    })),
+    updatedAt: serverTimestamp(),
+    updatedBy: user.uid,
+  })
 }

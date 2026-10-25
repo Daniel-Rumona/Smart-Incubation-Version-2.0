@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { App, Button, Card, Form, Grid, Progress, Segmented, Space, Spin, Steps, Typography } from 'antd'
 import {
     ArrowLeftOutlined,
@@ -7,6 +8,7 @@ import {
     BankOutlined,
     CheckCircleOutlined,
     EnvironmentOutlined,
+    ExclamationCircleOutlined,
     FileProtectOutlined,
     FormOutlined,
     PhoneOutlined,
@@ -17,15 +19,22 @@ import {
 } from '@ant-design/icons'
 import DashboardPageShell from '@/components/shared/DashboardPage'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
+import { PageSkeleton } from '@/components/shared/PageSkeleton'
+import ResponsiveModal from '@/components/shared/ResponsiveModal'
 import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { useLanguage, tr, tEnglish } from '@/providers/LanguageProvider'
 import { getApplicantProfileBundle, isApplicantProfileComplete, saveApplicantProfile } from '@/services/applicantService'
-import type { ApplicantProfile, ApplicantProfileBundle, ApplicantProfileInput } from '@/types/applicant'
+import { getNextProgramToApply } from '@/services/applicantJourneyService'
+import ApplicantJourneySteps from '@/components/applicant/ApplicantJourneySteps'
+import type { ApplicantProfile, ApplicantProfileBundle, ApplicantProfileInput, BusinessDirector } from '@/types/applicant'
 import ApplicantProfileAIAssist from '@/components/applicant/ApplicantProfileAIAssist'
 import ApplicantProfileManualForm from '@/components/applicant/ApplicantProfileManualForm'
 import ApplicantProfileReviewStep from '@/components/applicant/ApplicantProfileReviewStep'
+import BusinessProfileSections from '@/components/applicant/BusinessProfileSections'
+import { BUSINESS_PROFILE_SECTIONS, hasProfileValue, type BusinessProfileSectionKey } from '@/components/applicant/businessProfileSectionsConfig'
 import '@/styles/applicant/applicant-profile.css'
+import '@/styles/applicant/business-profile.css'
 
 const { Text } = Typography
 const { useBreakpoint } = Grid
@@ -51,6 +60,7 @@ export type ApplicantProfileFormValues = Partial<Omit<ApplicantProfile, 'id' | '
     youthOwnedPercent?: number
     femaleOwnedPercent?: number
     blackOwnedPercent?: number
+    directors?: BusinessDirector[]
     registrationStatus?: string
     registrationNumber?: string
     dateOfRegistration?: unknown
@@ -127,6 +137,7 @@ function normalizeLoadedProfile(
         youthOwnedPercent: source.youthOwnedPercent,
         femaleOwnedPercent: source.femaleOwnedPercent,
         blackOwnedPercent: source.blackOwnedPercent,
+        directors: Array.isArray(source.directors) ? source.directors : [],
         registrationStatus: source.registrationStatus,
         registrationNumber: source.registrationNumber,
         dateOfRegistration: source.dateOfRegistration,
@@ -140,11 +151,21 @@ function normalizeLoadedProfile(
     }
 }
 
-export const ApplicantProfilePage = () => {
+type ApplicantProfilePageProps = {
+    /**
+     * `incubatee` is the same business profile for an SME already accepted into a programme:
+     * no application journey, no "before applying" wording, and saving stays on the page.
+     */
+    mode?: 'applicant' | 'incubatee'
+}
+
+export const ApplicantProfilePage = ({ mode = 'applicant' }: ApplicantProfilePageProps) => {
+    const isIncubatee = mode === 'incubatee'
     const [form] = Form.useForm<ApplicantProfileFormValues>()
     const { message } = App.useApp()
     const { t } = useLanguage()
     const { user } = useFullIdentity()
+    const navigate = useNavigate()
     const screens = useBreakpoint()
     const isMobile = !screens.md
 
@@ -156,6 +177,11 @@ export const ApplicantProfilePage = () => {
     const [aiRawDump, setAiRawDump] = useState('')
     const [missingFields, setMissingFields] = useState<string[]>([])
     const [formSnapshot, setFormSnapshot] = useState<ApplicantProfileFormValues>({})
+    // Business profile (incubatee mode): one section open at a time, the AI sheet, and AI answers waiting to be saved.
+    const [editingSection, setEditingSection] = useState<BusinessProfileSectionKey | null>(null)
+    const [aiOpen, setAiOpen] = useState(false)
+    const [aiPending, setAiPending] = useState(false)
+    const [loadedValues, setLoadedValues] = useState<ApplicantProfileFormValues>({})
 
     const watchedValues = Form.useWatch([], form)
     const accountEmail = user?.email || ''
@@ -172,10 +198,8 @@ export const ApplicantProfilePage = () => {
     const completion = useMemo(() => calculateCompletion(liveValues), [liveValues])
 
     useEffect(() => {
-        if (!user) {
-            setLoading(false)
-            return
-        }
+        // The route guard only renders this page for a signed-in user, so `loading` simply waits for one.
+        if (!user) return
 
         const loadProfile = async () => {
             try {
@@ -184,22 +208,23 @@ export const ApplicantProfilePage = () => {
                 const values = normalizeLoadedProfile(profile, user)
                 form.setFieldsValue(values)
                 setFormSnapshot(values)
+                setLoadedValues(values)
                 setHasProfile(isApplicantProfileComplete(profile))
                 setAiRawDump(values.aiRawDump || '')
             } catch (error) {
                 console.error(error)
-                message.error(t('applicant.profile.loadError', 'Failed to load applicant profile'))
+                message.error(isIncubatee ? t('Your business profile could not be loaded.') : t('applicant.profile.loadError', 'Failed to load applicant profile'))
             } finally {
                 setLoading(false)
             }
         }
 
         void loadProfile()
-    }, [form, message, t, user])
+    }, [form, isIncubatee, message, t, user])
 
     useRegisterAgentPageContext({
         pageKey: 'applicant-profile',
-        pageName: tEnglish('applicant.profile.title', 'Applicant Profile'),
+        pageName: isIncubatee ? 'Business profile' : tEnglish('applicant.profile.title', 'Applicant Profile'),
         purpose: tEnglish('applicant.profile.subtitle', 'Complete personal, business, compliance, and operating details for applications.'),
         currentFilters: { inputMode: activeMode, activeStep: stepItems[activeStep]?.title || 'Unknown' },
         metrics: {
@@ -237,23 +262,40 @@ export const ApplicantProfilePage = () => {
         form.setFieldsValue({ ...values, email: accountEmail })
         setTimeout(() => setFormSnapshot(form.getFieldsValue(true)), 0)
         setMissingFields(extractedMissingFields)
+        // The assistant keeps asking follow-ups, so its sheet stays open; the sections behind it
+        // show its answers, and nothing is stored until the SME saves them.
+        if (isIncubatee) setAiPending(true)
     }
 
-    const handleSave = async () => {
+    const discardAiAnswers = () => {
+        form.setFieldsValue(loadedValues)
+        setFormSnapshot(loadedValues)
+        setAiPending(false)
+    }
+
+    const openSection = (section: BusinessProfileSectionKey) => {
+        setEditingSection(section)
+        window.setTimeout(() => window.document.getElementById(`business-profile-${section}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
+    }
+
+    const handleSave = async (): Promise<boolean> => {
         if (!user) {
             message.error(t('applicant.profile.signIn', 'You must be signed in to save your applicant profile'))
-            return
+            return false
         }
 
         try {
             setSaving(true)
             await form.validateFields()
 
+            // Read the form itself rather than the last render's values: the directors list writes
+            // to the form and saves in the same moment.
+            const current = { ...liveValues, ...form.getFieldsValue(true) } as ApplicantProfileFormValues
             const values = {
-                ...liveValues,
+                ...current,
                 email: accountEmail,
-                participantName: liveValues.participantName || liveValues.fullName,
-                fullName: liveValues.fullName || liveValues.participantName,
+                participantName: current.participantName || current.fullName,
+                fullName: current.fullName || current.participantName,
                 aiRawDump,
             } as ApplicantProfileFormValues
 
@@ -265,28 +307,46 @@ export const ApplicantProfilePage = () => {
             if (values.gender !== 'Male' && values.gender !== 'Female') {
                 form.setFields([{ name: 'gender', errors: ['Gender must be Male or Female'] }])
                 setActiveStep(0)
+                if (isIncubatee) setEditingSection('personal')
                 message.error(t('Gender must be Male or Female'))
-                return
+                return false
             }
 
             await saveApplicantProfile(user.uid, user.email, values as ApplicantProfileInput)
             setHasProfile(true)
             setFormSnapshot(values)
+            setLoadedValues(values)
+            if (isIncubatee) {
+                message.success(t('Business profile saved'))
+                setAiPending(false)
+                return true
+            }
+
             message.success(
                 completion >= 100
                     ? t('applicant.profile.completed', 'Applicant profile completed')
                     : t('applicant.profile.saveSuccess', 'Applicant profile saved')
             )
-        } catch (error: any) {
-            if (Array.isArray(error?.errorFields)) {
-                const first = error.errorFields[0]
+
+            // Details done: carry on into the application for the programme they came for, instead of a programmes list.
+            if (completion >= 100) {
+                const nextProgramId = await getNextProgramToApply(user.uid, user.email).catch(() => '')
+                if (nextProgramId) navigate(`/applicant/programs/${nextProgramId}/apply`)
+            }
+            return true
+        } catch (error) {
+            // antd's validateFields rejects with the fields that failed; anything else is a save error.
+            const errorFields = (error as { errorFields?: Array<{ name?: (string | number)[], errors?: string[] }> } | null)?.errorFields
+            if (Array.isArray(errorFields)) {
+                const first = errorFields[0]
                 if (first?.name) form.scrollToField(first.name, { behavior: 'smooth', block: 'center' })
                 message.error(first?.errors?.[0] || t('applicant.profile.requiredError', 'Please complete the required fields'))
-                return
+                return false
             }
 
             console.error(error)
-            message.error(t('applicant.profile.saveError', 'Failed to save applicant profile'))
+            message.error(isIncubatee ? t('Your business profile could not be saved.') : t('applicant.profile.saveError', 'Failed to save applicant profile'))
+            return false
         } finally {
             setSaving(false)
         }
@@ -297,12 +357,112 @@ export const ApplicantProfilePage = () => {
         value: index,
     }))
 
+    if (isIncubatee) {
+        if (loading) return <PageSkeleton variant="detail" label={t('Loading your business profile')} />
+
+        const missingRequired = requiredProfileFields.filter((field) => !hasProfileValue(liveValues[field]))
+        const missingLabels = missingRequired
+            .map((name) => BUSINESS_PROFILE_SECTIONS.flatMap((section) => section.fields).find((field) => field.name === name)?.label)
+            .filter(Boolean)
+            .map((label) => t(label as string))
+        const firstMissingSection = BUSINESS_PROFILE_SECTIONS.find((section) => section.fields.some((field) => missingRequired.includes(field.name)))
+        const place = [liveValues.city, liveValues.province].filter(Boolean).join(', ')
+        // The few facts a programme team looks for first, as tags under the business name.
+        const years = Number(liveValues.yearsOfTrading)
+        const headerFacts = [
+            liveValues.registrationStatus === 'registered' ? { key: 'registered', label: t('Registered'), positive: true } : null,
+            liveValues.registrationStatus === 'not_registered' ? { key: 'not-registered', label: t('Not registered') } : null,
+            hasProfileValue(liveValues.beeLevel) ? { key: 'bee', label: liveValues.beeLevel === 'Not sure' ? t('B-BBEE level not sure') : `B-BBEE ${liveValues.beeLevel}` } : null,
+            years > 0 ? { key: 'years', label: years === 1 ? t('Trading 1 year') : t('Trading {count} years', undefined, { count: years }) } : null,
+            hasProfileValue(liveValues.blackOwnedPercent) ? { key: 'black', label: t('{percent}% Black-owned', undefined, { percent: Number(liveValues.blackOwnedPercent) }) } : null,
+        ].filter(Boolean) as { key: string, label: string, positive?: boolean }[]
+
+        return (
+            <DashboardPageShell className="business-profile-page">
+                <section className="business-profile-header">
+                    <Progress
+                        type="circle"
+                        percent={completion}
+                        size={48}
+                        strokeWidth={10}
+                        strokeColor="#6d5dfb"
+                        format={(percent) => <span className="business-profile-score">{percent}%</span>}
+                    />
+                    <div className="business-profile-header-text">
+                        <Text strong className="business-profile-name">{liveValues.businessName || t('Business profile')}</Text>
+                        <Text type="secondary">{[liveValues.sector, place].filter(Boolean).join(' · ') || t('Keep your personal and business details up to date. Your programme team uses them for your plan and reports.')}</Text>
+                        {headerFacts.length > 0 && (
+                            <div className="business-profile-facts">
+                                {headerFacts.map((fact) => <span key={fact.key} className={`business-profile-fact${fact.positive ? ' is-positive' : ''}`}>{fact.label}</span>)}
+                            </div>
+                        )}
+                    </div>
+                    <Button icon={<RobotOutlined />} disabled={Boolean(editingSection)} onClick={() => setAiOpen(true)}>{t('Fill with AI')}</Button>
+                </section>
+
+                {aiPending ? (
+                    <section className="business-profile-notice is-ai">
+                        <RobotOutlined className="business-profile-notice-icon" aria-hidden="true" />
+                        <div className="business-profile-notice-text">
+                            <Text strong>{t('AI filled in some details')}</Text>
+                            <Text type="secondary">{t('Check them below, then save. Nothing is stored until you do.')}</Text>
+                        </div>
+                        <div className="business-profile-notice-actions">
+                            <Button onClick={discardAiAnswers} disabled={saving}>{t('Discard')}</Button>
+                            <Button type="primary" loading={saving} onClick={() => void handleSave()}>{t('Save')}</Button>
+                        </div>
+                    </section>
+                ) : missingRequired.length > 0 && firstMissingSection && !editingSection && (
+                    <section className="business-profile-notice">
+                        <ExclamationCircleOutlined className="business-profile-notice-icon" aria-hidden="true" />
+                        <div className="business-profile-notice-text">
+                            <Text strong>{missingRequired.length === 1 ? t('1 detail missing') : t('{count} details missing', undefined, { count: missingRequired.length })}</Text>
+                            <Text type="secondary">{missingLabels.join(', ')}</Text>
+                        </div>
+                        <div className="business-profile-notice-actions">
+                            <Button type="primary" onClick={() => openSection(firstMissingSection.key)}>{missingRequired.length === 1 ? t('Add it') : t('Add them')}</Button>
+                        </div>
+                    </section>
+                )}
+
+                <BusinessProfileSections
+                    form={form}
+                    values={liveValues}
+                    email={accountEmail}
+                    requiredFields={requiredProfileFields}
+                    editing={editingSection}
+                    onEdit={setEditingSection}
+                    onValuesChange={handleValuesChange}
+                    onSave={handleSave}
+                    saving={saving}
+                />
+
+                <ResponsiveModal
+                    open={aiOpen}
+                    onClose={() => setAiOpen(false)}
+                    title={t('Fill with AI')}
+                    width={720}
+                    destroyOnHidden={false}
+                    footer={<Button onClick={() => setAiOpen(false)}>{t('Done')}</Button>}
+                >
+                    <ApplicantProfileAIAssist
+                        rawDump={aiRawDump}
+                        currentValues={liveValues}
+                        missingFields={missingFields}
+                        onRawDumpChange={setAiRawDump}
+                        onApplyExtractedFields={handleApplyExtractedFields}
+                    />
+                </ResponsiveModal>
+            </DashboardPageShell>
+        )
+    }
+
     if (loading) {
         return (
             <DashboardPageShell className="applicant-profile-page">
                 <div className="applicant-profile-loading">
                     <Spin size="large" />
-                    <Text type="secondary">{t('applicant.profile.loading', 'Loading applicant profile...')}</Text>
+                    <Text type="secondary">{isIncubatee ? t('Loading your business profile') : t('applicant.profile.loading', 'Loading applicant profile...')}</Text>
                 </div>
             </DashboardPageShell>
         )
@@ -311,15 +471,18 @@ export const ApplicantProfilePage = () => {
     return (
         <DashboardPageShell className="applicant-profile-page">
             <div className="applicant-profile-shell">
+                {!isIncubatee && <ApplicantJourneySteps current={0} />}
                 <Card className="applicant-profile-hero" bordered={false}>
                     <div className="applicant-profile-hero-main">
                         <div className="applicant-profile-hero-icon">
                             {activeMode === 'manual' ? <FormOutlined /> : <RobotOutlined />}
                         </div>
                         <div className="applicant-profile-hero-copy">
-                            <Typography.Title level={3}>{t('applicant.profile.title', 'Applicant Profile')}</Typography.Title>
+                            <Typography.Title level={3}>{isIncubatee ? t('Business profile') : t('applicant.profile.title', 'Applicant Profile')}</Typography.Title>
                             <Text type="secondary">
-                                {t('applicant.profile.subtitle', 'Complete your personal and business details before applying to a programme.')}
+                                {isIncubatee
+                                    ? t('Keep your personal and business details up to date. Your programme team uses them for your plan and reports.')
+                                    : t('applicant.profile.subtitle', 'Complete your personal and business details before applying to a programme.')}
                             </Text>
                         </div>
                     </div>

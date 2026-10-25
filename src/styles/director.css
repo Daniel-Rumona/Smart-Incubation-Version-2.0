@@ -176,7 +176,12 @@
     /* Chrome above and below the body (title, steps, footer, modal margins) is ~240px, so the step
      scrolls internally rather than pushing the modal off a short screen. */
     max-height: calc(100vh - 240px);
-    padding: 0 2px 8px;
+    /* Rows with a gutter stick out by half the gutter (8px for gutter 16) on each side. A scrolling box turns that
+     into a horizontal scrollbar, so the side padding must cover it; the negative margin keeps the content aligned
+     with the rest of the modal. Sideways scrolling is never wanted inside the wizard. */
+    margin: 0 -10px;
+    padding: 0 10px 8px;
+    overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
 }
@@ -610,5 +615,190 @@ html[data-theme='dark'] .program-eligibility-card.is-selected {
 
     .director-dark-side {
         text-align: left !important;
+    }
+}
+
+/* Edit programme: pick the section to change instead of walking through every step. */
+.program-section-picker {
+    display: grid;
+    gap: 10px;
+    padding: 4px 0 8px;
+}
+
+.program-section-option {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 14px 16px;
+    /* Same outline as the other programme cards (status and support options), so it reads clearly in both themes. */
+    border: 2px solid rgba(109, 93, 251, .28);
+    border-radius: 14px;
+    color: inherit;
+    background: var(--app-surface);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, .04);
+    text-align: left;
+    cursor: pointer;
+    transition: border-color .18s ease, box-shadow .18s ease;
+}
+
+.program-section-option:hover,
+.program-section-option:focus-visible {
+    border-color: #6d5dfb;
+    box-shadow: 0 0 0 3px rgba(109, 93, 251, .12);
+    outline: none;
+}
+
+.program-section-option-copy {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.program-section-option-copy small {
+    overflow: hidden;
+    color: var(--app-muted, #7a859b);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Selection cards share one indicator: an empty ring when unselected, a filled dot when selected. Single-choice
+   groups add `program-radio-cards`; the eligibility toggles use the same ring so every card reads alike. */
+.program-radio-cards {
+    --ring: 22px;
+    --ring-edge: 16px;
+    --ring-top: 50%;
+    --ring-shift: -50%;
+}
+
+.program-radio-cards.program-status-grid {
+    --ring: 18px;
+    --ring-edge: 10px;
+}
+
+.agent-support-grid.program-radio-cards {
+    --ring-top: 18px;
+    --ring-shift: 0px;
+}
+
+.program-radio-cards .ant-radio-button-wrapper,
+.program-eligibility-card {
+    position: relative;
+}
+
+.program-radio-cards .ant-radio-button-wrapper {
+    padding-right: calc(var(--ring) + var(--ring-edge) + 14px) !important;
+}
+
+.program-eligibility-card {
+    padding-right: 42px;
+}
+
+.program-radio-cards .ant-radio-button-wrapper::after,
+.program-eligibility-card::after {
+    content: '';
+    position: absolute;
+    top: var(--ring-top, 50%);
+    right: var(--ring-edge, 14px);
+    width: var(--ring, 20px);
+    height: var(--ring, 20px);
+    box-sizing: border-box;
+    border: 2px solid rgba(109, 93, 251, .5);
+    border-radius: 50%;
+    background: transparent;
+    transform: translateY(var(--ring-shift, -50%));
+    transition: border-color .18s ease, background .18s ease;
+}
+
+.program-radio-cards .ant-radio-button-wrapper:hover::after,
+.program-eligibility-card:hover::after {
+    border-color: #6d5dfb;
+}
+
+.program-radio-cards .ant-radio-button-wrapper-checked::after,
+.program-eligibility-card.is-selected::after {
+    border-color: #6d5dfb;
+    background: radial-gradient(circle at center, #6d5dfb 0 calc(var(--ring, 20px) * .23), transparent calc(var(--ring, 20px) * .23 + 1px));
+}
+
+html[data-theme='dark'] .program-radio-cards .ant-radio-button-wrapper::after,
+html[data-theme='dark'] .program-eligibility-card::after {
+    border-color: rgba(169, 159, 255, .55);
+}
+
+html[data-theme='dark'] .program-radio-cards .ant-radio-button-wrapper-checked::after,
+html[data-theme='dark'] .program-eligibility-card.is-selected::after {
+    border-color: #a99fff;
+    background: radial-gradient(circle at center, #a99fff 0 calc(var(--ring, 20px) * .23), transparent calc(var(--ring, 20px) * .23 + 1px));
+}
+
+/* Intervention assignment: the choice cards sit in the middle of the step; picking "Program assigns" shrinks the
+   slot so the cards glide up and the intervention browser rises in underneath. */
+.program-assignment-slot {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 18px;
+    min-height: clamp(260px, 46vh, 380px);
+    transition: min-height .55s cubic-bezier(.22, 1, .36, 1);
+}
+
+.program-assignment-slot.is-expanded {
+    min-height: 150px;
+}
+
+.program-limit-block {
+    display: grid;
+    gap: 12px;
+    animation: program-rise .38s ease both;
+}
+
+.program-limit-input {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+}
+
+.program-assignment-stage .program-intervention-browser {
+    animation: program-rise .45s ease .12s both;
+}
+
+@keyframes program-rise {
+    from {
+        opacity: 0;
+        transform: translateY(14px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .program-assignment-slot {
+        transition: none;
+    }
+
+    .program-limit-block,
+    .program-assignment-stage .program-intervention-browser {
+        animation: none;
+    }
+}
+
+/* Section changes slide sideways; clip the overflow so the slide never adds a horizontal scrollbar. */
+.program-view-stage {
+    overflow-x: clip;
+}
+
+.program-modal {
+    transition: width .35s cubic-bezier(.22, 1, .36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .program-modal {
+        transition: none;
     }
 }

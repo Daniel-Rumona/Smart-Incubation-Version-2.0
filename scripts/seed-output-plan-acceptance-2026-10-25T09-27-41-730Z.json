@@ -1,0 +1,970 @@
+{
+  "tag": "2026-10-25T09:27:41.730Z",
+  "assignments": [
+    {
+      "id": "4T24W6CaGEoIqnpSL0UQ",
+      "companyCode": "QTX",
+      "title": "Financial Management Coaching",
+      "before": {
+        "participantStatus": {
+          "existed": true,
+          "value": "pending"
+        },
+        "participantAcceptedVia": {
+          "existed": false,
+          "value": null
+        },
+        "participantAcceptedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedVia": {
+          "existed": false,
+          "value": null
+        },
+        "status": {
+          "existed": true,
+          "value": "pending"
+        },
+        "planAcceptanceBackfillTag": {
+          "existed": false,
+          "value": null
+        }
+      },
+      "change": [
+        "workStartedAt",
+        "workStartedVia",
+        "participantStatus",
+        "participantAcceptedVia",
+        "participantAcceptedAt",
+        "planAcceptanceBackfillTag"
+      ]
+    },
+    {
+      "id": "5haNJBOJYN4WR5O9kiyN",
+      "companyCode": "QTX",
+      "title": "Website & E-commerce Setup",
+      "before": {
+        "participantStatus": {
+          "existed": true,
+          "value": "pending"
+        },
+        "participantAcceptedVia": {
+          "existed": false,
+          "value": null
+        },
+        "participantAcceptedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedVia": {
+          "existed": false,
+          "value": null
+        },
+        "status": {
+          "existed": true,
+          "value": "pending"
+        },
+        "planAcceptanceBackfillTag": {
+          "existed": false,
+          "value": null
+        }
+      },
+      "change": [
+        "workStartedAt",
+        "workStartedVia",
+        "participantStatus",
+        "participantAcceptedVia",
+        "participantAcceptedAt",
+        "planAcceptanceBackfillTag"
+      ]
+    },
+    {
+      "id": "6SOrGrKoY6s88aTj5hFA",
+      "companyCode": "QTX",
+      "title": "Cash Flow & Budgeting Workshop",
+      "before": {
+        "participantStatus": {
+          "existed": true,
+          "value": "pending"
+        },
+        "participantAcceptedVia": {
+          "existed": false,
+          "value": null
+        },
+        "participantAcceptedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedVia": {
+          "existed": false,
+          "value": null
+        },
+        "status": {
+          "existed": true,
+          "value": "pending"
+        },
+        "planAcceptanceBackfillTag": {
+          "existed": false,
+          "value": null
+        }
+      },
+      "change": [
+        "workStartedAt",
+        "workStartedVia",
+        "participantStatus",
+        "participantAcceptedVia",
+        "participantAcceptedAt",
+        "planAcceptanceBackfillTag"
+      ]
+    },
+    {
+      "id": "7kMAynsnABD1B2nma4HT",
+      "companyCode": "QTX",
+      "title": "Compliance Readiness Review",
+      "before": {
+        "participantStatus": {
+          "existed": true,
+          "value": "pending"
+        },
+        "participantAcceptedVia": {
+          "existed": false,
+          "value": null
+        },
+        "participantAcceptedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedVia": {
+          "existed": false,
+          "value": null
+        },
+        "status": {
+          "existed": true,
+          "value": "pending"
+        },
+        "planAcceptanceBackfillTag": {
+          "existed": false,
+          "value": null
+        }
+      },
+      "change": [
+        "workStartedAt",
+        "workStartedVia",
+        "participantStatus",
+        "participantAcceptedVia",
+        "participantAcceptedAt",
+        "planAcceptanceBackfillTag"
+      ]
+    },
+    {
+      "id": "80m0NA5pfsqIBnByzgf3",
+      "companyCode": "RCM",
+      "title": "Digital Tools Onboarding",
+      "before": {
+        "participantStatus": {
+          "existed": true,
+          "value": "pending"
+        },
+        "participantAcceptedVia": {
+          "existed": false,
+          "value": null
+        },
+        "participantAcceptedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedVia": {
+          "existed": false,
+          "value": null
+        },
+        "status": {
+          "existed": true,
+          "value": "pending"
+        },
+        "planAcceptanceBackfillTag": {
+          "existed": false,
+          "value": null
+        }
+      },
+      "change": [
+        "workStartedAt",
+        "workStartedVia",
+        "participantStatus",
+        "participantAcceptedVia",
+        "participantAcceptedAt",
+        "planAcceptanceBackfillTag"
+      ]
+    },
+    {
+      "id": "A7W4vD2hjQR1WGS5XP6m",
+      "companyCode": "QTX",
+      "title": "Sales Pipeline Coaching",
+      "before": {
+        "participantStatus": {
+          "existed": true,
+          "value": "pending"
+        },
+        "participantAcceptedVia": {
+          "existed": false,
+          "value": null
+        },
+        "participantAcceptedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedVia": {
+          "existed": false,
+          "value": null
+        },
+        "status": {
+          "existed": true,
+          "value": "pending"
+        },
+        "planAcceptanceBackfillTag": {
+          "existed": false,
+          "value": null
+        }
+      },
+      "change": [
+        "workStartedAt",
+        "workStartedVia",
+        "participantStatus",
+        "participantAcceptedVia",
+        "participantAcceptedAt",
+        "planAcceptanceBackfillTag"
+      ]
+    },
+    {
+      "id": "AwSHZZduVDq5vjTkKgQn",
+      "companyCode": "QTX",
+      "title": "Digital Tools Onboarding",
+      "before": {
+        "participantStatus": {
+          "existed": true,
+          "value": "pending"
+        },
+        "participantAcceptedVia": {
+          "existed": false,
+          "value": null
+        },
+        "participantAcceptedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedVia": {
+          "existed": false,
+          "value": null
+        },
+        "status": {
+          "existed": true,
+          "value": "pending"
+        },
+        "planAcceptanceBackfillTag": {
+          "existed": false,
+          "value": null
+        }
+      },
+      "change": [
+        "workStartedAt",
+        "workStartedVia",
+        "participantStatus",
+        "participantAcceptedVia",
+        "participantAcceptedAt",
+        "planAcceptanceBackfillTag"
+      ]
+    },
+    {
+      "id": "NPicFZkxbquUCeLqI9vB",
+      "companyCode": "RCM",
+      "title": "Succession Planning Session",
+      "before": {
+        "participantStatus": {
+          "existed": true,
+          "value": "accepted"
+        },
+        "participantAcceptedVia": {
+          "existed": false,
+          "value": null
+        },
+        "participantAcceptedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedVia": {
+          "existed": false,
+          "value": null
+        },
+        "status": {
+          "existed": true,
+          "value": "in_progress"
+        },
+        "planAcceptanceBackfillTag": {
+          "existed": false,
+          "value": null
+        }
+      },
+      "change": [
+        "workStartedAt",
+        "workStartedVia",
+        "planAcceptanceBackfillTag"
+      ]
+    },
+    {
+      "id": "ZBMUMceHsGojKsLy5Ds4",
+      "companyCode": "RCM",
+      "title": "Succession Planning Session",
+      "before": {
+        "participantStatus": {
+          "existed": true,
+          "value": "accepted"
+        },
+        "participantAcceptedVia": {
+          "existed": false,
+          "value": null
+        },
+        "participantAcceptedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedVia": {
+          "existed": false,
+          "value": null
+        },
+        "status": {
+          "existed": true,
+          "value": "in_progress"
+        },
+        "planAcceptanceBackfillTag": {
+          "existed": false,
+          "value": null
+        }
+      },
+      "change": [
+        "workStartedAt",
+        "workStartedVia",
+        "planAcceptanceBackfillTag"
+      ]
+    },
+    {
+      "id": "a0Xe8PSZtHhgwsqudXs1",
+      "companyCode": "QTX",
+      "title": "Governance & Leadership Coaching",
+      "before": {
+        "participantStatus": {
+          "existed": true,
+          "value": "pending"
+        },
+        "participantAcceptedVia": {
+          "existed": false,
+          "value": null
+        },
+        "participantAcceptedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedVia": {
+          "existed": false,
+          "value": null
+        },
+        "status": {
+          "existed": true,
+          "value": "pending"
+        },
+        "planAcceptanceBackfillTag": {
+          "existed": false,
+          "value": null
+        }
+      },
+      "change": [
+        "workStartedAt",
+        "workStartedVia",
+        "participantStatus",
+        "participantAcceptedVia",
+        "participantAcceptedAt",
+        "planAcceptanceBackfillTag"
+      ]
+    },
+    {
+      "id": "a4qAOcI6MFnZzqdVDYmk",
+      "companyCode": "QTX",
+      "title": "Export Readiness Assessment",
+      "before": {
+        "participantStatus": {
+          "existed": true,
+          "value": "pending"
+        },
+        "participantAcceptedVia": {
+          "existed": false,
+          "value": null
+        },
+        "participantAcceptedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedVia": {
+          "existed": false,
+          "value": null
+        },
+        "status": {
+          "existed": true,
+          "value": "pending"
+        },
+        "planAcceptanceBackfillTag": {
+          "existed": false,
+          "value": null
+        }
+      },
+      "change": [
+        "workStartedAt",
+        "workStartedVia",
+        "participantStatus",
+        "participantAcceptedVia",
+        "participantAcceptedAt",
+        "planAcceptanceBackfillTag"
+      ]
+    },
+    {
+      "id": "apD7sNjas7FvYFAjPdKX",
+      "companyCode": "QTX",
+      "title": "Operations Efficiency Assessment",
+      "before": {
+        "participantStatus": {
+          "existed": true,
+          "value": "accepted"
+        },
+        "participantAcceptedVia": {
+          "existed": false,
+          "value": null
+        },
+        "participantAcceptedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedVia": {
+          "existed": false,
+          "value": null
+        },
+        "status": {
+          "existed": true,
+          "value": "in_progress"
+        },
+        "planAcceptanceBackfillTag": {
+          "existed": false,
+          "value": null
+        }
+      },
+      "change": [
+        "workStartedAt",
+        "workStartedVia",
+        "planAcceptanceBackfillTag"
+      ]
+    },
+    {
+      "id": "eL5CbE3EZkR8269ymGSp",
+      "companyCode": "RCM",
+      "title": "Tender Readiness Coaching",
+      "before": {
+        "participantStatus": {
+          "existed": true,
+          "value": "accepted"
+        },
+        "participantAcceptedVia": {
+          "existed": false,
+          "value": null
+        },
+        "participantAcceptedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedVia": {
+          "existed": false,
+          "value": null
+        },
+        "status": {
+          "existed": true,
+          "value": "in_progress"
+        },
+        "planAcceptanceBackfillTag": {
+          "existed": false,
+          "value": null
+        }
+      },
+      "change": [
+        "workStartedAt",
+        "workStartedVia",
+        "planAcceptanceBackfillTag"
+      ]
+    },
+    {
+      "id": "jOvKncBdPA4TjjzS27qE",
+      "companyCode": "RCM",
+      "title": "Financial Management Coaching",
+      "before": {
+        "participantStatus": {
+          "existed": true,
+          "value": "accepted"
+        },
+        "participantAcceptedVia": {
+          "existed": false,
+          "value": null
+        },
+        "participantAcceptedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedVia": {
+          "existed": false,
+          "value": null
+        },
+        "status": {
+          "existed": true,
+          "value": "in_progress"
+        },
+        "planAcceptanceBackfillTag": {
+          "existed": false,
+          "value": null
+        }
+      },
+      "change": [
+        "workStartedAt",
+        "workStartedVia",
+        "planAcceptanceBackfillTag"
+      ]
+    },
+    {
+      "id": "lY6f2IcEZhBOBxPjBNAF",
+      "companyCode": "RCM",
+      "title": "Business Plan Refresh",
+      "before": {
+        "participantStatus": {
+          "existed": true,
+          "value": "pending"
+        },
+        "participantAcceptedVia": {
+          "existed": false,
+          "value": null
+        },
+        "participantAcceptedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedVia": {
+          "existed": false,
+          "value": null
+        },
+        "status": {
+          "existed": true,
+          "value": "pending"
+        },
+        "planAcceptanceBackfillTag": {
+          "existed": false,
+          "value": null
+        }
+      },
+      "change": [
+        "workStartedAt",
+        "workStartedVia",
+        "participantStatus",
+        "participantAcceptedVia",
+        "participantAcceptedAt",
+        "planAcceptanceBackfillTag"
+      ]
+    },
+    {
+      "id": "lkpCPuwS811jzLWXyhun",
+      "companyCode": "RCM",
+      "title": "Website & E-commerce Setup",
+      "before": {
+        "participantStatus": {
+          "existed": true,
+          "value": "pending"
+        },
+        "participantAcceptedVia": {
+          "existed": false,
+          "value": null
+        },
+        "participantAcceptedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedVia": {
+          "existed": false,
+          "value": null
+        },
+        "status": {
+          "existed": true,
+          "value": "pending"
+        },
+        "planAcceptanceBackfillTag": {
+          "existed": false,
+          "value": null
+        }
+      },
+      "change": [
+        "workStartedAt",
+        "workStartedVia",
+        "participantStatus",
+        "participantAcceptedVia",
+        "participantAcceptedAt",
+        "planAcceptanceBackfillTag"
+      ]
+    },
+    {
+      "id": "mtVTrhx0vtimIYpddPSb",
+      "companyCode": "QTX",
+      "title": "Governance & Leadership Coaching",
+      "before": {
+        "participantStatus": {
+          "existed": true,
+          "value": "pending"
+        },
+        "participantAcceptedVia": {
+          "existed": false,
+          "value": null
+        },
+        "participantAcceptedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedVia": {
+          "existed": false,
+          "value": null
+        },
+        "status": {
+          "existed": true,
+          "value": "pending"
+        },
+        "planAcceptanceBackfillTag": {
+          "existed": false,
+          "value": null
+        }
+      },
+      "change": [
+        "workStartedAt",
+        "workStartedVia",
+        "participantStatus",
+        "participantAcceptedVia",
+        "participantAcceptedAt",
+        "planAcceptanceBackfillTag"
+      ]
+    },
+    {
+      "id": "nS66QLtHX4oeSjjo2mDI",
+      "companyCode": "RCM",
+      "title": "Digital Tools Onboarding",
+      "before": {
+        "participantStatus": {
+          "existed": true,
+          "value": "accepted"
+        },
+        "participantAcceptedVia": {
+          "existed": false,
+          "value": null
+        },
+        "participantAcceptedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedVia": {
+          "existed": false,
+          "value": null
+        },
+        "status": {
+          "existed": true,
+          "value": "in_progress"
+        },
+        "planAcceptanceBackfillTag": {
+          "existed": false,
+          "value": null
+        }
+      },
+      "change": [
+        "workStartedAt",
+        "workStartedVia",
+        "planAcceptanceBackfillTag"
+      ]
+    },
+    {
+      "id": "qXKkPENjyycFF6JzYRwJ",
+      "companyCode": "QTX",
+      "title": "Standard Operating Procedures Workshop",
+      "before": {
+        "participantStatus": {
+          "existed": true,
+          "value": "pending"
+        },
+        "participantAcceptedVia": {
+          "existed": false,
+          "value": null
+        },
+        "participantAcceptedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedVia": {
+          "existed": false,
+          "value": null
+        },
+        "status": {
+          "existed": true,
+          "value": "pending"
+        },
+        "planAcceptanceBackfillTag": {
+          "existed": false,
+          "value": null
+        }
+      },
+      "change": [
+        "workStartedAt",
+        "workStartedVia",
+        "participantStatus",
+        "participantAcceptedVia",
+        "participantAcceptedAt",
+        "planAcceptanceBackfillTag"
+      ]
+    },
+    {
+      "id": "xJlseo06IvF1VKvOYW3g",
+      "companyCode": "QTX",
+      "title": "Brand & Digital Presence Audit",
+      "before": {
+        "participantStatus": {
+          "existed": true,
+          "value": "accepted"
+        },
+        "participantAcceptedVia": {
+          "existed": false,
+          "value": null
+        },
+        "participantAcceptedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedVia": {
+          "existed": false,
+          "value": null
+        },
+        "status": {
+          "existed": true,
+          "value": "in_progress"
+        },
+        "planAcceptanceBackfillTag": {
+          "existed": false,
+          "value": null
+        }
+      },
+      "change": [
+        "workStartedAt",
+        "workStartedVia",
+        "planAcceptanceBackfillTag"
+      ]
+    },
+    {
+      "id": "y54pauF89HP3I5qTWi6a",
+      "companyCode": "QTX",
+      "title": "Business Plan Refresh",
+      "before": {
+        "participantStatus": {
+          "existed": true,
+          "value": "accepted"
+        },
+        "participantAcceptedVia": {
+          "existed": false,
+          "value": null
+        },
+        "participantAcceptedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedVia": {
+          "existed": false,
+          "value": null
+        },
+        "status": {
+          "existed": true,
+          "value": "in_progress"
+        },
+        "planAcceptanceBackfillTag": {
+          "existed": false,
+          "value": null
+        }
+      },
+      "change": [
+        "workStartedAt",
+        "workStartedVia",
+        "planAcceptanceBackfillTag"
+      ]
+    },
+    {
+      "id": "zfmQhZ8NVlVRW4kNsMPC",
+      "companyCode": "QTX",
+      "title": "Compliance Readiness Review",
+      "before": {
+        "participantStatus": {
+          "existed": true,
+          "value": "pending"
+        },
+        "participantAcceptedVia": {
+          "existed": false,
+          "value": null
+        },
+        "participantAcceptedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedVia": {
+          "existed": false,
+          "value": null
+        },
+        "status": {
+          "existed": true,
+          "value": "pending"
+        },
+        "planAcceptanceBackfillTag": {
+          "existed": false,
+          "value": null
+        }
+      },
+      "change": [
+        "workStartedAt",
+        "workStartedVia",
+        "participantStatus",
+        "participantAcceptedVia",
+        "participantAcceptedAt",
+        "planAcceptanceBackfillTag"
+      ]
+    },
+    {
+      "id": "zuXdm2nfhOldmuUVDP8c",
+      "companyCode": "QTX",
+      "title": "Digital Tools Onboarding",
+      "before": {
+        "participantStatus": {
+          "existed": true,
+          "value": "pending"
+        },
+        "participantAcceptedVia": {
+          "existed": false,
+          "value": null
+        },
+        "participantAcceptedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedAt": {
+          "existed": false,
+          "value": null
+        },
+        "workStartedVia": {
+          "existed": false,
+          "value": null
+        },
+        "status": {
+          "existed": true,
+          "value": "pending"
+        },
+        "planAcceptanceBackfillTag": {
+          "existed": false,
+          "value": null
+        }
+      },
+      "change": [
+        "workStartedAt",
+        "workStartedVia",
+        "participantStatus",
+        "participantAcceptedVia",
+        "participantAcceptedAt",
+        "planAcceptanceBackfillTag"
+      ]
+    }
+  ]
+}

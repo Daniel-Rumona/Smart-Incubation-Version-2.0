@@ -9,6 +9,7 @@ import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { useLanguage, tEnglish } from '@/providers/LanguageProvider'
 import { listApplicantApplications } from '@/services/applicantService'
+import ApplicantJourneySteps from '@/components/applicant/ApplicantJourneySteps'
 import type { ApplicantApplication } from '@/types/applicant'
 import '@/styles/applicant.css'
 
@@ -70,6 +71,7 @@ export const ApplicationTrackerPage = () => {
 
     return (
         <DashboardPageShell className="applicant-page">
+            <ApplicantJourneySteps current={2} />
             <Row gutter={[12, 12]} className="applicant-metrics">
                 <Col xs={12} md={6} className="applicant-metric-col"><DashboardMetricCard icon={<AppstoreOutlined />} label={t('applicant.tracker.total')} value={applications.length} /></Col>
                 <Col xs={12} md={6} className="applicant-metric-col"><DashboardMetricCard icon={<ClockCircleOutlined />} label={t('applicant.tracker.pending')} value={counts.pending} /></Col>

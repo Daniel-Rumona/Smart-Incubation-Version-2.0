@@ -38,6 +38,8 @@ export type AgentChatMessage = {
   id: string
   role: 'user' | 'agent'
   content: string
+  /** An agent reply still being worked on (shown as "thinking"); cleared when the result or error arrives. */
+  pending?: boolean
   rateable?: boolean
   rating?: number
   proposal?: AgentProposal

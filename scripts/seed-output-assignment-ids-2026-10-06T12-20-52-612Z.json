@@ -1,0 +1,920 @@
+{
+  "updated": [
+    {
+      "id": "01v7i9gdrRe0kWibPvMA",
+      "interventionId": "digital-tools-onboarding"
+    },
+    {
+      "id": "03Uo9lCq5L0cs3DFRgx6",
+      "interventionId": "marketing-strategy-development"
+    },
+    {
+      "id": "06N1ejDPtcxrDgUjISGT",
+      "interventionId": "cash-flow-budgeting-workshop"
+    },
+    {
+      "id": "0PGxsStlQXKD7BjsS634",
+      "interventionId": "standard-operating-procedures-workshop"
+    },
+    {
+      "id": "0jFL9YNSFAxkV7k0aq5O",
+      "interventionId": "market-access-facilitation"
+    },
+    {
+      "id": "0n6UUTIETK4KekIZ4Pr0",
+      "interventionId": "financial-management-coaching"
+    },
+    {
+      "id": "0tnf4CZhNV3q3VlsMDVl",
+      "interventionId": "tender-readiness-coaching"
+    },
+    {
+      "id": "1aFfjeEwRYvSzVz4YP5c",
+      "interventionId": "sales-pipeline-coaching"
+    },
+    {
+      "id": "1hmYB55dLteYZ6lM39ws",
+      "interventionId": "website-e-commerce-setup"
+    },
+    {
+      "id": "1nKDcGuLkCWSUJz3h52g",
+      "interventionId": "sales-pipeline-coaching"
+    },
+    {
+      "id": "21EAU3fnxS2ZD1g47M8u",
+      "interventionId": "cash-flow-budgeting-workshop"
+    },
+    {
+      "id": "37h1IElP1tIvRLbBEGRt",
+      "interventionId": "sales-pipeline-coaching"
+    },
+    {
+      "id": "3RSOAckzw1GNU7EyXdUz",
+      "interventionId": "business-plan-refresh"
+    },
+    {
+      "id": "3wD9Z4c9nE4ltnibqIOd",
+      "interventionId": "brand-digital-presence-audit"
+    },
+    {
+      "id": "43UQxiYt2PbK8LwENElB",
+      "interventionId": "cash-flow-budgeting-workshop"
+    },
+    {
+      "id": "47kw5AeYupS3JzFA6wrb",
+      "interventionId": "tender-readiness-coaching"
+    },
+    {
+      "id": "4BySYSitAjvozmVN5b5N",
+      "interventionId": "export-readiness-assessment"
+    },
+    {
+      "id": "4L8L2epXKBOrDjkjTWRg",
+      "interventionId": "brand-digital-presence-audit"
+    },
+    {
+      "id": "4T24W6CaGEoIqnpSL0UQ",
+      "interventionId": "financial-management-coaching"
+    },
+    {
+      "id": "4dhldqq4ssNqHvAFFzhy",
+      "interventionId": "sales-pipeline-coaching"
+    },
+    {
+      "id": "5ZFAgdULmPWveiqGg11h",
+      "interventionId": "market-access-facilitation"
+    },
+    {
+      "id": "5haNJBOJYN4WR5O9kiyN",
+      "interventionId": "website-e-commerce-setup"
+    },
+    {
+      "id": "5sjJe8kFT5egNlaMNxHr",
+      "interventionId": "financial-management-coaching"
+    },
+    {
+      "id": "5uRh1aZwae900NSFkdOi",
+      "interventionId": "systems-automation-review"
+    },
+    {
+      "id": "6HPiIhRUFjsRc1P4uWSk",
+      "interventionId": "export-readiness-assessment"
+    },
+    {
+      "id": "6SOrGrKoY6s88aTj5hFA",
+      "interventionId": "cash-flow-budgeting-workshop"
+    },
+    {
+      "id": "6dV7rh5zCEtnAwwhwKtV",
+      "interventionId": "market-access-facilitation"
+    },
+    {
+      "id": "75jeJ3jqWGimIxY5Pgd9",
+      "interventionId": "systems-automation-review"
+    },
+    {
+      "id": "76vzamEZT8Dak1fYFdvR",
+      "interventionId": "marketing-strategy-development"
+    },
+    {
+      "id": "7T0KQOmSz3TA0xi4w2Fm",
+      "interventionId": "standard-operating-procedures-workshop"
+    },
+    {
+      "id": "7Za4UepbHQMNPj6X3yP3",
+      "interventionId": "business-plan-refresh"
+    },
+    {
+      "id": "7bZLKIHt3R9kOnNI36nG",
+      "interventionId": "business-plan-refresh"
+    },
+    {
+      "id": "7kMAynsnABD1B2nma4HT",
+      "interventionId": "compliance-readiness-review"
+    },
+    {
+      "id": "7zLM9k6kw6BAMZqGEEFA",
+      "interventionId": "market-access-facilitation"
+    },
+    {
+      "id": "80m0NA5pfsqIBnByzgf3",
+      "interventionId": "digital-tools-onboarding"
+    },
+    {
+      "id": "8I4UqDCBTaEckpfso7ji",
+      "interventionId": "market-access-facilitation"
+    },
+    {
+      "id": "8NQ9hN0g0JuGdUAmLDer",
+      "interventionId": "marketing-strategy-development"
+    },
+    {
+      "id": "8Vg8iyYAyzR7VEKE5vo8",
+      "interventionId": "export-readiness-assessment"
+    },
+    {
+      "id": "94cTzZ0twhw7xQnj3Oot",
+      "interventionId": "website-e-commerce-setup"
+    },
+    {
+      "id": "9WvKzEAeoaGJESnvvrfj",
+      "interventionId": "systems-automation-review"
+    },
+    {
+      "id": "9dowzJ0a08MXKHCEYQwo",
+      "interventionId": "sales-pipeline-coaching"
+    },
+    {
+      "id": "9uT3BGXDno3MjQaxT5vd",
+      "interventionId": "export-readiness-assessment"
+    },
+    {
+      "id": "A3N6Bj7RG4ju96km1X5W",
+      "interventionId": "compliance-readiness-review"
+    },
+    {
+      "id": "A7W4vD2hjQR1WGS5XP6m",
+      "interventionId": "sales-pipeline-coaching"
+    },
+    {
+      "id": "AI3nilfBSj3eK4mibvCU",
+      "interventionId": "business-plan-refresh"
+    },
+    {
+      "id": "AIGmLyTCBuBLTbHPZ6VQ",
+      "interventionId": "export-readiness-assessment"
+    },
+    {
+      "id": "AUXQ0iHcryfLz6ULszR6",
+      "interventionId": "marketing-strategy-development"
+    },
+    {
+      "id": "AajdH3OKlKhcdt1JoVMu",
+      "interventionId": "market-access-facilitation"
+    },
+    {
+      "id": "Amoeuj8h5L9M4LNziOx3",
+      "interventionId": "standard-operating-procedures-workshop"
+    },
+    {
+      "id": "Ar5VdYLVGlRJGwRorxtF",
+      "interventionId": "succession-planning-session"
+    },
+    {
+      "id": "AwSHZZduVDq5vjTkKgQn",
+      "interventionId": "digital-tools-onboarding"
+    },
+    {
+      "id": "B5Pbzje6nnHf2X2faYUr",
+      "interventionId": "systems-automation-review"
+    },
+    {
+      "id": "BDMJoRk5OeoVgTfJ6Jga",
+      "interventionId": "bookkeeping-systems-setup"
+    },
+    {
+      "id": "BWYtdFJXVsZuBveWx7aB",
+      "interventionId": "digital-tools-onboarding"
+    },
+    {
+      "id": "Bafz4zCrnTORPtv0KLDI",
+      "interventionId": "succession-planning-session"
+    },
+    {
+      "id": "BfyTVWBE28JqDKa6DO2G",
+      "interventionId": "bookkeeping-systems-setup"
+    },
+    {
+      "id": "BfzidPDfySan7zWby4gB",
+      "interventionId": "financial-management-coaching"
+    },
+    {
+      "id": "C49QAmfU6UjytnYAB9ZN",
+      "interventionId": "marketing-strategy-development"
+    },
+    {
+      "id": "C95BNAxrPOpUyLO9WCyH",
+      "interventionId": "tender-readiness-coaching"
+    },
+    {
+      "id": "Criqom5rUatC2GsY2gHM",
+      "interventionId": "export-readiness-assessment"
+    },
+    {
+      "id": "DHRSnfqG4ueHYUFisWkc",
+      "interventionId": "cash-flow-budgeting-workshop"
+    },
+    {
+      "id": "DSeNXdEkNg51y3Dlfa6a",
+      "interventionId": "export-readiness-assessment"
+    },
+    {
+      "id": "DpOVeUVnhqYUegDK5s0D",
+      "interventionId": "bookkeeping-systems-setup"
+    },
+    {
+      "id": "Dv2pyp87LtvqApIZo3JD",
+      "interventionId": "website-e-commerce-setup"
+    },
+    {
+      "id": "E1xu2B2RmyXIEC9yzH98",
+      "interventionId": "systems-automation-review"
+    },
+    {
+      "id": "EBsq5EQUbwK13pz9PaLv",
+      "interventionId": "governance-leadership-coaching"
+    },
+    {
+      "id": "ENxFeK3G0LdRDoFZmN0r",
+      "interventionId": "tender-readiness-coaching"
+    },
+    {
+      "id": "EcE47hLP9h9FhfzBIvaS",
+      "interventionId": "business-plan-refresh"
+    },
+    {
+      "id": "Eh0L1G4dlayYEM0Kfe8E",
+      "interventionId": "systems-automation-review"
+    },
+    {
+      "id": "EnRs2hc8ZPKVrGSBy3wo",
+      "interventionId": "digital-tools-onboarding"
+    },
+    {
+      "id": "FGIUcCfal8CWCMkD7Frc",
+      "interventionId": "business-plan-refresh"
+    },
+    {
+      "id": "FHz5DFu5wD7oMLOHMFj1",
+      "interventionId": "website-e-commerce-setup"
+    },
+    {
+      "id": "G8hf5ywwx4tR0Myxm8lm",
+      "interventionId": "cash-flow-budgeting-workshop"
+    },
+    {
+      "id": "GJ8ewvP2CzHseDcOEs2L",
+      "interventionId": "export-readiness-assessment"
+    },
+    {
+      "id": "GVTWAOJY6N7XvdzCKR4e",
+      "interventionId": "business-plan-refresh"
+    },
+    {
+      "id": "HAxVl68iL1E5Y3JocYTI",
+      "interventionId": "sales-pipeline-coaching"
+    },
+    {
+      "id": "HM8n5TnASWaAVt87UCsk",
+      "interventionId": "marketing-strategy-development"
+    },
+    {
+      "id": "I8Nqws3VaK7FvHV4xOVa",
+      "interventionId": "market-access-facilitation"
+    },
+    {
+      "id": "IIcGtdTVhXCTErYJZHN9",
+      "interventionId": "compliance-readiness-review"
+    },
+    {
+      "id": "IRWiG2CJV1p9hDM22pqC",
+      "interventionId": "business-plan-refresh"
+    },
+    {
+      "id": "Ig3bEJZrAFIKVrd3QRan",
+      "interventionId": "compliance-readiness-review"
+    },
+    {
+      "id": "JLEt6It1Uvsbh8IC6EFr",
+      "interventionId": "operations-efficiency-assessment"
+    },
+    {
+      "id": "Jdk1OV3EWM0cLBQEJpGp",
+      "interventionId": "business-plan-refresh"
+    },
+    {
+      "id": "K6zHJcGLYd9hD1v6HsKe",
+      "interventionId": "digital-tools-onboarding"
+    },
+    {
+      "id": "KHWpudWFcrMta06GARve",
+      "interventionId": "export-readiness-assessment"
+    },
+    {
+      "id": "KWDSSYyNjikHvULCwZBI",
+      "interventionId": "website-e-commerce-setup"
+    },
+    {
+      "id": "Knh5U7GkbrvLeoVR1Ca8",
+      "interventionId": "compliance-readiness-review"
+    },
+    {
+      "id": "L2AnAlCQ9aWuXNEvQGba",
+      "interventionId": "digital-tools-onboarding"
+    },
+    {
+      "id": "LNG92xewOrCSwFCIpxcY",
+      "interventionId": "brand-digital-presence-audit"
+    },
+    {
+      "id": "LQID9VFBxUmeSBuc5GUH",
+      "interventionId": "succession-planning-session"
+    },
+    {
+      "id": "M5wRNDhabgW0KG5cz5v6",
+      "interventionId": "operations-efficiency-assessment"
+    },
+    {
+      "id": "MGoL4Qa9Eu90p05MeNZL",
+      "interventionId": "market-access-facilitation"
+    },
+    {
+      "id": "MTf8vJe3sntprknCaimc",
+      "interventionId": "sales-pipeline-coaching"
+    },
+    {
+      "id": "NPicFZkxbquUCeLqI9vB",
+      "interventionId": "succession-planning-session"
+    },
+    {
+      "id": "NQVEDO3sAQWFnXy4egc8",
+      "interventionId": "systems-automation-review"
+    },
+    {
+      "id": "NzqEyr38lQ3Ldp2xvW0v",
+      "interventionId": "business-plan-refresh"
+    },
+    {
+      "id": "OA55pGDD3JJLv1bgGqC9",
+      "interventionId": "financial-management-coaching"
+    },
+    {
+      "id": "ONu5rN3BJZ0dMWAQghrc",
+      "interventionId": "financial-management-coaching"
+    },
+    {
+      "id": "ONv8bnL5YYw4hWN4fVWC",
+      "interventionId": "digital-tools-onboarding"
+    },
+    {
+      "id": "OggW0M8LJ8Ia8Ynd1MdO",
+      "interventionId": "brand-digital-presence-audit"
+    },
+    {
+      "id": "PF2U1GV3BjGr5hPkwWbH",
+      "interventionId": "operations-efficiency-assessment"
+    },
+    {
+      "id": "PesoAYgACoAPrKmfCKLM",
+      "interventionId": "succession-planning-session"
+    },
+    {
+      "id": "Pr9HGdfpXFiWS3zsnjYR",
+      "interventionId": "governance-leadership-coaching"
+    },
+    {
+      "id": "PtCUi5df41sC4fhdtghr",
+      "interventionId": "financial-management-coaching"
+    },
+    {
+      "id": "Pu5QfijDMEUdaiuJ3m8c",
+      "interventionId": "digital-tools-onboarding"
+    },
+    {
+      "id": "PwY1uAbwHVgKOSGWAd3W",
+      "interventionId": "systems-automation-review"
+    },
+    {
+      "id": "PzDF1yPOvExjpvnwGaLi",
+      "interventionId": "compliance-readiness-review"
+    },
+    {
+      "id": "QAiz1mokQGEigRpDQq9s",
+      "interventionId": "website-e-commerce-setup"
+    },
+    {
+      "id": "R9XSnq0wYCXeSe9bUPJa",
+      "interventionId": "market-access-facilitation"
+    },
+    {
+      "id": "Rp2USwTiGoUyWyvStPlB",
+      "interventionId": "standard-operating-procedures-workshop"
+    },
+    {
+      "id": "SmGQLb0gkUFKtQ6cfPcg",
+      "interventionId": "succession-planning-session"
+    },
+    {
+      "id": "SocWtfaWj6RjdQ5TocZG",
+      "interventionId": "financial-management-coaching"
+    },
+    {
+      "id": "SzvXUm2mZrlJXZfyKiXc",
+      "interventionId": "operations-efficiency-assessment"
+    },
+    {
+      "id": "TFpX9hDcZID0W8LqXbI8",
+      "interventionId": "systems-automation-review"
+    },
+    {
+      "id": "TLZr8lg0C9mfuJMajt5K",
+      "interventionId": "compliance-readiness-review"
+    },
+    {
+      "id": "TNuqQczWQOqv2mP1WRh1",
+      "interventionId": "market-access-facilitation"
+    },
+    {
+      "id": "TfWYWSkFm3bUegUWgwtw",
+      "interventionId": "sales-pipeline-coaching"
+    },
+    {
+      "id": "Tpg9lfXwgf7YwjGL9lr3",
+      "interventionId": "brand-digital-presence-audit"
+    },
+    {
+      "id": "UF3oWr19ThFRCyX7KBZp",
+      "interventionId": "bookkeeping-systems-setup"
+    },
+    {
+      "id": "UhoECJ5UH65cpsroQTt5",
+      "interventionId": "brand-digital-presence-audit"
+    },
+    {
+      "id": "Ux2TGhQoXyKukuLqxs6t",
+      "interventionId": "sales-pipeline-coaching"
+    },
+    {
+      "id": "VL2C9v8GNu3Ujr6jUdR7",
+      "interventionId": "brand-digital-presence-audit"
+    },
+    {
+      "id": "Va3JfXqvDoJEYff3izfd",
+      "interventionId": "sales-pipeline-coaching"
+    },
+    {
+      "id": "VdkYeNshiYa9Pl5LKXuP",
+      "interventionId": "digital-tools-onboarding"
+    },
+    {
+      "id": "WBemXTkN2oH6XFFvAjjQ",
+      "interventionId": "tender-readiness-coaching"
+    },
+    {
+      "id": "WDhzGSa6YF0A7nx0VPui",
+      "interventionId": "standard-operating-procedures-workshop"
+    },
+    {
+      "id": "WjYilR7smia169SU6203",
+      "interventionId": "standard-operating-procedures-workshop"
+    },
+    {
+      "id": "X3XSQqtlHtChPW9STGNJ",
+      "interventionId": "tender-readiness-coaching"
+    },
+    {
+      "id": "XEDv4NeGSZ8yGvpcfGPn",
+      "interventionId": "digital-tools-onboarding"
+    },
+    {
+      "id": "Xw7gikN8SONlBjTK0RNq",
+      "interventionId": "systems-automation-review"
+    },
+    {
+      "id": "XyF1a9WnxXRXGapSNDMu",
+      "interventionId": "business-plan-refresh"
+    },
+    {
+      "id": "XyMpk3x5CMcdJqb6GLDN",
+      "interventionId": "operations-efficiency-assessment"
+    },
+    {
+      "id": "YABMeoNJUZkthnVq6rEd",
+      "interventionId": "standard-operating-procedures-workshop"
+    },
+    {
+      "id": "Z0oNxdzzPnqSkiAZ25hk",
+      "interventionId": "systems-automation-review"
+    },
+    {
+      "id": "ZBMUMceHsGojKsLy5Ds4",
+      "interventionId": "succession-planning-session"
+    },
+    {
+      "id": "ZJthgxS2ndsAGyPlVORe",
+      "interventionId": "cash-flow-budgeting-workshop"
+    },
+    {
+      "id": "ZPajChgyLhJWHn7xKJjJ",
+      "interventionId": "governance-leadership-coaching"
+    },
+    {
+      "id": "ZUouqIwq1mn7XZDNcrZ0",
+      "interventionId": "cash-flow-budgeting-workshop"
+    },
+    {
+      "id": "a0Xe8PSZtHhgwsqudXs1",
+      "interventionId": "governance-leadership-coaching"
+    },
+    {
+      "id": "a4qAOcI6MFnZzqdVDYmk",
+      "interventionId": "export-readiness-assessment"
+    },
+    {
+      "id": "ahHeDqCU88QNq8mT3PU1",
+      "interventionId": "bookkeeping-systems-setup"
+    },
+    {
+      "id": "an1Ccd2AyQJEExBuBJU1",
+      "interventionId": "export-readiness-assessment"
+    },
+    {
+      "id": "apD7sNjas7FvYFAjPdKX",
+      "interventionId": "operations-efficiency-assessment"
+    },
+    {
+      "id": "bSHonrPHfPiODiBJpGg5",
+      "interventionId": "standard-operating-procedures-workshop"
+    },
+    {
+      "id": "byZr1XOL8fA9sl3kVzSl",
+      "interventionId": "sales-pipeline-coaching"
+    },
+    {
+      "id": "cndrzqsUKdE8NOTMy86H",
+      "interventionId": "operations-efficiency-assessment"
+    },
+    {
+      "id": "da2craegQGNtnKzjUpyf",
+      "interventionId": "digital-tools-onboarding"
+    },
+    {
+      "id": "dkjAA5lXBOsRkvIOOJbC",
+      "interventionId": "compliance-readiness-review"
+    },
+    {
+      "id": "dpTkDY2xUNSUSgHyzxE2",
+      "interventionId": "financial-management-coaching"
+    },
+    {
+      "id": "eL5CbE3EZkR8269ymGSp",
+      "interventionId": "tender-readiness-coaching"
+    },
+    {
+      "id": "eU3DxfrXo0snGDp51XE1",
+      "interventionId": "website-e-commerce-setup"
+    },
+    {
+      "id": "fhzn8i5kwGOJ7fA1O6Yi",
+      "interventionId": "compliance-readiness-review"
+    },
+    {
+      "id": "fmjMltHBITDEkbRYK5sT",
+      "interventionId": "digital-tools-onboarding"
+    },
+    {
+      "id": "g6w7m9dMPVzj01gtdvGN",
+      "interventionId": "brand-digital-presence-audit"
+    },
+    {
+      "id": "gFt4vlQdd54q6m60iXJp",
+      "interventionId": "standard-operating-procedures-workshop"
+    },
+    {
+      "id": "h0XHtqPMUmVYZIDqdcq9",
+      "interventionId": "market-access-facilitation"
+    },
+    {
+      "id": "h2ozdBm94aWQKHzEAQMq",
+      "interventionId": "business-plan-refresh"
+    },
+    {
+      "id": "hcJx7GKyS6jDvptd5d8U",
+      "interventionId": "systems-automation-review"
+    },
+    {
+      "id": "hlnsMbtUoC0GWsAm8EcW",
+      "interventionId": "website-e-commerce-setup"
+    },
+    {
+      "id": "iPJVFXPEtUgICPuSJ1Qd",
+      "interventionId": "brand-digital-presence-audit"
+    },
+    {
+      "id": "iTCa8KNBpFV07mfTxK3q",
+      "interventionId": "business-plan-refresh"
+    },
+    {
+      "id": "iYkRdm0XAU5cH3IKUd7x",
+      "interventionId": "website-e-commerce-setup"
+    },
+    {
+      "id": "j2GV1w34OaeTJDtMMpB9",
+      "interventionId": "compliance-readiness-review"
+    },
+    {
+      "id": "j54wxN9JWQ9OFkhgGOnh",
+      "interventionId": "business-plan-refresh"
+    },
+    {
+      "id": "jBOYObr5HspMm4TLSc04",
+      "interventionId": "tender-readiness-coaching"
+    },
+    {
+      "id": "jCmyIxfQv4yJeC7aV2Lk",
+      "interventionId": "sales-pipeline-coaching"
+    },
+    {
+      "id": "jOvKncBdPA4TjjzS27qE",
+      "interventionId": "financial-management-coaching"
+    },
+    {
+      "id": "kKJPcfyiJnW9CoPgpJ6L",
+      "interventionId": "succession-planning-session"
+    },
+    {
+      "id": "kdCRxWVmdLSGqRdPQlU4",
+      "interventionId": "brand-digital-presence-audit"
+    },
+    {
+      "id": "kjmOmncA3BNqHoOLwpAX",
+      "interventionId": "marketing-strategy-development"
+    },
+    {
+      "id": "lICHn31JBEFPkf0qjx8H",
+      "interventionId": "succession-planning-session"
+    },
+    {
+      "id": "lY6f2IcEZhBOBxPjBNAF",
+      "interventionId": "business-plan-refresh"
+    },
+    {
+      "id": "lkpCPuwS811jzLWXyhun",
+      "interventionId": "website-e-commerce-setup"
+    },
+    {
+      "id": "mHrcAR8tpEPrxe2OQ7Xt",
+      "interventionId": "marketing-strategy-development"
+    },
+    {
+      "id": "mtVTrhx0vtimIYpddPSb",
+      "interventionId": "governance-leadership-coaching"
+    },
+    {
+      "id": "mySrAwo36HzESJD59rU0",
+      "interventionId": "export-readiness-assessment"
+    },
+    {
+      "id": "nQsdk5JlaUG4yt6UVJNP",
+      "interventionId": "digital-tools-onboarding"
+    },
+    {
+      "id": "nS66QLtHX4oeSjjo2mDI",
+      "interventionId": "digital-tools-onboarding"
+    },
+    {
+      "id": "neoPX6qmMPmpyXzEgKqs",
+      "interventionId": "website-e-commerce-setup"
+    },
+    {
+      "id": "ngdV254G46ZkQsyYwqBW",
+      "interventionId": "tender-readiness-coaching"
+    },
+    {
+      "id": "nuCDPVXskWZ5RqsMJd0r",
+      "interventionId": "export-readiness-assessment"
+    },
+    {
+      "id": "o13ihKoCMHwQWfW3vRok",
+      "interventionId": "cash-flow-budgeting-workshop"
+    },
+    {
+      "id": "oA9H713ENapXcF2H8lPI",
+      "interventionId": "website-e-commerce-setup"
+    },
+    {
+      "id": "oBuGRvPoR7Gx1xMXgW7B",
+      "interventionId": "sales-pipeline-coaching"
+    },
+    {
+      "id": "oOUXegdBJhZymmwBec1s",
+      "interventionId": "financial-management-coaching"
+    },
+    {
+      "id": "obKJZFVvfxbTjMRlNNsE",
+      "interventionId": "operations-efficiency-assessment"
+    },
+    {
+      "id": "q1rxKXzqOHc3UE53bBqt",
+      "interventionId": "website-e-commerce-setup"
+    },
+    {
+      "id": "qXKkPENjyycFF6JzYRwJ",
+      "interventionId": "standard-operating-procedures-workshop"
+    },
+    {
+      "id": "qcVa7mmwCJBDuXoBlXUw",
+      "interventionId": "governance-leadership-coaching"
+    },
+    {
+      "id": "qg2jY1gXaSNuxaudkEkm",
+      "interventionId": "compliance-readiness-review"
+    },
+    {
+      "id": "qlVkxy9HILWJsrVz9qqI",
+      "interventionId": "systems-automation-review"
+    },
+    {
+      "id": "qmvrEXKUjZhbmym6AbPL",
+      "interventionId": "market-access-facilitation"
+    },
+    {
+      "id": "qwlbyeV8krCrWezoAv4G",
+      "interventionId": "business-plan-refresh"
+    },
+    {
+      "id": "r08RUxFrN8J1JHwmwJup",
+      "interventionId": "export-readiness-assessment"
+    },
+    {
+      "id": "r2qQr1xvomeFKPLk5Zef",
+      "interventionId": "digital-tools-onboarding"
+    },
+    {
+      "id": "r9AmZinIhAXGFEbGw8mK",
+      "interventionId": "cash-flow-budgeting-workshop"
+    },
+    {
+      "id": "rxsNkYck29RLLGyB9SEY",
+      "interventionId": "compliance-readiness-review"
+    },
+    {
+      "id": "rzqEFfD5GQP2rxg5WbPC",
+      "interventionId": "compliance-readiness-review"
+    },
+    {
+      "id": "s7F4vRAjWrMqNa3v8sYO",
+      "interventionId": "business-plan-refresh"
+    },
+    {
+      "id": "s7PTAeJC1bZlsFhO7dez",
+      "interventionId": "digital-tools-onboarding"
+    },
+    {
+      "id": "sudIHkZcdc4Ue5ExtrwD",
+      "interventionId": "business-plan-refresh"
+    },
+    {
+      "id": "tmuNK9xMffx0T4OT6vzE",
+      "interventionId": "operations-efficiency-assessment"
+    },
+    {
+      "id": "tsfLaLQn06Aur5F8EUaa",
+      "interventionId": "bookkeeping-systems-setup"
+    },
+    {
+      "id": "u07uD6Aufi42xDSotDjL",
+      "interventionId": "sales-pipeline-coaching"
+    },
+    {
+      "id": "ubZarYE8P2T51dbvuK61",
+      "interventionId": "sales-pipeline-coaching"
+    },
+    {
+      "id": "uemE89uNRha116Pk4ZIa",
+      "interventionId": "systems-automation-review"
+    },
+    {
+      "id": "vZa3fWX8MKACtZpJhgcl",
+      "interventionId": "market-access-facilitation"
+    },
+    {
+      "id": "vcnjgoN3eT6MhoU5K29A",
+      "interventionId": "digital-tools-onboarding"
+    },
+    {
+      "id": "w6qlhJAqtlCLkfcC0BJm",
+      "interventionId": "bookkeeping-systems-setup"
+    },
+    {
+      "id": "w90ZPy94lTXjCCvEdvJK",
+      "interventionId": "marketing-strategy-development"
+    },
+    {
+      "id": "wU0pTDTKesKOmDnI4HQ4",
+      "interventionId": "governance-leadership-coaching"
+    },
+    {
+      "id": "wZUnfg5J1b9cLKReCxpg",
+      "interventionId": "cash-flow-budgeting-workshop"
+    },
+    {
+      "id": "wlthDJaRaSnSmFGuV9Z7",
+      "interventionId": "cash-flow-budgeting-workshop"
+    },
+    {
+      "id": "wo0b4ZChcGQITFHAB3c8",
+      "interventionId": "marketing-strategy-development"
+    },
+    {
+      "id": "wysaaut36Fe4oFL5oPHy",
+      "interventionId": "website-e-commerce-setup"
+    },
+    {
+      "id": "x7S2WnUxzNruc8BYj4tZ",
+      "interventionId": "sales-pipeline-coaching"
+    },
+    {
+      "id": "xJlseo06IvF1VKvOYW3g",
+      "interventionId": "brand-digital-presence-audit"
+    },
+    {
+      "id": "xOiL8ttURbUcdyNGYxBN",
+      "interventionId": "operations-efficiency-assessment"
+    },
+    {
+      "id": "xSVZDrr5YQf5mpQkDXxH",
+      "interventionId": "operations-efficiency-assessment"
+    },
+    {
+      "id": "xcIvYQzfFePQ5DhhKUOt",
+      "interventionId": "market-access-facilitation"
+    },
+    {
+      "id": "y54pauF89HP3I5qTWi6a",
+      "interventionId": "business-plan-refresh"
+    },
+    {
+      "id": "yB341mK0uUoSJTJ1mHAY",
+      "interventionId": "succession-planning-session"
+    },
+    {
+      "id": "yUxv3cnAvuchqrmrH6uq",
+      "interventionId": "website-e-commerce-setup"
+    },
+    {
+      "id": "ycmuz8pw7FkXSr1EOELY",
+      "interventionId": "website-e-commerce-setup"
+    },
+    {
+      "id": "ynDoNyo0cB8I9lbzVd7X",
+      "interventionId": "compliance-readiness-review"
+    },
+    {
+      "id": "yscTjnuLItQ1lWidBu9O",
+      "interventionId": "financial-management-coaching"
+    },
+    {
+      "id": "zfmQhZ8NVlVRW4kNsMPC",
+      "interventionId": "compliance-readiness-review"
+    },
+    {
+      "id": "zolA8pqvbcg1wgd5YzVB",
+      "interventionId": "compliance-readiness-review"
+    },
+    {
+      "id": "zuXdm2nfhOldmuUVDP8c",
+      "interventionId": "digital-tools-onboarding"
+    }
+  ]
+}

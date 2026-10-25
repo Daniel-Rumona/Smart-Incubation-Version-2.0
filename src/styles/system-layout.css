@@ -58,10 +58,13 @@
 .workspace-navigation-modal .ant-modal-body { padding-top: 4px; }
 .workspace-navigation-intro { margin: 0 auto 18px; text-align: center; }
 .workspace-navigation-sections { margin-bottom: 18px; }
-.workspace-navigation-grid { display: grid; grid-template-columns: repeat(var(--nav-tracks, 6), minmax(0, 1fr)); gap: 12px; }
+.workspace-navigation-grid { display: grid; grid-template-columns: repeat(var(--nav-tracks, 6), minmax(0, 1fr)); gap: 8px; max-height: min(60vh, 560px); overflow-y: auto; padding: 2px; }
 .workspace-navigation-card { display: flex; grid-column: span 2; min-height: 88px; padding: 11px 14px; border: 1px solid rgba(109, 93, 251, .16); border-radius: 16px; color: inherit; background: var(--ant-color-bg-container); text-align: left; cursor: pointer; transition: border-color .18s ease, background .18s ease, transform .18s ease; }
 .workspace-navigation-card.is-compact { min-height: 68px; padding-block: 9px; }
-.workspace-navigation-card:hover, .workspace-navigation-card.is-current { border-color: #6d5dfb; background: rgba(109, 93, 251, .08); transform: translateY(-2px); }
+/* In a stacked list a lift reads as jitter; the border and tint are enough. */
+.workspace-navigation-card:hover, .workspace-navigation-card.is-current { border-color: #6d5dfb; background: rgba(109, 93, 251, .08); }
+.workspace-navigation-card:active { transform: scale(0.99); }
+.workspace-navigation-card { min-height: 0; }
 .workspace-navigation-grid.has-orphans-1 .workspace-navigation-card:last-child { grid-column: 3 / span 2; }
 .workspace-navigation-grid.has-orphans-2 .workspace-navigation-card:nth-last-child(2) { grid-column: 2 / span 2; }
 .workspace-navigation-icon { display: grid; width: 38px; height: 38px; flex: 0 0 auto; align-self: center; place-items: center; margin-right: 12px; border-radius: 12px; color: #6d5dfb; background: rgba(109, 93, 251, .12); font-size: 18px; }
@@ -503,9 +506,26 @@ html[data-theme='dark'] .workspace-navigation-card:hover, html[data-theme='dark'
     gap: 6px;
 }
 
+/* Light mode: the active mode and the active page get the same filled pill dark mode uses,
+   instead of a white pill that barely stands out from the track. */
+html:not([data-theme='dark']) .app-mode-switch .ant-segmented-item-selected,
+html:not([data-theme='dark']) .app-mode-switch .ant-segmented-thumb,
+html:not([data-theme='dark']) .app-quicklinks-switch .ant-segmented-item-selected,
+html:not([data-theme='dark']) .app-quicklinks-switch .ant-segmented-thumb,
+html:not([data-theme='dark']) .app-account-row .ant-segmented-item-selected,
+html:not([data-theme='dark']) .app-account-row .ant-segmented-thumb {
+    background: linear-gradient(135deg, #6d5dfb, #4f7df3) !important;
+    color: #ffffff !important;
+    box-shadow: 0 5px 14px rgba(91, 83, 226, 0.28);
+}
+
 /* =========================================================
    TOPBAR ACTIONS
    ========================================================= */
+
+.app-topbar-actions > * {
+    flex-shrink: 0;
+}
 
 .app-topbar-actions {
     justify-content: flex-end;
@@ -1095,6 +1115,38 @@ html[data-theme='dark'] .app-search-hint {
    TABLET
    ========================================================= */
 
+/*
+ * Desktop topbar budget. The bar never wraps, so as the window narrows the programme name gives way first
+ * (and Guide me is already a compact icon), keeping the account button on screen. Labels stay.
+ */
+@media (min-width: 992px) {
+    .app-topbar-actions .guide-me-launcher {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 38px;
+        height: 38px;
+        padding: 0;
+        border-radius: 50%;
+        font-size: 0;
+    }
+
+    .app-topbar-actions .guide-me-launcher .anticon { font-size: 16px; margin: 0; }
+    /* antd keeps a flex gap between the icon and the (now empty) label, which pushed the icon off centre. */
+    .app-topbar-actions .guide-me-launcher { gap: 0; }
+    .app-topbar-actions .guide-me-launcher > span:not(.ant-btn-icon) { display: none; }
+}
+
+@media (min-width: 992px) and (max-width: 1500px) {
+    .app-topbar-pill { gap: 8px; }
+    .app-mode-switch .ant-segmented-item { min-width: 0; }
+    .app-project-tag { max-width: 130px; }
+}
+
+@media (min-width: 992px) and (max-width: 1280px) {
+    .app-project-tag { max-width: 100px; }
+}
+
 @media (max-width: 1200px) {
     .app-topbar-pill {
         grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
@@ -1107,6 +1159,48 @@ html[data-theme='dark'] .app-search-hint {
 }
 
 /* =========================================================
+   TABLET (768px - 991px)
+   Phone layout, but the mode switch and Menu live in the top bar and there is no bottom bar.
+   ========================================================= */
+
+@media (min-width: 768px) and (max-width: 991px) {
+    /* html:root outranks the plain :root rule in the mobile block that follows. */
+    html:root {
+        --app-bottom-bar-height: 0px;
+    }
+
+    /* Doubled class so this beats the two-column grid the phone block sets right after it. */
+    .app-topbar-pill.app-topbar-pill {
+        grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
+    }
+
+    .app-topbar-tablet-nav {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+    }
+
+    .app-topbar-tablet-nav .app-mode-switch {
+        flex: 0 0 auto;
+        height: 40px;
+    }
+
+    .app-topbar-tablet-nav .app-mode-switch .ant-segmented-item {
+        min-width: 0;
+    }
+
+    .app-topbar-tablet-nav .app-menu-button {
+        flex: 0 0 auto;
+        width: 40px;
+        min-width: 40px;
+        height: 40px;
+        padding-inline: 0;
+        border-radius: 999px;
+    }
+}
+
+/* =========================================================
    MOBILE
    ========================================================= */
 
@@ -1115,7 +1209,9 @@ html[data-theme='dark'] .app-search-hint {
         --app-bottom-bar-height: calc(64px + env(safe-area-inset-bottom));
     }
 
-    .workspace-navigation-modal { max-width: calc(100vw - 20px); }
+    .workspace-navigation-modal:not(.responsive-modal-sheet) { max-width: calc(100vw - 20px); }
+    /* In the bottom sheet the sheet itself scrolls, so the list doesn't need its own scroll area. */
+    .responsive-modal-sheet .workspace-navigation-grid { max-height: none; overflow: visible; }
     .workspace-navigation-grid { grid-template-columns: 1fr; }
     .workspace-navigation-card,
     .workspace-navigation-grid.has-orphans-1 .workspace-navigation-card:last-child,
@@ -1360,3 +1456,202 @@ html[data-theme='dark'] .app-search-hint {
         font-size: 12px;
     }
 }
+
+/* =========================================================
+   PHONE / TABLET TOP BAR: page-name tag + short pill actions
+   ========================================================= */
+
+/* The page name reads as a tag rather than loose bold text. */
+.app-page-tag {
+    display: inline-block;
+    max-width: 100%;
+    padding: 5px 12px;
+    border-radius: 999px;
+    background: rgba(109, 93, 251, 0.1);
+    color: #5b4bd9;
+    font-size: 13px !important;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+html[data-theme='dark'] .app-page-tag {
+    background: rgba(139, 92, 246, 0.2);
+    color: #d6cfff;
+}
+
+/* Agent, notifications and account as three short tinted pills (doubled class beats the phone sizing rules). */
+.app-topbar-actions.is-mobile-pills .app-icon-btn.app-icon-btn {
+    width: 44px !important;
+    min-width: 44px !important;
+    height: 32px !important;
+    padding: 0 !important;
+    border-radius: 999px !important;
+    border: 1px solid rgba(109, 93, 251, 0.16) !important;
+    background: rgba(109, 93, 251, 0.07) !important;
+    color: #5b4bd9 !important;
+    transition: transform 160ms ease-out, background-color 160ms ease;
+}
+
+.app-topbar-actions.is-mobile-pills .app-icon-btn.app-icon-btn:active {
+    transform: scale(0.96);
+}
+
+html[data-theme='dark'] .app-topbar-actions.is-mobile-pills .app-icon-btn.app-icon-btn {
+    border-color: rgba(139, 92, 246, 0.3) !important;
+    background: rgba(139, 92, 246, 0.14) !important;
+    color: #d6cfff !important;
+}
+
+/* =========================================================
+   PHONES: no mode switch
+   ========================================================= */
+
+/* In Agentic, the top-left tag becomes the way into Workspace. */
+.app-goto-workspace.app-goto-workspace {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 999px;
+    color: #fff;
+    background: linear-gradient(135deg, #6d5dfb, #4f7df3);
+    font-size: 13px;
+    font-weight: 700;
+    box-shadow: 0 6px 14px rgba(91, 83, 226, 0.25);
+    transition: transform 100ms ease-out;
+}
+
+.app-goto-workspace.app-goto-workspace:active {
+    transform: scale(0.97);
+}
+
+.app-goto-workspace.app-goto-workspace:hover {
+    color: #fff !important;
+    background: linear-gradient(135deg, #6d5dfb, #4f7df3) !important;
+}
+
+/* The Menu sheet's way back to Agentic: first, and tinted so it reads as a mode, not a page. */
+.workspace-navigation-card.is-agentic {
+    border-color: rgba(109, 93, 251, 0.35);
+    background: rgba(109, 93, 251, 0.07);
+}
+
+/* No bottom bar (Agentic on phones): give its reserved space back to the page. */
+.app-main.has-no-bottom-bar {
+    --app-bottom-bar-height: 0px;
+}
+
+/* =========================================================
+   PHONES: bottom tab bar (Home + shortcuts + Menu)
+   Dark floating pill; the current tab grows into a labelled pill.
+   ========================================================= */
+
+@media (max-width: 991px) {
+    /* 60px bar + 8px gap below it, plus a little air. (Tablets set this to 0 with html:root.) */
+    :root {
+        --app-bottom-bar-height: calc(72px + env(safe-area-inset-bottom));
+    }
+
+    .app-bottom-bar.app-tab-bar {
+        /* Hug the tabs rather than spanning the screen. */
+        justify-content: center;
+        gap: 4px;
+        width: max-content;
+        max-width: calc(100vw - 20px);
+        height: 56px;
+        padding: 0 6px;
+        /* The app's own surfaces: frosted white in light mode, the dark surface in dark mode. */
+        border: 1px solid rgba(109, 93, 251, 0.14);
+        background: rgba(255, 255, 255, 0.94);
+        backdrop-filter: blur(18px);
+        box-shadow: 0 16px 36px rgba(15, 23, 42, 0.12);
+    }
+
+    html[data-theme='dark'] .app-bottom-bar.app-tab-bar {
+        border-color: rgba(139, 92, 246, 0.22);
+        background: rgba(23, 25, 35, 0.94);
+        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4);
+    }
+
+    .app-tab {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 1 auto;
+        min-width: 44px;
+        height: 44px;
+        padding: 0 10px;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        color: #64748b;
+        font: inherit;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        transition: background-color 220ms ease, color 220ms ease, padding 260ms cubic-bezier(0.23, 1, 0.32, 1), transform 100ms ease-out;
+    }
+
+    .app-tab:active {
+        transform: scale(0.95);
+    }
+
+    .app-tab-icon {
+        display: inline-flex;
+        font-size: 20px;
+    }
+
+    /* The label is there for every tab but only opens on the current one. */
+    .app-tab-label {
+        max-width: 0;
+        overflow: hidden;
+        opacity: 0;
+        font-size: 13px;
+        font-weight: 600;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        transition: max-width 260ms cubic-bezier(0.23, 1, 0.32, 1), opacity 180ms ease, margin 260ms cubic-bezier(0.23, 1, 0.32, 1);
+    }
+
+    /* Current tab: the same purple pill as the top bar's selected item, in both themes. */
+    .app-tab.is-active {
+        padding: 0 16px 0 12px;
+        color: #fff;
+        background: linear-gradient(135deg, #6d5dfb, #4f7df3);
+        box-shadow: 0 6px 14px rgba(91, 83, 226, 0.28);
+    }
+
+    html[data-theme='dark'] .app-tab:not(.is-active) {
+        color: #aeb8ca;
+    }
+
+    .app-tab.is-active .app-tab-label {
+        max-width: 120px;
+        margin-left: 8px;
+        opacity: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .app-tab,
+    .app-tab-label {
+        transition: none;
+    }
+}
+
+/* =========================================================
+   TOPBAR FIT
+   Set by SystemLayout when the bar would overflow (longer labels in some languages). Labels give way in
+   steps and stay available as tooltips: other shortcuts, then the other mode, then the current shortcut.
+   ========================================================= */
+
+.app-topbar-pill[data-fit~='links'] .app-quicklinks-switch .ant-segmented-item:not(.ant-segmented-item-selected) .app-topbar-text,
+.app-topbar-pill[data-fit~='modes'] .app-mode-switch .ant-segmented-item:not(.ant-segmented-item-selected) .app-topbar-text,
+.app-topbar-pill[data-fit~='all'] .app-quicklinks-switch .app-topbar-text {
+    display: none;
+}
+
+.app-topbar-pill[data-fit~='modes'] .app-mode-switch .ant-segmented-item { min-width: 0; }

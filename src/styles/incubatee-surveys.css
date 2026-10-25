@@ -1,0 +1,323 @@
+/* =========================================================
+   SME SURVEYS PAGE
+   Same layout family as the compliance and interventions pages:
+   completion score + metrics, the next survey, then To do and a
+   collapsed Submitted group.
+   ========================================================= */
+
+.incubatee-surveys-page {
+    --surveys-ease: cubic-bezier(0.23, 1, 0.32, 1);
+    --surveys-accent: #6d5dfb;
+    --surveys-border: rgba(109, 93, 251, 0.12);
+    --surveys-surface: var(--ant-color-bg-container, #fff);
+    --surveys-divider: rgba(15, 23, 42, 0.06);
+    --surveys-muted: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.55));
+    display: grid;
+    /* The page fills the viewport; without this the few rows share the spare height as gaps. */
+    align-content: start;
+    gap: 16px;
+}
+
+/* Sections settle in on first paint; short so the page never feels slow. */
+.surveys-summary,
+.surveys-next,
+.surveys-group {
+    animation: surveys-fade-in 260ms var(--surveys-ease) both;
+}
+
+.surveys-next { animation-delay: 40ms; }
+.surveys-group { animation-delay: 80ms; }
+
+@keyframes surveys-fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/* ---------- score + metrics row ---------- */
+
+.surveys-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+/* The score tile is a dashboard-metric-card; tighten its gap so the ring sits like an icon. */
+.surveys-score-card .dashboard-metric-row {
+    gap: 12px;
+}
+
+.surveys-score-value {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* ---------- next step ---------- */
+
+.surveys-next {
+    display: grid;
+    gap: 8px;
+    padding: 16px 20px;
+    border: 2px solid var(--surveys-accent);
+    border-radius: 14px;
+    background: var(--surveys-surface);
+}
+
+.surveys-next.is-done {
+    border: 1px solid rgba(5, 150, 105, 0.3);
+}
+
+.surveys-next-eyebrow {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--surveys-accent);
+}
+
+.surveys-next-body {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+}
+
+.surveys-next-icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    font-size: 19px;
+    color: var(--surveys-accent);
+    background: rgba(109, 93, 251, 0.1);
+}
+
+.surveys-next.is-in-progress .surveys-next-icon { color: #3b82f6; background: rgba(59, 130, 246, 0.1); }
+.surveys-next.is-done .surveys-next-icon { color: #059669; background: rgba(5, 150, 105, 0.1); }
+
+.surveys-next-text {
+    display: grid;
+    flex: 1;
+    gap: 2px;
+    min-width: 200px;
+}
+
+.surveys-next-title {
+    font-size: 16px;
+}
+
+.surveys-next-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* ---------- groups ---------- */
+
+.surveys-group-head {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin: 0 0 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--surveys-muted);
+}
+
+.surveys-group.is-todo .surveys-group-head > .anticon { color: var(--surveys-accent); }
+.surveys-group.is-submitted .surveys-group-head > .anticon { color: #059669; }
+
+.surveys-group-toggle {
+    margin-left: auto;
+    padding: 0;
+}
+
+.surveys-list {
+    margin: 0;
+    padding: 0 16px;
+    list-style: none;
+    border: 1px solid var(--surveys-border);
+    border-radius: 14px;
+    background: var(--surveys-surface);
+}
+
+.surveys-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 0;
+    border-top: 1px solid var(--surveys-divider);
+}
+
+.surveys-row:first-child {
+    border-top: none;
+}
+
+.surveys-row-icon {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    font-size: 16px;
+    color: var(--surveys-accent);
+    background: rgba(109, 93, 251, 0.1);
+}
+
+.surveys-row.is-in-progress .surveys-row-icon { color: #3b82f6; background: rgba(59, 130, 246, 0.1); }
+.surveys-row.is-submitted .surveys-row-icon { color: #059669; background: rgba(5, 150, 105, 0.1); }
+
+.surveys-row-main {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.surveys-row-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.surveys-row-title .ant-tag {
+    margin: 0;
+}
+
+.surveys-row-meta {
+    overflow: hidden;
+    font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ---------- courses: the whole row is the button ---------- */
+
+.incubatee-courses-page .surveys-list > li + li {
+    border-top: 1px solid var(--surveys-divider);
+}
+
+.courses-row {
+    width: 100%;
+    border: 0;
+    border-top: 0 !important;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    background: none;
+    cursor: pointer;
+}
+
+.courses-row:focus-visible {
+    outline: 2px solid var(--surveys-accent);
+    outline-offset: 2px;
+    border-radius: 8px;
+}
+
+.courses-row-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--surveys-accent);
+}
+
+.courses-row:hover .courses-row-action .anticon {
+    transform: translateX(2px);
+}
+
+.courses-row-action .anticon {
+    transition: transform 160ms ease;
+}
+
+/* Press feedback: the interface heard the tap. */
+.incubatee-surveys-page .ant-btn {
+    transition: transform 160ms ease-out, background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.incubatee-surveys-page .ant-btn:not(:disabled):active {
+    transform: scale(0.97);
+}
+
+/* ---------- dark ---------- */
+
+html[data-theme='dark'] .incubatee-surveys-page {
+    --surveys-accent: #8b7dff;
+    --surveys-border: rgba(139, 92, 246, 0.18);
+    --surveys-divider: rgba(255, 255, 255, 0.06);
+    --surveys-muted: var(--ant-color-text-secondary, rgba(255, 255, 255, 0.6));
+}
+
+html[data-theme='dark'] .surveys-row.is-in-progress .surveys-row-icon,
+html[data-theme='dark'] .surveys-next.is-in-progress .surveys-next-icon { color: #60a5fa; background: rgba(96, 165, 250, 0.12); }
+
+html[data-theme='dark'] .surveys-row.is-submitted .surveys-row-icon,
+html[data-theme='dark'] .surveys-next.is-done .surveys-next-icon { color: #34d399; background: rgba(52, 211, 153, 0.12); }
+
+html[data-theme='dark'] .surveys-group.is-submitted .surveys-group-head > .anticon { color: #34d399; }
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 1100px) {
+    .surveys-summary {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .surveys-score-card {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 767px) {
+    /* Three metrics fit a phone in one row once the score tile has its own line. */
+    .surveys-summary {
+        gap: 8px;
+    }
+
+    .surveys-next {
+        padding: 14px 16px;
+    }
+
+    .surveys-next-actions,
+    .surveys-next-actions .ant-btn {
+        width: 100%;
+    }
+
+    .surveys-list {
+        padding: 0 12px;
+    }
+
+    .surveys-row {
+        gap: 10px;
+    }
+
+    .surveys-row-meta {
+        white-space: normal;
+    }
+
+    /* On a phone the chevron says enough; the word would crowd the title. */
+    .courses-row-label {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    @keyframes surveys-fade-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    .incubatee-surveys-page .ant-btn:not(:disabled):active {
+        transform: none;
+    }
+}

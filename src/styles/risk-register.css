@@ -1,0 +1,63 @@
+/* Risk register (src/pages/operations/RiskRegisterPage.tsx). Theme tokens throughout so light and dark both work. */
+.operations-risk-register-page { --risk-ease-out: cubic-bezier(0.23, 1, 0.32, 1); }
+
+/* One severity colour per level, picked up by dots and card accents. */
+.risk-sev-critical { --risk-color: var(--ant-color-error); }
+.risk-sev-high { --risk-color: #fa541c; }
+.risk-sev-medium { --risk-color: var(--ant-color-warning); }
+.risk-sev-low { --risk-color: var(--ant-color-info); }
+.risk-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--risk-color, var(--ant-color-text-quaternary)); }
+
+/* Filter bar on desktop: search takes the room, the two selects keep a fixed width (phones: see FilterBar). */
+.operations-risk-register-page .filter-bar-controls { display: flex; flex-wrap: nowrap; align-items: center; gap: 10px; width: 100%; }
+.operations-risk-register-page .risk-search { flex: 1 1 auto; min-width: 0; width: auto; }
+.operations-risk-register-page .risk-filter-select { flex: none; width: 160px; }
+
+.risk-register-card { margin-top: 12px; }
+
+/* Category chips: one scrollable row instead of a side column. */
+.risk-chips { display: flex; gap: 8px; margin-bottom: 16px; padding-bottom: 4px; overflow-x: auto; scrollbar-width: thin; }
+/* Phones swipe through the chips, so the scrollbar is just clutter there. */
+@media (max-width: 767px) {
+  .risk-chips { padding-bottom: 0; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .risk-chips::-webkit-scrollbar { display: none; }
+}
+.risk-chip { display: inline-flex; flex: none; align-items: center; gap: 6px; padding: 5px 12px; border: 1px solid var(--ant-color-border-secondary); border-radius: 999px; background: var(--ant-color-bg-container); color: var(--ant-color-text); font-size: 13px; white-space: nowrap; cursor: pointer; transition: border-color 150ms ease, background-color 150ms ease, transform 120ms var(--risk-ease-out); }
+.risk-chip:active { transform: scale(0.97); }
+.risk-chip.is-selected { border-color: var(--ant-color-primary); background: var(--ant-color-primary-bg); color: var(--ant-color-primary); font-weight: 600; }
+.risk-chip-count { padding: 0 6px; border-radius: 999px; background: var(--ant-color-fill-secondary); color: var(--ant-color-text-secondary); font-size: 12px; font-weight: 500; }
+
+/* Cards: a plain surface with a severity accent on the leading edge. */
+.risk-card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 767px) { .risk-card-grid { grid-template-columns: 1fr; } }
+.risk-card { position: relative; display: flex; flex-direction: column; gap: 8px; width: 100%; min-width: 0; padding: 14px 16px 14px 18px; overflow: hidden; border: 1px solid var(--ant-color-border-secondary); border-radius: 14px; background: var(--ant-color-bg-container); color: var(--ant-color-text); text-align: left; cursor: pointer; transition: border-color 150ms ease, box-shadow 200ms ease, transform 120ms var(--risk-ease-out); }
+.risk-card::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--risk-color); }
+.risk-card:active { transform: scale(0.99); }
+.risk-card:focus-visible { outline: 2px solid var(--ant-color-primary); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) {
+  .risk-chip:not(.is-selected):hover { border-color: var(--ant-color-primary-border-hover); }
+  .risk-card:hover { border-color: var(--ant-color-border); box-shadow: var(--ant-box-shadow-tertiary); }
+}
+.risk-card-head { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+.risk-card-head > .risk-dot { margin-top: 7px; }
+.risk-card-title { display: grid; flex: 1; min-width: 0; }
+.risk-card-sub { font-size: 12px; }
+.risk-card-issue.ant-typography { margin: 0; font-size: 13px; }
+.risk-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; font-size: 12px; }
+.risk-card-tags { display: flex; flex: none; gap: 4px; }
+.risk-card-tags .ant-tag, .risk-severity-tag { margin-inline-end: 0; }
+
+.risk-pagination { display: flex; justify-content: center; margin-top: 16px; }
+
+/* Detail modal. */
+.risk-modal-title { display: flex; align-items: center; gap: 8px; min-width: 0; padding-right: 24px; }
+.risk-modal-title > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.risk-problem-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.risk-problem-list li { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 10px; background: var(--ant-color-fill-quaternary); }
+.risk-problem-list li > .risk-dot { margin-top: 7px; }
+.risk-problem-list .ant-typography:last-child { margin: 2px 0 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .risk-chip, .risk-card { transition: none; }
+  .risk-chip:active, .risk-card:active { transform: none; }
+}

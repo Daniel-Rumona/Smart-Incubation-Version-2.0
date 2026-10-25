@@ -9,6 +9,7 @@ import { doc, getDoc } from 'firebase/firestore'
 import { auth, db } from '@/firebase'
 import ApplicationConversationalFlow from '@/components/applications/ApplicationConversationalFlow'
 import ApplicationReviewPanel from '@/components/applications/ApplicationReviewPanel'
+import ApplicantJourneySteps from '@/components/applicant/ApplicantJourneySteps'
 import { useFullscreenMobilePage } from '@/contexts/SystemLayoutTopbarContext'
 import { getApplicantProfileBundle } from '@/services/applicantService'
 import {
@@ -71,6 +72,7 @@ export default function ProgramApplicationPage() {
     const isMobile = !screens.md
 
     const isForcedInterventionProgram = interventionPolicy?.mode === 'force_all' || interventionPolicy?.allowSmeSelection === false
+    const maxInterventionSelections = Number(interventionPolicy?.maxSelections) > 0 ? Number(interventionPolicy?.maxSelections) : null
 
     const forcedInterventions = useMemo(() => {
         return Array.isArray(interventionPolicy?.forcedInterventions) ? interventionPolicy.forcedInterventions : []
@@ -259,6 +261,12 @@ export default function ProgramApplicationPage() {
             return false
         }
 
+        if (!isForcedInterventionProgram && maxInterventionSelections && selectedInterventions.length > maxInterventionSelections) {
+            message.warning(`${t('This programme lets you choose up to')} ${maxInterventionSelections}. ${t('Please remove some interventions.')}`)
+            setReviewOpen(false)
+            return false
+        }
+
         return true
     }
 
@@ -346,6 +354,8 @@ export default function ProgramApplicationPage() {
                 </div>
             </Card>
 
+            <ApplicantJourneySteps current={1} />
+
             <div>
                 {reviewOpen ? (
                     <>
@@ -380,6 +390,7 @@ export default function ProgramApplicationPage() {
                         interventionGroups={interventionGroups}
                         interventionSelections={interventionSelections}
                         onInterventionSelectionsChange={setInterventionSelections}
+                        maxInterventionSelections={maxInterventionSelections}
                         onComplete={() => setReviewOpen(true)}
                         programName={programName}
                     />

@@ -16,30 +16,42 @@ import {
     Row,
     Select,
     Space,
-    Steps,
     Switch,
     Table,
     Tag,
+    Tooltip,
     Typography,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import {
+    ArrowLeftOutlined,
+    ArrowRightOutlined,
     BankOutlined,
     CheckCircleOutlined,
+    CheckOutlined,
     ClockCircleOutlined,
     DeleteOutlined,
     EditOutlined,
+    FieldNumberOutlined,
     GlobalOutlined,
+    LinkOutlined,
     PauseCircleOutlined,
     PlusOutlined,
     ProjectOutlined,
+    RightOutlined,
     RobotOutlined,
+    SaveOutlined,
     SearchOutlined,
     TeamOutlined,
     ThunderboltOutlined,
     TrophyOutlined,
+    UnlockOutlined,
+    UnorderedListOutlined,
 } from '@ant-design/icons'
+import { useSystemSettings } from '@/contexts/SystemSettingsContext'
+import { buildProgramLink } from '@/services/programLinkService'
 import dayjs, { type Dayjs } from 'dayjs'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
     addDoc,
     collection,
@@ -55,6 +67,7 @@ import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { getFirebaseDb } from '@/config/firebase'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
+import { COMPLIANCE_DOCUMENT_CATALOGUE, catalogueEntryFor } from '@/config/complianceDocuments'
 import {
     normalizeAgentSupportMode,
     type AgentSupportMode,
@@ -103,6 +116,7 @@ type ProgramRecord = {
         mode: AssignmentMode
         forcedInterventionIds: string[]
         allowSmeSelection: boolean
+        maxSelections?: number | null
     }
     complianceRequirements?: ComplianceRequirement[]
     agentSupportMode: AgentSupportMode
@@ -156,8 +170,23 @@ const PROGRAM_TYPE_OPTIONS = [
     'Supplier development',
     'Mentorship',
 ]
+/** A programme may have been saved in lowercase ("acceleration"). Show it exactly as the dropdown spells it ("Acceleration"). */
+const normalizeProgramType = (raw: string) => {
+    const value = raw.trim()
+    if (!value) return ''
+    const key = value.toLowerCase()
+    return PROGRAM_TYPE_OPTIONS.find((option) => option.toLowerCase() === key) || value.charAt(0).toUpperCase() + value.slice(1)
+}
+
 const SECTORS = ['Agriculture', 'Technology', 'Manufacturing', 'Tourism', 'Retail', 'Services', 'Other']
 const PROVINCES = ['Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape', 'Limpopo', 'Mpumalanga', 'Northern Cape', 'North West', 'Free State']
+// Moving on slides the next section in from the right, moving back slides it in from the left.
+const SECTION_SLIDE = {
+    enter: (direction: number) => ({ opacity: 0, x: direction * 36 }),
+    center: { opacity: 1, x: 0 },
+    exit: (direction: number) => ({ opacity: 0, x: direction * -36 }),
+}
+const SECTION_FADE = { enter: { opacity: 0 }, center: { opacity: 1 }, exit: { opacity: 0 } }
 const WIZARD_STEPS = ['Program details', 'Eligibility', 'Onboarding', 'Interventions', 'Agent support', 'Compliance']
 const ELIGIBILITY_OPTIONS: Array<{ value: EligibilityCriterion; label: string }> = [
     { value: 'sectors', get label() { return tr('Eligible sectors') } },
@@ -221,23 +250,34 @@ const SUPPORT_OPTIONS: Array<{
 export const ProgramsPage = () => {
     const { t } = useLanguage()
     const { message } = App.useApp()
+    const { getSetting } = useSystemSettings()
+    // A company whose team registers SMEs has no self-application, so there is no link to share.
+    const programLinksEnabled = getSetting<string>('smeOnboardingModel', 'self_application') !== 'consultants_register_smes'
     const { user } = useFullIdentity()
     const [detailsForm] = Form.useForm<ProgramDetailsForm>()
     const [eligibilityForm] = Form.useForm<EligibilityForm>()
     const [programs, setPrograms] = useState<ProgramRecord[]>([])
     const [interventions, setInterventions] = useState<InterventionOption[]>([])
-    const [admins, setAdmins] = useState<Array<{ value: string; label: string }>>([])
+    const [admins, setAdmins] = useState<Array<{ value: string; label: string; id: string }>>([])
     const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)
     const [modalOpen, setModalOpen] = useState(false)
     const [editing, setEditing] = useState<ProgramRecord>()
     const [step, setStep] = useState(0)
+    // Editing a programme starts on a list of sections; the person opens only the one they want to change.
+    const [picking, setPicking] = useState(false)
+    // 1 = heading forward (next section, or opening one from the edit list), -1 = heading back.
+    const [direction, setDirection] = useState<1 | -1>(1)
+    const reduceMotion = useReducedMotion()
     const [detailsDraft, setDetailsDraft] = useState<ProgramDetailsForm>()
     const [eligibilityDraft, setEligibilityDraft] = useState<EligibilityForm>({})
     const [questions, setQuestions] = useState<OnboardingQuestion[]>([])
     const [selectedEligibilityCriteria, setSelectedEligibilityCriteria] = useState<EligibilityCriterion[]>([])
     const [requirements, setRequirements] = useState<ComplianceRequirement[]>([])
     const [assignmentMode, setAssignmentMode] = useState<AssignmentMode>('sme_choice')
+    // When SMEs choose their own interventions, optionally cap how many they may pick.
+    const [limitSelections, setLimitSelections] = useState(false)
+    const [maxSelections, setMaxSelections] = useState<number | null>(3)
     const [selectedInterventions, setSelectedInterventions] = useState<string[]>([])
     const [interventionSearch, setInterventionSearch] = useState('')
     const [interventionArea, setInterventionArea] = useState<string>()
@@ -279,7 +319,7 @@ export const ProgramsPage = () => {
                     id: record.id,
                     name: String(data.name || 'Untitled program'),
                     description: String(data.description || ''),
-                    type: String(data.type || ''),
+                    type: normalizeProgramType(String(data.type || '')),
                     status: (STATUS_OPTIONS.includes(data.status as ProgramStatus) ? data.status : 'Active') as ProgramStatus,
                     cohortYear: String(data.cohortYear || ''),
                     startDate: asDate(data.startDate),
@@ -293,6 +333,7 @@ export const ProgramsPage = () => {
                         mode: policy.mode === 'force_all' ? 'force_all' as const : 'sme_choice' as const,
                         forcedInterventionIds: Array.isArray(policy.forcedInterventionIds) ? policy.forcedInterventionIds.map(String) : [],
                         allowSmeSelection: policy.allowSmeSelection !== false,
+                        maxSelections: Number(policy.maxSelections) > 0 ? Number(policy.maxSelections) : null,
                     },
                     complianceRequirements: Array.isArray(data.complianceRequirements) ? data.complianceRequirements as ComplianceRequirement[] : [],
                     agentSupportMode: normalizeAgentSupportMode(data),
@@ -312,7 +353,7 @@ export const ProgramsPage = () => {
                 const role = String(data.role || '').toLowerCase()
                 if (!['projectadmin', 'projectmanager', 'operations'].includes(role)) return []
                 const email = String(data.email || '').trim()
-                return email ? [{ value: email, label: String(data.name || data.displayName || email) }] : []
+                return email ? [{ value: email, label: String(data.name || data.displayName || email), id: record.id }] : []
             }))
         } catch (error) {
             console.error(error)
@@ -361,12 +402,15 @@ export const ProgramsPage = () => {
         eligibilityForm.resetFields()
         setEditing(undefined)
         setStep(0)
+        setPicking(false)
         setDetailsDraft(undefined)
         setEligibilityDraft({})
         setQuestions([])
         setSelectedEligibilityCriteria([])
         setRequirements([])
         setAssignmentMode('sme_choice')
+        setLimitSelections(false)
+        setMaxSelections(3)
         setSelectedInterventions([])
         setInterventionSearch('')
         setInterventionArea(undefined)
@@ -381,6 +425,22 @@ export const ProgramsPage = () => {
         setModalOpen(true)
     }
 
+    /** The stored project admin may be an email (current) or a user id (older programmes). Returns the option value to show. */
+    const matchAdmin = (stored?: string) => {
+        const key = String(stored || '').trim().toLowerCase()
+        if (!key) return undefined
+        const match = admins.find((admin) => admin.value.toLowerCase() === key || admin.id.toLowerCase() === key)
+        return match ? match.value : String(stored)
+    }
+
+    // A stored admin who is no longer in the company still needs a readable option instead of a raw id.
+    const adminOptions = useMemo(() => {
+        const stored = matchAdmin(editing?.assignedAdmin)
+        if (!stored || admins.some((admin) => admin.value === stored)) return admins
+        return [...admins, { value: stored, label: stored.includes('@') ? stored : t('Former project admin'), id: stored }]
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [admins, editing, t])
+
     const openEdit = (program: ProgramRecord) => {
         resetWizard()
         setEditing(program)
@@ -394,53 +454,93 @@ export const ProgramsPage = () => {
             endDate: program.endDate ? dayjs(program.endDate) : undefined,
             budget: program.budget,
             maxCapacity: program.maxCapacity,
-            assignedAdmin: program.assignedAdmin || undefined,
+            assignedAdmin: matchAdmin(program.assignedAdmin),
             openToExternalSmes: program.openToExternalSmes === true,
         }
         detailsForm.setFieldsValue(details)
         setDetailsDraft(details)
-        const eligibility = program.eligibilityCriteria as EligibilityForm
+        const eligibility = (program.eligibilityCriteria || {}) as EligibilityForm
         eligibilityForm.setFieldsValue(eligibility)
         setEligibilityDraft(eligibility)
         setSelectedEligibilityCriteria(ELIGIBILITY_OPTIONS.map((option) => option.value).filter((key) => program.eligibilityCriteria?.[key] != null))
         setQuestions(program.onboardingQuestions || [])
         setRequirements(program.complianceRequirements || [])
         setAssignmentMode(program.interventionPolicy?.mode || 'sme_choice')
+        const savedLimit = Number(program.interventionPolicy?.maxSelections)
+        setLimitSelections(savedLimit > 0)
+        setMaxSelections(savedLimit > 0 ? savedLimit : 3)
         setSelectedInterventions(program.interventionPolicy?.forcedInterventionIds || [])
         setSupportMode(program.agentSupportMode)
+        setPicking(true)
         setModalOpen(true)
     }
 
-    const next = async () => {
-        if (step === 0) setDetailsDraft(await detailsForm.validateFields())
-        if (step === 1) setEligibilityDraft(await eligibilityForm.validateFields())
-        if (step === 2) {
+    /** Validates the section on screen. Returns the values it captured, or null after showing why it cannot continue. */
+    const validateSection = async (index: number): Promise<{ details?: ProgramDetailsForm; eligibility?: EligibilityForm } | null> => {
+        if (index === 0) return { details: await detailsForm.validateFields() }
+        if (index === 1) return { eligibility: await eligibilityForm.validateFields() }
+        if (index === 2) {
             const invalidQuestion = questions.find((question) => !question.question.trim())
             const invalidOptions = questions.find((question) => (question.type === 'single_select' || question.type === 'multi_select') && (question.options?.filter((option) => option.trim()).length || 0) < 2)
-            if (invalidQuestion) return message.error(t('Every onboarding question needs question text.'))
-            if (invalidOptions) return message.error(t('Dropdown questions need at least two answer options.'))
+            if (invalidQuestion) { message.error(t('Every onboarding question needs question text.')); return null }
+            if (invalidOptions) { message.error(t('Dropdown questions need at least two answer options.')); return null }
         }
-        if (step === 3 && assignmentMode === 'force_all' && !selectedInterventions.length) {
-            return message.error(t('Select at least one required intervention.'))
+        if (index === 3 && assignmentMode === 'sme_choice' && limitSelections && !(Number(maxSelections) >= 1)) {
+            message.error(t('Enter the most interventions an SME can choose.'))
+            return null
         }
+        if (index === 3 && assignmentMode === 'force_all' && !selectedInterventions.length) {
+            message.error(t('Select at least one required intervention.'))
+            return null
+        }
+        return {}
+    }
+
+    const next = async () => {
+        const captured = await validateSection(step)
+        if (!captured) return
+        if (captured.details) setDetailsDraft(captured.details)
+        if (captured.eligibility) setEligibilityDraft(captured.eligibility)
+        setDirection(1)
         setStep((current) => Math.min(WIZARD_STEPS.length - 1, current + 1))
+    }
+
+    /** Back to the section list without losing what was typed; Save changes in any section saves everything pending. */
+    const leaveSection = () => {
+        if (step === 0) setDetailsDraft(detailsForm.getFieldsValue() as ProgramDetailsForm)
+        if (step === 1) setEligibilityDraft(eligibilityForm.getFieldsValue() as EligibilityForm)
+        setDirection(-1)
+        setPicking(true)
+    }
+
+    /** Editing: save just the open section. The other sections keep the values they were loaded with. */
+    const saveSection = async () => {
+        try {
+            const captured = await validateSection(step)
+            if (!captured) return
+            await saveProgram(captured)
+        } catch (error) {
+            if (error && typeof error === 'object' && 'errorFields' in error) return
+            throw error
+        }
     }
 
     const back = () => {
         if (step === 1 && detailsDraft) detailsForm.setFieldsValue(detailsDraft)
         if (step === 2) eligibilityForm.setFieldsValue(eligibilityDraft)
+        setDirection(-1)
         setStep((current) => Math.max(0, current - 1))
     }
 
-    const saveProgram = async () => {
+    const saveProgram = async (captured?: { details?: ProgramDetailsForm; eligibility?: EligibilityForm }) => {
         try {
-            const values = detailsDraft
+            const values = captured?.details ?? detailsDraft
             if (!values?.name || !values.description || !values.status || !values.cohortYear) {
                 setStep(0)
                 message.error(t('Program details are incomplete. Please review the first step.'))
                 return
             }
-            const eligibilityValues = eligibilityDraft
+            const eligibilityValues = captured?.eligibility ?? eligibilityDraft
             const eligibilityCriteria = Object.fromEntries(
                 selectedEligibilityCriteria
                     .filter((key) => eligibilityValues[key] != null)
@@ -491,6 +591,7 @@ export const ProgramsPage = () => {
                     forcedInterventionIds: assignmentMode === 'force_all' ? selectedInterventions : [],
                     forcedInterventions: assignmentMode === 'force_all' ? forcedInterventions : [],
                     allowSmeSelection: assignmentMode === 'sme_choice',
+                    maxSelections: assignmentMode === 'sme_choice' && limitSelections && Number(maxSelections) >= 1 ? Number(maxSelections) : null,
                 },
                 complianceRequirements: savedRequirements,
                 agentSupportMode: supportMode,
@@ -537,6 +638,24 @@ export const ProgramsPage = () => {
         }
     }
 
+    const sectionSummaries = [
+        editing ? `${editing.name} · ${editing.status}` : '',
+        selectedEligibilityCriteria.length ? `${selectedEligibilityCriteria.length} ${t('criteria set')}` : t('No restrictions'),
+        questions.length ? `${questions.length} ${t(questions.length === 1 ? 'question' : 'questions')}` : t('No extra questions'),
+        assignmentMode === 'force_all' ? `${t('Required for all')} (${selectedInterventions.length})` : limitSelections ? `${t('SMEs choose, up to')} ${maxSelections}` : t('SMEs choose their interventions'),
+        (SUPPORT_OPTIONS.find((option) => option.value === supportMode) || SUPPORT_OPTIONS[0]).short,
+        requirements.length ? `${requirements.length} ${t(requirements.length === 1 ? 'document' : 'documents')}` : t('All compliance documents'),
+    ]
+
+    const copyProgramLink = async (program: ProgramRecord) => {
+        try {
+            await navigator.clipboard.writeText(buildProgramLink(program.id))
+            message.success(t('Programme link copied. SMEs who open it register straight into this programme.'))
+        } catch {
+            message.info(buildProgramLink(program.id))
+        }
+    }
+
     const columns: ColumnsType<ProgramRecord> = [
         {
             title: t('Program'),
@@ -567,8 +686,8 @@ export const ProgramsPage = () => {
         { title: t('Active'), width: 80, render: (_, program) => <Switch checked={program.status === 'Active'} onChange={(checked) => void toggleStatus(program, checked)} /> },
         {
             title: t('Actions'),
-            width: 120,
-            render: (_, program) => <Space><Button type="text" icon={<EditOutlined />} aria-label={`Edit ${program.name}`} onClick={() => openEdit(program)} /><Popconfirm title={t('Delete this program?')} description={t('This cannot be undone.')} onConfirm={() => void remove(program)}><Button danger className="program-delete-button" icon={<DeleteOutlined />} aria-label={`Delete ${program.name}`} /></Popconfirm></Space>,
+            width: 160,
+            render: (_, program) => <Space>{programLinksEnabled && <Tooltip title={t('Copy the link SMEs use to join this programme')}><Button type="text" icon={<LinkOutlined />} aria-label={`Copy link for ${program.name}`} onClick={() => void copyProgramLink(program)} /></Tooltip>}<Button type="text" icon={<EditOutlined />} aria-label={`Edit ${program.name}`} onClick={() => openEdit(program)} /><Popconfirm title={t('Delete this program?')} description={t('This cannot be undone.')} onConfirm={() => void remove(program)}><Button danger className="program-delete-button" icon={<DeleteOutlined />} aria-label={`Delete ${program.name}`} /></Popconfirm></Space>,
         },
     ]
 
@@ -598,21 +717,43 @@ export const ProgramsPage = () => {
 
             <Modal
                 open={modalOpen}
-                title={editing ? `Edit ${editing.name}` : t('Create program')}
-                width={1080}
+                title={editing ? (picking ? `${t('Edit')} ${editing.name}` : `${t('Edit')} ${editing.name} · ${t(WIZARD_STEPS[step])}`) : t('Create program')}
+                width={editing && picking ? 640 : 1080}
+                className="program-modal"
                 centered
                 footer={null}
                 destroyOnHidden
                 onCancel={() => { setModalOpen(false); resetWizard() }}
             >
-                <Steps current={step} items={WIZARD_STEPS.map((title) => ({ title }))} className="program-wizard-steps" responsive />
+                <div className="program-view-stage">
+                <AnimatePresence mode="wait" initial={false} custom={direction}>
+                <motion.div
+                    key={editing && picking ? 'sections' : `section-${step}`}
+                    custom={direction}
+                    variants={reduceMotion ? SECTION_FADE : SECTION_SLIDE}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: reduceMotion ? 0.12 : 0.24, ease: [0.22, 1, 0.36, 1] }}
+                >
+                {editing && picking && (
+                    <div className="program-section-picker" role="list">
+                        <Typography.Text type="secondary">{t('Choose the part of this programme you want to change.')}</Typography.Text>
+                        {WIZARD_STEPS.map((title, index) => (
+                            <button key={title} type="button" role="listitem" className="program-section-option" onClick={() => { setDirection(1); setStep(index); setPicking(false) }}>
+                                <span className="program-section-option-copy"><strong>{t(title)}</strong><small>{sectionSummaries[index]}</small></span>
+                                <RightOutlined />
+                            </button>
+                        ))}
+                    </div>
+                )}
 
-                <div className="program-wizard-body">
+                {!(editing && picking) && <div className="program-wizard-body">
                     {step === 0 && (
                         <Form form={detailsForm} layout="vertical">
                             <Form.Item name="name" label={t('Program name')} rules={[{ required: true, message: tr('Enter a program name.') }]}><Input placeholder={t('e.g. Growth Accelerator 2026')} /></Form.Item>
                             <Form.Item name="status" label={t('Status')} rules={[{ required: true }]}>
-                                <Radio.Group className="program-status-grid">
+                                <Radio.Group className="program-status-grid program-radio-cards">
                                     {STATUS_CARDS.map((option) => (
                                         <Radio.Button value={option.value} key={option.value}>
                                             <span className="program-status-icon">{option.icon}</span>
@@ -623,9 +764,9 @@ export const ProgramsPage = () => {
                             </Form.Item>
                             <Form.Item name="description" label={t('Description')} rules={[{ required: true, message: tr('Describe the program.') }]}><Input.TextArea rows={2} /></Form.Item>
                             <Row gutter={16}>
-                                <Col xs={24} md={8}><Form.Item name="type" label={t('Program type')}><Select allowClear showSearch placeholder={t('Select program type')} options={PROGRAM_TYPE_OPTIONS.map((value) => ({ value, label: value }))} /></Form.Item></Col>
+                                <Col xs={24} md={8}><Form.Item name="type" label={t('Program type')}><Select allowClear showSearch placeholder={t('Select program type')} options={[...PROGRAM_TYPE_OPTIONS, ...(editing?.type && !PROGRAM_TYPE_OPTIONS.includes(editing.type) ? [editing.type] : [])].map((value) => ({ value, label: value }))} /></Form.Item></Col>
                                 <Col xs={24} md={8}><Form.Item name="cohortYear" label={t('Cohort year')} rules={[{ required: true }]}><Input /></Form.Item></Col>
-                                <Col xs={24} md={8}><Form.Item name="assignedAdmin" label={t('Project admin')}><Select allowClear showSearch options={admins} placeholder={t('Select an admin')} /></Form.Item></Col>
+                                <Col xs={24} md={8}><Form.Item name="assignedAdmin" label={t('Project admin')}><Select allowClear showSearch optionFilterProp="label" options={adminOptions} placeholder={t('Select an admin')} /></Form.Item></Col>
                             </Row>
                             <Row gutter={16}>
                                 <Col xs={24} md={6}><Form.Item name="startDate" label={t('Start date')}><DatePicker style={{ width: '100%' }} /></Form.Item></Col>
@@ -634,7 +775,7 @@ export const ProgramsPage = () => {
                                 <Col xs={24} md={6}><Form.Item name="maxCapacity" label={t('Maximum capacity')}><InputNumber min={1} style={{ width: '100%' }} /></Form.Item></Col>
                             </Row>
                             <Form.Item name="openToExternalSmes" label={t('Who can join this program?')}>
-                                <Radio.Group className="program-choice-grid is-compact">
+                                <Radio.Group className="program-choice-grid is-compact program-radio-cards">
                                     {AVAILABILITY_CARDS.map((option) => (
                                         <Radio.Button value={option.value} key={option.title}>
                                             <span className="program-status-icon">{option.icon}</span>
@@ -709,12 +850,30 @@ export const ProgramsPage = () => {
                     )}
 
                     {step === 3 && (
-                        <section>
+                        <section className="program-assignment-stage">
                             <Typography.Title level={4}>{t('Intervention assignment')}</Typography.Title>
-                            <Radio.Group value={assignmentMode} onChange={(event) => setAssignmentMode(event.target.value)} className="program-choice-grid">
-                                <Radio.Button value="sme_choice"><strong>{t('SME chooses')}</strong><span>{t('Participants choose relevant interventions from the catalogue.')}</span></Radio.Button>
-                                <Radio.Button value="force_all"><strong>{t('Program assigns')}</strong><span>{t('Every selected intervention is included in each diagnostic plan.')}</span></Radio.Button>
-                            </Radio.Group>
+                            <div className={`program-assignment-slot${assignmentMode === 'force_all' ? ' is-expanded' : ''}`}>
+                                <Radio.Group value={assignmentMode} onChange={(event) => setAssignmentMode(event.target.value)} className="program-choice-grid program-radio-cards">
+                                    <Radio.Button value="sme_choice"><strong>{t('SME chooses')}</strong><span>{t('Participants choose relevant interventions from the catalogue.')}</span></Radio.Button>
+                                    <Radio.Button value="force_all"><strong>{t('Program assigns')}</strong><span>{t('Every selected intervention is included in each diagnostic plan.')}</span></Radio.Button>
+                                </Radio.Group>
+
+                                {assignmentMode === 'sme_choice' && (
+                                    <div className="program-limit-block">
+                                        <Typography.Text strong>{t('Limit how many interventions an SME can choose?')}</Typography.Text>
+                                        <Radio.Group value={limitSelections ? 'yes' : 'no'} onChange={(event) => setLimitSelections(event.target.value === 'yes')} className="program-choice-grid is-compact program-radio-cards">
+                                            <Radio.Button value="no"><span className="program-status-icon"><UnlockOutlined /></span><span className="program-status-copy"><strong>{t('No')}</strong><small>{t('SMEs can pick as many as they need')}</small></span></Radio.Button>
+                                            <Radio.Button value="yes"><span className="program-status-icon"><FieldNumberOutlined /></span><span className="program-status-copy"><strong>{t('Yes')}</strong><small>{t('Set a maximum for each SME')}</small></span></Radio.Button>
+                                        </Radio.Group>
+                                        {limitSelections && (
+                                            <div className="program-limit-input">
+                                                <Typography.Text>{t('Maximum interventions per SME')}</Typography.Text>
+                                                <InputNumber min={1} max={100} precision={0} value={maxSelections} onChange={(value) => setMaxSelections(value)} />
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                             {assignmentMode === 'force_all' && (
                                 <div className="program-field-gap program-intervention-browser">
                                     <Typography.Title level={5}>{t('Find required interventions')}</Typography.Title>
@@ -748,7 +907,7 @@ export const ProgramsPage = () => {
                         <section>
                             <Typography.Title level={4}>{t('How should agents support this program?')}</Typography.Title>
                             <Typography.Paragraph type="secondary">{t('This choice controls who delivers interventions and which intervention pages appear in the workspace.')}</Typography.Paragraph>
-                            <Radio.Group value={supportMode} onChange={(event) => setSupportMode(event.target.value)} className="agent-support-grid">
+                            <Radio.Group value={supportMode} onChange={(event) => setSupportMode(event.target.value)} className="agent-support-grid program-radio-cards">
                                 {SUPPORT_OPTIONS.map((option) => <Radio.Button value={option.value} key={option.value} className={supportMode === option.value ? 'is-selected' : ''}><span className="agent-support-icon">{option.icon}</span><strong>{option.title}</strong><span>{option.description}</span><small>{option.access}</small></Radio.Button>)}
                             </Radio.Group>
                         </section>
@@ -756,19 +915,68 @@ export const ProgramsPage = () => {
 
                     {step === 5 && (
                         <section>
-                            <div className="program-wizard-heading"><div><Typography.Title level={4}>{t('Compliance requirements')}</Typography.Title><Typography.Text type="secondary">{t('Documents participants must provide for this programme.')}</Typography.Text></div><Button icon={<PlusOutlined />} onClick={() => setRequirements((current) => [...current, { id: makeId(), name: '', category: 'other', required: true }])}>{t('Add document')}</Button></div>
-                            {!requirements.length && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('No programme-specific documents')} />}
-                            <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                                {requirements.map((requirement) => <Card size="small" key={requirement.id} className="program-config-card"><Row gutter={12} align="middle"><Col xs={24} md={12}><Input value={requirement.name} placeholder={t('Document name')} onChange={(event) => setRequirements((current) => current.map((item) => item.id === requirement.id ? { ...item, name: event.target.value } : item))} /></Col><Col xs={12} md={6}><Select value={requirement.category} style={{ width: '100%' }} options={['identity', 'legal', 'financial', 'operational', 'other'].map((value) => ({ value, label: value[0].toUpperCase() + value.slice(1) }))} onChange={(category) => setRequirements((current) => current.map((item) => item.id === requirement.id ? { ...item, category } : item))} /></Col><Col xs={8} md={4}><Checkbox checked={requirement.required} onChange={(event) => setRequirements((current) => current.map((item) => item.id === requirement.id ? { ...item, required: event.target.checked } : item))}>{t('Required')}</Checkbox></Col><Col xs={4} md={2}><Button danger className="program-delete-button" icon={<DeleteOutlined />} aria-label={`Delete ${requirement.name || 'document'}`} onClick={() => setRequirements((current) => current.filter((item) => item.id !== requirement.id))} /></Col></Row></Card>)}
+                            <div className="program-wizard-heading"><div><Typography.Title level={4}>{t('Compliance requirements')}</Typography.Title><Typography.Text type="secondary">{t('Choose which documents participants in this programme must provide. Leave everything unticked to ask for all of them.')}</Typography.Text></div></div>
+                            <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                                {COMPLIANCE_DOCUMENT_CATALOGUE.map((entry) => {
+                                    const selected = requirements.find((item) => catalogueEntryFor(item.name)?.key === entry.key)
+                                    return (
+                                        <Card size="small" key={entry.key} className={`program-config-card program-document-option${selected ? ' is-selected' : ''}`}>
+                                            <Row gutter={12} align="middle" wrap={false}>
+                                                <Col flex="auto">
+                                                    <Checkbox
+                                                        checked={Boolean(selected)}
+                                                        onChange={(event) => setRequirements((current) => event.target.checked
+                                                            ? [...current, { id: entry.key, name: entry.name, category: entry.category, required: true }]
+                                                            : current.filter((item) => catalogueEntryFor(item.name)?.key !== entry.key))}
+                                                    >
+                                                        <Typography.Text strong>{t(entry.name)}</Typography.Text>
+                                                    </Checkbox>
+                                                    <Tag className="program-document-category">{t(entry.category[0].toUpperCase() + entry.category.slice(1))}</Tag>
+                                                </Col>
+                                                <Col flex="none">
+                                                    <Switch
+                                                        size="small"
+                                                        disabled={!selected}
+                                                        checked={selected ? selected.required : true}
+                                                        checkedChildren={t('Required')}
+                                                        unCheckedChildren={t('Optional')}
+                                                        onChange={(required) => setRequirements((current) => current.map((item) => catalogueEntryFor(item.name)?.key === entry.key ? { ...item, required } : item))}
+                                                    />
+                                                </Col>
+                                            </Row>
+                                        </Card>
+                                    )
+                                })}
+                                {/* Documents typed in before the catalogue existed: kept, but can only be removed. */}
+                                {requirements.filter((item) => !catalogueEntryFor(item.name)).map((requirement) => (
+                                    <Card size="small" key={requirement.id} className="program-config-card">
+                                        <Row gutter={12} align="middle" wrap={false}>
+                                            <Col flex="auto"><Typography.Text>{requirement.name || t('Untitled document')}</Typography.Text> <Tag>{t('Custom')}</Tag></Col>
+                                            <Col flex="none"><Button danger className="program-delete-button" icon={<DeleteOutlined />} aria-label={`Delete ${requirement.name || 'document'}`} onClick={() => setRequirements((current) => current.filter((item) => item.id !== requirement.id))} /></Col>
+                                        </Row>
+                                    </Card>
+                                ))}
                             </Space>
                         </section>
                     )}
+                </div>}
+                </motion.div>
+                </AnimatePresence>
                 </div>
 
-                <div className="program-wizard-footer">
-                    <Button disabled={step === 0} onClick={back}>{t('Back')}</Button>
-                    {step < WIZARD_STEPS.length - 1 ? <Button type="primary" onClick={() => void next()}>{t('Next')}</Button> : <Button type="primary" loading={saving} onClick={() => void saveProgram()}>{editing ? t('Save changes') : t('Create program')}</Button>}
-                </div>
+                {editing && !picking && (
+                    <div className="program-wizard-footer">
+                        <Button icon={<UnorderedListOutlined />} disabled={saving} onClick={() => leaveSection()}>{t('Back to sections')}</Button>
+                        <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={() => void saveSection()}>{t('Save changes')}</Button>
+                    </div>
+                )}
+
+                {!editing && (
+                    <div className="program-wizard-footer">
+                        <Button icon={<ArrowLeftOutlined />} disabled={step === 0} onClick={back}>{t('Back')}</Button>
+                        {step < WIZARD_STEPS.length - 1 ? <Button type="primary" icon={<ArrowRightOutlined />} iconPlacement="end" onClick={() => void next()}>{t('Next')}</Button> : <Button type="primary" icon={<CheckOutlined />} loading={saving} onClick={() => void saveProgram()}>{t('Create program')}</Button>}
+                    </div>
+                )}
             </Modal>
         </DashboardPage>
     )

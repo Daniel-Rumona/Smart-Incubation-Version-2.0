@@ -1,0 +1,226 @@
+/* =========================================================
+   DOCUMENT LIBRARY
+   Same layout family as the SME compliance and interventions
+   pages: compact metrics, then documents grouped by the
+   intervention that produced them.
+   ========================================================= */
+
+.intervention-documents-page {
+    --documents-ease: cubic-bezier(0.23, 1, 0.32, 1);
+    --documents-accent: #6d5dfb;
+    --documents-border: rgba(109, 93, 251, 0.12);
+    --documents-surface: var(--ant-color-bg-container, #fff);
+    --documents-divider: rgba(15, 23, 42, 0.06);
+    --documents-muted: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.55));
+    display: grid;
+    /* The page fills the viewport; without this the few rows share the spare height as gaps. */
+    align-content: start;
+    gap: 16px;
+}
+
+/* Sections settle in on first paint; short so the page never feels slow. */
+.documents-summary,
+.documents-group,
+.documents-empty {
+    animation: documents-fade-in 260ms var(--documents-ease) both;
+}
+
+.documents-group { animation-delay: 60ms; }
+
+@keyframes documents-fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/* ---------- metrics + toolbar ---------- */
+
+.documents-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+/* Search takes the spare width of the shared filter bar; the intervention filter keeps a steady size. */
+.intervention-documents-page .filter-bar-controls > .ant-input-affix-wrapper {
+    flex: 1 1 280px;
+}
+
+.intervention-documents-page .filter-bar-controls > .ant-select {
+    flex: 0 1 260px;
+    min-width: 200px;
+}
+
+/* ---------- groups ---------- */
+
+.documents-group-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    align-items: baseline;
+    margin: 0 0 8px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.documents-group-head > .anticon {
+    color: var(--documents-accent);
+}
+
+.documents-group-meta {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--documents-muted);
+}
+
+.documents-list {
+    margin: 0;
+    padding: 0 16px;
+    list-style: none;
+    border: 1px solid var(--documents-border);
+    border-radius: 14px;
+    background: var(--documents-surface);
+}
+
+.documents-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 0;
+    border-top: 1px solid var(--documents-divider);
+}
+
+.documents-row:first-child {
+    border-top: none;
+}
+
+.documents-row-icon {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    font-size: 17px;
+    color: #64748b;
+    background: rgba(148, 163, 184, 0.12);
+}
+
+.documents-row-icon.is-pdf { color: #dc2626; background: rgba(220, 38, 38, 0.1); }
+.documents-row-icon.is-word { color: #3b82f6; background: rgba(59, 130, 246, 0.1); }
+.documents-row-icon.is-sheet { color: #059669; background: rgba(5, 150, 105, 0.1); }
+.documents-row-icon.is-image { color: var(--documents-accent); background: rgba(109, 93, 251, 0.1); }
+
+.documents-row-main {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.documents-row-name,
+.documents-row-meta {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.documents-row-meta {
+    font-size: 13px;
+}
+
+.documents-row-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.documents-row-actions .ant-tag {
+    margin: 0;
+}
+
+/* ---------- empty ---------- */
+
+.documents-empty {
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+    padding: 40px 16px;
+    text-align: center;
+    border: 1px dashed var(--documents-border);
+    border-radius: 14px;
+    background: var(--documents-surface);
+}
+
+.documents-empty-icon {
+    font-size: 32px;
+    color: var(--documents-accent);
+}
+
+.documents-empty .ant-btn {
+    margin-top: 6px;
+}
+
+/* Press feedback: the interface heard the tap. */
+.intervention-documents-page .ant-btn {
+    transition: transform 160ms ease-out, background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.intervention-documents-page .ant-btn:not(:disabled):active {
+    transform: scale(0.97);
+}
+
+/* ---------- dark ---------- */
+
+html[data-theme='dark'] .intervention-documents-page {
+    --documents-accent: #8b7dff;
+    --documents-border: rgba(139, 92, 246, 0.18);
+    --documents-divider: rgba(255, 255, 255, 0.06);
+    --documents-muted: var(--ant-color-text-secondary, rgba(255, 255, 255, 0.6));
+}
+
+html[data-theme='dark'] .documents-row-icon.is-pdf { color: #f87171; background: rgba(248, 113, 113, 0.12); }
+html[data-theme='dark'] .documents-row-icon.is-word { color: #60a5fa; background: rgba(96, 165, 250, 0.12); }
+html[data-theme='dark'] .documents-row-icon.is-sheet { color: #34d399; background: rgba(52, 211, 153, 0.12); }
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 767px) {
+    .documents-summary {
+        gap: 8px;
+    }
+
+    .documents-list {
+        padding: 0 12px;
+    }
+
+    /* The badge and buttons drop under the name, with Open filling the line. */
+    .documents-row {
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 10px;
+    }
+
+    .documents-row-actions {
+        grid-column: 1 / -1;
+    }
+
+    .documents-row-actions > .ant-btn:not(.ant-btn-circle) {
+        flex: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    @keyframes documents-fade-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    .intervention-documents-page .ant-btn:not(:disabled):active {
+        transform: none;
+    }
+}

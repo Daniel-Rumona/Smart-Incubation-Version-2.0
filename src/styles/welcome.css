@@ -265,6 +265,11 @@
     background: #f2edff;
 }
 
+.welcome-role-icon.is-director {
+    color: #0f7b6c;
+    background: #e6f7f3;
+}
+
 .welcome-role-copy {
     display: grid;
     gap: 5px;
@@ -532,6 +537,28 @@ html[data-theme='dark'] .welcome-signature-current {
     background: #232735;
 }
 
+/* The upload dropzone (signature upload and company logo) forces light colours with !important above. */
+html[data-theme='dark'] .welcome-signature-dragger .ant-upload-drag {
+    border-color: #3b4256 !important;
+    background: #232735 !important;
+}
+
+html[data-theme='dark'] .welcome-signature-dragger .ant-upload-drag:hover {
+    border-color: #8b7eff !important;
+}
+
+html[data-theme='dark'] .welcome-signature-dragger .ant-upload-drag-icon .anticon {
+    color: #8b7eff;
+}
+
+html[data-theme='dark'] .welcome-signature-dragger .ant-upload-text {
+    color: #eef1ff;
+}
+
+html[data-theme='dark'] .welcome-signature-dragger .ant-upload-hint {
+    color: #aab2c5;
+}
+
 html[data-theme='dark'] .welcome-choice-card {
     color: #eef1ff;
     border-color: #3b4256;
@@ -693,3 +720,82 @@ html[data-theme='dark'] .welcome-panel .ant-select-selector {
         font-size: 21px;
     }
 }
+
+/* ---- Director company settings: grouped sections and option cards ---- */
+.welcome-settings-section {
+    display: grid;
+    gap: 14px;
+    margin-bottom: 16px;
+    padding: 18px;
+    border: 1px solid #e2e6f0;
+    border-radius: 16px;
+    text-align: left;
+}
+
+.welcome-settings-section > h5 {
+    margin: 0;
+    color: #6d5dfb;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.welcome-settings-section .ant-form-item { margin-bottom: 0; }
+
+.welcome-settings-pair {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.welcome-option-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--option-columns, 2), minmax(0, 1fr));
+    gap: 10px;
+}
+
+.welcome-option {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    min-height: 64px;
+    padding: 12px 14px;
+    border: 1px solid #e2e6f0;
+    border-radius: 14px;
+    color: #303b52;
+    background: #fff;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color .18s ease, background .18s ease, box-shadow .18s ease;
+}
+
+.welcome-option:hover { border-color: #8b7cf6; }
+.welcome-option:focus-visible { outline: 3px solid rgba(109, 93, 251, .24); outline-offset: 2px; }
+
+.welcome-option.is-selected {
+    border-color: #6d5dfb;
+    background: #f1efff;
+    box-shadow: 0 0 0 2px rgba(109, 93, 251, .12);
+}
+
+.welcome-option-copy { display: grid; gap: 3px; min-width: 0; }
+.welcome-option-copy strong { font-size: 14px; }
+.welcome-option-copy small { color: #7a859b; font-size: 12px; line-height: 1.4; }
+.welcome-option-check { color: #c7ccda; font-size: 18px; transition: color .18s ease; }
+.welcome-option.is-selected .welcome-option-check { color: #6d5dfb; }
+
+@media (max-width: 640px) {
+    .welcome-settings-pair,
+    .welcome-option-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+html[data-theme='dark'] .welcome-settings-section { border-color: #34394a; background: rgba(35, 39, 53, .45); }
+html[data-theme='dark'] .welcome-settings-section > h5 { color: #a99fff; }
+html[data-theme='dark'] .welcome-option { color: #eef1ff; border-color: #3b4256; background: #232735; }
+html[data-theme='dark'] .welcome-option:hover { border-color: #8b7eff; }
+html[data-theme='dark'] .welcome-option.is-selected { border-color: #8b7eff; background: rgba(109, 93, 251, .18); }
+html[data-theme='dark'] .welcome-option-copy small { color: #aab2c5; }
+html[data-theme='dark'] .welcome-option-check { color: #4a5167; }
+html[data-theme='dark'] .welcome-option.is-selected .welcome-option-check { color: #a99fff; }

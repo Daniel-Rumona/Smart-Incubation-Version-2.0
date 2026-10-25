@@ -1,4 +1,4 @@
-import { collection, getDocs } from 'firebase/firestore'
+import { collection, getDocs, query, where } from 'firebase/firestore'
 import type { DocumentData } from 'firebase/firestore'
 import { getFirebaseDb } from '@/config/firebase'
 import { hasRolePermission } from '@/config/permissions'
@@ -14,7 +14,7 @@ export const listOperationsParticipants = async (user: FullIdentity, activeProgr
   if (!hasRolePermission(user.role, 'view_participants', user.permissions)) throw new Error('forbidden')
   const [participants, applications, timeline, programs, plans, completions] = await Promise.all([
     getDocs(collection(getFirebaseDb(), 'participants')),
-    getDocs(collection(getFirebaseDb(), 'applications')),
+    getDocs(user.companyCode ? query(collection(getFirebaseDb(), 'applications'), where('companyCode', '==', user.companyCode)) : collection(getFirebaseDb(), 'applications')),
     getDocs(collection(getFirebaseDb(), 'complianceDocuments')),
     getDocs(collection(getFirebaseDb(), 'programs')),
     getDocs(collection(getFirebaseDb(), 'diagnosticPlans')),

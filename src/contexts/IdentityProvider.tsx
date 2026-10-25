@@ -1,11 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react'
 import { onAuthStateChanged, reload } from 'firebase/auth'
-import { getFirebaseAuth, isFirebaseConfigured } from '@/config/firebase'
+import { doc, onSnapshot } from 'firebase/firestore'
+import { getFirebaseAuth, getFirebaseDb, isFirebaseConfigured } from '@/config/firebase'
 import { resolveIdentityPermissions } from '@/config/permissions'
 import { isUserRole } from '@/config/roles'
 import { isApplicantWorkspaceUser } from '@/services/applicationsService'
 import { resolveAuthenticatedProfileData } from '@/services/authService'
 import type { FullIdentity } from '@/types/identity'
+import { decodeSignatureStrokes } from '@/utils/signatureStrokes'
+import { pendingProgramIdFrom, resolveSmeJourney } from '@/utils/smeJourney'
 
 type IdentityContextValue = {
   user: FullIdentity | null
@@ -75,6 +78,7 @@ export const IdentityProvider = ({ children }: PropsWithChildren) => {
           branchId: typeof profile?.branchId === 'string' ? profile.branchId : null,
           departmentId: typeof profile?.departmentId === 'string' ? profile.departmentId : null,
           signatureURL,
+          signatureStrokes: signatureURL ? decodeSignatureStrokes(profile?.signatureStrokes) : null,
           profileImageUrl: typeof profile?.profileImageUrl === 'string' && profile.profileImageUrl.trim() ? profile.profileImageUrl : null,
           assignedProgramIds: Array.isArray(profile?.assignedProgramIds)
             ? profile.assignedProgramIds.filter((id): id is string => typeof id === 'string')
@@ -82,6 +86,8 @@ export const IdentityProvider = ({ children }: PropsWithChildren) => {
           permissions: resolveIdentityPermissions(role, profile?.permissions),
           consultingBudget: typeof profile?.consultingBudget === 'number' ? profile.consultingBudget : undefined,
           smeOnboardingComplete: profile?.smeOnboardingComplete !== false,
+          smeJourney: role === 'incubatee' ? resolveSmeJourney(profile, isApplicant) : undefined,
+          pendingProgramId: role === 'incubatee' ? pendingProgramIdFrom(profile) : null,
         })
         setError(undefined)
       } catch {
@@ -93,6 +99,36 @@ export const IdentityProvider = ({ children }: PropsWithChildren) => {
       }
     })
   }, [])
+
+  // Feature access is edited by staff managers while this person is signed in, so follow their
+  // profile document instead of keeping the permissions read at sign-in until the next login.
+  const uid = user?.uid
+  useEffect(() => {
+    if (!isFirebaseConfigured || !uid) return
+    return onSnapshot(doc(getFirebaseDb(), 'users', uid), (snapshot) => {
+      const data = snapshot.data()
+      if (!data) return
+      setUser((current) => {
+        if (!current || current.uid !== uid) return current
+        const permissions = resolveIdentityPermissions(current.role, data.permissions)
+        const permissionsUnchanged = permissions.length === current.permissions.length && permissions.every((permission) => current.permissions.includes(permission))
+
+        // Joining a programme (server-side) changes the SME's journey, company and programmes mid-session.
+        const smeFields: Partial<FullIdentity> = current.role === 'incubatee'
+          ? {
+            smeJourney: resolveSmeJourney(data, current.isApplicant),
+            pendingProgramId: pendingProgramIdFrom(data),
+            companyCode: typeof data.companyCode === 'string' ? data.companyCode : current.companyCode,
+            assignedProgramIds: Array.isArray(data.assignedProgramIds) ? data.assignedProgramIds.filter((id: unknown): id is string => typeof id === 'string') : current.assignedProgramIds,
+            smeOnboardingComplete: data.smeOnboardingComplete !== false,
+          }
+          : {}
+        const smeUnchanged = Object.entries(smeFields).every(([key, value]) => JSON.stringify(value) === JSON.stringify(current[key as keyof FullIdentity]))
+
+        return permissionsUnchanged && smeUnchanged ? current : { ...current, permissions, ...smeFields }
+      })
+    }, () => undefined)
+  }, [uid])
 
   const updateIdentity = useCallback((patch: Partial<FullIdentity>) => setUser((current) => (current ? { ...current, ...patch } : current)), [])
 

@@ -30,7 +30,7 @@ import {
 } from '@ant-design/icons'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { DashboardHeaderCard } from '@/components/shared/Header'
-import { LoadingOverlay } from '@/components/shared/LoadingOverlay'
+import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { useRegisterAgentPageContext } from '@/shared/hooks/useRegisterAgentPageContext'
 import {
@@ -246,7 +246,7 @@ const AgentRegistryPage = () => {
     })
   }
 
-  if (loading) return <LoadingOverlay tip={t('Loading agent registry')} />
+  if (loading) return <PageSkeleton variant="table" label={t('Loading agent registry')} />
 
   return (
     <DashboardPage className="agent-registry-page">

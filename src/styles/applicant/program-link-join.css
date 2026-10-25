@@ -1,0 +1,27 @@
+.program-link-join {
+    display: grid;
+    gap: 8px;
+    padding: 14px 16px;
+    border: 1px dashed rgba(109, 93, 251, 0.3);
+    border-radius: 14px;
+    background: rgba(109, 93, 251, 0.04);
+}
+
+.program-link-join.is-compact {
+    padding: 12px 14px;
+}
+
+.program-link-join .ant-alert {
+    border-radius: 10px;
+}
+
+/* "You started joining a programme" banner shown to independent SMEs with a saved programme link. */
+.program-resume-banner {
+    margin-bottom: 16px;
+    border-radius: 14px !important;
+}
+
+html[data-theme='dark'] .program-link-join {
+    border-color: rgba(139, 92, 246, 0.35);
+    background: rgba(139, 92, 246, 0.08);
+}

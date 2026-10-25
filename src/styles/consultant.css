@@ -74,14 +74,6 @@
 .consultant-inline-service-card .ant-card-body { padding: 14px; }
 .consultant-inline-service-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .consultant-availability-editor { display: grid; gap: 14px; }
-.consultant-weekday-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
-.consultant-weekday-card { display: grid; justify-items: center; gap: 4px; min-height: 82px; padding: 9px 5px; border: 1px solid rgba(109, 93, 251, .16); border-radius: 14px; color: var(--ant-color-text); background: var(--ant-color-bg-container); cursor: pointer; }
-.consultant-weekday-card:hover { border-color: #8b7cf6; }
-.consultant-weekday-card.is-selected { border-color: #6d5dfb; color: #5848dd; background: #f1efff; box-shadow: 0 0 0 2px rgba(109, 93, 251, .12); }
-.consultant-weekday-card.is-disabled { border-style: dashed; color: var(--ant-color-text-secondary); background: rgba(148, 163, 184, .08); cursor: not-allowed; opacity: .65; }
-.consultant-weekday-card svg { font-size: 18px; }
-.consultant-weekday-card strong { font-size: 13px; }
-.consultant-weekday-card small { color: var(--ant-color-text-secondary); font-size: 10px; text-align: center; }
 .consultant-day-schedule { padding: 14px; border: 1px solid rgba(109, 93, 251, .16); border-radius: 16px; background: rgba(109, 93, 251, .035); }
 .consultant-day-schedule h5 { margin: 0 !important; }
 .consultant-availability-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; margin-top: 8px; }
@@ -93,25 +85,49 @@
 .consultant-special-availability-row { display: grid; grid-template-columns: minmax(180px, .9fr) minmax(0, 1.4fr); align-items: center; gap: 14px; padding: 12px 14px; border: 1px solid rgba(109, 93, 251, .14); border-radius: 14px; }
 .consultant-special-availability-row > div:first-child { display: grid; gap: 2px; }
 .consultant-special-availability-row small { color: var(--ant-color-text-secondary); font-size: 12px; }
-.consultant-special-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
-.consultant-special-options button { min-height: 34px; border: 1px solid rgba(109, 93, 251, .18); border-radius: 999px; color: var(--ant-color-text-secondary); background: var(--ant-color-bg-container); cursor: pointer; font-size: 12px; }
-.consultant-special-options button.is-selected { border-color: #6d5dfb; color: #5848dd; background: #f1efff; }
-.consultant-profile-save { position: sticky; bottom: 0; z-index: 1; width: 100%; margin-top: 0; min-height: 44px; box-shadow: 0 -10px 18px var(--ant-color-bg-container); }
-.consultant-profile-facts { display: grid; flex: 1; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(72px, 1fr)); gap: 8px; width: 100%; min-height: 0; margin-top: 12px; }
-.consultant-profile-fact { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 0; padding: 12px; border: 1px solid var(--consultant-fact-border); border-radius: 12px; background: var(--consultant-fact-background); color: var(--consultant-fact-color); }
-.consultant-profile-fact > svg { flex: 0 0 auto; width: 17px; font-size: 17px; }
-.consultant-profile-fact span { display: grid; min-width: 0; gap: 1px; }
-.consultant-profile-fact small { color: var(--ant-color-text-secondary); font-size: 11px; line-height: 1.1; }
-.consultant-profile-fact strong { overflow: hidden; color: var(--ant-color-text); font-size: 12px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
-.consultant-profile-acceptance { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 12px; font-size: 12px; }
-.consultant-profile-acceptance .ant-tag { margin-inline-end: 0; }
-.consultant-profile-fact-violet { --consultant-fact-color: #7157f5; --consultant-fact-background: rgba(109, 93, 251, .07); --consultant-fact-border: rgba(109, 93, 251, .16); }
-.consultant-profile-fact-blue { --consultant-fact-color: #2563eb; --consultant-fact-background: rgba(37, 99, 235, .07); --consultant-fact-border: rgba(37, 99, 235, .15); }
-.consultant-profile-fact-green { --consultant-fact-color: #059669; --consultant-fact-background: rgba(5, 150, 105, .07); --consultant-fact-border: rgba(5, 150, 105, .15); }
-.consultant-profile-fact-amber { --consultant-fact-color: #d97706; --consultant-fact-background: rgba(217, 119, 6, .07); --consultant-fact-border: rgba(217, 119, 6, .16); }
-.consultant-profile-fact-rose { --consultant-fact-color: #e11d48; --consultant-fact-background: rgba(225, 29, 72, .06); --consultant-fact-border: rgba(225, 29, 72, .14); }
-.consultant-profile-fact-teal { --consultant-fact-color: #0f766e; --consultant-fact-background: rgba(15, 118, 110, .07); --consultant-fact-border: rgba(15, 118, 110, .16); }
-.consultant-profile-fact-green, .consultant-profile-fact-rose { grid-column: 1 / -1; }
+/* Save bar: stays in view at the bottom of the editor; says when there are unsaved changes. */
+.consultant-profile-save { position: sticky; bottom: 0; z-index: 1; display: grid; gap: 6px; width: 100%; padding-top: 10px; background: var(--ant-color-bg-container); box-shadow: 0 -10px 18px var(--ant-color-bg-container); }
+.consultant-profile-save .ant-btn { min-height: 40px; }
+.consultant-profile-unsaved { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: #b45309; }
+.consultant-profile-unsaved::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+/* Identity card: who you are, whether you take requests, what's left to do, then preview and publish. */
+.consultant-profile-badges { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.consultant-profile-badges .ant-tag { margin-inline-end: 0; }
+.consultant-profile-acceptance { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; padding: 10px 0; border-block: 1px solid rgba(100, 116, 139, .14); font-size: 13px; }
+.consultant-profile-checklist { display: grid; gap: 6px; padding-top: 12px; }
+.consultant-profile-checklist-head strong { font-size: 13px; }
+.consultant-profile-checklist ul { display: grid; gap: 2px; margin: 4px 0 0; padding: 0; list-style: none; }
+.consultant-profile-checklist li { display: flex; align-items: center; gap: 8px; min-height: 26px; font-size: 12.5px; }
+.consultant-profile-checklist li > span:not(.consultant-profile-checklist-ring) { flex: 1; min-width: 0; }
+.consultant-profile-checklist li small { color: var(--ant-color-text-tertiary); }
+.consultant-profile-checklist li.is-done { color: var(--ant-color-text-secondary); }
+.consultant-profile-checklist li.is-done .anticon { color: #15803D; }
+.consultant-profile-checklist-ring { flex: none; width: 12px; height: 12px; border: 1.5px solid #94A3B8; border-radius: 50%; }
+.consultant-profile-checklist li.is-missing .consultant-profile-checklist-ring { border-color: #DC2626; }
+.consultant-profile-checklist li button { padding: 2px 6px; border: 0; border-radius: 6px; background: transparent; color: #6d5dfb; font: inherit; font-weight: 600; cursor: pointer; transition: background-color 150ms ease, transform 160ms cubic-bezier(0.23, 1, 0.32, 1); }
+.consultant-profile-checklist li button:active { transform: scale(.96); }
+@media (hover: hover) and (pointer: fine) { .consultant-profile-checklist li button:hover { background: rgba(109, 93, 251, .08); } }
+.consultant-profile-actions { display: grid; gap: 8px; margin-top: auto; padding-top: 14px; }
+
+/* A red dot on a tab that still has something required to fill in. */
+.consultant-profile-tab { position: relative; display: inline-flex; align-items: center; gap: 6px; }
+.consultant-profile-tab-dot { width: 7px; height: 7px; border-radius: 50%; background: #DC2626; }
+
+/* Week overview: one row per day, every day on the same time scale. */
+.consultant-week { display: grid; gap: 6px; }
+.consultant-week-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
+.consultant-week-day { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; gap: 10px; min-height: 28px; padding: 3px 8px; border: 1px solid transparent; border-radius: 10px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background-color 150ms ease, border-color 150ms ease, transform 160ms cubic-bezier(0.23, 1, 0.32, 1); }
+.consultant-week-day:active:not(:disabled) { transform: scale(.99); }
+@media (hover: hover) and (pointer: fine) { .consultant-week-day:hover:not(:disabled) { background: rgba(109, 93, 251, .05); } }
+.consultant-week-day.is-selected { border-color: rgba(109, 93, 251, .45); background: rgba(109, 93, 251, .06); }
+.consultant-week-day.is-off { cursor: not-allowed; opacity: .5; }
+.consultant-week-name { font-size: 13px; font-weight: 600; }
+.consultant-week-track { position: relative; height: 12px; border-radius: 999px; background: rgba(100, 116, 139, .12); }
+.consultant-week-window { position: absolute; top: 0; bottom: 0; min-width: 4px; border-radius: 999px; background: #6d5dfb; }
+.consultant-day-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.consultant-profile-fixed-value { display: inline-flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 12px; border: 1px solid rgba(100, 116, 139, .18); border-radius: 10px; font-weight: 600; }
+.consultant-phone-provider { margin-top: -12px; }
 .consultant-profile-photo-target { position: relative; display: inline-flex; border-radius: 50%; cursor: pointer; }
 .consultant-profile-photo-target:focus-visible { outline: 3px solid rgba(59, 130, 246, .45); outline-offset: 4px; }
 .consultant-profile-photo-edit { position: absolute; right: 6px; bottom: 6px; width: 34px; height: 34px; display: grid; place-items: center; border: 2px solid #fff; border-radius: 50%; color: #fff; background: #2563eb; box-shadow: 0 4px 10px rgba(15, 23, 42, .2); }
@@ -257,8 +273,7 @@ html[data-theme='dark'] .consultant-profile-editor-top .ant-segmented-item-selec
 html[data-theme='dark'] .consultant-profile-choice-card { border-color: rgba(167, 139, 250, .28); background: rgba(30, 34, 47, .88); }
 html[data-theme='dark'] .consultant-profile-choice-card.is-selected { color: #e7e0ff; background: rgba(109, 93, 251, .2); }
 html[data-theme='dark'] .consultant-contact-email-card { border-color: rgba(52, 211, 153, .25); background: rgba(5, 150, 105, .12); }
-html[data-theme='dark'] .consultant-weekday-card, html[data-theme='dark'] .consultant-special-availability-row { background: rgba(30, 34, 47, .88); border-color: rgba(167, 139, 250, .24); }
-html[data-theme='dark'] .consultant-weekday-card.is-selected, html[data-theme='dark'] .consultant-special-options button.is-selected { color: #e7e0ff; background: rgba(109, 93, 251, .2); }
+html[data-theme='dark'] .consultant-special-availability-row { background: rgba(30, 34, 47, .88); border-color: rgba(167, 139, 250, .24); }
 
 @media (max-width: 767px) {
   .consultant-page:has(.consultant-profile-layout) { height: auto; overflow: visible; }
@@ -267,15 +282,12 @@ html[data-theme='dark'] .consultant-weekday-card.is-selected, html[data-theme='d
   .consultant-profile-identity-card, .consultant-profile-editor-card { height: auto; min-height: 0; overflow: visible; }
   .consultant-profile-identity-card .ant-card-body, .consultant-profile-editor-card > .ant-card-body { height: auto; overflow: visible; }
   .consultant-profile-form { overflow: visible; }
-  .consultant-profile-facts { grid-template-columns: 1fr; grid-template-rows: none; }
-  .consultant-profile-fact-green, .consultant-profile-fact-rose { grid-column: auto; }
   .consultant-profile-editor-top { align-items: stretch; flex-direction: column; }
   .consultant-location-choice-grid { grid-template-columns: 1fr; }
   .consultant-radius-choice-grid { grid-template-columns: 1fr; }
   .consultant-radius-choice-grid .consultant-profile-choice-card, .consultant-radius-choice-grid .consultant-profile-choice-card:nth-child(n + 4) { grid-column: auto; }
   .consultant-profile-editor-top .ant-segmented { width: 100%; }
   .consultant-availability-row { grid-template-columns: auto minmax(0, 1fr) auto; }
-  .consultant-weekday-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .consultant-special-availability-row { grid-template-columns: 1fr; }
   .consultant-profile-hero {
     grid-template-columns: 1fr;
@@ -311,3 +323,136 @@ html[data-theme='dark'] .consultant-weekday-card.is-selected, html[data-theme='d
 .consultant-scroll-top { right: 20px !important; bottom: 88px !important; z-index: 901 !important; }
 
 .consultant-page .ant-row.consultant-sme-grid { row-gap: 18px !important; }
+
+
+.consultant-report-filters { display: grid; gap: 12px; width: min(320px, calc(100vw - 48px)); }
+.consultant-report-filters label { display: grid; gap: 4px; }
+.consultant-report-filters-foot { display: flex; justify-content: space-between; align-items: center; padding-top: 4px; }
+/* Reports filter row: tabs and the Filters trigger on the left, exports pushed right, every control its natural width. */
+/* Same specificity as the consultant-page rule above that stretches buttons and tabs, so this one wins by order. */
+.consultant-reports-page .filter-bar-controls > .ant-btn,
+.consultant-reports-page .filter-bar-controls > .ant-segmented { flex: 0 0 auto; }
+.consultant-reports-page .filter-bar-controls > .ant-segmented .ant-segmented-group { width: auto; }
+.consultant-reports-page .filter-bar-controls > .ant-segmented .ant-segmented-item { flex: 0 0 auto; }
+.consultant-reports-page .filter-bar-controls > .consultant-report-actions-start { margin-inline-start: auto; }
+
+/* The trigger carries the applied period, in secondary ink after the label. */
+.consultant-report-filter-trigger { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; }
+.consultant-report-filter-summary { padding-inline-start: 8px; border-inline-start: 1px solid rgba(100, 116, 139, .25); color: rgba(100, 116, 139, 1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.consultant-report-filter-count { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: #6d5dfb; color: #fff; font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+html[data-theme='dark'] .consultant-report-filter-summary { color: rgba(203, 213, 225, .75); border-inline-start-color: rgba(203, 213, 225, .2); }
+
+/* Press feedback on the row's buttons. */
+.consultant-reports-page .filter-bar-controls .ant-btn { transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 200ms ease, border-color 200ms ease, color 200ms ease; }
+.consultant-reports-page .filter-bar-controls .ant-btn:active:not(:disabled) { transform: scale(0.97); }
+
+@media (max-width: 767px) {
+  .consultant-reports-page .filter-bar-controls { flex-wrap: wrap; row-gap: 8px; }
+  .consultant-reports-page .filter-bar-controls > .ant-btn,
+  .consultant-reports-page .filter-bar-controls > .ant-segmented { flex: 1 1 100%; }
+  .consultant-reports-page .filter-bar-controls > .ant-segmented .ant-segmented-group { width: 100%; }
+  .consultant-reports-page .filter-bar-controls > .ant-segmented .ant-segmented-item { flex: 1; }
+  .consultant-reports-page .filter-bar-controls > .consultant-report-actions-start { margin-inline-start: 0; }
+  .consultant-report-filter-trigger { justify-content: flex-start; }
+  .consultant-report-filter-range { display: none; }
+}
+
+/* Reports: tabs crossfade instead of popping. Opacity only, so it is safe under reduced motion. */
+.consultant-report-section { animation: consultant-report-fade 150ms cubic-bezier(0.23, 1, 0.32, 1); }
+@keyframes consultant-report-fade { from { opacity: 0; } }
+
+/* Verdict: one sentence that says how the period went, then the figures behind it. */
+.report-verdict .ant-card-body { padding: 18px 20px; }
+.report-verdict-headline { margin: 4px 0 12px; font-size: 18px; font-weight: 600; line-height: 1.4; text-wrap: pretty; }
+.report-verdict-figures { display: flex; flex-wrap: wrap; gap: 8px 24px; font-size: 13px; color: rgba(100, 116, 139, 1); }
+.report-verdict-figures strong { font-weight: 700; color: var(--ant-color-text, #0f172a); }
+html[data-theme='dark'] .report-verdict-figures { color: rgba(203, 213, 225, .75); }
+html[data-theme='dark'] .report-verdict-figures strong { color: #f1f5f9; }
+
+.report-side-stack { display: grid; gap: 16px; height: 100%; align-content: start; }
+
+/* Part-to-whole: one thin bar, 2px gaps between segments. */
+.report-status-bar { display: flex; gap: 2px; height: 12px; border-radius: 4px; overflow: hidden; margin-bottom: 12px; }
+.report-status-bar > span { flex-basis: 0; min-width: 4px; }
+.report-status-legend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; font-size: 13px; }
+.report-status-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.report-status-legend i { width: 8px; height: 8px; border-radius: 999px; flex: none; }
+.report-status-legend strong { font-variant-numeric: tabular-nums; }
+.report-status-legend .is-empty { opacity: .45; }
+
+/* Needs attention: three rows, each opens the work. */
+.report-attention { display: grid; gap: 2px; margin: -6px -8px; }
+.report-attention-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px; border: 0; border-radius: 8px; background: transparent; color: inherit; font: inherit; font-size: 13px; text-align: left; cursor: pointer; transition: background-color 150ms ease, transform 160ms cubic-bezier(0.23, 1, 0.32, 1); }
+.report-attention-row:active { transform: scale(0.98); }
+.report-attention-row:focus-visible { outline: 2px solid #6d5dfb; outline-offset: -2px; }
+@media (hover: hover) and (pointer: fine) {
+  .report-attention-row:hover { background: rgba(109, 93, 251, .06); }
+}
+.report-attention-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.report-attention-when { flex: none; white-space: nowrap; }
+
+/* Hero figures use the body sans with proportional digits; only aligned columns get tabular-nums. */
+.report-hero-figure { font-size: 40px; font-weight: 800; line-height: 1; letter-spacing: -0.02em; }
+
+.report-attention-after-chart { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(100, 116, 139, .12); }
+
+/* SME comments, quoted as written. Long ones clamp to four lines; Details has the rest. */
+.report-quotes { display: grid; gap: 14px; }
+.report-quote { margin: 0; }
+.report-quote blockquote { margin: 0 0 4px; padding-left: 12px; border-left: 2px solid rgba(109, 93, 251, .35); border-radius: 0; font-size: 14px; line-height: 1.55; text-wrap: pretty; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.report-quote figcaption { padding-left: 14px; font-size: 12px; color: rgba(100, 116, 139, 1); }
+html[data-theme='dark'] .report-quote figcaption { color: rgba(203, 213, 225, .75); }
+
+/* The Play split button sits in the filter row like the other buttons: natural width on desktop, full width on phones. */
+.consultant-reports-page .filter-bar-controls > .ant-space-compact { flex: 0 0 auto; }
+@media (max-width: 767px) {
+  .consultant-reports-page .filter-bar-controls > .ant-space-compact { flex: 1 1 100%; }
+  .consultant-reports-page .filter-bar-controls > .ant-space-compact > .ant-btn:first-child { flex: 1; }
+}
+
+html[data-theme='dark'] .consultant-week-track { background: rgba(203, 213, 225, .14); }
+html[data-theme='dark'] .consultant-week-window { background: #a59bff; }
+html[data-theme='dark'] .consultant-week-day.is-selected { border-color: rgba(167, 139, 250, .5); background: rgba(109, 93, 251, .14); }
+html[data-theme='dark'] .consultant-profile-acceptance { border-color: rgba(203, 213, 225, .14); }
+html[data-theme='dark'] .consultant-profile-unsaved { color: #fbbf24; }
+html[data-theme='dark'] .consultant-profile-checklist li button { color: #b4a9ff; }
+
+/* Consultant dashboard: one sentence on what needs you, then a short list to act on. */
+.consultant-dashboard-greeting { margin-bottom: 16px; }
+.consultant-dashboard-greeting .ant-card-body { padding: 16px 20px; }
+.consultant-dashboard-greeting p { margin: 4px 0 0; font-size: 17px; font-weight: 600; line-height: 1.4; text-wrap: pretty; }
+.consultant-needs { display: grid; }
+.consultant-needs-row { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 8px 0; border-top: 1px solid rgba(100, 116, 139, .12); }
+.consultant-needs-row:first-child { border-top: 0; padding-top: 0; }
+.consultant-needs-text { display: grid; flex: 1; min-width: 0; gap: 1px; }
+.consultant-needs-text .ant-typography-secondary { font-size: 12.5px; }
+.consultant-needs-tag { flex: none; margin: 0; }
+.consultant-needs-more { display: block; padding-top: 8px; font-size: 12.5px; }
+.consultant-needs-detail { line-height: 1.35; overflow-wrap: anywhere; }
+/* Separates the consultant's own moves from work waiting on the SME or a reviewer. */
+.consultant-needs-group { display: block; padding: 14px 0 4px; font-size: 12px; font-weight: 600; }
+.consultant-needs-group + .consultant-needs-row { border-top: 0; }
+.consultant-needs-group:first-child { padding-top: 0; }
+.consultant-dashboard-fact { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+.consultant-dashboard-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+html[data-theme='dark'] .consultant-needs-row { border-top-color: rgba(203, 213, 225, .12); }
+.consultant-dashboard-greeting-body { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.consultant-dashboard-greeting-body > div { flex: 1 1 320px; min-width: 0; }
+.consultant-needs-more { justify-self: start; padding-inline: 0; }
+
+/* Performance: a legend column with each line's total, then the chart. */
+.consultant-performance-body { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 20px; align-items: center; }
+.consultant-performance-legend { display: grid; gap: 18px; margin: 0; padding: 0; list-style: none; }
+.consultant-performance-legend li { display: grid; gap: 4px; }
+.consultant-performance-legend strong { font-size: 22px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.consultant-performance-key { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ant-color-text-secondary); }
+/* A square swatch per measure, in the same order as the bars in each group. */
+.consultant-performance-key i { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.consultant-performance-range { font-size: 12px; color: var(--ant-color-text-tertiary); }
+.consultant-performance-chart { min-width: 0; }
+@media (max-width: 767px) {
+  .consultant-performance-body { grid-template-columns: 1fr; }
+  .consultant-performance-legend { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .consultant-performance-legend strong { font-size: 18px; }
+  .consultant-performance-range { grid-column: 1 / -1; }
+}

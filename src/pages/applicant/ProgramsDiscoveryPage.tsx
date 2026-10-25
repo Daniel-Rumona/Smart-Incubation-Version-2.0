@@ -10,6 +10,7 @@ import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { useLanguage, tEnglish } from '@/providers/LanguageProvider'
 import { getApplicantProfileBundle, isApplicantProfileComplete, listApplicantApplications, listApplicantPrograms } from '@/services/applicantService'
 import type { ApplicantProgram } from '@/types/applicant'
+import { ProgramLinkJoin } from '@/components/applicant/ProgramLinkJoin'
 import '@/styles/applicant.css'
 
 type ProgramView = 'all' | 'suggested'
@@ -19,6 +20,7 @@ export const ProgramsDiscoveryPage = () => {
     const { message } = App.useApp()
     const { t } = useLanguage()
     const { user } = useFullIdentity()
+    const isProgrammeSme = user?.smeJourney === 'programme'
     const navigate = useNavigate()
     const [loading, setLoading] = useState(true)
     const [programs, setPrograms] = useState<ApplicantProgram[]>([])
@@ -74,13 +76,24 @@ export const ProgramsDiscoveryPage = () => {
 
     return (
         <DashboardPageShell className="applicant-page applicant-programs-page">
-            <Row gutter={[12, 12]} className="applicant-metrics">
+            {/* Programme SMEs came for one programme; independents browse open programmes or paste a link. */}
+            <div className="applicant-programs-intro">
+                <Typography.Title level={4}>{isProgrammeSme ? t('Your programme') : t('Find a programme')}</Typography.Title>
+                <Typography.Text type="secondary">
+                    {isProgrammeSme
+                        ? t('This is the programme you joined. Apply or follow your application here.')
+                        : t('Programmes open to SMEs like yours. You can keep using the marketplace and Agentic while you apply.')}
+                </Typography.Text>
+            </div>
+            {!isProgrammeSme && <ProgramLinkJoin compact />}
+
+            {!isProgrammeSme && <Row gutter={[12, 12]} className="applicant-metrics">
                 <Col xs={12} md={8} className="applicant-metric-col"><DashboardMetricCard loading={loading} icon={<AppstoreOutlined />} label={t('applicant.programs.available')} value={programs.length} hint={t('applicant.programs.open')} /></Col>
                 <Col xs={12} md={8} className="applicant-metric-col"><DashboardMetricCard loading={loading} icon={<StarOutlined />} label={t('applicant.programs.suggested')} value={suggestedPrograms.length} hint={t('applicant.programs.matched')} /></Col>
                 <Col xs={12} md={8} className="applicant-metric-col"><DashboardMetricCard loading={loading} icon={<FileTextOutlined />} label={t('applicant.programs.applications')} value={appliedProgramIds.size} hint={t('applicant.programs.submitted')} /></Col>
-            </Row>
+            </Row>}
 
-            <FilterBar
+            {!isProgrammeSme && <FilterBar
                 compact
                 primary={
                     <>
@@ -91,7 +104,7 @@ export const ProgramsDiscoveryPage = () => {
                         <Select value={type} onChange={(value) => { setType(value); setPage(1) }} options={[{ label: t('applicant.programs.allTypes'), value: 'all' }, ...types.map((value) => ({ label: value, value }))]} />
                     </>
                 }
-            />
+            />}
 
             {displayedPrograms.length ? (
                 <>

@@ -20,11 +20,13 @@ import {
     RobotOutlined,
     AppstoreOutlined,
     ArrowLeftOutlined,
+    ArrowRightOutlined,
     IdcardOutlined,
     SunOutlined,
     UserOutlined,
 } from '@ant-design/icons'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useFitSteps } from '@/hooks/useFitSteps'
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { doc, getDoc } from 'firebase/firestore'
 import { appRoutes } from '@/config/routes'
@@ -40,20 +42,26 @@ import { logoutUser } from '@/services/authService'
 import { profilePathForUser } from '@/services/companiesService'
 import { getFirebaseDb, isFirebaseConfigured } from '@/config/firebase'
 import { LoadingOverlay } from '@/components/shared/LoadingOverlay'
+import ResponsiveModal from '@/components/shared/ResponsiveModal'
 import { AgentFab } from '@/components/agent/AgentFab'
 import { GuideMe } from '@/components/guide/GuideMe'
 import { PageGuideProvider } from '@/components/guide/PageGuideContext'
 import { AgenticHomePage } from '@/pages/agentic/AgenticHomePage'
-import { IncubateeNotificationBell } from '@/components/incubatee/IncubateeNotificationBell'
-import { StaffNotificationBell } from '@/components/shared/StaffNotificationBell'
+import { NotificationBell } from '@/components/notifications/NotificationBell'
 import { useSystemSettings } from '@/contexts/SystemSettingsContext'
+import { useEntitlements } from '@/hooks/useEntitlements'
 import { SystemLayoutTopbarContext, type SystemLayoutPageChrome } from '@/contexts/SystemLayoutTopbarContext'
 import { WorkspaceShellProvider } from '@/contexts/WorkspaceShellContext'
 import { ALL_PROGRAMS, setActiveProgramId, useActiveProgramId } from '@/hooks/useActiveProgramId'
 import { ALL_COMPANIES, setActiveCompanyCode, useActiveCompanyCode } from '@/hooks/useActiveCompanyCode'
 import { listWorkspacePrograms, type WorkspaceProgram } from '@/services/workspaceProgramsService'
 import { canAccessPlatformOwnerRoute, isPlatformAdmin, listWorkspaceCompanies, type WorkspaceCompany } from '@/services/companiesService'
+import { journeyAllows, journeyAllowsAgentic, marketplaceConsultantAllows } from '@/utils/routeAccess'
+import { hasOwnInterventionDocuments } from '@/services/interventionDocumentsService'
+import { ProgramResumeBanner } from '@/components/applicant/ProgramResumeBanner'
 import '@/styles/system-layout.css'
+// Page fade-in and skeleton styles; the full LoadingOverlay is only used for this first load now.
+import '@/styles/page-loading.css'
 
 const { Content } = Layout
 const { useBreakpoint } = Grid
@@ -108,24 +116,23 @@ const NAVIGATION_DESCRIPTIONS: Record<string, string> = {
     '/incubatee/interventions': 'Follow the support interventions assigned to your business and their progress.',
     '/incubatee/documents': 'Store and access business documents, evidence, and shared resources.',
     '/incubatee/compliance': 'Keep required business information and compliance evidence up to date.',
-    '/consultant': 'See your assigned work, upcoming activity, and delivery progress at a glance.',
-    '/consultant/profile': 'Maintain the professional information clients use to find and engage you.',
-    '/consultant/smes': 'See the SMEs you support and the work currently connected to each one.',
-    '/consultant/interventions': 'Deliver your assigned interventions and record the outcomes achieved.',
-    '/consultant/appointments': 'Manage your schedule, appointments, and meeting outcomes.',
-    '/consultant/feedback': 'Review client feedback and identify opportunities to strengthen your service.',
-    '/consultant/reports': 'Review your delivery activity, outcomes, and service performance.',
+    '/consultant': 'Your work today, what’s coming up, and how you’re doing.',
+    '/consultant/profile': 'What SMEs see when they look for a consultant.',
+    '/consultant/smes': 'The SMEs you support and the work for each one.',
+    '/consultant/interventions': 'Accept new work, update progress and upload your evidence.',
+    '/consultant/feedback': 'What SMEs said about your work.',
+    '/consultant/reports': 'Your work, results and ratings over time.',
     '/projectadmin': 'See programme performance, delivery activity, and current operational priorities.',
     '/projectadmin/reports': 'Review programme reporting, evidence, and performance summaries.',
     '/projectadmin/esg': 'Track ESG commitments, indicators, and programme scorecard results.',
     '/operations': 'Monitor delivery work, activity queues, and operational priorities.',
     '/operations/programs': 'Create and maintain the programmes available in this workspace.',
     '/operations/tasks': 'Plan, assign, and follow up on operational work across the active programme.',
-    '/operations/staff/tasks': 'Plan, assign, and follow up on operational work across the active programme.',
-    '/operations/staff/manage': 'Manage staff records, roles, and team capacity.',
-    '/operations/participants/applications': 'Review incoming applications and decide who moves into the programme.',
+    '/shared/staff/tasks': 'Plan, assign, and follow up on operational work across the active programme.',
+    '/shared/staff/manage': 'Manage staff records, roles, and team capacity.',
+    '/shared/applications': 'Review incoming applications and decide who moves into the programme.',
     '/operations/participants/diagnostic-plans': 'Review diagnostic plans and the business priorities they identify.',
-    '/operations/participants/all': 'Manage all participating businesses and their programme records.',
+    '/shared/participants': 'Manage all participating businesses and their programme records.',
     '/operations/participants/metrics': 'Compare participant performance measures and growth trends.',
     '/operations/participants/compliance': 'Review participant compliance, evidence, and outstanding requirements.',
     '/operations/connection-requests': 'Manage SME and consultant connection requests.',
@@ -134,9 +141,8 @@ const NAVIGATION_DESCRIPTIONS: Record<string, string> = {
     '/operations/interventions/assign': 'Match support interventions to SMEs and assign the right delivery resource.',
     '/operations/interventions/assigned': 'Track intervention delivery and the work currently assigned to your team.',
     '/operations/interventions/monitoring': 'Monitor intervention progress, evidence, and delivery risks.',
-    '/operations/interventions/appointments': 'Schedule intervention appointments and capture their outcomes.',
-    '/operations/interventions/documents': 'Manage intervention templates, resources, and supporting evidence.',
-    '/operations/interventions/setup': 'Configure the intervention catalogue, outcomes, and delivery rules.',
+    '/shared/interventions/appointments': 'Schedule intervention appointments and capture their outcomes.',
+    '/shared/interventions/setup': 'Configure the intervention catalogue, outcomes, and delivery rules.',
     '/operations/reports': 'Review operational delivery, programme progress, and performance reports.',
     '/director': 'See the executive overview of delivery, performance, and strategic priorities.',
     '/director/programs': 'Compare programme performance and identify areas needing attention.',
@@ -160,11 +166,11 @@ const navigationDescription = (route: AppRoute, label: string) => {
 
 /** The 3 highest-value pages per role, surfaced as one-click topbar shortcuts. */
 const QUICK_LINK_PATHS: Partial<Record<UserRole, string[]>> = {
-    [USER_ROLES.INCUBATEE]: ['/incubatee/interventions', '/incubatee/documents', '/incubatee/compliance'],
-    [USER_ROLES.CONSULTANT]: ['/consultant/smes', '/consultant/appointments', '/consultant/reports'],
-    [USER_ROLES.PROJECT_ADMIN]: ['/operations/participants/applications', '/operations/risk-register', '/projectadmin/reports'],
-    [USER_ROLES.PROJECT_MANAGER]: ['/operations/participants/applications', '/operations/risk-register', '/operations/reports'],
-    [USER_ROLES.OPERATIONS]: ['/operations/participants/applications', '/operations/risk-register', '/operations/reports'],
+    [USER_ROLES.INCUBATEE]: ['/incubatee/interventions', '/incubatee/diagnostic-plan', '/incubatee/compliance'],
+    [USER_ROLES.CONSULTANT]: ['/consultant/interventions', '/shared/interventions/appointments', '/consultant/reports'],
+    [USER_ROLES.PROJECT_ADMIN]: ['/shared/applications', '/operations/risk-register', '/projectadmin/reports'],
+    [USER_ROLES.PROJECT_MANAGER]: ['/shared/applications', '/operations/risk-register', '/operations/reports'],
+    [USER_ROLES.OPERATIONS]: ['/shared/applications', '/operations/risk-register', '/operations/reports'],
     [USER_ROLES.DIRECTOR]: ['/director/portfolio', '/director/programs', '/director/reports'],
     [USER_ROLES.ADMIN]: ['/admin/users', '/admin/usage', '/admin/email-operations'],
     [USER_ROLES.SYSTEM_ADMIN]: ['/admin/users', '/admin/usage', '/admin/agent-registry'],
@@ -202,6 +208,8 @@ const filterRoutesByAudience = (
             && (!role || route.allowedRoles.includes(role))
             && (!route.requiredPermission || (!!role && hasRolePermission(role, route.requiredPermission, permissions)))
             && (!route.platformOwnerOnly || canAccessPlatformOwnerRoute(user))
+            && journeyAllows(route, user)
+            && marketplaceConsultantAllows(route, user)
 
         if (!isVisible && !children?.length) return []
 
@@ -214,11 +222,14 @@ export const SystemLayout = () => {
     const navigate = useNavigate()
     const screens = useBreakpoint()
     const isMobile = !screens.lg
+    // Tablets keep the phone layout but have room for the mode switch and Menu in the top bar instead of a bottom bar.
+    const isTablet = isMobile && !!screens.md
 
     const { t, language, setLanguage } = useLanguage()
     const { mode, toggleTheme } = useThemeMode()
     const { user, loading: identityLoading } = useFullIdentity()
     const { settings } = useSystemSettings()
+    const entitlements = useEntitlements()
     const { message } = App.useApp()
 
     const [navigationOpen, setNavigationOpen] = useState(false)
@@ -234,7 +245,11 @@ export const SystemLayout = () => {
      * carrying parameters (`/incubatee?demo=1`, a filtered report link) is a deliberate deep
      * link, so open the page itself instead of hiding it behind the agentic home.
      */
-    const [shellMode, setShellMode] = useState<'agentic' | 'workspace'>(() => (location.search ? 'workspace' : 'agentic'))
+    const [requestedShellMode, setShellMode] = useState<'agentic' | 'workspace'>(() => (location.search ? 'workspace' : 'agentic'))
+    // Without the agentic support plan feature there is no Agentic home: the workspace is the only mode.
+    // ...and programme applicants keep to their programme until they are accepted.
+    const agenticAllowed = entitlements.has('agenticSupport') && journeyAllowsAgentic(user)
+    const shellMode: 'agentic' | 'workspace' = agenticAllowed ? requestedShellMode : 'workspace'
     // Phones split the shell in two: identity on top, the controls people tap on the bottom bar,
     // and everything set-and-forget behind the account panel.
     const [accountOpen, setAccountOpen] = useState(false)
@@ -246,6 +261,18 @@ export const SystemLayout = () => {
     })
     const showCompanySelector = isPlatformAdmin(user)
     const isSmeWorkspace = user?.role === 'incubatee'
+
+    // Independent SMEs only see the documents library once they have something in it.
+    const checkDocuments = user?.role === 'incubatee' && user.isApplicant && user.smeJourney === 'independent'
+    const [hasOwnDocuments, setHasOwnDocuments] = useState(false)
+    useEffect(() => {
+        if (!checkDocuments || !user || !isFirebaseConfigured) return
+        let cancelled = false
+        hasOwnInterventionDocuments(user)
+            .then((found) => { if (!cancelled) setHasOwnDocuments(found) })
+            .catch(() => undefined)
+        return () => { cancelled = true }
+    }, [checkDocuments, user])
 
     useEffect(() => {
         const refreshPrograms = () => setProgramsVersion((version) => version + 1)
@@ -362,11 +389,12 @@ export const SystemLayout = () => {
                 const isPersonalDeliveryPage = route.path === '/operations/interventions/assigned'
                     || route.path === '/consultant/interventions'
                     || route.path === '/consultant/allocated'
-                    || route.path === '/consultant/appointments'
+                    || (route.path === '/shared/interventions/appointments' && user?.role === USER_ROLES.CONSULTANT)
                 if (!currentRoleCanDeliver && isPersonalDeliveryPage) return []
                 const isHumanDeliveryPage = route.path === '/operations/interventions/assigned'
                 if (hideHumanDelivery && isHumanDeliveryPage) return []
-                if (hideHumanDelivery && agentSupportMode === 'fully_agentic' && route.path.startsWith('/operations/interventions/') && !['/operations/interventions/monitoring', '/operations/interventions/assign'].includes(route.path)) return []
+                if (hideHumanDelivery && agentSupportMode === 'fully_agentic' && route.path === '/shared/interventions/appointments' && user?.role !== USER_ROLES.CONSULTANT) return []
+                if (hideHumanDelivery && agentSupportMode === 'fully_agentic' && route.path.startsWith('/operations/interventions/') &&!['/operations/interventions/monitoring', '/operations/interventions/assign'].includes(route.path)) return []
                 const children = route.children ? applyAgentDeliveryAccess(route.children as typeof routes) : undefined
                 return [{ ...route, children }]
             })
@@ -417,11 +445,13 @@ export const SystemLayout = () => {
      * into a single leading section instead of each getting a tab that opens onto one lonely card.
      */
     const navigationSections = useMemo(() => {
-        const meetsSettingRule = (route: AppRoute) => !route.showInNavWhenAnySetting?.length
-            || route.showInNavWhenAnySetting.some((settingKey) => !!settings[settingKey])
+        const meetsSettingRule = (route: AppRoute) => (!route.showInNavWhenAnySetting?.length
+            || route.showInNavWhenAnySetting.some((settingKey) => !!settings[settingKey]))
+            && (!route.showInNavWhenHasDocuments || hasOwnDocuments)
 
-        // The quick-link segmented only exists on desktop, so phones keep every page in the Menu.
-        const pinned = new Set(isMobile ? [] : quickLinkRoutes.map((link) => link.path))
+        // Pages already one tap away (the desktop quick-link switch, the phone tab bar) are left out of the
+        // Menu. Tablets have neither, so they keep every page there.
+        const pinned = new Set(isTablet ? [] : quickLinkRoutes.map((link) => link.path))
         const isListed = (route: AppRoute) => route.showInNav && meetsSettingRule(route) && !pinned.has(route.path)
 
         const navRoutes = visibleRoutes.filter((route) => isListed(route) || (route.children?.length && route.showInNav && meetsSettingRule(route)))
@@ -439,10 +469,12 @@ export const SystemLayout = () => {
             ...(standalone.length ? [{ key: OVERVIEW_SECTION_KEY, label: t('nav.overview', 'Overview'), items: standalone }] : []),
             ...groups,
         ]
-    }, [isMobile, quickLinkRoutes, settings, t, visibleRoutes])
+    }, [hasOwnDocuments, isTablet, quickLinkRoutes, settings, t, visibleRoutes])
 
     const showTopbarBackButton = shellMode === 'workspace' && pageChrome.showBackButton
     const isChromelessMobile = isMobile && pageChrome.hideChrome
+    // Phones: the bottom bar only holds Menu now, and only in Workspace.
+    const hasPhoneBottomBar = isMobile && !isTablet && !pageChrome.hideChrome && shellMode === 'workspace'
 
     const companySelector = (
         <Select
@@ -495,15 +527,15 @@ export const SystemLayout = () => {
         if (value === 'workspace' && location.pathname === '/') navigate(workspaceDashboardPath(user))
     }
 
-    const modeSwitch = (
+    const modeSwitch = !agenticAllowed ? null : (
         <Segmented
             id="guide-mode-switch"
             className="app-mode-switch"
             value={shellMode}
             onChange={(value) => handleShellModeChange(value as 'agentic' | 'workspace')}
             options={[
-                { value: 'agentic', label: t('Agentic'), icon: <RobotOutlined /> },
-                { value: 'workspace', label: t('Workspace'), icon: <AppstoreOutlined /> },
+                { value: 'agentic', label: <span className="app-topbar-text">{t('Agentic')}</span>, title: t('Agentic'), icon: <RobotOutlined /> },
+                { value: 'workspace', label: <span className="app-topbar-text">{t('Workspace')}</span>, title: t('Workspace'), icon: <AppstoreOutlined /> },
             ]}
         />
     )
@@ -522,11 +554,18 @@ export const SystemLayout = () => {
             onChange={(value) => openWorkspace(String(value))}
             options={quickLinkRoutes.map((link) => ({
                 value: link.path,
-                label: link.label,
+                label: <span className="app-topbar-text">{link.label}</span>,
+                title: link.label,
                 icon: link.icon,
             }))}
         />
     )
+
+    // The bar never wraps, and labels run longer in some languages. When it overflows, labels give way in
+    // steps (other shortcuts, then the other mode, then the current shortcut) so the bell and account
+    // button stay on screen.
+    const topbarRef = useRef<HTMLElement>(null)
+    useFitSteps(topbarRef, ['links', 'links modes', 'links modes all'])
 
     const handleLogout = async () => {
         try {
@@ -548,14 +587,11 @@ export const SystemLayout = () => {
     const navigationCards = navigationIsGrouped
         ? activeNavigationSection?.items || []
         : navigationSections.flatMap((section) => section.items)
-    // Size the modal to the widest tab so it doesn't resize while switching sections.
-    const navigationMaxCards = navigationIsGrouped
-        ? Math.max(...navigationSections.map((section) => section.items.length))
-        : navigationCards.length
-    const navigationColumns = Math.max(1, Math.min(3, navigationMaxCards))
-    const navigationWidth = Math.max(480, navigationColumns * 340 + (navigationColumns - 1) * 12 + 48)
-    // Centre a short final row rather than leaving it hanging on the left.
-    const navigationOrphans = navigationColumns === 3 ? navigationCards.length % 3 : 0
+    // One stacked list: reads top to bottom, never leaves an odd card alone on the last row, and keeps
+    // the same width whichever section is open. Long sections scroll inside the modal.
+    const navigationColumns = 1
+    const navigationWidth = 600
+    const navigationOrphans = 0
     // Agentic mode has no page to name, so the brand stays primary there.
     const showLocationCrumb = shellMode === 'workspace' && Boolean(currentLocationLabel)
 
@@ -564,9 +600,10 @@ export const SystemLayout = () => {
             <WorkspaceShellProvider value={openWorkspace}>
                 <SystemLayoutTopbarContext.Provider value={setPageChrome}>
                     <Layout className="app-shell">
-                        <Layout className="app-main">
+                        <Layout className={`app-main${isMobile && !isTablet && !hasPhoneBottomBar ? ' has-no-bottom-bar' : ''}`}>
                             {!isChromelessMobile && (
                             <header
+                                ref={topbarRef}
                                 id="guide-app-topbar"
                                 className="app-topbar-pill"
                                 style={{
@@ -585,10 +622,32 @@ export const SystemLayout = () => {
                                         />
                                     )}
 
-                                    {isMobile ? (
+                                    {isTablet ? (
+                                        <div className="app-topbar-tablet-nav">
+                                            {modeSwitch}
+
+                                            {shellMode === 'workspace' && (
+                                                <Button
+                                                    icon={<MenuOutlined />}
+                                                    onClick={() => setNavigationOpen(true)}
+                                                    className="app-menu-button"
+                                                    aria-label={t('Menu')}
+                                                />
+                                            )}
+                                        </div>
+                                    ) : isMobile && shellMode === 'agentic' ? (
+                                        // Phones have no mode switch: this is the way out of Agentic.
+                                        <Button
+                                            className="app-goto-workspace"
+                                            onClick={() => handleShellModeChange('workspace')}
+                                        >
+                                            {t('Go to Workspace')}
+                                            <ArrowRightOutlined />
+                                        </Button>
+                                    ) : isMobile ? (
                                         <div className="app-brand-lockup">
                                             <span className="app-brand-copy">
-                                                <strong id="guide-app-name" className="app-page-title">{showLocationCrumb ? currentLocationLabel : t('Smart Incubation')}</strong>
+                                                <strong id="guide-app-name" className="app-page-title app-page-tag" title={showLocationCrumb ? currentLocationLabel : undefined}>{showLocationCrumb ? currentLocationLabel : t('Smart Incubation')}</strong>
                                             </span>
                                         </div>
                                     ) : modeSwitch}
@@ -596,8 +655,10 @@ export const SystemLayout = () => {
 
                                 {!isMobile && <div className="app-topbar-center">{shellMode === 'workspace' && quickLinksSwitch}</div>}
 
+                                {isTablet && <div className="app-topbar-center">{projectSelector}</div>}
+
                                 {isMobile ? (
-                                    <Space size={4} className="app-topbar-actions">
+                                    <Space size={6} className="app-topbar-actions is-mobile-pills">
                                         <GuideMe
                                             mode={shellMode}
                                             role={user?.role}
@@ -609,24 +670,15 @@ export const SystemLayout = () => {
 
                                         {shellMode === 'workspace' && <AgentFab placement="topbar" />}
 
-                                        {isSmeWorkspace ? <IncubateeNotificationBell /> : <StaffNotificationBell />}
+                                        <NotificationBell />
 
+                                        {/* Log out lives in the account panel on phones too. */}
                                         <Button
                                             type="text"
-                                            shape="circle"
                                             icon={<UserOutlined />}
                                             onClick={() => setAccountOpen(true)}
                                             className="app-icon-btn"
                                             aria-label={t('Account and settings')}
-                                        />
-
-                                        <Button
-                                            type="text"
-                                            shape="circle"
-                                            icon={<LogoutOutlined />}
-                                            onClick={() => void handleLogout()}
-                                            className="app-icon-btn app-logout-topbar-btn"
-                                            aria-label={t('Logout')}
                                         />
                                     </Space>
                                 ) : (
@@ -641,7 +693,7 @@ export const SystemLayout = () => {
                                             pageName={shellMode === 'agentic' ? 'Agentic workspace' : selectedKey === '/' ? 'Workspace dashboard' : selectedKey.replace(/^\//, '').replaceAll('/', ' › ')}
                                         />
 
-                                        {isSmeWorkspace ? <IncubateeNotificationBell /> : <StaffNotificationBell />}
+                                        <NotificationBell />
 
                                         {shellMode === 'workspace' && <AgentFab placement="topbar" />}
 
@@ -665,24 +717,44 @@ export const SystemLayout = () => {
                                     marginLeft: 0,
                                 }}
                             >
+                                <ProgramResumeBanner />
                                 {shellMode === 'agentic' ? <AgenticHomePage /> : <Outlet key={location.pathname} />}
                             </Content>
 
-                            {isMobile && !pageChrome.hideChrome && (
-                                <nav className="app-bottom-bar" aria-label={t('Primary')}>
-                                    {modeSwitch}
-
-                                    {shellMode === 'workspace' && (
-                                        <Button
-                                            icon={<MenuOutlined />}
+                            {hasPhoneBottomBar && (() => {
+                                // Tab bar: Home + the role's shortcuts + Menu. The current tab grows into a
+                                // labelled pill; Menu is current when the open page isn't one of the tabs.
+                                const onShortcut = quickLinkRoutes.some((link) => link.path === selectedKey)
+                                return (
+                                    <nav className="app-bottom-bar app-tab-bar" aria-label={t('Primary')}>
+                                        {quickLinkRoutes.map((link) => {
+                                            const active = link.path === selectedKey
+                                            return (
+                                                <button
+                                                    key={link.path}
+                                                    type="button"
+                                                    className={`app-tab${active ? ' is-active' : ''}`}
+                                                    aria-current={active ? 'page' : undefined}
+                                                    aria-label={link.label}
+                                                    onClick={() => openWorkspace(link.path)}
+                                                >
+                                                    <span className="app-tab-icon">{link.icon || <AppstoreOutlined />}</span>
+                                                    <span className="app-tab-label">{link.label}</span>
+                                                </button>
+                                            )
+                                        })}
+                                        <button
+                                            type="button"
+                                            className={`app-tab${!onShortcut ? ' is-active' : ''}`}
+                                            aria-label={t('Menu')}
                                             onClick={() => setNavigationOpen(true)}
-                                            className="app-menu-button"
                                         >
-                                            {t('Menu')}
-                                        </Button>
-                                    )}
-                                </nav>
-                            )}
+                                            <span className="app-tab-icon"><MenuOutlined /></span>
+                                            <span className="app-tab-label">{t('Menu')}</span>
+                                        </button>
+                                    </nav>
+                                )
+                            })()}
                         </Layout>
                     </Layout>
 
@@ -706,7 +778,7 @@ export const SystemLayout = () => {
                         onCancel={() => setAccountOpen(false)}
                         className="app-account-modal"
                     >
-                        {isMobile && projectSelector && (
+                        {isMobile && !isTablet && projectSelector && (
                             <div className="app-account-section">
                                 <div className="app-account-row">
                                     <span className="app-account-row-label"><ProjectOutlined /> {t('Programme')}</span>
@@ -727,12 +799,15 @@ export const SystemLayout = () => {
 
                             <div className="app-account-row">
                                 <span className="app-account-row-label">{mode === 'dark' ? <MoonOutlined /> : <SunOutlined />} {t('Appearance')}</span>
-                                <Button
-                                    icon={mode === 'dark' ? <SunOutlined /> : <MoonOutlined />}
-                                    onClick={toggleTheme}
-                                >
-                                    {mode === 'dark' ? t('Light mode') : t('Dark mode')}
-                                </Button>
+                                {/* Same compact control as Language, showing the current choice rather than the other one. */}
+                                <Segmented
+                                    value={mode}
+                                    onChange={(value) => { if (value !== mode) toggleTheme() }}
+                                    options={[
+                                        { value: 'light', label: t('common.lightMode', 'Light'), icon: <SunOutlined /> },
+                                        { value: 'dark', label: t('common.darkMode', 'Dark'), icon: <MoonOutlined /> },
+                                    ]}
+                                />
                             </div>
                         </div>
 
@@ -759,14 +834,13 @@ export const SystemLayout = () => {
                             </Button>
                         </div>
                     </Modal>
-                    <Modal
+                    {/* Centred modal on desktop, bottom sheet on phones (thumb reach, full width). */}
+                    <ResponsiveModal
                         open={navigationOpen}
                         centered
                         title={t('Explore your workspace')}
-                        footer={null}
                         width={navigationWidth}
-                        destroyOnHidden
-                        onCancel={() => setNavigationOpen(false)}
+                        onClose={() => setNavigationOpen(false)}
                         className="workspace-navigation-modal"
                     >
                         <div className="workspace-navigation-intro">
@@ -783,6 +857,16 @@ export const SystemLayout = () => {
                             className={`workspace-navigation-grid${navigationOrphans ? ` has-orphans-${navigationOrphans}` : ''}`}
                             style={{ '--nav-tracks': navigationColumns * 2 } as React.CSSProperties}
                         >
+                            {isMobile && !isTablet && agenticAllowed && (
+                                <button
+                                    type="button"
+                                    className="workspace-navigation-card is-compact is-agentic"
+                                    onClick={() => { setNavigationOpen(false); handleShellModeChange('agentic') }}
+                                >
+                                    <span className="workspace-navigation-icon"><RobotOutlined /></span>
+                                    <span className="workspace-navigation-copy"><strong>{t('Agentic')}</strong><span>{t('Ask your agent for priorities, progress and next steps.')}</span></span>
+                                </button>
+                            )}
                             {navigationCards.map((route) => {
                                 const label = t(route.labelKey)
                                 const description = navigationDescription(route, label)
@@ -794,7 +878,7 @@ export const SystemLayout = () => {
                                 </button>
                             })}
                         </div>
-                    </Modal>
+                    </ResponsiveModal>
                 </SystemLayoutTopbarContext.Provider>
             </WorkspaceShellProvider>
         </PageGuideProvider>

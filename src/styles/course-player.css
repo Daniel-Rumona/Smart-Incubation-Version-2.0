@@ -209,4 +209,35 @@ html[data-theme='dark'] .course-player-timer {
     .course-player-dock {
         padding-inline: 12px;
     }
+
+    /* The top line stays short: the timer as a small pill, no Passive / Interactive tag. */
+    .course-player-mode {
+        display: none !important;
+    }
+
+    .course-player-heading strong,
+    .course-player-heading span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    /* Two actions on a phone: a small back arrow and one wide Next. The back arrow in the top
+       bar already saves and returns to the list, so Save for later is left off here. */
+    .course-player-nav > .course-player-save {
+        display: none;
+    }
+
+    .course-player-nav > .course-player-prev {
+        flex: 0 0 48px;
+        padding-inline: 0;
+    }
+
+    .course-player-prev-label {
+        display: none;
+    }
+
+    .course-player-nav > .course-player-next {
+        flex: 1 1 auto;
+    }
 }

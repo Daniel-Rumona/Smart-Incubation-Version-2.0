@@ -23,7 +23,7 @@ import {
 } from '@ant-design/icons'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { DashboardHeaderCard } from '@/components/shared/Header'
-import { LoadingOverlay } from '@/components/shared/LoadingOverlay'
+import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import {
   listWorkspaceCompanies,
@@ -163,7 +163,7 @@ const AgentAvailabilityPage = () => {
   }
 
   if (loadingCompanies || loadingCatalogue) {
-    return <LoadingOverlay tip={t('Loading agent catalogue')} />
+    return <PageSkeleton variant="table" label={t('Loading agent catalogue')} />
   }
 
   return (

@@ -312,9 +312,13 @@ html[data-theme='dark'] .agentic-composer .agentic-composer-mic-button.ant-btn:h
     background: rgba(139, 92, 246, .18) !important;
 }
 
+.agentic-composer-dock {
+    width: 100%;
+}
+
 .agentic-suggestions {
     width: 100%;
-    margin-top: 9px;
+    margin-bottom: 9px;
     display: flex;
     justify-content: center;
     flex-wrap: wrap;
@@ -330,6 +334,11 @@ html[data-theme='dark'] .agentic-composer .agentic-composer-mic-button.ant-btn:h
     border-color: rgba(109, 93, 251, .13);
     background: rgba(255, 255, 255, .72);
     white-space: normal;
+}
+
+/* The arrow only shows on phones, where suggestions are full-width rows. */
+.agentic-suggestion-arrow {
+    display: none !important;
 }
 
 .agentic-conversation {
@@ -359,7 +368,7 @@ html[data-theme='dark'] .agentic-composer .agentic-composer-mic-button.ant-btn:h
     padding-inline: 10px;
 }
 
-.agentic-command.has-conversation .agentic-composer {
+.agentic-command.has-conversation .agentic-composer-dock {
     position: sticky;
     bottom: 0;
     z-index: 10;
@@ -838,10 +847,13 @@ html[data-theme='dark'] .agentic-background-panel>header h2 { color: #f1f5f9; }
         padding: 0;
     }
 
+    /* Slim chips on phones: count over a one-line label, 48px tall. */
     .agentic-metric-card {
-        min-height: 66px;
-        padding: 8px 6px;
+        min-height: 48px;
+        padding: 6px 8px;
         display: block;
+        border-radius: 16px;
+        box-shadow: none;
         text-align: center;
     }
 
@@ -854,22 +866,51 @@ html[data-theme='dark'] .agentic-background-panel>header h2 { color: #f1f5f9; }
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 2px;
+        gap: 1px;
     }
 
     .agentic-metric-card span {
-        font-size: 10px;
-        line-height: 1.15;
+        max-width: 100%;
+        overflow: hidden;
+        font-size: 10.5px;
+        line-height: 1.2;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .agentic-metric-card strong {
         order: -1;
         margin-left: 0;
-        font-size: 19px;
+        font-size: 17px;
+        line-height: 1.1;
     }
 
     .agentic-metric-card small {
         display: none;
+    }
+
+    /* One or two cards have room to spare: count and label share a line ("1 Pending documents")
+       in a slimmer 40px chip. Three or four keep the stacked layout. */
+    .agentic-metric-card:only-child,
+    .agentic-metric-card:first-child:nth-last-child(2),
+    .agentic-metric-card:first-child:nth-last-child(2) ~ .agentic-metric-card {
+        min-height: 40px;
+        padding: 6px 14px;
+    }
+
+    .agentic-metric-card:only-child > div:last-child,
+    .agentic-metric-card:first-child:nth-last-child(2) > div:last-child,
+    .agentic-metric-card:first-child:nth-last-child(2) ~ .agentic-metric-card > div:last-child {
+        flex-direction: row;
+        justify-content: center;
+        align-items: baseline;
+        gap: 6px;
+    }
+
+    .agentic-metric-card:only-child span,
+    .agentic-metric-card:first-child:nth-last-child(2) span,
+    .agentic-metric-card:first-child:nth-last-child(2) ~ .agentic-metric-card span {
+        font-size: 12px;
     }
 
     /* With the insight strip hidden, the greeting and prompts centre in the space that is left
@@ -911,9 +952,9 @@ html[data-theme='dark'] .agentic-background-panel>header h2 { color: #f1f5f9; }
 
     /* Mirror the loaded card: no icon, count above label, both centred in a narrow column. */
     .agentic-metric-card-skeleton {
-        min-height: 66px;
-        height: 66px;
-        padding: 9px 8px;
+        min-height: 48px;
+        height: 48px;
+        padding: 6px 8px;
         /* The loaded card is display:block on mobile; the skeleton still needs column centring. */
         display: flex;
         flex-direction: column;
@@ -955,9 +996,28 @@ html[data-theme='dark'] .agentic-background-panel>header h2 { color: #f1f5f9; }
         padding-inline: 2px;
     }
 
-    .agentic-command.has-conversation .agentic-composer {
+    .agentic-command.has-conversation .agentic-composer-dock {
         bottom: 8px;
         width: 100%;
+        margin: auto 0 8px;
+    }
+
+    /* Phones: the text box (with its suggestions) lives at the bottom, within thumb reach, before a
+       conversation as well as during one. The greeting stays centred in the space above it. */
+    /* !important: the heading's base rule zeroes its margins with !important. */
+    .agentic-command:not(.has-conversation) > :first-child {
+        margin-top: auto !important;
+    }
+
+    /* Phones keep just the greeting; the suggestions below already say what to do. */
+    .agentic-command > .ant-typography:not(h1) {
+        display: none;
+    }
+
+    .agentic-command:not(.has-conversation) .agentic-composer-dock {
+        position: sticky;
+        bottom: 8px;
+        z-index: 10;
         margin: auto 0 8px;
     }
 
@@ -978,14 +1038,28 @@ html[data-theme='dark'] .agentic-background-panel>header h2 { color: #f1f5f9; }
         padding-bottom: 0;
     }
 
+    /* Full-width rows: the prompt on the left, an arrow on the right saying "this goes somewhere". */
     .agentic-suggestions .ant-btn {
         width: 100%;
         min-width: 0;
-        justify-content: flex-start;
-        padding: 8px 14px;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 8px 12px 8px 14px;
         font-size: 12px;
         line-height: 1.3;
         text-align: left;
+    }
+
+    .agentic-suggestions .ant-btn > span:first-child {
+        min-width: 0;
+        flex: 1;
+    }
+
+    .agentic-suggestion-arrow {
+        display: inline-flex !important;
+        flex: 0 0 auto;
+        font-size: 11px;
+        color: #6d5dfb;
     }
 
     /* The insight strip is desktop-only; the phone layout keeps the prompts above the fold instead. */
@@ -1038,3 +1112,48 @@ html[data-theme='dark'] .agentic-metric-modal-footer .ant-pagination .ant-pagina
 html[data-theme='dark'] .agentic-metric-modal-footer .ant-pagination .ant-pagination-item-active a { color: #fff; }
 html[data-theme='dark'] .agentic-metric-modal-footer .ant-pagination .ant-pagination-prev .anticon,
 html[data-theme='dark'] .agentic-metric-modal-footer .ant-pagination .ant-pagination-next .anticon { color: #cdd3ea; }
+
+/* ===== Greeting: "Ready to work on ___?" with the blank typed and backspaced ===== */
+/* Two lines reserved so the page doesn't jump as a longer phrase wraps. */
+.agentic-command:not(.has-conversation) h1.ant-typography {
+    min-height: 2.4em;
+}
+
+.typing-greeting-word {
+    background: linear-gradient(135deg, #6d5dfb, #4f7df3);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+html[data-theme='dark'] .typing-greeting-word {
+    background-image: linear-gradient(135deg, #a78bfa, #7aa2ff);
+}
+
+.typing-greeting-caret {
+    display: inline-block;
+    width: 3px;
+    height: 0.9em;
+    margin: 0 2px 0 1px;
+    border-radius: 2px;
+    background: #6d5dfb;
+    vertical-align: -0.08em;
+    animation: typing-caret-blink 1s steps(1) infinite;
+}
+
+/* Solid while letters are going in or out; blinks only while the phrase is held. */
+.typing-greeting-caret.is-typing {
+    animation: none;
+}
+
+html[data-theme='dark'] .typing-greeting-caret {
+    background: #a78bfa;
+}
+
+@keyframes typing-caret-blink {
+    50% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .typing-greeting-caret { display: none; }
+}

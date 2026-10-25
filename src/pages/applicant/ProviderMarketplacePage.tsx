@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { App, Alert, Avatar, Button, Card, Col, DatePicker, Descriptions, Empty, Form, Input, InputNumber, Modal, Pagination, Row, Segmented, Select, Space, Tag, Typography } from 'antd'
-import { CheckCircleOutlined, RobotOutlined, SafetyCertificateOutlined, SearchOutlined, SendOutlined } from '@ant-design/icons'
+import { App, Alert, Button, Card, Col, DatePicker, Descriptions, Empty, Form, Input, InputNumber, Modal, Pagination, Row, Segmented, Select, Space, Tag, Typography } from 'antd'
+import { CheckCircleOutlined, RobotOutlined, SearchOutlined, SendOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import DashboardHeader from '@/components/shared/DashboardHeader'
 import DashboardPage from '@/components/shared/DashboardPage'
-import { LoadingOverlay } from '@/components/shared/LoadingOverlay'
+import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { listActiveAgents } from '@/services/agentRegistryService'
 import { listPublishedConsultants } from '@/services/consultantMarketplaceService'
@@ -14,6 +14,7 @@ import { isPlatformOwnerSme, resolveSmeCompanyCode } from '@/services/companiesS
 import type { ConsultantMarketplaceProfile } from '@/types/consultantMarketplace'
 import type { AgentDefinition } from '@/types/agentOrchestration'
 import type { ConnectionRequest, ConnectionRequestDeliveryMode, ConnectionRequestStatus, ConnectionRequestUrgency } from '@/types/connectionRequest'
+import { ConsultantMarketplaceCard } from '@/components/consultant/ConsultantMarketplaceCard'
 import '@/styles/consultant.css'
 import { useLanguage, tr } from '@/providers/LanguageProvider'
 
@@ -211,7 +212,7 @@ export default function ProviderMarketplacePage() {
     )
   }
 
-  if (loading) return <LoadingOverlay tip={t('Loading consultants and agents')} />
+  if (loading) return <PageSkeleton variant="table" label={t('Loading consultants and agents')} />
 
   return (
     <DashboardPage className="consultant-page">
@@ -250,28 +251,16 @@ export default function ProviderMarketplacePage() {
                 <Row gutter={[14, 14]}>
                   {pagedConsultants.map((profile) => (
                     <Col xs={24} md={12} xl={8} key={profile.uid}>
-                      <Card size="small" className="consultant-service-card" hoverable>
-                        <Space direction="vertical" size={8} style={{ width: '100%' }}>
-                          <Space><Avatar size="small" src={profile.profileImageUrl || undefined}>{profile.name.charAt(0)}</Avatar><Text strong>{profile.headline || profile.name}</Text>{profile.verificationStatus === 'verified' && <Tag color="blue" icon={<SafetyCertificateOutlined />}>{t('Verified')}</Tag>}</Space>
-                          {profile.experienceYears > 0 && <Text type="secondary">{profile.experienceYears} {t('years experience')}</Text>}
-                          <Paragraph type="secondary" ellipsis={{ rows: 3 }} style={{ marginBottom: 0 }}>{profile.bio || t('No description provided yet.')}</Paragraph>
-                          <Space wrap>{profile.specialties.map((specialty) => <Tag key={specialty}>{specialty}</Tag>)}</Space>
-                          {profile.services.length > 0 && (
-                            <Space direction="vertical" size={2}>
-                              <Text type="secondary">{t('From')} {profile.currency} {profile.services[0].rate} {t('per day')}</Text>
-                              <Text type="secondary">{profile.services.map((service) => service.areaOfSupport).filter(Boolean).join(' · ')}</Text>
-                            </Space>
-                          )}
-                          {(profile.country || profile.province || profile.physicalAddress || profile.operatingLocation) && <Text type="secondary">{t('Based in')} {[profile.province, profile.country].filter(Boolean).join(', ')} · {profile.serviceRadiusKm} {t('km in person')}</Text>}
-                          {openRequestIds.has(profile.uid) ? (
-                            <Button block disabled icon={<CheckCircleOutlined />}>{t('Request already sent')}</Button>
-                          ) : (
-                            <Button type="primary" block icon={<SendOutlined />} onClick={() => openRequest({ type: 'consultant', profile })}>
-                              {t('Choose this consultant')}
-                            </Button>
-                          )}
-                        </Space>
-                      </Card>
+                      <ConsultantMarketplaceCard
+                        profile={profile}
+                        action={openRequestIds.has(profile.uid) ? (
+                          <Button block disabled icon={<CheckCircleOutlined />}>{t('Request already sent')}</Button>
+                        ) : (
+                          <Button type="primary" block icon={<SendOutlined />} onClick={() => openRequest({ type: 'consultant', profile })}>
+                            {t('Choose this consultant')}
+                          </Button>
+                        )}
+                      />
                     </Col>
                   ))}
                 </Row>

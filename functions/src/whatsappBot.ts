@@ -2,6 +2,11 @@ import { createHash, createHmac, timingSafeEqual } from 'node:crypto'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { FieldValue, Timestamp, getFirestore } from 'firebase-admin/firestore'
 import type { Request } from 'firebase-functions/v2/https'
+import { isStopRequest, isSubscribeRequest, recordWhatsAppConsent } from './whatsappConsent.js'
+import { NOT_IN_PLAN_MESSAGE, companyHasFeature } from './entitlements.js'
+import { alertStructuredParams, type AlertParts } from './alertMessages.js'
+import { FOLLOW_UP_RESULTS, isFollowUpResult, listFollowUps, recordFollowUpResult, type FollowUpResult } from './followUps.js'
+import { SME_CHECKBACK_ANSWERS, addSmeCheckbackNote, isSmeCheckbackAnswer, listSmeCheckbacks, recordSmeCheckback, smeCheckbackPayload, type SmeCheckbackAnswer, type SmeCheckbackItem } from './smeCheckbacks.js'
 
 type HttpResponse = {
   status: (code: number) => { json: (body: unknown) => void, send: (body: string) => void }
@@ -65,6 +70,14 @@ const defaultRolePermissions: Record<string, string[]> = {
 
 const normalize = (value: unknown) => String(value || '').trim().toLowerCase()
 const normalizePhone = (value: unknown) => String(value || '').replace(/[^0-9]/g, '')
+
+/** Signing the diagnostic plan accepts every intervention on it (src/utils/interventionStart.ts). */
+const smePlanAcceptance = (plan: Record<string, unknown>) => {
+  const confirmedBy = (plan.confirmedBy || {}) as Record<string, unknown>
+  return confirmedBy.participant || confirmedBy.incubatee || confirmedBy.sme
+    ? { participantStatus: 'accepted', participantAcceptedVia: 'plan', participantAcceptedAt: FieldValue.serverTimestamp() }
+    : { participantStatus: 'pending' }
+}
 const short = (value: unknown, limit = 72) => {
   const text = String(value || '').trim()
   return text.length <= limit ? text : `${text.slice(0, limit - 1)}…`
@@ -258,23 +271,46 @@ const sendText = async (to: string, body: string) => {
 }
 
 /**
+ * Numbers are often saved the way people write them locally (0738983097), but WhatsApp needs the international form
+ * (27738983097). A leading 0 is replaced with WHATSAPP_DEFAULT_COUNTRY_CODE (default 27, South Africa); "00" prefixes
+ * and numbers that already carry a country code are left alone. Only used for messages we start (alerts); matching an
+ * incoming sender to an account keeps using its own suffix rules.
+ */
+export const toInternationalDigits = (value: unknown) => {
+  const digits = normalizePhone(value)
+  if (digits.startsWith('00')) return digits.slice(2)
+  if (digits.startsWith('0') && digits.length >= 9 && digits.length <= 11) {
+    const country = String(process.env.WHATSAPP_DEFAULT_COUNTRY_CODE || '27').replace(/[^0-9]/g, '') || '27'
+    return `${country}${digits.slice(1)}`
+  }
+  return digits
+}
+
+/**
  * A proactive alert to a staff member (not a reply to something they sent). WhatsApp only delivers free-form
  * text inside the 24 hours after the person last messaged the business; outside it a pre-approved template is
- * required. Set WHATSAPP_ALERT_TEMPLATE (and optionally WHATSAPP_ALERT_TEMPLATE_LANG, default "en") to a
- * template with ONE body variable and it is used; otherwise plain text is sent, which may not be delivered.
+ * required. Set WHATSAPP_ALERT_TEMPLATE (and optionally WHATSAPP_ALERT_TEMPLATE_LANG, default "en") to the approved
+ * three-variable template (first name, headline, most urgent item) and alerts that carry `parts` use it. Without a
+ * template, or without `parts`, plain text is sent, which is only delivered inside the 24-hour window.
  */
-export async function sendWhatsAppAlert(to: string, text: string) {
+export async function sendWhatsAppAlert(to: string, text: string, parts?: AlertParts) {
   const template = String(process.env.WHATSAPP_ALERT_TEMPLATE || '').trim()
-  const recipient = normalizePhone(to)
+  const recipient = toInternationalDigits(to)
   if (recipient.length < 8) return false
-  const payload = template
+  // Only set when the approved template has a quick-reply button (index 0). Sending a button component to a
+  // template without one is rejected by Meta. Tapping it replies to the bot with this payload, e.g. "action:menu".
+  const buttonPayload = String(process.env.WHATSAPP_ALERT_TEMPLATE_BUTTON_PAYLOAD || '').trim()
+  const payload = template && parts
     ? {
       type: 'template',
       template: {
         name: template,
         language: { code: String(process.env.WHATSAPP_ALERT_TEMPLATE_LANG || 'en') },
-        // Template body variables cannot contain new lines, tabs or runs of spaces.
-        components: [{ type: 'body', parameters: [{ type: 'text', text: text.replace(/\s*\n+\s*/g, ' | ') }] }],
+        components: [
+          // Template body variables cannot contain new lines, tabs or runs of spaces; alertStructuredParams flattens them.
+          { type: 'body', parameters: alertStructuredParams(parts).map(value => ({ type: 'text', text: value })) },
+          ...(buttonPayload ? [{ type: 'button', sub_type: 'quick_reply', index: '0', parameters: [{ type: 'payload', payload: buttonPayload }] }] : []),
+        ],
       },
     }
     : { type: 'text', text: { body: text, preview_url: false } }
@@ -321,6 +357,7 @@ const HOME_CHOICE: Choice = { id: 'action:menu', title: '🏠 Main menu' }
 const NEXT_APPOINTMENTS: Choice = { id: 'action:appointments', title: '📅 Next appointments' }
 const PAST_APPOINTMENTS: Choice = { id: 'action:appointments_past', title: '🕘 Past appointments' }
 const MY_INTERVENTIONS: Choice = { id: 'action:interventions', title: '🛠 My interventions' }
+const FOLLOW_UPS: Choice = { id: 'action:followups', title: '🔁 Follow-ups due', description: 'Check the change has stuck' }
 
 const firstNameOf = (identity: UserRecord) => {
   const full = String(identity.displayName || identity.name || identity.fullName || '').trim()
@@ -565,8 +602,188 @@ async function showPlatformOverview(to: string) {
   await sendText(to, `Platform overview\n\nUsers: ${users.size}\nActive users: ${active}\nAgent ratings: ${scores.length}\nAverage agent rating: ${average}${scores.length ? '/5' : ''}`)
 }
 
+const followUpActor = (identity: UserRecord) => ({
+  id: identity.id, role: identity.role, email: identity.email, companyCode: identity.companyCode,
+  name: identity.displayName || identity.name || identity.fullName,
+})
+
+const followUpResultChoices: Choice[] = [
+  { id: 'followup_result:achieved', title: '✅ Achieved' },
+  { id: 'followup_result:partially', title: '🟡 Partially' },
+  { id: 'followup_result:not_yet', title: '⏳ Not yet' },
+]
+
+// ---- SME check-backs (functions/src/smeCheckbacks.ts): the SME's own Yes / Partly / No on an outcome ----
+
+const SME_CHECKBACKS: Choice = { id: 'action:checkbacks', title: '🔁 Check-backs', description: 'Has the change happened?' }
+
+/** A Yes / Partly / No tap, from the template's buttons or ours: QTX|FU|<assignmentId>|<round>|<ANSWER>. */
+const structuredSmeCheckback = (input: string) => {
+  const match = /^QTX\|FU\|([^|]+)\|(\d+)\|(YES|PARTLY|NO)$/i.exec(input.trim())
+  if (!match) return null
+  return { assignmentId: match[1], round: Number(match[2]), answer: match[3].toLowerCase() as SmeCheckbackAnswer }
+}
+
+async function askSmeCheckback(to: string, item: SmeCheckbackItem) {
+  const lines = [`🔁 *${item.title}*`]
+  if (item.intendedOutcome) lines.push('', `It set out to: ${item.intendedOutcome}`)
+  lines.push('', 'From what you see in your business, has this change happened?')
+  await sendButtons(to, lines.join('\n'), (['yes', 'partly', 'no'] as SmeCheckbackAnswer[]).map(answer => ({
+    id: smeCheckbackPayload(item.id, item.round, answer),
+    title: answer === 'yes' ? '✅ Yes' : answer === 'partly' ? '🟡 Partly' : '❌ No',
+  })))
+}
+
+async function showSmeCheckbacks(to: string, phone: string, identity: UserRecord) {
+  const { participantIds } = await participantContext(identity)
+  const items = await listSmeCheckbacks(db(), participantIds)
+  if (!items.length) {
+    await sendButtons(to, 'Nothing to check back on right now. Thank you!', [MY_INTERVENTIONS, HOME_CHOICE])
+    return
+  }
+  if (items.length === 1) {
+    await askSmeCheckback(to, items[0])
+    return
+  }
+  await saveState(phone, { step: 'sme_checkback_pick', draft: {} })
+  await sendList(to, `🔁 *Check-backs*: ${items.length}\n\nPick one to tell us whether the change has happened.`, 'Choose', items.map(item => ({
+    id: `smecheckback:${item.id}`,
+    title: item.title,
+    description: item.intendedOutcome || 'Has the change happened?',
+  })))
+}
+
+async function handleSmeCheckbackStep(to: string, phone: string, identity: UserRecord, state: BotState, input: string): Promise<boolean> {
+  const tapped = structuredSmeCheckback(input)
+  if (tapped) {
+    const { participantIds } = await participantContext(identity)
+    const outcome = await recordSmeCheckback(db(), { id: identity.id, name: identity.displayName || identity.name }, { ...tapped, via: 'whatsapp', participantIds })
+    if (!outcome.ok) {
+      await sendText(to, outcome.reason === 'already_answered'
+        ? 'You have already answered that check-back. Thank you!'
+        : outcome.reason === 'not_open'
+          ? 'That check-back has closed. Send “check-backs” to see any that are open.'
+          : 'I could not record that for your account. Please answer in the app instead.')
+      return true
+    }
+    await saveState(phone, { step: 'sme_checkback_note', draft: { assignmentId: tapped.assignmentId, round: tapped.round } })
+    await sendText(to, `Thank you. Recorded *${SME_CHECKBACK_ANSWERS[outcome.answer]}* for ${outcome.title}.\n\nIf you like, reply with a short note on what you have seen, or send “skip”.`)
+    return true
+  }
+  if (input === SME_CHECKBACKS.id || /^check[\s-]?backs?$/.test(normalize(input))) {
+    await showSmeCheckbacks(to, phone, identity)
+    return true
+  }
+  if (input.startsWith('smecheckback:')) {
+    const assignmentId = input.slice('smecheckback:'.length)
+    const { participantIds } = await participantContext(identity)
+    const item = (await listSmeCheckbacks(db(), participantIds)).find(row => row.id === assignmentId)
+    if (!item) await sendText(to, 'That check-back is no longer open. Send “check-backs” to see any that are.')
+    else await askSmeCheckback(to, item)
+    return true
+  }
+  if (state.step === 'sme_checkback_note') {
+    const assignmentId = String(state.draft?.assignmentId || '')
+    const round = Number(state.draft?.round || 0)
+    await clearFlow(phone, identity)
+    if (normalize(input) !== 'skip' && assignmentId && round) await addSmeCheckbackNote(db(), identity.id, { assignmentId, round, note: input })
+    await sendButtons(to, normalize(input) === 'skip' ? 'No problem. Thank you!' : 'Thank you, your note is saved.', [MY_INTERVENTIONS, HOME_CHOICE])
+    return true
+  }
+  return false
+}
+
+async function showFollowUps(to: string, phone: string, identity: UserRecord) {
+  if (!(await companyHasFeature(db(), identity.companyCode, 'whatsappComms'))) {
+    await sendText(to, NOT_IN_PLAN_MESSAGE)
+    return
+  }
+  if (!['consultant', 'operations', 'admin'].includes(roleGroup(identity))) {
+    await sendText(to, 'Follow-up checks are done by the facilitator who delivered the intervention. Send “menu” for your options.')
+    return
+  }
+  const items = await listFollowUps(db(), followUpActor(identity))
+  if (!items.length) {
+    await sendButtons(to, 'You have no follow-up checks due right now. 🎉', [MY_INTERVENTIONS, HOME_CHOICE])
+    return
+  }
+  await saveState(phone, { step: 'followup_pick', draft: {} })
+  await sendList(to, ['🔁 *Follow-ups due*: ' + items.length, '', 'Pick one to record what you have observed.'].join('\n'), 'Choose follow-up', items.map(item => ({
+    id: `followup:${item.id}`,
+    title: item.title,
+    description: `${item.sme} · ${item.overdue ? 'overdue' : 'due'} ${item.dueAt.toLocaleDateString('en-ZA')}`,
+  })))
+}
+
+async function handleFollowUpStep(to: string, phone: string, identity: UserRecord, state: BotState, input: string): Promise<boolean> {
+  const followUpInput = input.startsWith('followup:') || input.startsWith('followup_result:') || state.step === 'followup_note'
+  if (followUpInput && !(await companyHasFeature(db(), identity.companyCode, 'whatsappComms'))) {
+    await sendText(to, NOT_IN_PLAN_MESSAGE)
+    return true
+  }
+  if (input.startsWith('followup:')) {
+    const assignmentId = input.slice('followup:'.length)
+    const item = (await listFollowUps(db(), followUpActor(identity), new Date(), 50)).find(row => row.id === assignmentId)
+    if (!item) {
+      await sendText(to, 'That follow-up is no longer available. Send “menu” and try again.')
+      return true
+    }
+    await saveState(phone, { step: 'followup_result', draft: { assignmentId, title: item.title, sme: item.sme } })
+    const lines = [`🔁 *${item.title}* — ${item.sme}`]
+    if (item.intendedOutcome) lines.push('', `Intended change: ${item.intendedOutcome}`)
+    if (item.deliverable) lines.push(`Deliverable: ${item.deliverable}`)
+    // The SME's own answer for this round, once they've given it (smeCheckbacks.ts), so it informs rather than leads.
+    const assignment = (await db().collection('assignedInterventions').doc(assignmentId).get()).data() || {}
+    const round = Math.max(Number(assignment.followUpRound || 0), Array.isArray(assignment.outcomeHistory) ? assignment.outcomeHistory.length : 0) + 1
+    const smeAnswer = (Array.isArray(assignment.smeCheckbackHistory) ? assignment.smeCheckbackHistory as Array<Record<string, unknown>> : [])
+      .find(entry => Number(entry.round) === round)
+    if (smeAnswer && isSmeCheckbackAnswer(smeAnswer.answer)) {
+      lines.push('', `The SME said: *${SME_CHECKBACK_ANSWERS[smeAnswer.answer]}*${smeAnswer.note ? ` — “${String(smeAnswer.note)}”` : ''}`)
+    }
+    lines.push('', 'Based on what you have seen, has this change happened?')
+    await sendButtons(to, lines.join('\n'), followUpResultChoices)
+    return true
+  }
+  if (input.startsWith('followup_result:')) {
+    const result = input.slice('followup_result:'.length)
+    const assignmentId = String(state.draft?.assignmentId || '')
+    if (state.step !== 'followup_result' || !assignmentId || !isFollowUpResult(result)) {
+      await sendText(to, 'I lost track of that follow-up. Send “menu” and choose it again.')
+      return true
+    }
+    await saveState(phone, { step: 'followup_note', draft: { ...(state.draft || {}), result } })
+    await sendText(to, 'Add a short note on what you observed (for example “forecast updated monthly”), or send “skip”.')
+    return true
+  }
+  if (state.step === 'followup_note') {
+    const assignmentId = String(state.draft?.assignmentId || '')
+    const result = state.draft?.result
+    if (!assignmentId || !isFollowUpResult(result)) {
+      await sendText(to, 'I lost track of that follow-up. Send “menu” and choose it again.')
+      return true
+    }
+    const note = normalize(input) === 'skip' ? '' : input
+    const outcome = await recordFollowUpResult(db(), followUpActor(identity), { assignmentId, result: result as FollowUpResult, note, via: 'whatsapp' })
+    await clearFlow(phone, identity)
+    if (!outcome.ok) {
+      await sendText(to, outcome.reason === 'not_pending'
+        ? 'That follow-up has already been recorded.'
+        : 'I could not record that follow-up for your account. Please use the workspace instead.')
+      return true
+    }
+    const next = outcome.nextDueAt ? ` I will remind you to check again on ${outcome.nextDueAt.toLocaleDateString('en-ZA')}.` : ' This follow-up is now closed.'
+    await sendButtons(to, `Recorded: *${FOLLOW_UP_RESULTS[outcome.result]}* for ${outcome.title} (${outcome.sme}).${next}`, [FOLLOW_UPS, HOME_CHOICE])
+    return true
+  }
+  return false
+}
+
 async function menu(to: string, identity: UserRecord) {
   const group = roleGroup(identity)
+  const followUpsAvailable = await companyHasFeature(db(), identity.companyCode, 'whatsappComms')
+  // SMEs see "Check-backs" only while one is open for them.
+  const smeCheckbacksOpen = group === 'incubatee' && followUpsAvailable
+    && (await listSmeCheckbacks(db(), (await participantContext(identity)).participantIds)).length > 0
   const askRow: Choice = group === 'incubatee'
     ? { id: 'action:ask', title: '💬 Ask me anything', description: 'Type it in your own words' }
     : { id: 'action:ask', title: '💬 Book or log a session', description: 'Just tell me what you need' }
@@ -580,12 +797,13 @@ async function menu(to: string, identity: UserRecord) {
       { title: 'My programme', rows: [
         { id: 'action:diagnostic', title: '📋 Diagnostic plan', description: 'Your growth plan and what is required' },
         { ...MY_INTERVENTIONS, description: 'Status, progress and who is delivering' },
+        ...(smeCheckbacksOpen ? [SME_CHECKBACKS] : []),
       ] },
       { title: 'Appointments', rows: appointments },
       { title: 'Something else?', rows: [askRow, helpRow] },
     ],
     consultant: [
-      { title: 'My work', rows: [{ ...MY_INTERVENTIONS, description: 'Sessions and progress you deliver' }] },
+      { title: 'My work', rows: [{ ...MY_INTERVENTIONS, description: 'Sessions and progress you deliver' }, ...(followUpsAvailable ? [FOLLOW_UPS] : [])] },
       { title: 'Appointments', rows: appointments },
       { title: 'Let me help', rows: [askRow, helpRow] },
     ],
@@ -593,6 +811,7 @@ async function menu(to: string, identity: UserRecord) {
       { title: 'Interventions', rows: [
         { id: 'action:assign', title: '➕ Assign intervention', description: 'Give an SME an intervention and an owner' },
         { id: 'action:interventions', title: '📊 Intervention status', description: 'Progress across your SMEs' },
+        ...(followUpsAvailable ? [FOLLOW_UPS] : []),
       ] },
       { title: 'Appointments', rows: appointments },
       { title: 'Let me help', rows: [askRow, helpRow] },
@@ -661,6 +880,8 @@ type IncomingMessage = {
   timestamp?: string
   type?: string
   interactive?: { button_reply?: { id?: string }, list_reply?: { id?: string } }
+  /** Quick-reply buttons on a TEMPLATE message arrive as type "button", not "interactive". */
+  button?: { payload?: string, text?: string }
   text?: { body?: string }
 }
 
@@ -695,6 +916,9 @@ type WhatsAppStatusEvent = {
 }
 
 const messageInput = (message: IncomingMessage) => {
+  if (message.type === 'button') {
+    return String(message.button?.payload || message.button?.text || '').trim()
+  }
   if (message.type === 'interactive') {
     return String(message.interactive?.button_reply?.id || message.interactive?.list_reply?.id || '')
   }
@@ -804,13 +1028,15 @@ async function commitAssignment(phone: string, identity: UserRecord, state: BotS
   const interventionRef = database.collection('interventions').doc(interventionId)
   const assigneeRef = database.collection('users').doc(assigneeId)
   const planRef = database.collection('diagnosticPlans').doc(applicationId)
+  const workSettingsRef = database.collection('companyWorkSettings').doc(companyCode)
 
   return database.runTransaction(async transaction => {
-    const [applicationSnapshot, interventionSnapshot, assigneeSnapshot, planSnapshot] = await transaction.getAll(
+    const [applicationSnapshot, interventionSnapshot, assigneeSnapshot, planSnapshot, workSettingsSnapshot] = await transaction.getAll(
       applicationRef,
       interventionRef,
       assigneeRef,
       planRef,
+      workSettingsRef,
     )
     // Operations tags an intervention on the diagnostic plan once the SME's decline is confirmed.
     const declined = (planSnapshot.data() || {}).declinedInterventions as Record<string, unknown> | undefined
@@ -846,6 +1072,9 @@ async function commitAssignment(phone: string, identity: UserRecord, state: BotS
     const notificationRef = database.collection('notifications').doc(`whatsapp_assignment_${assignmentId}`)
     const interventionTitle = String(intervention.interventionTitle || intervention.title || 'Intervention')
     const assigneeName = String(assignee.name || assignee.displayName || assignee.email || 'Delivery owner')
+    const requireAcceptance = (workSettingsSnapshot.data() || {}).requireConsultantAcceptance === true
+    const marketplaceConsultant = normalize(assignee.role) === 'consultant' && companyCode === 'QTX'
+    const startsAccepted = assigneeId === identity.id || (!marketplaceConsultant && !requireAcceptance)
 
     transaction.create(assignmentRef, {
       companyCode, participantId, applicationId, interventionId, interventionTitle,
@@ -856,7 +1085,10 @@ async function commitAssignment(phone: string, identity: UserRecord, state: BotS
       assigneeType: normalize(assignee.role) || 'consultant', deliveryActorType: 'human',
       deliveryStrategy: 'human_only', configuredDeliveryStrategy: intervention.deliveryStrategy || 'human_only',
       executionMode: intervention.executionMode || 'single_session', type: 'singular', status: 'assigned',
-      assigneeStatus: 'pending', participantStatus: 'pending', assigneeCompletionStatus: 'pending',
+      // The SME's signed plan is their acceptance; until they sign, the intervention waits on that. The assignee
+      // accepts first only if the company requires it (or they're a marketplace consultant); self-assigned work starts accepted,
+      // the same rule as assignmentStartsAccepted in src/services/companyWorkSettingsService.ts.
+      assigneeStatus: startsAccepted ? 'accepted' : 'pending', ...smePlanAcceptance(planSnapshot.data() || {}), assigneeCompletionStatus: 'pending',
       participantCompletionStatus: 'pending', progress: 0, dueDate: Timestamp.fromDate(dueDate),
       targetMetric: draft.targetMetric || null, targetValue: Number(draft.targetValue) || null,
       createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
@@ -1082,6 +1314,33 @@ async function resolveLphIdentity(phone: string) {
       error: error instanceof Error ? error.message : String(error),
     })
     return null
+  }
+}
+
+/** An answer tapped on a Lepharo outcome check-back message: LPH|FU|<followUpId>|<ANSWER>. */
+const structuredFollowUp = (input: string) => {
+  const match = /^LPH\|FU\|([^|]+)\|(ACHIEVED|PARTIAL|NOT_YET|YES|PARTLY|NO)$/i.exec(input.trim())
+  if (!match) return null
+  return { followUpId: match[1], code: match[2].toUpperCase() }
+}
+
+/**
+ * The Lepharo gateway decides who may answer and records it; the router only relays the tap
+ * and shows the reply. Works for the facilitator and the SME alike, so it runs before engine
+ * selection (the sender may be either, and needs no workspace menu).
+ */
+async function processFollowUpButton(to: string, phone: string, parsed: { followUpId: string, code: string }) {
+  try {
+    const result = await callLphGateway({
+      action: 'record_outcome_follow_up',
+      phoneNumber: `+${phone}`,
+      followUpId: parsed.followUpId,
+      answerCode: parsed.code,
+    }) as LphGatewayResponse & { reply?: string }
+    await sendText(to, String(result.reply || 'Thank you.'))
+  } catch (error) {
+    console.error('WhatsApp check-back answer failed', { senderSuffix: phone.slice(-4), error: String(error) })
+    await sendText(to, 'I could not record that just now. Please open the app to answer, or try again in a moment.')
   }
 }
 
@@ -1619,6 +1878,16 @@ async function processQtxMessage(to: string, input: string, sourceMessageId: str
     state = { userId: identity.id, companyCode: String(identity.companyCode || ''), step: 'menu', draft: {} }
   }
   const command = normalize(input)
+  if (isStopRequest(input)) {
+    await recordWhatsAppConsent(db(), identity.id, 'opted_out', 'whatsapp_stop')
+    await sendText(to, 'You have been unsubscribed from Smart Incubation WhatsApp alerts. You can still message me any time. Reply SUBSCRIBE to turn alerts back on.')
+    return
+  }
+  if (isSubscribeRequest(input)) {
+    await recordWhatsAppConsent(db(), identity.id, 'opted_in', 'whatsapp_subscribe', phone)
+    await sendText(to, 'Done - WhatsApp alerts are back on. Reply STOP at any time to turn them off.')
+    return
+  }
   if (state.pendingRating && input.startsWith('rating:')) {
     const rating = Number(input.slice('rating:'.length))
     if (Number.isInteger(rating) && rating >= 1 && rating <= 5) {
@@ -1638,6 +1907,12 @@ async function processQtxMessage(to: string, input: string, sourceMessageId: str
     return
   }
   if (await handleRsvpStep(to, phone, identity, state, input)) return
+  if (input === 'action:followups' || /^(my\s+)?follow[\s-]?ups?( due)?$/.test(command)) {
+    await showFollowUps(to, phone, identity)
+    return
+  }
+  if (await handleFollowUpStep(to, phone, identity, state, input)) return
+  if (roleGroup(identity) === 'incubatee' && await handleSmeCheckbackStep(to, phone, identity, state, input)) return
   if (input === 'action:help') {
     const help: Record<string, string> = {
       incubatee: 'I can show your diagnostic plan, assigned interventions, and upcoming appointments.',
@@ -1785,6 +2060,7 @@ async function processQtxMessage(to: string, input: string, sourceMessageId: str
   }
   if (input.startsWith('agent:confirm:') || input.startsWith('agent:cancel:')) {
     if (!agentEligible(identity)) return sendText(to, 'That action is not available for your role.')
+    if (!(await companyHasFeature(db(), identity.companyCode, 'agenticSupport'))) return sendText(to, NOT_IN_PLAN_MESSAGE)
     const confirming = input.startsWith('agent:confirm:')
     const proposalId = input.slice(confirming ? 'agent:confirm:'.length : 'agent:cancel:'.length)
     if (!confirming) {
@@ -1819,6 +2095,11 @@ async function processQtxMessage(to: string, input: string, sourceMessageId: str
     return
   }
   if (agentEligible(identity) && !state.conversation?.awaiting) {
+    // AI-assisted booking and logging is agentic support; other plans keep the menu and plain lookups only.
+    if (!(await companyHasFeature(db(), identity.companyCode, 'agenticSupport'))) {
+      await sendButtons(to, 'AI-assisted actions are not part of your organisation’s plan. You can still use the menu for lookups and updates.', [HOME_CHOICE])
+      return
+    }
     try {
       const result = await callAgentBackend('/api/whatsapp/agent', phone, identity.id, { channel: 'whatsapp', message: input.slice(0, 1000) })
       await sendAgentTurn(to, result)
@@ -1839,6 +2120,11 @@ async function processQtxMessage(to: string, input: string, sourceMessageId: str
 
 async function processMessage(to: string, input: string, sourceMessageId: string) {
   const phone = normalizePhone(to)
+  const followUp = structuredFollowUp(input)
+  if (followUp) {
+    await processFollowUpButton(to, phone, followUp)
+    return
+  }
   const parsed = structuredRsvp(input)
   if (parsed && await processStructuredRsvp(to, phone, parsed)) return
 
@@ -2072,6 +2358,101 @@ export async function processWhatsAppMessageStatusEvent(eventId: string) {
 }
 
 
+/**
+ * Sends an approved template whose quick-reply buttons carry structured payloads (check-backs). Used by Lepharo's
+ * dispatch below and by Smart Incubation's own SME check-backs. A repeat with the same `dedupeKey` is a no-op.
+ */
+async function sendQuickReplyTemplate(to: string, input: { template: string, language: string, variables: string[], payloads: string[], dedupeKey: string, messageKey: string }) {
+  await outboundMessageContext.run({
+    sourceEventId: `dispatch:${input.dedupeKey}`,
+    sourceMessageId: `dispatch:${input.messageKey}`,
+    sequence: 0,
+  }, async () => {
+    await sendPayload(to, {
+      type: 'template',
+      template: {
+        name: input.template,
+        language: { code: input.language },
+        components: [
+          { type: 'body', parameters: input.variables.map(text => ({ type: 'text', text })) },
+          ...input.payloads.map((payload, index) => ({
+            type: 'button',
+            sub_type: 'quick_reply',
+            index: String(index),
+            parameters: [{ type: 'payload', payload }],
+          })),
+        ],
+      },
+    })
+  })
+}
+
+/**
+ * Smart Incubation's SME check-back on WhatsApp (functions/src/smeCheckbacks.ts). Needs an approved template named in
+ * WHATSAPP_SME_CHECKBACK_TEMPLATE (language WHATSAPP_SME_CHECKBACK_TEMPLATE_LANG, default "en") with three body
+ * variables (first name, intervention, intended change) and three quick-reply buttons: Yes, Partly, No.
+ * Returns false when no template is configured, so the caller falls back to the general alert template.
+ */
+export async function sendSmeCheckbackTemplate(phone: string, input: { firstName: string, title: string, change: string, payloads: string[], dedupeKey: string }) {
+  const template = String(process.env.WHATSAPP_SME_CHECKBACK_TEMPLATE || '').trim()
+  const recipient = toInternationalDigits(phone)
+  if (!template || recipient.length < 8) return false
+  // Template variables can't hold line breaks, tabs or runs of spaces.
+  const flatten = (value: string) => value.replace(/\s+/g, ' ').trim().slice(0, 100) || '-'
+  await sendQuickReplyTemplate(recipient, {
+    template,
+    language: String(process.env.WHATSAPP_SME_CHECKBACK_TEMPLATE_LANG || 'en'),
+    variables: [input.firstName || 'there', input.title, input.change].map(flatten),
+    payloads: input.payloads,
+    dedupeKey: `smecheckback:${input.dedupeKey}`,
+    messageKey: `smecheckback:${input.dedupeKey}`,
+  })
+  return true
+}
+
+// Only these approved templates may be sent through dispatch, so the endpoint cannot be used as a general sender.
+const CHECKBACK_TEMPLATES = new Set(['lph_checkback_facilitator', 'lph_checkback_sme'])
+
+async function dispatchOutcomeFollowUp(body: Record<string, unknown>, to: string, response: HttpResponse) {
+  const template = String(body.template || '')
+  const language = String(body.language || 'en')
+  const followUpId = String(body.followUpId || '')
+  const variables = Array.isArray(body.variables)
+    ? body.variables.map(value => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, 100) || '-')
+    : []
+  const buttons = Array.isArray(body.buttons)
+    ? body.buttons.slice(0, 3).map(button => String((button as { payload?: unknown } | null)?.payload || ''))
+    : []
+
+  const valid = to.length >= 8
+    && CHECKBACK_TEMPLATES.has(template)
+    && followUpId.length > 0
+    && variables.length >= 1 && variables.length <= 3
+    && buttons.length >= 1
+    && buttons.every(payload => payload.startsWith(`LPH|FU|${followUpId}|`) && payload.length <= 256)
+  if (!valid) {
+    response.status(400).json({ error: 'invalid_request' })
+    return
+  }
+
+  try {
+    // One send per template per follow-up per day: a retry the same day is a no-op, tomorrow's reminder goes out.
+    const day = new Date().toISOString().slice(0, 10)
+    await sendQuickReplyTemplate(to, {
+      template,
+      language,
+      variables,
+      payloads: buttons,
+      dedupeKey: `followup:${followUpId}:${template}:${day}`,
+      messageKey: `followup:${followUpId}`,
+    })
+    response.status(200).json({ ok: true, followUpId })
+  } catch (error) {
+    console.error('WhatsApp check-back dispatch failed', { followUpId, error: String(error) })
+    response.status(502).json({ error: 'send_failed' })
+  }
+}
+
 export async function whatsappDispatchHandler(request: Request, response: HttpResponse) {
   if (request.method !== 'POST') {
     response.status(405).json({ error: 'method_not_allowed' })
@@ -2089,6 +2470,15 @@ export async function whatsappDispatchHandler(request: Request, response: HttpRe
   const type = String(request.body?.type || '')
   const appointmentId = String(request.body?.appointmentId || '')
   const body = String(request.body?.body || '')
+
+  if (type === 'outcome_follow_up') {
+    if (engine !== 'LPH') {
+      response.status(400).json({ error: 'invalid_request' })
+      return
+    }
+    await dispatchOutcomeFollowUp(request.body || {}, to, response)
+    return
+  }
 
   if (!['LPH', 'QTX'].includes(engine) || to.length < 8 || type !== 'appointment_rsvp' || !appointmentId || !body) {
     response.status(400).json({ error: 'invalid_request' })

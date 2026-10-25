@@ -2,7 +2,10 @@ import { useEffect, useMemo } from 'react'
 import { Col, DatePicker, Form, Grid, Input, InputNumber, Row, Select, Typography } from 'antd'
 import { ManOutlined, WomanOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
+import DirectorsEditor from '@/components/applicant/DirectorsEditor'
 import type { ApplicantProfileFormValues } from '@/pages/applicant/ApplicantProfilePage'
+import type { BusinessDirector } from '@/types/applicant'
+import { ownershipFromDirectors, selfAsDirector } from '@/utils/businessDirectors'
 import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 const { Title, Text } = Typography
@@ -76,15 +79,25 @@ function isValidZARegistration(value?: string) {
 type ApplicantProfileManualFormProps = {
   activeStep: number
   email?: string
+  /** The business profile lists directors in a section of their own, so it hides them from the compliance step. */
+  showDirectors?: boolean
 }
 
-export default function ApplicantProfileManualForm({ activeStep, email }: ApplicantProfileManualFormProps) {
+export default function ApplicantProfileManualForm({ activeStep, email, showDirectors = true }: ApplicantProfileManualFormProps) {
   const { t } = useLanguage()
   const screens = useBreakpoint()
   const isMobile = !screens.md
   const form = Form.useFormInstance<ApplicantProfileFormValues>()
   const registrationStatus = Form.useWatch('registrationStatus', form)
   const registrationFieldsDisabled = registrationStatus === 'not_registered'
+  const directors = (Form.useWatch('directors', { form, preserve: true }) as BusinessDirector[] | undefined) || []
+  const profileValues = Form.useWatch([], { form, preserve: true }) as ApplicantProfileFormValues | undefined
+  // With directors captured, the three ownership percentages are their sum and can't be typed.
+  const ownershipFromList = directors.length > 0
+
+  const setDirectors = (next: BusinessDirector[]) => {
+    form.setFieldsValue({ directors: next, ...(next.length ? ownershipFromDirectors(next) : {}) })
+  }
 
   const currentYear = useMemo(() => dayjs().year(), [])
 
@@ -324,19 +337,25 @@ export default function ApplicantProfileManualForm({ activeStep, email }: Applic
               />
             </Form.Item>
           </Col>
+          {showDirectors && (
+            <Col xs={24}>
+              <Text strong>{t('Directors and shareholders')}</Text>
+              <DirectorsEditor directors={directors} onChange={setDirectors} self={selfAsDirector(profileValues)} />
+            </Col>
+          )}
           <Col xs={24} md={8}>
-            <Form.Item name="youthOwnedPercent" label={t('Youth-owned %')}>
-              <InputNumber min={0} max={100} style={{ width: '100%' }} />
+            <Form.Item name="youthOwnedPercent" label={t('Youth-owned %')} extra={ownershipFromList ? t('Worked out from your directors') : undefined}>
+              <InputNumber min={0} max={100} style={{ width: '100%' }} disabled={ownershipFromList} />
             </Form.Item>
           </Col>
           <Col xs={24} md={8}>
-            <Form.Item name="femaleOwnedPercent" label={t('Female-owned %')}>
-              <InputNumber min={0} max={100} style={{ width: '100%' }} />
+            <Form.Item name="femaleOwnedPercent" label={t('Female-owned %')} extra={ownershipFromList ? t('Worked out from your directors') : undefined}>
+              <InputNumber min={0} max={100} style={{ width: '100%' }} disabled={ownershipFromList} />
             </Form.Item>
           </Col>
           <Col xs={24} md={8}>
-            <Form.Item name="blackOwnedPercent" label={t('Black-owned %')}>
-              <InputNumber min={0} max={100} style={{ width: '100%' }} />
+            <Form.Item name="blackOwnedPercent" label={t('Black-owned %')} extra={ownershipFromList ? t('Worked out from your directors') : undefined}>
+              <InputNumber min={0} max={100} style={{ width: '100%' }} disabled={ownershipFromList} />
             </Form.Item>
           </Col>
         </Row>

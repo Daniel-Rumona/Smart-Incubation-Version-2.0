@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react'
 import {
     Row,
     Col,
-    Table,
     Tag,
     Button,
     Progress,
@@ -13,13 +12,15 @@ import {
     Descriptions,
     Space,
     Alert,
-    Spin,
     Form,
     InputNumber,
     Select,
     DatePicker,
     Card,
-    Segmented
+    Segmented,
+    Avatar,
+    Dropdown,
+    Grid
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import {
@@ -39,6 +40,7 @@ import {
     UserOutlined,
     GlobalOutlined,
     RadarChartOutlined,
+    EllipsisOutlined,
     SearchOutlined,
 } from '@ant-design/icons'
 import { db } from '@/firebase/config'
@@ -63,6 +65,23 @@ import { listWorkspacePrograms, matchesActiveProgram } from '@/services/workspac
 import dayjs from 'dayjs'
 import { useSystemSettings } from '@/contexts/SystemSettingsContext'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
+import {
+    DetailShell,
+    ParticipantHero,
+    ParticipantDrawerSkeleton,
+    SlidingTabs,
+    TabPanel,
+    KeyFigures,
+    type KeyFigure
+} from '@/components/participants/ParticipantDrawerParts'
+import { initialsOf } from '@/utils/initials'
+import PointListInput from '@/components/participants/PointListInput'
+import YesNoCards from '@/components/participants/YesNoCards'
+import PlatformLinksInput, { type PlatformLink } from '@/components/participants/PlatformLinksInput'
+import { ComplianceOverview, InterventionsPanel, SwotTab, TrendCard, type TrendRow } from '@/components/participants/ParticipantDrawerTabs'
+import { buildLivePlanItems, livePlanProgress, type LivePlanItem } from '@/utils/liveDiagnosticPlan'
+import { readSwotItems, type SwotItem } from '@/utils/swotOutcomes'
+import { loadDefinitions } from '@/services/interventionDefinitionLookup'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
 import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
@@ -121,6 +140,7 @@ type ParticipantRow = {
     email?: string
     programId?: string
     programName?: string
+    imageUrl?: string
     interventions?: {
         required?: any[]
         completed?: any[]
@@ -143,6 +163,9 @@ type ViewData = {
     applicantProfile: AnyDoc | null
     businessProfile: AnyDoc | null
     diagnosticPlan: AnyDoc | null
+    /** Plan interventions with their catalogue steps, for the live plan view. */
+    planItems: AnyDoc[]
+    assignments: AnyDoc[]
     programName?: string
     programId?: string
     auditTrail: AnyDoc[]
@@ -196,14 +219,6 @@ const toFirestoreDateOrNull = (value: any) => {
     return parsed ? parsed.startOf('day').toDate() : null
 }
 
-const scoreColor = (score?: number) => {
-    if (typeof score !== 'number') return 'default'
-    if (score >= 80) return 'green'
-    if (score >= 60) return 'blue'
-    if (score >= 40) return 'orange'
-    return 'red'
-}
-
 const riskColor = (risk?: string) => {
     switch (String(risk || '').toLowerCase()) {
         case 'low':
@@ -229,6 +244,56 @@ const chunkArray = <T,>(items: T[], size: number) => {
     for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
     return out
 }
+
+/**
+ * Runs one of the extra lookups that fill in a participant row (profiles, plans, documents). Not every role may
+ * read every collection (directors can't read applicant or business profiles), so a refused lookup leaves those
+ * details blank instead of failing the whole list. Any other error still fails it.
+ */
+const optionalDocs = async (run: () => Promise<{ docs: Array<{ id: string, data: () => unknown }> }>) => {
+    try {
+        return (await run()).docs
+    } catch (error) {
+        if ((error as { code?: string })?.code === 'permission-denied') return []
+        throw error
+    }
+}
+
+// `field` is where the link is stored: websiteUrl on the participant, the others under socialMedia.
+const DIGITAL_CHANNELS = [
+    { key: 'website', field: 'websiteUrl', question: 'Does the business have a website?', label: 'Website', placeholder: 'https://' },
+    { key: 'facebook', field: 'facebook', question: 'Does the business have a Facebook page?', label: 'Facebook', placeholder: 'Facebook page link' },
+    { key: 'instagram', field: 'instagram', question: 'Does the business have an Instagram account?', label: 'Instagram', placeholder: 'Instagram link or handle' },
+    { key: 'x', field: 'x', question: 'Does the business have an X account?', label: 'X', placeholder: 'X link or handle' },
+    { key: 'linkedIn', field: 'linkedIn', question: 'Does the business have a LinkedIn page?', label: 'LinkedIn', placeholder: 'LinkedIn page link' },
+    { key: 'other', field: 'otherPlatforms', question: 'Is the business on any other online platform?', label: 'Other platforms', placeholder: '' }
+] as const
+
+// Other platforms are a list of { platform, link }. Records saved before the list existed hold one plain link in `other`.
+const otherPlatformsOf = (participant: AnyDoc | null | undefined): PlatformLink[] => {
+    const stored = participant?.socialMedia?.otherPlatforms
+    if (Array.isArray(stored)) {
+        return stored
+            .map((row: AnyDoc) => ({ platform: String(row?.platform || '').trim(), link: String(row?.link || '').trim() }))
+            .filter((row: PlatformLink) => row.platform && row.link)
+    }
+    const legacy = String(participant?.socialMedia?.other || '').trim()
+    return legacy ? [{ platform: 'Other', link: legacy }] : []
+}
+
+const otherPlatformsText = (list: PlatformLink[]) => list.map(row => `${row.platform}: ${row.link}`).join(' · ')
+
+const channelLink = (participant: AnyDoc | null | undefined, field: string): string =>
+    field === 'otherPlatforms'
+        ? otherPlatformsText(otherPlatformsOf(participant))
+        : String(field === 'websiteUrl' ? participant?.websiteUrl || '' : participant?.socialMedia?.[field] || '').trim()
+
+const SWOT_FIELDS: Array<{ name: 'swotStrengths' | 'swotWeaknesses' | 'swotOpportunities' | 'swotThreats'; label: string; tone: 'green' | 'orange' | 'blue' | 'red' }> = [
+    { name: 'swotStrengths', label: 'Strengths', tone: 'green' },
+    { name: 'swotWeaknesses', label: 'Weaknesses', tone: 'orange' },
+    { name: 'swotOpportunities', label: 'Opportunities', tone: 'blue' },
+    { name: 'swotThreats', label: 'Threats', tone: 'red' }
+]
 
 const normalizeLineArray = (value: any): string[] => {
     if (Array.isArray(value)) {
@@ -396,6 +461,20 @@ void renderAuditValue
 
 const normalizedStatus = (value: any) => String(value || '').trim().toLowerCase()
 
+/** Share of an SME's compliance documents that are valid, 0-100; undefined when it has none. One definition for the list and the SME view. */
+const complianceScoreOf = (docs: AnyDoc[]): number | undefined =>
+    docs.length ? Math.round((docs.filter(doc => normalizedStatus(doc.currentStatus) === 'valid').length / docs.length) * 100) : undefined
+
+// The confirmed growth plan is the source of truth for required interventions. Applications can carry an empty
+// `requiredInterventions: []`, which is truthy, so sources are chosen by "has items", not by "exists".
+const firstNonEmpty = (...sources: any[]): any[] => {
+    for (const source of sources) {
+        const list = asArray(source)
+        if (list.length) return list
+    }
+    return []
+}
+
 const asArray = (value: any): any[] => {
     if (Array.isArray(value)) return value
     if (value && typeof value === 'object') return Object.values(value)
@@ -413,8 +492,12 @@ export const ParticipantsPage: React.FC = () => {
     )
 
     const [editForm] = Form.useForm()
+    const screens = Grid.useBreakpoint()
+    // Tablet and phone get a bottom sheet; desktop keeps the centered modal.
+    const isCompact = !screens.lg
+    const [tabDirection, setTabDirection] = useState<1 | -1>(1)
     const [viewSegment, setViewSegment] = useState<
-        'overview' | 'business' | 'compliance' | 'interventions' | 'financials'
+        'overview' | 'business' | 'swot' | 'compliance' | 'interventions' | 'financials'
     >('overview')
 
     const [editSegment, setEditSegment] = useState<
@@ -424,8 +507,8 @@ export const ParticipantsPage: React.FC = () => {
     const { activeProgramId, isAllPrograms } = useActiveProgramId()
 
     const [participants, setParticipants] = useState<ParticipantRow[]>([])
-    const [filteredParticipants, setFilteredParticipants] = useState<ParticipantRow[]>([])
     const [searchText, setSearchText] = useState('')
+    const [quickFilter, setQuickFilter] = useState<'all' | 'needs-assignment'>('all')
     const [loading, setLoading] = useState(true)
     const [savingEdit, setSavingEdit] = useState(false)
     const [removingParticipant, setRemovingParticipant] = useState(false)
@@ -529,42 +612,55 @@ export const ParticipantsPage: React.FC = () => {
                 new Set(participantRows.map(p => String(p.programId || '').trim()).filter(Boolean))
             )
 
+            // The applications rule only allows reading one's own company, so the query must filter on it too.
             const applicationDocs: Record<string, AnyDoc> = {}
             for (const chunk of chunkArray(applicationIds, 10)) {
-                const appSnap = await getDocs(
-                    query(collection(db, 'applications'), where(documentId(), 'in', chunk))
-                )
-                appSnap.docs.forEach(app => {
+                const apps = await optionalDocs(() => getDocs(
+                    query(collection(db, 'applications'), where('companyCode', '==', companyCode), where(documentId(), 'in', chunk))
+                ))
+                apps.forEach(app => {
                     applicationDocs[app.id] = { id: app.id, ...(app.data() as AnyDoc) }
                 })
             }
 
             const applicantProfiles: Record<string, AnyDoc> = {}
             for (const chunk of chunkArray(applicantProfileIds, 10)) {
-                const profileSnap = await getDocs(
+                const profiles = await optionalDocs(() => getDocs(
                     query(collection(db, 'applicantProfiles'), where(documentId(), 'in', chunk))
-                )
-                profileSnap.docs.forEach(profile => {
+                ))
+                profiles.forEach(profile => {
                     applicantProfiles[profile.id] = { id: profile.id, ...(profile.data() as AnyDoc) }
                 })
             }
 
+            // The SME's picture lives on their user account (same id as the applicant profile). The rules only allow
+            // reading accounts one at a time, and not every account is readable, so a denied read just leaves initials.
+            const userImages: Record<string, string> = {}
+            const userReads = await Promise.allSettled(applicantProfileIds.map(id => getDoc(doc(db, 'users', id))))
+            userReads.forEach((result, index) => {
+                if (result.status !== 'fulfilled' || !result.value.exists()) return
+                const image = String((result.value.data() as AnyDoc).profileImageUrl || '').trim()
+                if (image) userImages[applicantProfileIds[index]] = image
+            })
+
             const businessProfiles: Record<string, AnyDoc> = {}
             for (const chunk of chunkArray(businessProfileIds, 10)) {
-                const profileSnap = await getDocs(
+                const profiles = await optionalDocs(() => getDocs(
                     query(collection(db, 'businessProfiles'), where(documentId(), 'in', chunk))
-                )
-                profileSnap.docs.forEach(profile => {
+                ))
+                profiles.forEach(profile => {
                     businessProfiles[profile.id] = { id: profile.id, ...(profile.data() as AnyDoc) }
                 })
             }
 
+            // Staff may read every compliance document; a director only their own company's, which the query must say.
+            const complianceScope = role === 'director' ? [where('companyCode', '==', companyCode)] : []
             const complianceDocsByParticipant: Record<string, AnyDoc[]> = {}
             for (const chunk of chunkArray(participantIds, 10)) {
-                const docsSnap = await getDocs(
-                    query(collection(db, 'complianceDocuments'), where('participantId', 'in', chunk))
-                )
-                docsSnap.docs.forEach(docSnap => {
+                const documents = await optionalDocs(() => getDocs(
+                    query(collection(db, 'complianceDocuments'), ...complianceScope, where('participantId', 'in', chunk))
+                ))
+                documents.forEach(docSnap => {
                     const raw: AnyDoc = { id: docSnap.id, ...(docSnap.data() as AnyDoc) }
                     const pid = String(raw.participantId || '').trim()
                     complianceDocsByParticipant[pid] = [...(complianceDocsByParticipant[pid] || []), raw]
@@ -573,10 +669,10 @@ export const ParticipantsPage: React.FC = () => {
 
             const diagnosticPlansByApplication: Record<string, AnyDoc> = {}
             for (const chunk of chunkArray(applicationIds, 10)) {
-                const planSnap = await getDocs(
+                const plans = await optionalDocs(() => getDocs(
                     query(collection(db, 'diagnosticPlans'), where(documentId(), 'in', chunk))
-                )
-                planSnap.docs.forEach(plan => {
+                ))
+                plans.forEach(plan => {
                     diagnosticPlansByApplication[plan.id] = { id: plan.id, ...(plan.data() as AnyDoc) }
                 })
             }
@@ -611,10 +707,10 @@ export const ParticipantsPage: React.FC = () => {
                 const businessProfile = businessProfiles[String(participant.businessProfileId || participant.id || '').trim()] || {}
                 const applicantProfile = applicantProfiles[String(participant.applicantProfileId || participant.uid || '').trim()] || {}
                 const diagnosticPlan = diagnosticPlansByApplication[String(participant.applicationId || '').trim()] || {}
-                const required = asArray(
-                    application.requiredInterventions ||
-                    application.interventions?.required ||
-                    diagnosticPlan.interventions ||
+                const required = firstNonEmpty(
+                    diagnosticPlan.interventions,
+                    application.interventions?.required,
+                    application.requiredInterventions,
                     participant.requiredInterventions
                 )
                 const completed = Array.from({ length: completedByParticipantId[participantId] || 0 })
@@ -625,8 +721,7 @@ export const ParticipantsPage: React.FC = () => {
                 const registeredByLabel = reg?.name || reg?.email || reg?.uid || ''
                 const programId = String(participant.programId || application.programId || businessProfile.programId || '').trim()
                 const complianceDocs = complianceDocsByParticipant[participantId] || []
-                const validDocs = complianceDocs.filter(doc => normalizedStatus(doc.currentStatus) === 'valid').length
-                const complianceScore = complianceDocs.length ? Math.round((validDocs / complianceDocs.length) * 100) : undefined
+                const complianceScore = complianceScoreOf(complianceDocs)
 
                 return {
                     id: participantId,
@@ -638,6 +733,12 @@ export const ParticipantsPage: React.FC = () => {
                     email: participant.email || applicantProfile.email || businessProfile.email || application.email,
                     programId,
                     programName: names[programId] || application.programName || programId,
+                    imageUrl: [
+                        participant.profileImageUrl,
+                        businessProfile.logoUrl,
+                        applicantProfile.profileImageUrl,
+                        userImages[String(participant.applicantProfileId || participant.uid || '').trim()]
+                    ].map(value => String(value || '').trim()).find(Boolean) || undefined,
                     interventions: {
                         required,
                         completed,
@@ -720,8 +821,12 @@ export const ParticipantsPage: React.FC = () => {
         })
     }, [participants])
 
-    useEffect(() => {
+    const filteredParticipants = useMemo(() => {
         let filtered = participants
+
+        if (quickFilter === 'needs-assignment') {
+            filtered = filtered.filter(p => (p.interventions?.assigned?.length || 0) === 0)
+        }
 
         if (searchText.trim()) {
             const s = searchText.trim().toLowerCase()
@@ -735,8 +840,8 @@ export const ParticipantsPage: React.FC = () => {
             )
         }
 
-        setFilteredParticipants(filtered)
-    }, [participants, searchText])
+        return filtered
+    }, [participants, searchText, quickFilter])
 
     const loadAuditTrail = async (participantId: string, applicationId?: string | null) => {
         try {
@@ -864,6 +969,104 @@ export const ParticipantsPage: React.FC = () => {
         }
     }
 
+    const fillEditForm = (mergedParticipant: AnyDoc | null, applicationData: AnyDoc | null) => {
+        editForm.resetFields()
+        // Yes when a link is stored, No when it was recorded that there is none, unanswered otherwise.
+        const presence = Object.fromEntries(DIGITAL_CHANNELS.map(channel => [
+            `presence_${channel.key}`,
+            channelLink(mergedParticipant, channel.field) ? 'yes' : mergedParticipant?.digitalPresence?.[channel.key] === false ? 'no' : undefined
+        ]))
+        editForm.setFieldsValue({
+            ...presence,
+            participantName: mergedParticipant?.participantName || applicationData?.participantName || '',
+            businessName: mergedParticipant?.businessName || applicationData?.businessName || '',
+            email: mergedParticipant?.email || applicationData?.email || '',
+            phone: mergedParticipant?.phone || '',
+            gender: mergedParticipant?.gender || applicationData?.gender || undefined,
+            idNumber: mergedParticipant?.idNumber || '',
+            beeLevel: mergedParticipant?.beeLevel || '',
+            youthOwnedPercent: mergedParticipant?.ownership?.youthOwnedPercent ?? mergedParticipant?.youthOwnedPercent ?? 0,
+            femaleOwnedPercent: mergedParticipant?.ownership?.femaleOwnedPercent ?? mergedParticipant?.femaleOwnedPercent ?? 0,
+            blackOwnedPercent: mergedParticipant?.ownership?.blackOwnedPercent ?? mergedParticipant?.blackOwnedPercent ?? 0,
+            dateOfRegistration: toDatePickerValue(mergedParticipant?.dateOfRegistration),
+            yearsOfTrading: mergedParticipant?.yearsOfTrading ?? 0,
+            registrationNumber: mergedParticipant?.registrationNumber || '',
+            sector: mergedParticipant?.sector || applicationData?.sector || undefined,
+            stage: mergedParticipant?.stage || applicationData?.stage || undefined,
+            developmentType: mergedParticipant?.developmentType || undefined,
+            age: mergedParticipant?.age ?? null,
+            natureOfBusiness: mergedParticipant?.natureOfBusiness || '',
+            businessAddress: mergedParticipant?.businessAddress || '',
+            businessAddressProvince: mergedParticipant?.province || undefined,
+            businessAddressCity: mergedParticipant?.city || '',
+            locationType: mergedParticipant?.locationType || undefined,
+            location: mergedParticipant?.location || '',
+            postalCode: mergedParticipant?.postalCode || '',
+            hub: mergedParticipant?.hub || '',
+            websiteUrl: mergedParticipant?.websiteUrl || '',
+            facebook: mergedParticipant?.socialMedia?.facebook || '',
+            instagram: mergedParticipant?.socialMedia?.instagram || '',
+            x: mergedParticipant?.socialMedia?.x || '',
+            linkedIn: mergedParticipant?.socialMedia?.linkedIn || '',
+            otherPlatforms: otherPlatformsOf(mergedParticipant),
+            swotStrengths: Array.isArray(mergedParticipant?.swot?.strengths)
+                ? mergedParticipant.swot.strengths.join('\n')
+                : '',
+            swotWeaknesses: Array.isArray(mergedParticipant?.swot?.weaknesses)
+                ? mergedParticipant.swot.weaknesses.join('\n')
+                : '',
+            swotOpportunities: Array.isArray(mergedParticipant?.swot?.opportunities)
+                ? mergedParticipant.swot.opportunities.join('\n')
+                : '',
+            swotThreats: Array.isArray(mergedParticipant?.swot?.threats)
+                ? mergedParticipant.swot.threats.join('\n')
+                : ''
+        })
+    }
+
+    // A point list's value is newline-separated text; a trailing newline is a new empty point.
+    const addPoint = (name: string) => {
+        const current = String(editForm.getFieldValue(name) ?? '')
+        editForm.setFieldValue(name, `${current}\n`)
+    }
+
+    const cancelEdit = () => {
+        if (viewData) fillEditForm(viewData.participant, viewData.application)
+        else editForm.resetFields()
+        setEditSegment('profile')
+        setEditMode(false)
+    }
+
+    const secondaryActions = [
+        ...(canAssignProgram ? [{ key: 'assign', icon: <DeploymentUnitOutlined />, label: t('Assign Program'), danger: false, disabled: false, onClick: () => setAssignProgramOpen(true) }] : []),
+        {
+            key: 'discontinue',
+            icon: <StopOutlined />,
+            label: t('Discontinue'),
+            danger: true,
+            disabled: !viewData?.applicationId || ['removed', 'discontinued'].includes(String(viewData?.application?.applicationStatus || '').toLowerCase()),
+            onClick: () => setRemoveModalOpen(true)
+        }
+    ]
+
+    const closeView = () => {
+        setViewOpen(false)
+        setViewRecord(null)
+        setViewData(null)
+        setEditMode(false)
+        setViewSegment('overview')
+        setEditSegment('profile')
+        editForm.resetFields()
+    }
+
+    const viewIndex = viewRecord ? filteredParticipants.findIndex(row => row.id === viewRecord.id) : -1
+    const stepView = (offset: 1 | -1) => {
+        const next = filteredParticipants[viewIndex + offset]
+        if (!next) return
+        setViewSegment('overview')
+        void openView(next)
+    }
+
     const openView = async (record: ParticipantRow) => {
         setViewLoading(true)
         setViewRecord(record)
@@ -924,11 +1127,12 @@ export const ParticipantsPage: React.FC = () => {
                 ''
             ).trim()
 
-            const [applicantProfileSnap, businessProfileSnap, complianceSnap, diagnosticPlanSnap] = await Promise.all([
+            const [applicantProfileSnap, businessProfileSnap, complianceSnap, diagnosticPlanSnap, assignmentSnap] = await Promise.all([
                 applicantProfileId ? getDoc(doc(db, 'applicantProfiles', applicantProfileId)) : Promise.resolve(null),
                 businessProfileId ? getDoc(doc(db, 'businessProfiles', businessProfileId)) : Promise.resolve(null),
                 getDocs(query(collection(db, 'complianceDocuments'), where('participantId', '==', record.id))),
-                applicationDocId ? getDoc(doc(db, 'diagnosticPlans', applicationDocId)) : Promise.resolve(null)
+                applicationDocId ? getDoc(doc(db, 'diagnosticPlans', applicationDocId)) : Promise.resolve(null),
+                getDocs(query(collection(db, 'assignedInterventions'), where('companyCode', '==', String((user as any)?.companyCode || '').trim()), where('participantId', '==', record.id)))
             ])
 
             const applicantProfile = applicantProfileSnap && applicantProfileSnap.exists()
@@ -938,9 +1142,30 @@ export const ParticipantsPage: React.FC = () => {
                 ? { id: businessProfileSnap.id, ...(businessProfileSnap.data() as AnyDoc) }
                 : null
             const complianceDocuments: AnyDoc[] = complianceSnap.docs.map(d => ({ id: d.id, ...(d.data() as AnyDoc) } as AnyDoc))
-            const diagnosticPlan = diagnosticPlanSnap && diagnosticPlanSnap.exists()
+            const diagnosticPlan: AnyDoc | null = diagnosticPlanSnap && diagnosticPlanSnap.exists()
                 ? { id: diagnosticPlanSnap.id, ...(diagnosticPlanSnap.data() as AnyDoc) }
                 : null
+            const assignments: AnyDoc[] = assignmentSnap.docs.map(d => ({ id: d.id, ...(d.data() as AnyDoc) } as AnyDoc))
+            const planCompanyCode = String(diagnosticPlan?.companyCode || applicationData?.companyCode || (user as any)?.companyCode || '')
+            const requiredList = firstNonEmpty(
+                diagnosticPlan?.interventions,
+                applicationData?.interventions?.required,
+                applicationData?.requiredInterventions,
+                participantData?.requiredInterventions
+            )
+            const definitions = await loadDefinitions(
+                db,
+                requiredList.map(item => ({ interventionId: String(item?.interventionId || item?.id || ''), companyCode: planCompanyCode }))
+            )
+            const planItems: AnyDoc[] = requiredList.map(item => {
+                const definition = definitions.get(String(item?.interventionId || item?.id || ''), planCompanyCode) || {}
+                return {
+                    ...item,
+                    areaOfSupport: item?.areaOfSupport || definition.areaOfSupport,
+                    executionMode: item?.executionMode || definition.executionMode,
+                    steps: Array.isArray(item?.steps) ? item.steps : definition.steps
+                }
+            })
             const mergedParticipant: AnyDoc = {
                 ...(applicantProfile || {}),
                 ...(businessProfile || {}),
@@ -957,6 +1182,8 @@ export const ParticipantsPage: React.FC = () => {
                 applicantProfile,
                 businessProfile,
                 diagnosticPlan,
+                planItems,
+                assignments,
                 programId: record.programId,
                 programName: record.programName,
                 auditTrail
@@ -964,51 +1191,7 @@ export const ParticipantsPage: React.FC = () => {
 
             setViewData(hydrated)
 
-            editForm.setFieldsValue({
-                participantName: mergedParticipant?.participantName || applicationData?.participantName || '',
-                businessName: mergedParticipant?.businessName || applicationData?.businessName || '',
-                email: mergedParticipant?.email || applicationData?.email || '',
-                phone: mergedParticipant?.phone || '',
-                gender: mergedParticipant?.gender || applicationData?.gender || undefined,
-                idNumber: mergedParticipant?.idNumber || '',
-                beeLevel: mergedParticipant?.beeLevel || '',
-                youthOwnedPercent: mergedParticipant?.ownership?.youthOwnedPercent ?? mergedParticipant?.youthOwnedPercent ?? 0,
-                femaleOwnedPercent: mergedParticipant?.ownership?.femaleOwnedPercent ?? mergedParticipant?.femaleOwnedPercent ?? 0,
-                blackOwnedPercent: mergedParticipant?.ownership?.blackOwnedPercent ?? mergedParticipant?.blackOwnedPercent ?? 0,
-                dateOfRegistration: toDatePickerValue(mergedParticipant?.dateOfRegistration),
-                yearsOfTrading: mergedParticipant?.yearsOfTrading ?? 0,
-                registrationNumber: mergedParticipant?.registrationNumber || '',
-                sector: mergedParticipant?.sector || applicationData?.sector || undefined,
-                stage: mergedParticipant?.stage || applicationData?.stage || undefined,
-                developmentType: mergedParticipant?.developmentType || undefined,
-                age: mergedParticipant?.age ?? null,
-                natureOfBusiness: mergedParticipant?.natureOfBusiness || '',
-                businessAddress: mergedParticipant?.businessAddress || '',
-                businessAddressProvince: mergedParticipant?.province || undefined,
-                businessAddressCity: mergedParticipant?.city || '',
-                locationType: mergedParticipant?.locationType || undefined,
-                location: mergedParticipant?.location || '',
-                postalCode: mergedParticipant?.postalCode || '',
-                hub: mergedParticipant?.hub || '',
-                websiteUrl: mergedParticipant?.websiteUrl || '',
-                facebook: mergedParticipant?.socialMedia?.facebook || '',
-                instagram: mergedParticipant?.socialMedia?.instagram || '',
-                x: mergedParticipant?.socialMedia?.x || '',
-                linkedIn: mergedParticipant?.socialMedia?.linkedIn || '',
-                other: mergedParticipant?.socialMedia?.other || '',
-                swotStrengths: Array.isArray(mergedParticipant?.swot?.strengths)
-                    ? mergedParticipant.swot.strengths.join('\n')
-                    : '',
-                swotWeaknesses: Array.isArray(mergedParticipant?.swot?.weaknesses)
-                    ? mergedParticipant.swot.weaknesses.join('\n')
-                    : '',
-                swotOpportunities: Array.isArray(mergedParticipant?.swot?.opportunities)
-                    ? mergedParticipant.swot.opportunities.join('\n')
-                    : '',
-                swotThreats: Array.isArray(mergedParticipant?.swot?.threats)
-                    ? mergedParticipant.swot.threats.join('\n')
-                    : ''
-            })
+            fillEditForm(mergedParticipant, applicationData)
         } catch (error) {
             console.error(error)
             message.error(t('Failed to load full SME details'))
@@ -1029,11 +1212,37 @@ export const ParticipantsPage: React.FC = () => {
             await editForm.validateFields()
             const values = editForm.getFieldsValue(true)
 
+            // Only a Yes keeps a link; No or unanswered clears it. The answer itself is stored so "No" can be told from "unknown".
+            const digitalPresence: Record<string, boolean | null> = {}
+            DIGITAL_CHANNELS.forEach(channel => {
+                // A Yes with no link entered (the field is only validated while its tab is open) counts as unanswered.
+                const isList = channel.field === 'otherPlatforms'
+                const entered = isList
+                    ? (Array.isArray(values.otherPlatforms) ? values.otherPlatforms : []).filter((row: PlatformLink) => String(row?.platform || '').trim() && String(row?.link || '').trim())
+                    : String(values[channel.field] || '').trim()
+                const choice = values[`presence_${channel.key}`] === 'yes' && !entered.length ? undefined : values[`presence_${channel.key}`]
+                digitalPresence[channel.key] = choice === 'yes' ? true : choice === 'no' ? false : null
+                values[channel.field] = choice !== 'yes' ? (isList ? [] : '') : isList ? (entered as PlatformLink[]).map(row => ({ platform: row.platform.trim(), link: row.link.trim() })) : values[channel.field]
+            })
+
             const swot = {
                 strengths: normalizeLineArray(values.swotStrengths),
                 weaknesses: normalizeLineArray(values.swotWeaknesses),
                 opportunities: normalizeLineArray(values.swotOpportunities),
                 threats: normalizeLineArray(values.swotThreats)
+            }
+
+            const swotListsFor = (source: AnyDoc | null | undefined) => ({
+                strengths: values.swotStrengths === undefined ? source?.swot?.strengths || [] : swot.strengths,
+                weaknesses: values.swotWeaknesses === undefined ? source?.swot?.weaknesses || [] : swot.weaknesses,
+                opportunities: values.swotOpportunities === undefined ? source?.swot?.opportunities || [] : swot.opportunities,
+                threats: values.swotThreats === undefined ? source?.swot?.threats || [] : swot.threats
+            })
+            const survivingSwotItems = (source: AnyDoc | null | undefined): { swotItems?: SwotItem[] } => {
+                const existing = readSwotItems(source)
+                if (!existing.length) return {}
+                const lists = swotListsFor(source) as Record<string, string[]>
+                return { swotItems: existing.filter(item => (lists[item.quadrant] || []).includes(item.text)) }
             }
 
             const stageValue = String(values.stage || '').trim()
@@ -1087,7 +1296,7 @@ export const ParticipantsPage: React.FC = () => {
                 instagram: viewData.participant?.socialMedia?.instagram || null,
                 x: viewData.participant?.socialMedia?.x || null,
                 linkedIn: viewData.participant?.socialMedia?.linkedIn || null,
-                other: viewData.participant?.socialMedia?.other || null,
+                other: otherPlatformsText(otherPlatformsOf(viewData.participant)) || null,
                 swotStrengths: viewData.participant?.swot?.strengths || [],
                 swotWeaknesses: viewData.participant?.swot?.weaknesses || [],
                 swotOpportunities: viewData.participant?.swot?.opportunities || [],
@@ -1146,7 +1355,7 @@ export const ParticipantsPage: React.FC = () => {
                 instagram: pickEditedValue(values.instagram, viewData.participant?.socialMedia?.instagram || null),
                 x: pickEditedValue(values.x, viewData.participant?.socialMedia?.x || null),
                 linkedIn: pickEditedValue(values.linkedIn, viewData.participant?.socialMedia?.linkedIn || null),
-                other: pickEditedValue(values.other, viewData.participant?.socialMedia?.other || null),
+                other: otherPlatformsText(values.otherPlatforms) || null,
                 swotStrengths:
                     values.swotStrengths === undefined ? viewData.participant?.swot?.strengths || [] : swot.strengths,
                 swotWeaknesses:
@@ -1330,12 +1539,13 @@ export const ParticipantsPage: React.FC = () => {
                 postalCode: pickEditedValue(values.postalCode, viewData.participant?.postalCode || ''),
                 hub: pickEditedValue(values.hub, viewData.participant?.hub || ''),
                 websiteUrl: pickEditedValue(values.websiteUrl, viewData.participant?.websiteUrl || ''),
+                digitalPresence,
                 socialMedia: {
                     facebook: pickEditedValue(values.facebook, viewData.participant?.socialMedia?.facebook || ''),
                     instagram: pickEditedValue(values.instagram, viewData.participant?.socialMedia?.instagram || ''),
                     x: pickEditedValue(values.x, viewData.participant?.socialMedia?.x || ''),
                     linkedIn: pickEditedValue(values.linkedIn, viewData.participant?.socialMedia?.linkedIn || ''),
-                    other: pickEditedValue(values.other, viewData.participant?.socialMedia?.other || '')
+                    otherPlatforms: values.otherPlatforms as PlatformLink[]
                 },
                 swot: {
                     strengths: values.swotStrengths === undefined ? viewData.participant?.swot?.strengths || [] : swot.strengths,
@@ -1343,6 +1553,7 @@ export const ParticipantsPage: React.FC = () => {
                     opportunities: values.swotOpportunities === undefined ? viewData.participant?.swot?.opportunities || [] : swot.opportunities,
                     threats: values.swotThreats === undefined ? viewData.participant?.swot?.threats || [] : swot.threats
                 },
+                ...survivingSwotItems(viewData.participant),
                 companyCode: String((user as any)?.companyCode || viewData.participant?.companyCode || '').trim() || null,
                 programId: viewData.participant?.programId || viewData.application?.programId || viewData.programId || null,
                 updatedAt: serverTimestamp()
@@ -1365,6 +1576,7 @@ export const ParticipantsPage: React.FC = () => {
                     opportunities: values.swotOpportunities === undefined ? viewData.application?.swot?.opportunities || [] : swot.opportunities,
                     threats: values.swotThreats === undefined ? viewData.application?.swot?.threats || [] : swot.threats
                 },
+                ...survivingSwotItems(viewData.application),
                 updatedAt: serverTimestamp(),
                 updatedBy
             }
@@ -1538,7 +1750,12 @@ export const ParticipantsPage: React.FC = () => {
                 title: t('SME Name'),
                 dataIndex: 'businessName',
                 key: 'businessName',
-                render: (v: any) => <Text strong>{labelOrHide(v) || ''}</Text>
+                render: (v: any, record: ParticipantRow) => (
+                    <Space size={10}>
+                        <Avatar src={record.imageUrl} size={32}>{initialsOf(v || record.participantName)}</Avatar>
+                        <Text strong>{labelOrHide(v) || ''}</Text>
+                    </Space>
+                )
             },
             ...(isAllPrograms
                 ? [
@@ -1611,16 +1828,9 @@ export const ParticipantsPage: React.FC = () => {
 
                         <Button
                             icon={<BarChartOutlined />}
-                            onClick={() =>
-                                navigate(`/operations/participants/${record.id}/performance`, {
-                                    state: {
-                                        name: record.businessName || '',
-                                        programId: record.programId || activeProgramId
-                                    }
-                                })
-                            }
+                            onClick={() => navigate(`/operations/participants/control-tower/${record.id}`)}
                         >
-                            {t('Performance')}
+                            {t('Control Tower')}
                         </Button>
                     </Space>
                 )
@@ -1631,21 +1841,15 @@ export const ParticipantsPage: React.FC = () => {
     }, [activeProgramId, isAllPrograms, navigate, user?.role, t])
 
     const currentParticipant = viewData?.participant || {}
+    const livePlanItems = useMemo(
+        () => (viewData ? (buildLivePlanItems(viewData.planItems as unknown as Array<{ title: string }>, viewData.assignments) as unknown as LivePlanItem[]) : []),
+        [viewData]
+    )
     const currentApplication = viewData?.application || {}
-    const currentInterventions = {
-        required: asArray(
-            currentApplication?.requiredInterventions ||
-            currentApplication?.interventions?.required ||
-            viewData?.diagnosticPlan?.interventions ||
-            currentParticipant?.requiredInterventions
-        ),
-        completed: asArray(currentParticipant?.completedInterventions || currentApplication?.completedInterventions),
-        assigned: asArray(currentParticipant?.assignedInterventions || currentApplication?.assignedInterventions),
-        participationRate: currentApplication?.interventions?.participationRate || currentParticipant?.interventions?.participationRate || 0
-    }
     const complianceDocs = Array.isArray(currentParticipant?.complianceDocuments)
         ? currentParticipant.complianceDocuments
         : []
+    const complianceScore = complianceScoreOf(complianceDocs)
     const revenueHistory = currentParticipant?.revenueHistory || {}
     const headcountHistory = currentParticipant?.headcountHistory || {}
 
@@ -1654,25 +1858,61 @@ export const ParticipantsPage: React.FC = () => {
     const headcountMonthlyRows = mapHistoryObjectToRows(headcountHistory?.monthly || {})
     const headcountAnnualRows = mapHistoryObjectToRows(headcountHistory?.annual || {})
 
+    const toTrend = (rows: Array<{ period: string; value: number | null }>): TrendRow[] =>
+        rows.flatMap(row => (row.value === null ? [] : [{ period: row.period, value: row.value }]))
+
+    const latestRevenue = revenueMonthlyRows.length ? revenueMonthlyRows[revenueMonthlyRows.length - 1] : null
+    const latestHeadcount = headcountMonthlyRows.length ? headcountMonthlyRows[headcountMonthlyRows.length - 1] : null
+    const numberOrNull = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : null)
+    const complianceFigure = complianceScore ?? null
+    const keyFigures: KeyFigure[] = [
+        {
+            key: 'revenue',
+            label: t('Revenue'),
+            prefix: 'R',
+            value: latestRevenue ? Number(latestRevenue.value) : numberOrNull(currentParticipant?.revenue),
+            hint: latestRevenue ? latestRevenue.period : undefined
+        },
+        {
+            key: 'headcount',
+            label: t('Employees'),
+            value: latestHeadcount ? Number(latestHeadcount.value) : numberOrNull(currentParticipant?.employeeCount),
+            hint: latestHeadcount ? latestHeadcount.period : undefined
+        },
+        {
+            key: 'interventions',
+            label: t('Interventions done'),
+            value: livePlanItems.filter(item => item.status === 'Completed').length,
+            suffix: ` / ${livePlanItems.length}`,
+            tone: livePlanItems.length && livePlanItems.every(item => item.status === 'Completed') ? 'good' : 'default'
+        },
+        {
+            key: 'compliance',
+            label: t('Compliance'),
+            value: complianceFigure,
+            suffix: '%',
+            tone: complianceFigure === null ? 'default' : complianceFigure >= 80 ? 'good' : complianceFigure >= 50 ? 'warn' : 'bad'
+        }
+    ]
+
     return (
         <DashboardPage className="operations-participants-page">
             <Row gutter={[12, 12]} className="operations-participants-metrics dashboard-metrics-row">
                 <Col xs={12} lg={6}>
-                    <DashboardMetricCard icon={<TeamOutlined />} label={t('Total SMEs')} value={metrics.totalParticipants} />
+                    <DashboardMetricCard icon={<TeamOutlined />} loading={loading} label={t('Total SMEs')} value={metrics.totalParticipants} clickable active={quickFilter === 'all'} onClick={() => setQuickFilter('all')} />
                 </Col>
                 <Col xs={12} lg={6}>
-                    <DashboardMetricCard icon={<PlusOutlined />} label={t('Required Interventions')} value={metrics.totalRequiredInterventions} />
+                    <DashboardMetricCard icon={<PlusOutlined />} loading={loading} label={t('Required Interventions')} value={metrics.totalRequiredInterventions} />
                 </Col>
                 <Col xs={12} lg={6}>
-                    <DashboardMetricCard icon={<CheckCircleOutlined />} label={t('Completed Interventions')} value={metrics.totalCompletedInterventions} />
+                    <DashboardMetricCard icon={<CheckCircleOutlined />} loading={loading} label={t('Completed Interventions')} value={metrics.totalCompletedInterventions} />
                 </Col>
                 <Col xs={12} lg={6}>
-                    <DashboardMetricCard icon={<WarningOutlined />} label={t('Need Assignment')} value={metrics.totalNeedingAssignment} />
+                    <DashboardMetricCard icon={<WarningOutlined />} loading={loading} label={t('Need Assignment')} value={metrics.totalNeedingAssignment} clickable active={quickFilter === 'needs-assignment'} onClick={() => setQuickFilter('needs-assignment')} />
                 </Col>
             </Row>
 
             <FilterBar
-                title={t('SMEs')}
                 primary={
                     <Input
                         prefix={<SearchOutlined />}
@@ -1738,143 +1978,90 @@ export const ParticipantsPage: React.FC = () => {
                 />
             </Card>
 
-            <Modal
-                title={
-                    <Space>
-                        <InfoCircleOutlined />
-                        <span>{t('SME Details')}</span>
-                    </Space>
-                }
+            <DetailShell
+                compact={isCompact}
                 open={viewOpen}
-                onCancel={() => {
-                    setViewOpen(false)
-                    setViewRecord(null)
-                    setViewData(null)
-                    setEditMode(false)
-                    setViewSegment('overview')
-                    setEditSegment('profile')
-                    editForm.resetFields()
-                }}
-                footer={[
-                    <Button
-                        key="close"
-                        onClick={() => {
-                            setViewOpen(false)
-                            setViewRecord(null)
-                            setViewData(null)
-                            setEditMode(false)
-                            setViewSegment('overview')
-                            setEditSegment('profile')
-                            editForm.resetFields()
-                        }}
-                    >
-                        {t('Close')}
-                    </Button>,
-                    !editMode ? (
-                        <Button
-                            key="edit"
-                            icon={<EditOutlined />}
-                            disabled={!viewData}
-                            onClick={() => setEditMode(true)}
-                        >
-                            {t('Edit')}
-                        </Button>
-                    ) : (
-                        <Button
-                            key="save"
-                            type="primary"
-                            icon={<SaveOutlined />}
-                            loading={savingEdit}
-                            onClick={saveEdits}
-                        >
-                            {t('Save Changes')}
-                        </Button>
-                    ),
-                    canAssignProgram ? (
-                        <Button
-                            key="assign-program"
-                            icon={<DeploymentUnitOutlined />}
-                            onClick={() => setAssignProgramOpen(true)}
-                        >
-                            {t('Assign Program')}
-                        </Button>
-                    ) : null,
-                    <Button
-                        key="remove"
-                        danger
-                        icon={<StopOutlined />}
-                        disabled={!viewData?.applicationId || ['removed', 'discontinued'].includes(String(viewData?.application?.applicationStatus || '').toLowerCase())}
-                        onClick={() => setRemoveModalOpen(true)}
-                    >
-                        {t('Discontinue')}
-                    </Button>
-                ]}
-                width={1100}
+                onClose={closeView}
+                title={viewRecord ? (
+                    <ParticipantHero
+                        name={viewRecord.businessName || t('Unnamed SME')}
+                        owner={viewRecord.participantName}
+                        imageUrl={viewRecord.imageUrl}
+                        progress={viewData ? livePlanProgress(livePlanItems) : undefined}
+                        position={editMode ? undefined : { index: Math.max(viewIndex, 0), total: filteredParticipants.length }}
+                        onPrevious={viewIndex > 0 ? () => stepView(-1) : undefined}
+                        onNext={viewIndex >= 0 && viewIndex < filteredParticipants.length - 1 ? () => stepView(1) : undefined}
+                        previousLabel={t('Previous SME')}
+                        nextLabel={t('Next SME')}
+                        tags={
+                            <>
+                                {viewRecord.stage ? <Tag color="purple">{viewRecord.stage}</Tag> : null}
+                                {viewRecord.sector ? <Tag>{viewRecord.sector}</Tag> : null}
+                                {isAllPrograms && viewRecord.programName ? <Tag color="blue">{viewRecord.programName}</Tag> : null}
+                                {viewRecord.riskLevel ? <Tag color={riskColor(viewRecord.riskLevel)}>{`${viewRecord.riskLevel} ${t('risk')}`}</Tag> : null}
+                            </>
+                        }
+                    />
+                ) : t('SME Details')}
+                footer={
+                    <div className="pd-footer">
+                        {editMode ? null : secondaryActions.length > 1 ? (
+                            <Dropdown
+                                trigger={['click']}
+                                placement="topLeft"
+                                menu={{ items: secondaryActions.map(action => ({ key: action.key, icon: action.icon, label: action.label, danger: action.danger, disabled: action.disabled, onClick: action.onClick })) }}
+                            >
+                                <Button icon={<EllipsisOutlined />}>{t('More')}</Button>
+                            </Dropdown>
+                        ) : secondaryActions.map(action => (
+                            <Button key={action.key} danger={action.danger} icon={action.icon} disabled={action.disabled} onClick={action.onClick}>
+                                {action.label}
+                            </Button>
+                        ))}
+                        {editMode ? <Button onClick={cancelEdit}>{t('Cancel')}</Button> : null}
+                        {!editMode ? (
+                            <Button type="primary" icon={<EditOutlined />} disabled={!viewData} onClick={() => setEditMode(true)}>
+                                {t('Edit')}
+                            </Button>
+                        ) : (
+                            <Button type="primary" icon={<SaveOutlined />} loading={savingEdit} onClick={saveEdits}>
+                                {t('Save Changes')}
+                            </Button>
+                        )}
+                    </div>
+                }
             >
                 {viewLoading ? (
-                    <Spin />
+                    <ParticipantDrawerSkeleton />
                 ) : !viewData ? (
                     <Alert type="warning" showIcon message={t('No record selected')} />
                 ) : (
-                    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                    <div className="pd-body">
                         {!editMode ? (
                             <>
-                                <Segmented
-                                    block
+                                <SlidingTabs
+                                    id="view"
                                     value={viewSegment}
-                                    onChange={(value) => setViewSegment(value as typeof viewSegment)}
-                                    options={[
-                                        {
-                                            label: (
-                                                <Space>
-                                                    <InfoCircleOutlined />
-                                                    {t('Overview')}
-                                                </Space>
-                                            ),
-                                            value: 'overview'
-                                        },
-                                        {
-                                            label: (
-                                                <Space>
-                                                    <ShopOutlined />
-                                                    {t('Business')}
-                                                </Space>
-                                            ),
-                                            value: 'business'
-                                        },
-                                        {
-                                            label: (
-                                                <Space>
-                                                    <SafetyCertificateOutlined />
-                                                    {t('Compliance')}
-                                                </Space>
-                                            ),
-                                            value: 'compliance'
-                                        },
-                                        {
-                                            label: (
-                                                <Space>
-                                                    <DeploymentUnitOutlined />
-                                                    {t('Interventions')}
-                                                </Space>
-                                            ),
-                                            value: 'interventions'
-                                        },
-                                        {
-                                            label: (
-                                                <Space>
-                                                    <BarChartOutlined />
-                                                    {t('Financials')}
-                                                </Space>
-                                            ),
-                                            value: 'financials'
-                                        }
+                                    onChange={(value, direction) => {
+                                        setTabDirection(direction)
+                                        setViewSegment(value as typeof viewSegment)
+                                    }}
+                                    tabs={[
+                                        { value: 'overview', icon: <InfoCircleOutlined />, label: t('Overview') },
+                                        { value: 'business', icon: <ShopOutlined />, label: t('Business') },
+                                        { value: 'swot', icon: <RadarChartOutlined />, label: t('SWOT') },
+                                        { value: 'compliance', icon: <SafetyCertificateOutlined />, label: t('Compliance') },
+                                        { value: 'interventions', icon: <DeploymentUnitOutlined />, label: t('Interventions') },
+                                        { value: 'financials', icon: <BarChartOutlined />, label: t('Financials') }
                                     ]}
                                 />
 
+                                <TabPanel tabKey={viewSegment} direction={tabDirection}>
                                 {viewSegment === 'overview' && (
+                                    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                                    <KeyFigures figures={keyFigures} />
                                     <Card size="small" title={t('Profile')}>
-                                        <Descriptions bordered size="small" column={2}>
+                                        <Descriptions layout="vertical" size="small" column={2} className="pd-fields">
                                             <Descriptions.Item label={t('Owner Name')}>
                                                 {currentParticipant?.participantName || currentApplication?.participantName || '—'}
                                             </Descriptions.Item>
@@ -1916,12 +2103,13 @@ export const ParticipantsPage: React.FC = () => {
                                             <Descriptions.Item label={t('Development Type')}>{currentParticipant?.developmentType || '—'}</Descriptions.Item>
                                         </Descriptions>
                                     </Card>
+                                    </Space>
                                 )}
 
                                 {viewSegment === 'business' && (
                                     <Space direction="vertical" size={16} style={{ width: '100%' }}>
                                         <Card size="small" title={t('Business & Location')}>
-                                            <Descriptions bordered size="small" column={2}>
+                                            <Descriptions layout="vertical" size="small" column={2} className="pd-fields">
                                                 <Descriptions.Item label={t('Nature of Business')} span={2}>
                                                     {currentParticipant?.natureOfBusiness || '—'}
                                                 </Descriptions.Item>
@@ -1942,221 +2130,64 @@ export const ParticipantsPage: React.FC = () => {
                                         </Card>
 
                                         <Card size="small" title={t('Digital Presence')}>
-                                            <Descriptions bordered size="small" column={2}>
-                                                <Descriptions.Item label={t('Website')}>{currentParticipant?.websiteUrl || '—'}</Descriptions.Item>
-                                                <Descriptions.Item label={t('Facebook')}>{currentParticipant?.socialMedia?.facebook || '—'}</Descriptions.Item>
-                                                <Descriptions.Item label={t('Instagram')}>{currentParticipant?.socialMedia?.instagram || '—'}</Descriptions.Item>
-                                                <Descriptions.Item label="X">{currentParticipant?.socialMedia?.x || '—'}</Descriptions.Item>
-                                                <Descriptions.Item label={t('LinkedIn')}>{currentParticipant?.socialMedia?.linkedIn || '—'}</Descriptions.Item>
-                                                <Descriptions.Item label={t('Other')}>{currentParticipant?.socialMedia?.other || '—'}</Descriptions.Item>
+                                            <Descriptions layout="vertical" size="small" column={2} className="pd-fields">
+                                                {DIGITAL_CHANNELS.map(channel => {
+                                                    const link = channelLink(currentParticipant, channel.field)
+                                                    return (
+                                                        <Descriptions.Item key={channel.key} label={t(channel.label)}>
+                                                            {link
+                                                                ? link
+                                                                : currentParticipant?.digitalPresence?.[channel.key] === false
+                                                                    ? <Tag>{t('None')}</Tag>
+                                                                    : <Text type="secondary">{t('Not answered')}</Text>}
+                                                        </Descriptions.Item>
+                                                    )
+                                                })}
                                             </Descriptions>
                                         </Card>
 
-                                        <Card size="small" title={t('SWOT')}>
-                                            <Descriptions bordered size="small" column={1}>
-                                                <Descriptions.Item label={t('Strengths')}>
-                                                    {Array.isArray(currentParticipant?.swot?.strengths) && currentParticipant.swot.strengths.length ? (
-                                                        <Space wrap>
-                                                            {currentParticipant.swot.strengths.map((x: string) => <Tag key={x}>{x}</Tag>)}
-                                                        </Space>
-                                                    ) : '—'}
-                                                </Descriptions.Item>
-                                                <Descriptions.Item label={t('Weaknesses')}>
-                                                    {Array.isArray(currentParticipant?.swot?.weaknesses) && currentParticipant.swot.weaknesses.length ? (
-                                                        <Space wrap>
-                                                            {currentParticipant.swot.weaknesses.map((x: string) => <Tag key={x}>{x}</Tag>)}
-                                                        </Space>
-                                                    ) : '—'}
-                                                </Descriptions.Item>
-                                                <Descriptions.Item label={t('Opportunities')}>
-                                                    {Array.isArray(currentParticipant?.swot?.opportunities) && currentParticipant.swot.opportunities.length ? (
-                                                        <Space wrap>
-                                                            {currentParticipant.swot.opportunities.map((x: string) => <Tag key={x}>{x}</Tag>)}
-                                                        </Space>
-                                                    ) : '—'}
-                                                </Descriptions.Item>
-                                                <Descriptions.Item label={t('Threats')}>
-                                                    {Array.isArray(currentParticipant?.swot?.threats) && currentParticipant.swot.threats.length ? (
-                                                        <Space wrap>
-                                                            {currentParticipant.swot.threats.map((x: string) => <Tag key={x}>{x}</Tag>)}
-                                                        </Space>
-                                                    ) : '—'}
-                                                </Descriptions.Item>
-                                            </Descriptions>
-                                        </Card>
                                     </Space>
+                                )}
+
+                                {viewSegment === 'swot' && (
+                                    <SwotTab swot={currentParticipant?.swot} items={readSwotItems(currentApplication)} planItems={livePlanItems} />
                                 )}
 
                                 {viewSegment === 'compliance' && (
-                                    <Card size="small" title={t('Compliance')}>
-                                        <Descriptions bordered size="small" column={2}>
-                                            <Descriptions.Item label={t('Compliance Score')}>
-                                                {typeof currentParticipant?.complianceScore === 'number' ? (
-                                                    <Tag color={scoreColor(currentParticipant.complianceScore)}>
-                                                        {currentParticipant.complianceScore}%
-                                                    </Tag>
-                                                ) : '—'}
-                                            </Descriptions.Item>
-                                            <Descriptions.Item label={t('Compliance Status')}>
-                                                {currentApplication?.complianceStatus || currentParticipant?.complianceStatus || '—'}
-                                            </Descriptions.Item>
-                                            <Descriptions.Item label={t('Risk Level')}>
-                                                {currentApplication?.riskLevel || currentParticipant?.riskLevel || currentParticipant?.risk ? (
-                                                    <Tag color={riskColor(currentApplication?.riskLevel || currentParticipant?.riskLevel || currentParticipant?.risk)}>
-                                                        {String(currentApplication?.riskLevel || currentParticipant?.riskLevel || currentParticipant?.risk)}
-                                                    </Tag>
-                                                ) : '—'}
-                                            </Descriptions.Item>
-                                            <Descriptions.Item label={t('Documents Count')}>
-                                                {complianceDocs.length}
-                                            </Descriptions.Item>
-                                            <Descriptions.Item label={t('Documents')} span={2}>
-                                                {complianceDocs.length ? (
-                                                    <Space wrap>
-                                                        {complianceDocs.map((docItem: any, idx: number) => (
-                                                            <Tag key={`${docItem?.type || 'doc'}-${idx}`}>
-                                                                {String(docItem?.type || 'Document')} - {String(docItem?.status || 'unknown')}
-                                                            </Tag>
-                                                        ))}
-                                                    </Space>
-                                                ) : '—'}
-                                            </Descriptions.Item>
-                                        </Descriptions>
-                                    </Card>
+                                    <ComplianceOverview
+                                        score={complianceScore}
+                                        status={currentApplication?.complianceStatus || currentParticipant?.complianceStatus}
+                                        risk={currentApplication?.riskLevel || currentParticipant?.riskLevel || currentParticipant?.risk || undefined}
+                                        riskColor={riskColor(String(currentApplication?.riskLevel || currentParticipant?.riskLevel || currentParticipant?.risk || ''))}
+                                        docs={complianceDocs}
+                                    />
                                 )}
 
                                 {viewSegment === 'interventions' && (
-                                    <Card size="small" title={t('Interventions')}>
-                                        <Descriptions bordered size="small" column={2}>
-                                            <Descriptions.Item label={t('Participation Rate')}>
-                                                {currentInterventions?.participationRate ?? 0}%
-                                            </Descriptions.Item>
-                                            <Descriptions.Item label={t('Required')}>
-                                                {Array.isArray(currentInterventions?.required) ? currentInterventions.required.length : 0}
-                                            </Descriptions.Item>
-                                            <Descriptions.Item label={t('Assigned')}>
-                                                {Array.isArray(currentInterventions?.assigned) ? currentInterventions.assigned.length : 0}
-                                            </Descriptions.Item>
-                                            <Descriptions.Item label={t('Completed')}>
-                                                {Array.isArray(currentInterventions?.completed) ? currentInterventions.completed.length : 0}
-                                            </Descriptions.Item>
-                                            <Descriptions.Item label={t('Required List')} span={2}>
-                                                {Array.isArray(currentInterventions?.required) && currentInterventions.required.length ? (
-                                                    <Space wrap>
-                                                        {currentInterventions.required.map((x: any, idx: number) => (
-                                                            <Tag key={`req-${idx}`}>
-                                                                {String(x?.title || 'Untitled')}
-                                                            </Tag>
-                                                        ))}
-                                                    </Space>
-                                                ) : '—'}
-                                            </Descriptions.Item>
-                                            <Descriptions.Item label={t('Assigned List')} span={2}>
-                                                {Array.isArray(currentInterventions?.assigned) && currentInterventions.assigned.length ? (
-                                                    <Space wrap>
-                                                        {currentInterventions.assigned.map((x: any, idx: number) => (
-                                                            <Tag key={`ass-${idx}`}>
-                                                                {String(x?.interventionTitle || 'Untitled')}
-                                                            </Tag>
-                                                        ))}
-                                                    </Space>
-                                                ) : '—'}
-                                            </Descriptions.Item>
-                                            <Descriptions.Item label={t('Completed List')} span={2}>
-                                                {Array.isArray(currentInterventions?.completed) && currentInterventions.completed.length ? (
-                                                    <Space wrap>
-                                                        {currentInterventions.completed.map((x: any, idx: number) => (
-                                                            <Tag key={`comp-${idx}`}>
-                                                                {String(x?.interventionTitle || 'Untitled')}
-                                                            </Tag>
-                                                        ))}
-                                                    </Space>
-                                                ) : '—'}
-                                            </Descriptions.Item>
-                                        </Descriptions>
-                                    </Card>
+                                    <InterventionsPanel items={livePlanItems} />
                                 )}
 
                                 {viewSegment === 'financials' && (
-                                    <Space direction="vertical" size={16} style={{ width: '100%' }}>
-                                        <Row gutter={[16, 16]}>
-                                            <Col xs={24} lg={12}>
-                                                <Card size="small" title={t('Revenue History - Monthly')}>
-                                                    <Table
-                                                        size="small"
-                                                        pagination={false}
-                                                        rowKey="period"
-                                                        dataSource={revenueMonthlyRows}
-                                                        columns={[
-                                                            { title: t('Period'), dataIndex: 'period', key: 'period' },
-                                                            {
-                                                                title: t('Revenue'),
-                                                                dataIndex: 'value',
-                                                                key: 'value',
-                                                                render: (value: number) => `R ${value.toLocaleString()}`
-                                                            }
-                                                        ]}
-                                                        locale={{ emptyText: t('No monthly revenue data') }}
-                                                    />
-                                                </Card>
-                                            </Col>
-
-                                            <Col xs={24} lg={12}>
-                                                <Card size="small" title={t('Revenue History - Annual')}>
-                                                    <Table
-                                                        size="small"
-                                                        pagination={false}
-                                                        rowKey="period"
-                                                        dataSource={revenueAnnualRows}
-                                                        columns={[
-                                                            { title: t('Year'), dataIndex: 'period', key: 'period' },
-                                                            {
-                                                                title: t('Revenue'),
-                                                                dataIndex: 'value',
-                                                                key: 'value',
-                                                                render: (value: number) => `R ${value.toLocaleString()}`
-                                                            }
-                                                        ]}
-                                                        locale={{ emptyText: t('No annual revenue data') }}
-                                                    />
-                                                </Card>
-                                            </Col>
-
-                                            <Col xs={24} lg={12}>
-                                                <Card size="small" title={t('Headcount History - Monthly')}>
-                                                    <Table
-                                                        size="small"
-                                                        pagination={false}
-                                                        rowKey="period"
-                                                        dataSource={headcountMonthlyRows}
-                                                        columns={[
-                                                            { title: t('Period'), dataIndex: 'period', key: 'period' },
-                                                            { title: t('Headcount'), dataIndex: 'value', key: 'value' }
-                                                        ]}
-                                                        locale={{ emptyText: t('No monthly headcount data') }}
-                                                    />
-                                                </Card>
-                                            </Col>
-
-                                            <Col xs={24} lg={12}>
-                                                <Card size="small" title={t('Headcount History - Annual')}>
-                                                    <Table
-                                                        size="small"
-                                                        pagination={false}
-                                                        rowKey="period"
-                                                        dataSource={headcountAnnualRows}
-                                                        columns={[
-                                                            { title: t('Year'), dataIndex: 'period', key: 'period' },
-                                                            { title: t('Headcount'), dataIndex: 'value', key: 'value' }
-                                                        ]}
-                                                        locale={{ emptyText: t('No annual headcount data') }}
-                                                    />
-                                                </Card>
-                                            </Col>
-                                        </Row>
-                                    </Space>
+                                    <div className="pd-trends">
+                                        <TrendCard
+                                            title={t('Revenue')}
+                                            prefix="R "
+                                            color="#6d5dfb"
+                                            monthly={toTrend(revenueMonthlyRows)}
+                                            annual={toTrend(revenueAnnualRows)}
+                                            empty={t('No revenue data')}
+                                        />
+                                        <TrendCard
+                                            title={t('Headcount')}
+                                            color="#13c2c2"
+                                            monthly={toTrend(headcountMonthlyRows)}
+                                            annual={toTrend(headcountAnnualRows)}
+                                            empty={t('No headcount data')}
+                                        />
+                                    </div>
                                 )}
 
+                                </TabPanel>
                                 {/* {viewSegment === 'audit' && (
                                     <Card
                                         size="small"
@@ -2439,62 +2470,65 @@ export const ParticipantsPage: React.FC = () => {
                                         )}
 
                                         {editSegment === 'digital' && (
-                                            <Row gutter={[16, 0]}>
-                                                <Col xs={24} md={12}>
-                                                    <Form.Item name="websiteUrl" label={t('Website URL')}>
-                                                        <Input />
-                                                    </Form.Item>
-                                                </Col>
-                                                <Col xs={24} md={12}>
-                                                    <Form.Item name="facebook" label={t('Facebook')}>
-                                                        <Input />
-                                                    </Form.Item>
-                                                </Col>
-                                                <Col xs={24} md={12}>
-                                                    <Form.Item name="instagram" label={t('Instagram')}>
-                                                        <Input />
-                                                    </Form.Item>
-                                                </Col>
-                                                <Col xs={24} md={12}>
-                                                    <Form.Item name="x" label="X">
-                                                        <Input />
-                                                    </Form.Item>
-                                                </Col>
-                                                <Col xs={24} md={12}>
-                                                    <Form.Item name="linkedIn" label={t('LinkedIn')}>
-                                                        <Input />
-                                                    </Form.Item>
-                                                </Col>
-                                                <Col xs={24} md={12}>
-                                                    <Form.Item name="other" label={t('Other Link')}>
-                                                        <Input />
-                                                    </Form.Item>
-                                                </Col>
-                                            </Row>
+                                            <div className="pd-channels">
+                                                {DIGITAL_CHANNELS.map(channel => {
+                                                    const presenceName = `presence_${channel.key}`
+                                                    const isList = channel.field === 'otherPlatforms'
+                                                    return (
+                                                        <div key={channel.key} className="pd-channel">
+                                                            <div className="pd-channel-head">
+                                                                <div className="pd-channel-question">{t(channel.question)}</div>
+                                                                <Form.Item name={presenceName} noStyle>
+                                                                    <YesNoCards />
+                                                                </Form.Item>
+                                                            </div>
+                                                            <div>
+                                                                <Form.Item noStyle shouldUpdate={(previous, next) => previous[presenceName] !== next[presenceName]}>
+                                                                    {({ getFieldValue }) => getFieldValue(presenceName) === 'yes' ? (
+                                                                        <Form.Item
+                                                                            name={channel.field}
+                                                                            className="pd-channel-field"
+                                                                            rules={[isList
+                                                                                ? {
+                                                                                    validator: (_, list: PlatformLink[] | undefined) =>
+                                                                                        (list || []).some(row => String(row?.platform || '').trim() && String(row?.link || '').trim())
+                                                                                            ? Promise.resolve()
+                                                                                            : Promise.reject(new Error(t('Add at least one platform and its link')))
+                                                                                }
+                                                                                : { required: true, message: t('Enter the link') }]}
+                                                                        >
+                                                                            {isList ? <PlatformLinksInput /> : <Input placeholder={t(channel.placeholder)} />}
+                                                                        </Form.Item>
+                                                                    ) : null}
+                                                                </Form.Item>
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                })}
+                                            </div>
                                         )}
 
                                         {editSegment === 'swot' && (
                                             <Row gutter={[16, 0]}>
-                                                <Col xs={24} md={12}>
-                                                    <Form.Item name="swotStrengths" label={t('SWOT Strengths')}>
-                                                        <TextArea rows={6} placeholder={t('One item per line')} />
-                                                    </Form.Item>
-                                                </Col>
-                                                <Col xs={24} md={12}>
-                                                    <Form.Item name="swotWeaknesses" label={t('SWOT Weaknesses')}>
-                                                        <TextArea rows={6} placeholder={t('One item per line')} />
-                                                    </Form.Item>
-                                                </Col>
-                                                <Col xs={24} md={12}>
-                                                    <Form.Item name="swotOpportunities" label={t('SWOT Opportunities')}>
-                                                        <TextArea rows={6} placeholder={t('One item per line')} />
-                                                    </Form.Item>
-                                                </Col>
-                                                <Col xs={24} md={12}>
-                                                    <Form.Item name="swotThreats" label={t('SWOT Threats')}>
-                                                        <TextArea rows={6} placeholder={t('One item per line')} />
-                                                    </Form.Item>
-                                                </Col>
+                                                {SWOT_FIELDS.map(field => (
+                                                    <Col xs={24} md={12} key={field.name}>
+                                                        <Form.Item
+                                                            name={field.name}
+                                                            className="pd-swot-field"
+                                                            colon={false}
+                                                            label={
+                                                                <div className="pd-swot-field-label">
+                                                                    <span>{t(field.label)}</span>
+                                                                    <Button size="small" icon={<PlusOutlined />} onClick={() => addPoint(field.name)}>
+                                                                        {t('Add point')}
+                                                                    </Button>
+                                                                </div>
+                                                            }
+                                                        >
+                                                            <PointListInput tone={field.tone} placeholder={t('Add a point')} />
+                                                        </Form.Item>
+                                                    </Col>
+                                                ))}
                                             </Row>
                                         )}
 
@@ -2516,9 +2550,9 @@ export const ParticipantsPage: React.FC = () => {
                                 </Form>
                             </>
                         )}
-                    </Space>
+                    </div>
                 )}
-            </Modal>
+            </DetailShell>
 
             <Modal
                 title={t('Assign Program')}

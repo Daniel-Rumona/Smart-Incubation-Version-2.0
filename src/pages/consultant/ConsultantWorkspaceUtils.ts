@@ -36,9 +36,11 @@ export const statusColor = (status: ConsultantStatus) => {
 }
 
 export const progressForAssignment = (assignment: AssignedIntervention, status = deriveConsultantStatus(assignment)) => {
-  const explicit = Number(assignment.progress)
-  if (Number.isFinite(explicit)) return Math.max(0, Math.min(100, Math.round(explicit)))
   if (status === 'Completed') return 100
+  // `Number(null)` and `Number('')` are 0, so an empty progress field must not count as "0% done".
+  const raw = assignment.progress as unknown
+  const explicit = raw === null || raw === undefined || raw === '' ? NaN : Number(raw)
+  if (Number.isFinite(explicit)) return Math.max(0, Math.min(100, Math.round(explicit)))
   if (status === 'In progress') return 50
   return 0
 }
@@ -46,7 +48,9 @@ export const progressForAssignment = (assignment: AssignedIntervention, status =
 export const isOverdueAssignment = (assignment: AssignedIntervention) => {
   const due = toDate(assignment.dueDate)
   if (!due) return false
-  return dayjs(due).isBefore(dayjs(), 'day') && deriveConsultantStatus(assignment) !== 'Completed'
+  // Finished and declined or cancelled work can't be late.
+  const status = deriveConsultantStatus(assignment)
+  return dayjs(due).isBefore(dayjs(), 'day') && status !== 'Completed' && status !== 'Rejected'
 }
 
 export const assignmentTitle = (assignment: AssignedIntervention) =>
@@ -59,7 +63,7 @@ export const assignmentProgram = (assignment: AssignedIntervention) =>
   String(assignment.programName || '')
 
 export const getFeedback = (assignment: AssignedIntervention) => {
-  const feedback = (assignment as Record<string, any>).feedback
+  const feedback = (assignment as Record<string, unknown>).feedback as { rating?: unknown, comments?: unknown, comment?: unknown, createdAt?: unknown } | undefined
   return {
     rating: typeof feedback?.rating === 'number' ? feedback.rating : undefined,
     comments: String(feedback?.comments || feedback?.comment || '').trim(),

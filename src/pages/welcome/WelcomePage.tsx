@@ -1,4 +1,4 @@
-import { Alert, App, Button, Card, Col, Dropdown, Form, Grid, Input, Radio, Row, Select, Space, Typography, Upload } from 'antd'
+import { Alert, App, Button, Card, Checkbox, Col, Dropdown, Form, Grid, Input, Radio, Row, Select, Space, Typography, Upload } from 'antd'
 import type { UploadProps } from 'antd'
 import {
     ArrowLeftOutlined,
@@ -14,6 +14,9 @@ import {
     HighlightOutlined,
     InboxOutlined,
     LockOutlined,
+    MessageOutlined,
+    PictureOutlined,
+    SettingOutlined,
     LaptopOutlined,
     MoonOutlined,
     RiseOutlined,
@@ -29,9 +32,10 @@ import {
 } from '@ant-design/icons'
 import { useEffect, useRef, useState } from 'react'
 import SignatureCanvas from 'react-signature-canvas'
+import { captureSignatureStrokes, type SignatureStrokes } from '@/utils/signatureStrokes'
 import html2canvas from 'html2canvas'
 import { Navigate } from 'react-router-dom'
-import { LoadingOverlay } from '@/components/shared/LoadingOverlay'
+import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { useLanguage } from '@/providers/LanguageProvider'
 import { useThemeMode } from '@/providers/ThemeProvider'
@@ -39,11 +43,24 @@ import { LANGUAGES, type LanguageCode } from '@/config/languages'
 import {
     completeFirstLogin,
     saveOnboardingRole,
+    isValidWhatsAppNumber,
     saveOnboardingSignature,
+    saveWhatsAppConsent,
     updateOnboardingPassword,
     type OnboardingRole,
 } from '@/services/onboardingService'
 import { getConsultantProfile, saveConsultantProfile } from '@/services/consultantMarketplaceService'
+import { OptionCards } from '@/components/welcome/OptionCards'
+import {
+    cleanCompanyCode,
+    companyCodeConflict,
+    completeDirectorSetup,
+    getCompanyOverview,
+    isValidCompanyCode,
+    uploadCompanyLogo,
+    type DirectorSettingsInput,
+} from '@/services/directorSetupService'
+import { readPendingProgramLink } from '@/services/programLinkService'
 import type { ConsultantMarketplaceProfile } from '@/types/consultantMarketplace'
 import { provincesForCountry } from '@/config/sadc'
 import { getRoleHomePath } from '@/utils/roleRouting'
@@ -64,9 +81,24 @@ type WelcomeStepKey =
     | 'consultantExperience'
     | 'consultantAbout'
     | 'consultantReview'
+    | 'directorCompany'
+    | 'directorLogo'
+    | 'directorSettings'
     | 'signature'
+    | 'whatsapp'
     | 'complete'
 type SignatureMode = 'typed' | 'drawn' | 'upload'
+
+type DirectorSettingsFormValues = {
+    consultantLabel: string
+    hasDepartments: 'yes' | 'no'
+    hasBranches: 'yes' | 'no'
+    branchScopedManagement?: 'yes' | 'no'
+    smeOnboardingModel: DirectorSettingsInput['smeOnboardingModel']
+    assignmentModel: DirectorSettingsInput['assignmentModel']
+    smeDivisionModel?: DirectorSettingsInput['smeDivisionModel']
+    interventionScopeModel: DirectorSettingsInput['interventionScopeModel']
+}
 
 type TypingMessageProps = {
     text: string
@@ -133,17 +165,19 @@ const TypingMessage = ({ text, speed = 34, startDelay = 220, onComplete }: Typin
 export const WelcomePage = () => {
     const screens = Grid.useBreakpoint()
     const isMobile = !screens.md
-    const { message } = App.useApp()
+    const { message, modal } = App.useApp()
     const { t, language, setLanguage } = useLanguage()
     const { mode: themeMode, toggleTheme } = useThemeMode()
-    const { user, loading } = useFullIdentity()
+    const { user, loading, updateIdentity } = useFullIdentity()
     const [passwordForm] = Form.useForm<PasswordValues>()
 
     const [activeStep, setActiveStep] = useState<WelcomeStepKey>('intro')
     const [history, setHistory] = useState<WelcomeStepKey[]>([])
     const [editingFromReview, setEditingFromReview] = useState(false)
     const [messageComplete, setMessageComplete] = useState(false)
-    const [selectedRole, setSelectedRole] = useState<OnboardingRole>()
+    const [selectedRole, setSelectedRole] = useState<OnboardingRole | 'director'>()
+    // Arrived through a programme link: the role is SME and the programme is already chosen.
+    const [cameFromProgramLink] = useState(() => Boolean(readPendingProgramLink()))
     const [savingRole, setSavingRole] = useState(false)
     const [passwordComplete, setPasswordComplete] = useState(false)
     const [signatureComplete, setSignatureComplete] = useState(false)
@@ -154,6 +188,23 @@ export const WelcomePage = () => {
     const [savingPassword, setSavingPassword] = useState(false)
     const [savingSignature, setSavingSignature] = useState(false)
     const [finishing, setFinishing] = useState(false)
+    const [whatsappDecided, setWhatsappDecided] = useState(false)
+    const [whatsappPhone, setWhatsappPhone] = useState('')
+    const [whatsappAgreed, setWhatsappAgreed] = useState(false)
+    const [savingWhatsapp, setSavingWhatsapp] = useState(false)
+    const [directorCompanyName, setDirectorCompanyName] = useState('')
+    const [directorCompanyCode, setDirectorCompanyCode] = useState('')
+    const [directorCodeProvided, setDirectorCodeProvided] = useState(false)
+    const [directorCodeError, setDirectorCodeError] = useState('')
+    const [checkingCompany, setCheckingCompany] = useState(false)
+    const [directorLogoUrl, setDirectorLogoUrl] = useState('')
+    const [uploadingLogo, setUploadingLogo] = useState(false)
+    const [directorConfigured, setDirectorConfigured] = useState(false)
+    const [savingDirector, setSavingDirector] = useState(false)
+    const [settingsForm] = Form.useForm<DirectorSettingsFormValues>()
+    const watchedAssignmentModel = Form.useWatch('assignmentModel', settingsForm)
+    const watchedHasBranches = Form.useWatch('hasBranches', settingsForm)
+    const watchedHasDepartments = Form.useWatch('hasDepartments', settingsForm)
     const [consultantSetup, setConsultantSetup] = useState<
         Pick<ConsultantMarketplaceProfile, 'headline' | 'bio' | 'experienceYears' | 'specialties' | 'country' | 'province' | 'physicalAddress' | 'operatingLocation' | 'serviceRadiusKm' | 'currency'>
     >({
@@ -202,7 +253,26 @@ export const WelcomePage = () => {
         return () => window.clearTimeout(timeout)
     }, [selectedRole, typedName, user])
 
-    if (loading) return <LoadingOverlay tip={t('welcome.loading')} />
+    useEffect(() => {
+        if (!user || user.role !== 'director' || !user.companyCode) return
+        let cancelled = false
+        void getCompanyOverview(user.companyCode, user.uid)
+            .then((overview) => {
+                if (cancelled) return
+                if (overview.locked && overview.ownedByMe) {
+                    setDirectorConfigured(true)
+                    return
+                }
+                setDirectorCompanyCode(user.companyCode || '')
+                setDirectorCodeProvided(overview.exists)
+                if (overview.name) setDirectorCompanyName(overview.name)
+                if (overview.logoUrl) setDirectorLogoUrl(overview.logoUrl)
+            })
+            .catch(() => undefined)
+        return () => { cancelled = true }
+    }, [user])
+
+    if (loading) return <PageSkeleton variant="detail" label={t('welcome.loading')} />
     if (!user) return <Navigate to="/auth" replace />
     if (!user.emailVerified) return <Navigate to="/email-verification" replace />
     if (user.firstLoginComplete) {
@@ -232,17 +302,26 @@ export const WelcomePage = () => {
         })
     }
 
-    const resolveStepAfterRole = (role: OnboardingRole) => {
+    // Last setup step for every role: ask about WhatsApp updates once, unless a choice already exists.
+    const alreadyDecidedWhatsapp = whatsappDecided || Boolean((user as unknown as { whatsappConsent?: unknown }).whatsappConsent)
+    const afterSetup = () => (alreadyDecidedWhatsapp ? 'complete' as const : 'whatsapp' as const)
+
+    // Directors cannot pick a role; they set up their company (name and code, logo, locked settings) instead.
+    const directorNext = () => (directorConfigured ? (!hasSignature ? 'signature' as const : afterSetup()) : 'directorCompany' as const)
+
+    const resolveStepAfterRole = (role: string) => {
         if (user.mustChangePassword === true && !passwordComplete) return 'password' as const
+        if (role === 'director') return directorNext()
         if (role === 'consultant') return 'consultantLocation' as const
         if (!hasSignature) return 'signature' as const
-        return 'complete' as const
+        return afterSetup()
     }
 
     const resolveStepAfterPassword = () => {
+        if (effectiveRole === 'director') return directorNext()
         if (effectiveRole === 'consultant') return 'consultantLocation' as const
         if (!hasSignature) return 'signature' as const
-        return 'complete' as const
+        return afterSetup()
     }
 
     const conversationText: Record<WelcomeStepKey, string> = {
@@ -252,6 +331,10 @@ export const WelcomePage = () => {
             'Perfect. Now that we’ve got that out of the way, let’s secure your account. Create a password that only you know, then we’ll move on.',
         signature:
             'Good, that part is done. Next, let’s add your signature. You can type it, draw it, or upload one, and we’ll use it when you acknowledge plans and documents.',
+        directorCompany: 'Let’s set up your organisation first. Tell me your company’s name and choose a short, unique company code. It keeps your people, programmes and reports properly separated from other organisations.',
+        directorLogo: 'Now add your company logo. It will appear on reports, dashboards and the documents we generate for you.',
+        directorSettings: 'Last part for your company: how it operates. These choices shape onboarding and how interventions are assigned. Once you lock them they can’t be changed directly, so take a moment to review.',
+        whatsapp: 'One more thing. I can send important updates, like deadlines, follow-up reminders and appointment notices, to your WhatsApp. It’s your choice, and you can stop any time by replying STOP.',
         consultantLocation: editingFromReview ? 'Let’s revisit your location details. Update anything that needs changing, then save this section.' : 'Let’s make your profile useful from day one. Where are you based, and what area should clients recognise as your home base?',
         consultantReach: editingFromReview ? 'You’re editing your reach settings. Adjust the travel radius or currency, then update this section.' : 'Great. How far are you comfortable travelling for in-person work, and which currency should we use for your daily rate?',
         consultantExpertise: editingFromReview ? 'Let’s refine your expertise. Add or remove the areas that best represent your work, then update this section.' : 'What kind of help do you enjoy giving most? Pick every area that reflects your experience.',
@@ -267,6 +350,11 @@ export const WelcomePage = () => {
 
         try {
             setSavingRole(true)
+            if (selectedRole === 'director') {
+                // The role itself is granted on the server when the company is locked (a new company only).
+                goTo(resolveStepAfterRole('director'))
+                return
+            }
             await saveOnboardingRole(selectedRole, { name: user.displayName, email: user.email })
             goTo(resolveStepAfterRole(selectedRole))
         } catch (error) {
@@ -296,14 +384,15 @@ export const WelcomePage = () => {
         }
     }
 
-    const persistSignature = async (signature: Blob, filename: string, successMessage: string) => {
+    const persistSignature = async (signature: Blob, filename: string, successMessage: string, strokes: SignatureStrokes | null = null) => {
         try {
             setSavingSignature(true)
-            const url = await saveOnboardingSignature(signature, filename)
+            const url = await saveOnboardingSignature(signature, filename, strokes)
+            updateIdentity({ signatureURL: url, signatureStrokes: strokes })
             setSignatureURL(url)
             setSignatureComplete(true)
             message.success(successMessage)
-            goTo('complete')
+            goTo(afterSetup())
         } catch (error) {
             message.error(
                 error instanceof Error
@@ -312,6 +401,110 @@ export const WelcomePage = () => {
             )
         } finally {
             setSavingSignature(false)
+        }
+    }
+
+    const continueFromDirectorCompany = async () => {
+        const name = directorCompanyName.trim()
+        const code = cleanCompanyCode(directorCompanyCode)
+        if (name.length < 2) {
+            message.warning(t('Please enter your company name.'))
+            return
+        }
+        if (!isValidCompanyCode(code)) {
+            setDirectorCodeError(t('Use 3 to 20 letters or numbers with no spaces, for example QTX001.'))
+            return
+        }
+        try {
+            setCheckingCompany(true)
+            const overview = await getCompanyOverview(code, user.uid)
+            const conflict = companyCodeConflict(overview, directorCodeProvided && code === cleanCompanyCode(user.companyCode || ''))
+            if (conflict) {
+                setDirectorCodeError(t(conflict))
+                return
+            }
+            setDirectorCodeError('')
+            setDirectorCompanyCode(code)
+            if (overview.logoUrl && !directorLogoUrl) setDirectorLogoUrl(overview.logoUrl)
+            goTo('directorLogo')
+        } catch {
+            message.error(t('We could not check that company code. Please try again.'))
+        } finally {
+            setCheckingCompany(false)
+        }
+    }
+
+    const uploadDirectorLogo = async (file: File) => {
+        try {
+            setUploadingLogo(true)
+            setDirectorLogoUrl(await uploadCompanyLogo(file))
+            message.success(t('Company logo uploaded.'))
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : t('The logo could not be uploaded.'))
+        } finally {
+            setUploadingLogo(false)
+        }
+    }
+
+    const lockDirectorSettings = async () => {
+        let values: DirectorSettingsFormValues
+        try {
+            values = await settingsForm.validateFields()
+        } catch {
+            return
+        }
+        const hasBranches = values.hasBranches === 'yes'
+        const settings: DirectorSettingsInput = {
+            consultantLabel: values.consultantLabel.trim(),
+            hasDepartments: values.hasDepartments === 'yes',
+            hasBranches,
+            ...(hasBranches ? { branchScopedManagement: values.branchScopedManagement === 'yes' } : {}),
+            smeOnboardingModel: values.smeOnboardingModel,
+            assignmentModel: values.assignmentModel,
+            ...(values.assignmentModel === 'consultant_self_assign' ? { smeDivisionModel: values.smeDivisionModel } : {}),
+            interventionScopeModel: values.interventionScopeModel,
+        }
+        try {
+            setSavingDirector(true)
+            await completeDirectorSetup({ ...settings, companyName: directorCompanyName.trim(), companyCode: directorCompanyCode, logoUrl: directorLogoUrl || undefined })
+            setDirectorConfigured(true)
+            message.success(t('Company settings saved and locked.'))
+            goTo(!hasSignature ? 'signature' : afterSetup())
+        } catch (error) {
+            const reason = error instanceof Error ? error.message : t('Your company setup could not be saved.')
+            message.error(reason)
+            // A code taken by someone else sends the director back to fix it.
+            if (/already in use|already has locked/i.test(reason)) {
+                setDirectorCodeError(reason)
+                setHistory((currentHistory) => currentHistory.slice(0, -2))
+                setActiveStep('directorCompany')
+            }
+        } finally {
+            setSavingDirector(false)
+        }
+    }
+
+    const confirmLockSettings = () => {
+        modal.confirm({
+            title: t('Lock these settings?'),
+            content: t('Once saved, these settings cannot be changed directly. Make sure they match how your organisation actually operates.'),
+            okText: t('Yes, save and lock'),
+            cancelText: t('Cancel'),
+            onOk: lockDirectorSettings,
+        })
+    }
+
+    const submitWhatsappChoice = async (optIn: boolean) => {
+        try {
+            setSavingWhatsapp(true)
+            await saveWhatsAppConsent(optIn ? { optIn: true, phone: whatsappPhone } : { optIn: false })
+            setWhatsappDecided(true)
+            if (optIn) message.success(t('WhatsApp updates are on.'))
+            goTo('complete')
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : t('Your WhatsApp choice could not be saved.'))
+        } finally {
+            setSavingWhatsapp(false)
         }
     }
 
@@ -341,7 +534,10 @@ export const WelcomePage = () => {
         }
 
         const blob = await dataURLToBlob(canvas.toDataURL('image/png'))
-        await persistSignature(blob, 'drawn.png', t('welcome.signature.drawSuccess', 'Drawn signature saved.'))
+        // The pen movement is kept with the image so signing can replay it. Points are in CSS pixels of the canvas.
+        const surface = canvas.getCanvas()
+        const strokes = captureSignatureStrokes(canvas.toData(), surface.offsetWidth || surface.width, surface.offsetHeight || surface.height)
+        await persistSignature(blob, 'drawn.png', t('welcome.signature.drawSuccess', 'Drawn signature saved.'), strokes)
     }
 
     const clearDrawnSignature = () => canvasRef.current?.clear()
@@ -414,6 +610,15 @@ export const WelcomePage = () => {
         }
     }
 
+    // Panels that already show their own Back next to the primary button must not get a second one underneath.
+    const consultantInlineSteps: WelcomeStepKey[] = ['consultantLocation', 'consultantReach', 'consultantExpertise', 'consultantExperience', 'consultantAbout']
+    const hasInlineBack = activeStep === 'role'
+        || activeStep === 'directorCompany'
+        || activeStep === 'directorLogo'
+        || activeStep === 'directorSettings'
+        || (consultantInlineSteps.includes(activeStep) && !editingFromReview)
+        || (activeStep === 'signature' && signatureMode === 'typed')
+
     return (
         <main className={`welcome-page welcome-step-${activeStep} welcome-mode-${signatureMode}`}>
             <div className="welcome-floating-actions">
@@ -433,7 +638,7 @@ export const WelcomePage = () => {
 
                     {activeStep === 'intro' && messageComplete && (
                         <div className="welcome-reveal welcome-intro-action">
-                            <Button type="primary" size="large" icon={<ArrowRightOutlined />} onClick={() => goTo('role')}>
+                            <Button type="primary" size="large" icon={<ArrowRightOutlined />} onClick={() => goTo(effectiveRole === 'director' || (cameFromProgramLink && effectiveRole === 'incubatee') ? resolveStepAfterRole(effectiveRole) : 'role')}>
                                 {t('Let’s get started')}
                             </Button>
                         </div>
@@ -479,9 +684,28 @@ export const WelcomePage = () => {
                                     </span>
                                     <CheckCircleOutlined className="welcome-role-check" />
                                 </button>
+
+                                <button
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={selectedRole === 'director'}
+                                    className={`welcome-role-card${selectedRole === 'director' ? ' is-selected' : ''}`}
+                                    onClick={() => setSelectedRole('director')}
+                                >
+                                    <span className="welcome-role-icon is-director">
+                                        <BankOutlined />
+                                    </span>
+                                    <span className="welcome-role-copy">
+                                        <strong>{t('Director')}</strong>
+                                        <small>
+                                            {t('I lead an organisation and want to set up and oversee its programmes, teams and SMEs.')}
+                                        </small>
+                                    </span>
+                                    <CheckCircleOutlined className="welcome-role-check" />
+                                </button>
                             </div>
 
-                            <div className="welcome-actions-row"><Button size="large" icon={<ArrowLeftOutlined />} onClick={back}>{t('Back')}</Button><Button type="primary" size="large" icon={<ArrowRightOutlined />} loading={savingRole} disabled={!selectedRole} onClick={() => void saveRole()}>{selectedRole === 'incubatee' ? t('Continue as SME') : selectedRole === 'consultant' ? t('Continue as consultant') : t('Choose how you’ll use Smart Incubation')}</Button></div>
+                            <div className="welcome-actions-row"><Button size="large" icon={<ArrowLeftOutlined />} onClick={back}>{t('Back')}</Button><Button type="primary" size="large" icon={<ArrowRightOutlined />} loading={savingRole} disabled={!selectedRole} onClick={() => void saveRole()}>{selectedRole === 'incubatee' ? t('Continue as SME') : selectedRole === 'consultant' ? t('Continue as consultant') : selectedRole === 'director' ? t('Continue as director') : t('Choose how you’ll use Smart Incubation')}</Button></div>
                         </div>
                     )}
 
@@ -529,7 +753,7 @@ export const WelcomePage = () => {
                                             validator(_, value) {
                                                 return !value || getFieldValue('password') === value
                                                     ? Promise.resolve()
-                                                    : Promise.reject(new Error(t('auth.passwordMismatch')))
+                                                    : Promise.reject(new Error(t("The passwords don't match.")))
                                             },
                                         }),
                                     ]}
@@ -722,6 +946,211 @@ export const WelcomePage = () => {
                         </div>
                     )}
 
+                    {activeStep === 'directorCompany' && messageComplete && (
+                        <div className="welcome-panel welcome-reveal">
+                            <div className="welcome-section-heading">
+                                <span className="welcome-panel-icon"><BankOutlined /></span>
+                                <div>
+                                    <Title level={4}>{t('Company details')}</Title>
+                                    <Paragraph>{t('This keeps records, users and reporting tied to the correct organisation.')}</Paragraph>
+                                </div>
+                            </div>
+                            <Form layout="vertical" requiredMark={false} className="welcome-consultant-form">
+                                <Form.Item label={t('Company name')} required>
+                                    <Input size="large" value={directorCompanyName} placeholder={t('e.g. Lepharo Incubation')} onChange={(event) => setDirectorCompanyName(event.target.value)} />
+                                </Form.Item>
+                                <Form.Item
+                                    label={t('Company code')}
+                                    required
+                                    validateStatus={directorCodeError ? 'error' : undefined}
+                                    help={directorCodeError || t('Must be unique, with no spaces. Example: QTX001')}
+                                >
+                                    <Input
+                                        size="large"
+                                        value={directorCompanyCode}
+                                        disabled={directorCodeProvided}
+                                        placeholder="QTX001"
+                                        onChange={(event) => { setDirectorCompanyCode(event.target.value.toUpperCase()); setDirectorCodeError('') }}
+                                    />
+                                </Form.Item>
+                                <Alert type="info" showIcon message={t('Make sure the name is correct and the code is final. You cannot change the code later.')} style={{ marginBottom: 16 }} />
+                                <div className="welcome-actions-row">
+                                    <Button size="large" icon={<ArrowLeftOutlined />} onClick={back}>{t('Back')}</Button>
+                                    <Button type="primary" size="large" icon={<ArrowRightOutlined />} loading={checkingCompany} disabled={!directorCompanyName.trim() || !directorCompanyCode.trim()} onClick={() => void continueFromDirectorCompany()}>{t('Continue')}</Button>
+                                </div>
+                            </Form>
+                        </div>
+                    )}
+
+                    {activeStep === 'directorLogo' && messageComplete && (
+                        <div className="welcome-panel welcome-reveal">
+                            <div className="welcome-section-heading">
+                                <span className="welcome-panel-icon"><PictureOutlined /></span>
+                                <div>
+                                    <Title level={4}>{t('Upload your company logo')}</Title>
+                                    <Paragraph>{t('Used on reports, dashboards and generated documents. PNG or JPG works best.')}</Paragraph>
+                                </div>
+                            </div>
+                            <Upload.Dragger
+                                multiple={false}
+                                accept=".png,.jpg,.jpeg,.webp"
+                                showUploadList={false}
+                                disabled={uploadingLogo}
+                                customRequest={async ({ file, onSuccess, onError }) => {
+                                    try {
+                                        await uploadDirectorLogo(file as File)
+                                        onSuccess?.('ok')
+                                    } catch (error) {
+                                        onError?.(error instanceof Error ? error : new Error('Upload failed'))
+                                    }
+                                }}
+                                className="welcome-signature-dragger"
+                            >
+                                <p className="ant-upload-drag-icon"><InboxOutlined /></p>
+                                <p className="ant-upload-text">{uploadingLogo ? t('Uploading...') : t('Click or drag your logo here')}</p>
+                                <p className="ant-upload-hint">{t('A high-resolution image gives the best result.')}</p>
+                            </Upload.Dragger>
+                            {directorLogoUrl && (
+                                <div className="welcome-signature-current">
+                                    <Text strong>{t('Preview')}</Text>
+                                    <img src={directorLogoUrl} alt={t('Company logo')} style={{ maxHeight: 90, maxWidth: '100%', background: '#fff', padding: 8, borderRadius: 8 }} />
+                                </div>
+                            )}
+                            <div className="welcome-actions-row" style={{ marginTop: 16 }}>
+                                <Button size="large" icon={<ArrowLeftOutlined />} onClick={back}>{t('Back')}</Button>
+                                <Button type="primary" size="large" icon={<ArrowRightOutlined />} disabled={!directorLogoUrl || uploadingLogo} onClick={() => goTo('directorSettings')}>{t('Continue')}</Button>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeStep === 'directorSettings' && messageComplete && (
+                        <div className="welcome-panel welcome-reveal">
+                            <div className="welcome-section-heading">
+                                <span className="welcome-panel-icon"><SettingOutlined /></span>
+                                <div>
+                                    <Title level={4}>{t('How your company operates')}</Title>
+                                    <Paragraph>{t('These settings are locked once saved.')}</Paragraph>
+                                </div>
+                            </div>
+                            <Alert type="warning" showIcon icon={<LockOutlined />} message={t('Locked configuration')} description={t('Review carefully before you lock. Later changes need an approved request.')} style={{ marginBottom: 16 }} />
+                            <Form
+                                form={settingsForm}
+                                layout="vertical"
+                                requiredMark={false}
+                                className="welcome-consultant-form"
+                                initialValues={{
+                                    consultantLabel: 'Consultants',
+                                    hasDepartments: 'yes',
+                                    hasBranches: 'no',
+                                    smeOnboardingModel: 'self_application',
+                                    assignmentModel: 'ops_assign_consultant',
+                                    interventionScopeModel: 'program_specific',
+                                }}
+                            >
+                                <section className="welcome-settings-section">
+                                    <h5>{t('Naming')}</h5>
+                                    <Form.Item name="consultantLabel" label={t('What does your company call its consultants?')} rules={[{ required: true, message: t('Enter a name such as Mentors, Coaches or Advisors.') }]} extra={t('Examples: Mentors, Coaches, Advisors. Shown across the platform.')}>
+                                        <Input size="large" placeholder={t('e.g. Mentors')} />
+                                    </Form.Item>
+                                </section>
+
+                                <section className="welcome-settings-section">
+                                    <h5>{t('Company structure')}</h5>
+                                    <Form.Item name="hasDepartments" label={t('Does your company have departments?')} rules={[{ required: true }]}>
+                                        <OptionCards options={[
+                                            { value: 'yes', label: t('Yes'), description: t('Teams such as Finance or Programmes') },
+                                            { value: 'no', label: t('No'), description: t('One team, no departments') },
+                                        ]} />
+                                    </Form.Item>
+                                    <Form.Item name="hasBranches" label={t('Does your company have branches or offices?')} rules={[{ required: true }]}>
+                                        <OptionCards options={[
+                                            { value: 'yes', label: t('Yes'), description: t('Separate offices or sites') },
+                                            { value: 'no', label: t('No'), description: t('A single location') },
+                                        ]} />
+                                    </Form.Item>
+                                    {watchedHasBranches === 'yes' && (
+                                        <Form.Item name="branchScopedManagement" label={t('Should consultants manage SMEs only within their office?')} rules={[{ required: true, message: t('Please choose an option.') }]}>
+                                            <OptionCards options={[
+                                                { value: 'yes', label: t('Yes, office only'), description: t('Consultants only see SMEs in their own office') },
+                                                { value: 'no', label: t('No, across offices'), description: t('Consultants can work with any office') },
+                                            ]} />
+                                        </Form.Item>
+                                    )}
+                                </section>
+
+                                <section className="welcome-settings-section">
+                                    <h5>{t('SMEs and delivery')}</h5>
+                                    <Form.Item name="smeOnboardingModel" label={t('How are SMEs onboarded?')} rules={[{ required: true }]}>
+                                        <OptionCards options={[
+                                            { value: 'self_application', label: t('SMEs apply themselves'), description: t('SMEs register and apply on their own') },
+                                            { value: 'consultants_register_smes', label: t('Our team registers them'), description: t('Your team captures SME applications for them') },
+                                        ]} />
+                                    </Form.Item>
+                                    <Form.Item name="assignmentModel" label={t('How are interventions assigned?')} rules={[{ required: true }]}>
+                                        <OptionCards options={[
+                                            { value: 'ops_assign_consultant', label: t('Operations assign'), description: t('Operations decide who delivers each intervention') },
+                                            { value: 'consultant_self_assign', label: t('Consultants self-assign'), description: t('Consultants pick up interventions themselves') },
+                                        ]} />
+                                    </Form.Item>
+                                    {watchedAssignmentModel === 'consultant_self_assign' && (
+                                        <Form.Item name="smeDivisionModel" label={t('When consultants self-assign, how are SMEs divided?')} rules={[{ required: true, message: t('Please choose an option.') }]}>
+                                            <OptionCards columns={3} options={[
+                                                { value: 'system_equal_random', label: t('Shared equally'), description: t('Split equally and at random') },
+                                                { value: 'ops_assign_smes_to_consultants', label: t('Operations match'), description: t('Operations match SMEs to consultants') },
+                                                { value: 'consultants_register_their_smes', label: t('Their own SMEs'), description: t('Each consultant gets the SMEs they register') },
+                                            ]} />
+                                        </Form.Item>
+                                    )}
+                                </section>
+
+                                <section className="welcome-settings-section">
+                                    <h5>{t('Interventions')}</h5>
+                                    <Form.Item name="interventionScopeModel" label={t('Intervention scope')} rules={[{ required: true }]}>
+                                        <OptionCards options={[
+                                            { value: 'program_specific', label: t('Programme specific'), description: t('Each intervention belongs to one programme') },
+                                            { value: 'company_wide', label: t('Company wide'), description: t('Shared across all programmes') },
+                                            { value: 'both', label: t('Both'), description: t('Choose per intervention') },
+                                            ...(watchedHasDepartments === 'yes' ? [{ value: 'department_specific' as const, label: t('Department specific'), description: t('Tied to a department') }] : []),
+                                        ]} />
+                                    </Form.Item>
+                                </section>
+
+                                <div className="welcome-actions-row">
+                                    <Button size="large" icon={<ArrowLeftOutlined />} onClick={back} disabled={savingDirector}>{t('Back')}</Button>
+                                    <Button type="primary" size="large" icon={<LockOutlined />} loading={savingDirector} onClick={confirmLockSettings}>{t('Save and lock settings')}</Button>
+                                </div>
+                            </Form>
+                        </div>
+                    )}
+
+                    {activeStep === 'whatsapp' && messageComplete && (
+                        <div className="welcome-panel welcome-reveal">
+                            <div className="welcome-section-heading">
+                                <span className="welcome-panel-icon"><MessageOutlined /></span>
+                                <div>
+                                    <Title level={4}>{t('Get updates on WhatsApp')}</Title>
+                                    <Paragraph>{t('Deadlines, follow-up reminders and appointment notices, sent to the number you choose.')}</Paragraph>
+                                </div>
+                            </div>
+                            <Form layout="vertical" requiredMark={false} className="welcome-consultant-form">
+                                <Form.Item
+                                    label={t('WhatsApp number')}
+                                    validateStatus={whatsappPhone && !isValidWhatsAppNumber(whatsappPhone) ? 'error' : undefined}
+                                    help={whatsappPhone && !isValidWhatsAppNumber(whatsappPhone) ? t('Enter a valid number, for example +27 82 123 4567') : undefined}
+                                >
+                                    <Input size="large" inputMode="tel" autoComplete="tel" placeholder="+27 82 123 4567" value={whatsappPhone} onChange={(event) => setWhatsappPhone(event.target.value)} />
+                                </Form.Item>
+                                <Checkbox checked={whatsappAgreed} onChange={(event) => setWhatsappAgreed(event.target.checked)}>
+                                    {t('I agree to receive Smart Incubation updates on WhatsApp at this number. Message frequency varies. I can reply STOP at any time to opt out.')}
+                                </Checkbox>
+                                <div className="welcome-actions-row" style={{ marginTop: 16 }}>
+                                    <Button size="large" loading={savingWhatsapp} onClick={() => void submitWhatsappChoice(false)}>{t('Not now')}</Button>
+                                    <Button type="primary" size="large" icon={<ArrowRightOutlined />} loading={savingWhatsapp} disabled={!whatsappAgreed || !isValidWhatsAppNumber(whatsappPhone)} onClick={() => void submitWhatsappChoice(true)}>{t('Turn on WhatsApp updates')}</Button>
+                                </div>
+                            </Form>
+                        </div>
+                    )}
+
                     {activeStep === 'consultantLocation' && messageComplete && (
                         <div className="welcome-panel welcome-consultant-panel welcome-reveal">
                             <div className="welcome-section-heading">
@@ -859,7 +1288,7 @@ export const WelcomePage = () => {
                                 <button type="button" onClick={() => beginReviewEdit('consultantExpertise')}><span className="welcome-edit-icon"><EditOutlined /></span><Text type="secondary">{t('Expertise')}</Text><strong>{consultantSetup.specialties.join(', ') || t('Not selected')}</strong></button>
                                 <button type="button" onClick={() => beginReviewEdit('consultantExperience')}><span className="welcome-edit-icon"><EditOutlined /></span><Text type="secondary">{t('Experience')}</Text><strong>{consultantSetup.experienceYears >= 10 ? t('10+ years') : consultantSetup.experienceYears >= 6 ? t('6–9 years') : consultantSetup.experienceYears >= 3 ? t('3–5 years') : t('0–2 years')}</strong></button>
                             </div>
-                            <Button type="primary" size="large" block icon={<ArrowRightOutlined />} onClick={() => { setEditingFromReview(false); goTo(!hasSignature ? 'signature' : 'complete') }}>{t('Looks good')}</Button>
+                            <Button type="primary" size="large" block icon={<ArrowRightOutlined />} onClick={() => { setEditingFromReview(false); goTo(!hasSignature ? 'signature' : afterSetup()) }}>{t('Looks good')}</Button>
                         </div>
                     )}
 
@@ -884,7 +1313,7 @@ export const WelcomePage = () => {
                     )}
                 </section>
 
-                {history.length > 0 && activeStep !== 'complete' && messageComplete && (
+                {history.length > 0 && activeStep !== 'complete' && messageComplete && !hasInlineBack && (
                     <Button className="welcome-back" type="text" icon={<ArrowLeftOutlined />} onClick={back}>
                         {t('common.back')}
                     </Button>

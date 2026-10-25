@@ -31,7 +31,9 @@ from appointment_responses import create_appointment_responses_router
 from agent_actions import actions_enabled, build_actor, create_agent_actions_router, run_agent_turn, tools_for
 from survey_import_agent import create_survey_import_router
 from course_builder_agent import create_course_builder_router
+from intervention_outcome_agent import create_intervention_outcome_router
 from request_auth import create_request_authenticator
+from entitlements import create_feature_authenticator, identity_has_feature
 from whatsapp import (
     WhatsAppChatRequest,
     WhatsAppChatResponse,
@@ -286,6 +288,8 @@ DEFAULT_COMPLIANCE_DOCUMENT_TYPES = [
 
 
 _require_auth = create_request_authenticator(db, AGENT_SHARED_SECRET)
+# Agent work (document agents, roadmap agents, AI actions) is part of the agentic support plan feature.
+_require_agentic = create_feature_authenticator(db, _require_auth, "agenticSupport")
 
 
 def _json_safe(value: Any) -> Any:
@@ -1057,12 +1061,20 @@ AGENT_PERSONA = (
 )
 
 
+BASIC_PLAN_NOTE = (
+    " PLAN LIMIT: this organisation's plan includes basic answers only. Explain what is on the page and answer "
+    "questions from the context you were given, but you cannot book, assign, log, draft documents or carry out any "
+    "task. If asked to do something, say plainly that this needs the agentic support feature on an upgraded plan."
+)
+
+
 @app.post("/api/agent")
 async def page_agent(payload: AgentRequest, authorization: str | None = Header(default=None)) -> dict[str, Any]:
     identity = _require_auth(authorization)
+    agentic = identity_has_feature(db, identity, "agenticSupport")
 
     firestore_context = _firestore_context_for_page(payload.page)
-    actions = [action.model_dump() for action in payload.page.allowedActions or []]
+    actions = [action.model_dump() for action in payload.page.allowedActions or []] if agentic else []
     user_message = _resolve_followup_message(payload.message, payload.history, payload.page)
     model_payload = {
         "userMessage": user_message,
@@ -1079,7 +1091,7 @@ async def page_agent(payload: AgentRequest, authorization: str | None = Header(d
 
     # Staff who may manage appointments/interventions get the tool-using path. The model can only
     # propose writes; the user confirms them via /api/agent/actions/{id}/confirm.
-    if actions_enabled():
+    if agentic and actions_enabled():
         actor = build_actor(db, identity)
         if tools_for(actor):
             turn = run_agent_turn(
@@ -1091,7 +1103,8 @@ async def page_agent(payload: AgentRequest, authorization: str | None = Header(d
             )
             return {"reply": turn["reply"], "actionKey": None, "proposal": turn["proposal"]}
 
-    reply = _call_gemini(AGENT_PERSONA, model_payload)
+    persona = AGENT_PERSONA if agentic else AGENT_PERSONA + BASIC_PLAN_NOTE
+    reply = _call_gemini(persona, model_payload)
 
     action_key = None
     lowered = payload.message.lower()
@@ -1658,7 +1671,7 @@ async def build_roadmap_agents(
     payload: RoadmapAgentsRequest,
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
-    _require_auth(authorization)
+    _require_agentic(authorization)
 
     roadmap = payload.roadmap or _fallback_roadmap(payload.decision, None)
     agents = _fallback_agents(roadmap)
@@ -1675,7 +1688,7 @@ async def roadmap_agent_chat(
     payload: RoadmapAgentChatRequest,
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
-    _require_auth(authorization)
+    _require_agentic(authorization)
 
     agent_name = str(payload.agent.get("name") or "Business Support Agent")
     focus = str(
@@ -1816,16 +1829,17 @@ def synthesize_speech(payload: TtsRequest, authorization: str | None = Header(de
     return Response(content=audio_bytes, media_type="audio/mpeg")
 
 
-app.include_router(create_agent_actions_router(db, _require_auth))
+app.include_router(create_agent_actions_router(db, _require_agentic))
 app.include_router(create_whatsapp_agent_router(db, _call_gemini, _extract_json_object, AGENT_PERSONA))
 app.include_router(create_appointment_responses_router(
     db, _require_auth, lambda request, user_id, phone: authorize_router_user(db, request, user_id, phone),
 ))
-app.include_router(create_business_plan_router(_call_gemini, _require_auth))
-app.include_router(create_strategic_plan_router(_call_gemini, _require_auth))
+app.include_router(create_business_plan_router(_call_gemini, _require_agentic))
+app.include_router(create_strategic_plan_router(_call_gemini, _require_agentic))
 app.include_router(create_document_provenance_router(_require_auth))
 app.include_router(create_survey_import_router(_call_gemini, _require_auth))
 app.include_router(create_course_builder_router(_call_gemini, _require_auth))
+app.include_router(create_intervention_outcome_router(_call_gemini, _require_auth))
 app.include_router(create_report_insights_router(_require_auth, _call_gemini, _extract_json_object, GEMINI_MODEL))
 app.include_router(
     create_pitchfy_router(

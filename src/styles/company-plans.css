@@ -1,0 +1,155 @@
+/* Company plans: editable plan cards, then the companies on each plan (admin overview look). */
+
+.company-plans-section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.company-plans-section-head h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--admin-ink);
+}
+
+.company-plans-section-head span {
+  font-size: 13px;
+  color: var(--admin-muted);
+}
+
+/* ---------- Plan cards ---------- */
+
+.company-plan-card.ant-card {
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+
+.company-plan-card.is-premium.ant-card {
+  background: linear-gradient(160deg, rgba(109, 93, 251, .12), rgba(109, 93, 251, .02) 60%), var(--admin-card-bg);
+}
+
+.company-plan-card.is-changed.ant-card {
+  border-color: var(--admin-accent);
+  box-shadow: 0 0 0 3px var(--admin-accent-soft);
+}
+
+.company-plan-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.company-plan-head > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.company-plan-head h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--admin-ink);
+}
+
+.company-plan-head span:not(.admin-kpi-icon):not(.company-plan-changed) {
+  font-size: 12px;
+  color: var(--admin-muted);
+}
+
+.company-plan-changed {
+  flex: none;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--admin-accent-soft);
+  color: var(--admin-accent);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.company-plan-features {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.company-plan-features li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--admin-card-border);
+  border-radius: 16px;
+  background: var(--admin-track);
+  transition: background .18s ease, border-color .18s ease;
+}
+
+.company-plan-features li.is-on {
+  border-color: rgba(109, 93, 251, .35);
+  background: var(--admin-accent-soft);
+}
+
+.company-plan-features li > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.company-plan-features strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--admin-ink);
+}
+
+.company-plan-features small {
+  display: -webkit-box;
+  margin-top: 2px;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--admin-muted);
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.company-plan-summary {
+  margin: 14px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--admin-muted);
+}
+
+.company-plans-note {
+  display: flex;
+  gap: 8px;
+  margin: 14px 2px 20px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--admin-muted);
+}
+
+.company-plans-note .anticon {
+  margin-top: 3px;
+  color: var(--admin-accent);
+}
+
+.company-plans-removals {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+/* ---------- Companies ---------- */
+
+.company-plans-companies .filter-bar {
+  margin-bottom: 12px;
+}
+
+.company-plans-none {
+  font-size: 12px;
+  color: var(--admin-muted);
+}

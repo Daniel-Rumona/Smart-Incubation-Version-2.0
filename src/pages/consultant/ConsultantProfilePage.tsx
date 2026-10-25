@@ -1,16 +1,20 @@
-import { App, Avatar, Button, Card, Checkbox, Col, Form, Input, InputNumber, Row, Segmented, Select, Switch, Tag, TimePicker, Typography, Upload } from 'antd'
-import { AimOutlined, BankOutlined, CalendarOutlined, CameraOutlined, ClockCircleOutlined, DeleteOutlined, EnvironmentOutlined, FacebookOutlined, GlobalOutlined, IdcardOutlined, LinkedinOutlined, LinkOutlined, MailOutlined, PhoneOutlined, PlusOutlined, SafetyCertificateOutlined, SaveOutlined, SolutionOutlined, UserOutlined } from '@ant-design/icons'
+import { App, Avatar, Button, Card, Checkbox, Col, Form, Input, InputNumber, Progress, Row, Segmented, Select, Switch, Tag, TimePicker, Typography, Upload } from 'antd'
+import { BankOutlined, CalendarOutlined, CameraOutlined, CheckCircleFilled, ClockCircleOutlined, CopyOutlined, DeleteOutlined, EnvironmentOutlined, EyeOutlined, FacebookOutlined, GlobalOutlined, IdcardOutlined, LinkedinOutlined, LinkOutlined, MailOutlined, PlusOutlined, SafetyCertificateOutlined, SaveOutlined, SolutionOutlined, UserOutlined } from '@ant-design/icons'
 import { useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import dayjs from 'dayjs'
+import { ConsultantMarketplaceCard } from '@/components/consultant/ConsultantMarketplaceCard'
 import DashboardPage from '@/components/shared/DashboardPage'
-import { LoadingOverlay } from '@/components/shared/LoadingOverlay'
+import { PageSkeleton } from '@/components/shared/PageSkeleton'
+import ResponsiveModal from '@/components/shared/ResponsiveModal'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { hasConsultantMarketplaceProfile } from '@/services/companiesService'
 import { provincesForCountry } from '@/config/sadc'
 import { createEmptyConsultantProfile, getConsultantProfile, saveConsultantProfile, uploadConsultantProfileImage } from '@/services/consultantMarketplaceService'
 import type { ConsultantMarketplaceProfile, ConsultantServiceOffer } from '@/types/consultantMarketplace'
+import { consultantProfileChecks, diallingCodeForCountry, expectedPhoneLengthForCountry, localPhoneNumber, type ConsultantProfileCheckKey } from './consultantProfileChecks'
 import '@/styles/consultant.css'
+import { providersForCountry } from '@/config/phoneProviders'
 import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 const SUPPORTED_COUNTRIES = [
@@ -18,19 +22,24 @@ const SUPPORTED_COUNTRIES = [
     { value: 'Zimbabwe', currencies: ['ZWL', 'ZAR', 'USD'], Icon: GlobalOutlined, get detail() { return tr('Zimbabwean Dollar') } },
 ] as const
 const WEEK_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+// The week overview reads Monday first, the way people plan a working week.
+const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0]
+const WEEKDAYS = [1, 2, 3, 4, 5]
 const SPECIAL_AVAILABILITY_OPTIONS = [
     { value: 'available', get label() { return tr('Available') } },
     { value: 'on_request', get label() { return tr('On request') } },
     { value: 'unavailable', get label() { return tr('Unavailable') } },
 ] as const
 
-const diallingCodeForCountry = (country: string) => country === 'South Africa' ? '+27' : country === 'Zimbabwe' ? '+263' : ''
-const localPhoneNumber = (phone: string) => phone.replace(/^\+(?:27|263)/, '').replace(/\D/g, '').replace(/^0/, '')
+type Section = 'Professional' | 'Location' | 'Contact' | 'Availability'
+// Fields the save checks, each tied to the tab it lives on so a failed save can open that tab.
+type FieldKey = 'country' | 'phone' | 'phoneProvider' | 'alternativePhone' | 'alternativePhoneProvider'
+const FIELD_SECTION: Record<FieldKey, Section> = { country: 'Location', phone: 'Contact', phoneProvider: 'Contact', alternativePhone: 'Contact', alternativePhoneProvider: 'Contact' }
+
 const formatLocalPhoneNumber = (phone: string) => {
     const local = localPhoneNumber(phone).slice(0, 9)
     return [local.slice(0, 2), local.slice(2, 5), local.slice(5, 9)].filter(Boolean).join(' ')
 }
-const expectedPhoneLengthForCountry = (country: string) => diallingCodeForCountry(country) ? 9 : 0
 const withDiallingCode = (phone: string, country: string) => {
     const local = localPhoneNumber(phone)
     const diallingCode = diallingCodeForCountry(country)
@@ -41,23 +50,30 @@ const timeToMinutes = (time: string) => {
     return Number.isFinite(hours) && Number.isFinite(minutes) ? hours * 60 + minutes : 0
 }
 const minutesToTime = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`
+const sameProfile = (left?: ConsultantMarketplaceProfile, right?: ConsultantMarketplaceProfile) => JSON.stringify(left) === JSON.stringify(right)
 
 function ConsultantMarketplaceProfileForm() {
     const { t } = useLanguage()
     const { user } = useFullIdentity()
-    const { message } = App.useApp()
+    const { message, modal } = App.useApp()
     const [profile, setProfile] = useState<ConsultantMarketplaceProfile>()
+    // The profile as last saved, so the page can tell when there are unsaved changes.
+    const [saved, setSaved] = useState<ConsultantMarketplaceProfile>()
     const [saving, setSaving] = useState(false)
-    const [activeSection, setActiveSection] = useState('Professional')
+    const [activeSection, setActiveSection] = useState<Section>('Professional')
     const [newServiceId, setNewServiceId] = useState<string>()
     const [activeAvailabilityDay, setActiveAvailabilityDay] = useState(1)
+    const [showErrors, setShowErrors] = useState(false)
+    const [focusField, setFocusField] = useState<string>()
+    const [previewOpen, setPreviewOpen] = useState(false)
     const newService = (): ConsultantServiceOffer => ({ id: crypto.randomUUID(), areaOfSupport: '', interventionExamples: [], deliveryMode: 'online', rate: 0, rateUnit: 'day' })
 
     useEffect(() => {
         if (!user) return
+        const load = (next: ConsultantMarketplaceProfile) => { setProfile(next); setSaved(next) }
         void getConsultantProfile(user.uid, { name: user.displayName, email: user.email })
-            .then(setProfile)
-            .catch(() => setProfile(createEmptyConsultantProfile(user.uid, user.displayName, user.email)))
+            .then(load)
+            .catch(() => load(createEmptyConsultantProfile(user.uid, user.displayName, user.email)))
     }, [user])
 
     useEffect(() => {
@@ -69,12 +85,30 @@ function ConsultantMarketplaceProfileForm() {
         return () => window.cancelAnimationFrame(frame)
     }, [newServiceId, profile?.services.length])
 
+    // After switching tab for a missing field, bring the field into view once it's rendered.
+    useEffect(() => {
+        if (!focusField) return
+        const frame = window.requestAnimationFrame(() => {
+            const target = document.getElementById(focusField)
+            target?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            target?.querySelector<HTMLElement>('input, button, textarea, .ant-select-selector')?.focus()
+            setFocusField(undefined)
+        })
+        return () => window.cancelAnimationFrame(frame)
+    }, [focusField, activeSection])
+
+    const dirty = !!profile && !!saved && !sameProfile(profile, saved)
+
+    // Leaving the page (reload, close, typed URL) with unsaved edits asks first.
+    useEffect(() => {
+        if (!dirty) return
+        const warn = (event: BeforeUnloadEvent) => { event.preventDefault() }
+        window.addEventListener('beforeunload', warn)
+        return () => window.removeEventListener('beforeunload', warn)
+    }, [dirty])
+
     const update = (change: Partial<ConsultantMarketplaceProfile>) => setProfile((current) => current ? { ...current, ...change } : current)
     const updateService = (id: string, change: Partial<ConsultantServiceOffer>) => update({ services: profile?.services.map((item) => item.id === id ? { ...item, ...change } : item) || [] })
-    const changeSection = (value: string | number) => {
-        const section = String(value)
-        setActiveSection(section)
-    }
     const addService = () => {
         if (!profile) return
         const service = newService()
@@ -91,7 +125,7 @@ function ConsultantMarketplaceProfileForm() {
                 ? { startTime: minutesToTime(timeToMinutes(firstSlot.startTime) - 60), endTime: firstSlot.startTime }
                 : !lastSlot ? { startTime: '09:00', endTime: '17:00' } : undefined
         if (!nextRange) {
-            message.warning(`There is no free time left on ${WEEK_DAYS[activeAvailabilityDay]} for another availability window.`)
+            message.warning(t('There is no free time left on {day} for another availability window.', undefined, { day: t(WEEK_DAYS[activeAvailabilityDay]) }))
             return
         }
         update({ availability: [...(profile?.availability || []), { id: crypto.randomUUID(), dayOfWeek: activeAvailabilityDay, ...nextRange }].sort((left, right) => left.dayOfWeek - right.dayOfWeek || timeToMinutes(left.startTime) - timeToMinutes(right.startTime)) })
@@ -123,28 +157,81 @@ function ConsultantMarketplaceProfileForm() {
         update({ weekendAvailability })
     }
 
-    const save = async () => {
+    // Most consultants keep the same hours Monday to Friday; copy one day's windows to the rest.
+    const copyToWeekdays = () => {
         if (!profile) return
-        if (!profile.country || !expectedPhoneLength) {
-            message.error(t('Select South Africa or Zimbabwe before adding a primary phone number.'))
-            return
-        }
-        if (!localPhoneNumber(profile.phone)) {
-            message.error(t('Primary phone is required.'))
-            return
-        }
-        if (!primaryPhoneIsValid) {
-            message.error(`Primary phone must contain ${expectedPhoneLength} digits after ${diallingCode}.`)
-            return
-        }
-        if (!alternativePhoneIsValid) {
-            message.error(`Alternative phone must contain ${expectedPhoneLength} digits after ${diallingCode}.`)
+        const source = profile.availability.filter((slot) => slot.dayOfWeek === activeAvailabilityDay)
+        const apply = () => update({
+            availability: [
+                ...profile.availability.filter((slot) => !WEEKDAYS.includes(slot.dayOfWeek) || slot.dayOfWeek === activeAvailabilityDay),
+                ...WEEKDAYS.filter((day) => day !== activeAvailabilityDay).flatMap((day) => source.map((slot) => ({ ...slot, id: crypto.randomUUID(), dayOfWeek: day }))),
+            ].sort((left, right) => left.dayOfWeek - right.dayOfWeek || timeToMinutes(left.startTime) - timeToMinutes(right.startTime)),
+        })
+        const overwritten = WEEKDAYS.some((day) => day !== activeAvailabilityDay && profile.availability.some((slot) => slot.dayOfWeek === day))
+        if (!overwritten) return apply()
+        modal.confirm({
+            title: t('Copy {day} to every weekday?', undefined, { day: t(WEEK_DAYS[activeAvailabilityDay]) }),
+            content: t('The times already set on the other weekdays will be replaced.'),
+            okText: t('Copy'),
+            onOk: apply,
+        })
+    }
+
+    if (!profile) return <PageSkeleton variant="detail" label={t('Loading consultant profile')} />
+
+    const diallingCode = diallingCodeForCountry(profile.country)
+    const expectedPhoneLength = expectedPhoneLengthForCountry(profile.country)
+    const primaryPhoneIsValid = localPhoneNumber(profile.phone).length === expectedPhoneLength && expectedPhoneLength > 0
+    const alternativePhoneIsValid = !profile.alternativePhone || localPhoneNumber(profile.alternativePhone).length === expectedPhoneLength
+    const phoneHint = t('Enter {count} digits after {code}.', undefined, { count: expectedPhoneLength || 9, code: diallingCode || t('the country code') })
+
+    // Problems that block a save, shown under their field (not as a toast) once a save has been tried.
+    const issues: Partial<Record<FieldKey, string>> = {}
+    if (!profile.country || !expectedPhoneLength) issues.country = t('Choose South Africa or Zimbabwe.')
+    if (!localPhoneNumber(profile.phone)) issues.phone = t('Primary phone is required.')
+    else if (!primaryPhoneIsValid) issues.phone = phoneHint
+    if (!alternativePhoneIsValid) issues.alternativePhone = phoneHint
+    if (profile.phone.trim() && !profile.phoneProvider) issues.phoneProvider = t('Select the service provider for this number.')
+    if (profile.alternativePhone.trim() && !profile.alternativePhoneProvider) issues.alternativePhoneProvider = t('Select the service provider for this number.')
+    const issueKeys = Object.keys(issues) as FieldKey[]
+    const fieldError = (key: FieldKey) => (showErrors || (key !== 'phone' && key !== 'country')) && issues[key] ? issues[key] : undefined
+
+    // What a complete, publishable profile needs. Each item opens the tab where it's filled in.
+    // The rules live in consultantProfileChecks (shared with the dashboard); this adds where each one is filled in.
+    const checkPlace: Record<ConsultantProfileCheckKey, { label: string, section: Section, field: string }> = {
+        headline: { label: t('Headline and bio'), section: 'Professional', field: 'consultant-field-headline' },
+        expertise: { label: t('Expertise and services'), section: 'Professional', field: 'consultant-field-expertise' },
+        location: { label: t('Location and rate currency'), section: 'Location', field: 'consultant-field-country' },
+        phone: { label: t('Primary phone'), section: 'Contact', field: 'consultant-field-phone' },
+        availability: { label: t('Weekly availability'), section: 'Availability', field: 'consultant-week' },
+        photo: { label: t('Profile photo'), section: 'Professional', field: 'consultant-photo' },
+    }
+    const checklist = consultantProfileChecks(profile).map((check) => ({ ...check, ...checkPlace[check.key] }))
+    const doneCount = checklist.filter((item) => item.done).length
+    const readyToPublish = checklist.every((item) => item.done || !item.required) && !issueKeys.length
+    const sectionsNeedingWork = new Set(checklist.filter((item) => !item.done && item.required).map((item) => item.section))
+    if (showErrors) issueKeys.forEach((key) => sectionsNeedingWork.add(FIELD_SECTION[key]))
+
+    const goTo = (section: Section, field: string) => {
+        setActiveSection(section)
+        setFocusField(field)
+    }
+
+    const persist = async (next: ConsultantMarketplaceProfile, done: string) => {
+        if (issueKeys.length) {
+            // Open the tab with the first problem and point at it, instead of a toast about a field you can't see.
+            setShowErrors(true)
+            const first = issueKeys[0]
+            goTo(FIELD_SECTION[first], `consultant-field-${first === 'phoneProvider' ? 'phone' : first === 'alternativePhoneProvider' ? 'alternative-phone' : first === 'alternativePhone' ? 'alternative-phone' : first}`)
             return
         }
         try {
             setSaving(true)
-            await saveConsultantProfile(profile)
-            message.success(t('Your consultant profile was saved.'))
+            await saveConsultantProfile(next)
+            setProfile(next)
+            setSaved(next)
+            setShowErrors(false)
+            message.success(done)
         } catch (error) {
             message.error(error instanceof Error ? error.message : t('Your profile could not be saved.'))
         } finally {
@@ -152,83 +239,193 @@ function ConsultantMarketplaceProfileForm() {
         }
     }
 
+    const save = () => persist(profile, t('Your consultant profile was saved.'))
+    const publish = () => persist({ ...profile, status: 'published' }, t('Your profile is published. SMEs can now find you in the marketplace.'))
+    const unpublish = () => persist({ ...profile, status: 'draft' }, t('Your profile is hidden from the marketplace.'))
+
+    // A new photo saves straight away, on top of the last saved profile, so it never saves half-finished edits with it.
     const uploadImage = async (file: File) => {
-        if (!profile) return
+        if (!saved) return
         try {
             const profileImageUrl = await uploadConsultantProfileImage(profile.uid, file)
-            setProfile({ ...profile, profileImageUrl })
-            await saveConsultantProfile({ ...profile, profileImageUrl })
+            await saveConsultantProfile({ ...saved, profileImageUrl })
+            setSaved({ ...saved, profileImageUrl })
+            update({ profileImageUrl })
             message.success(t('Profile image updated.'))
         } catch (error) {
             message.error(error instanceof Error ? error.message : t('Profile image could not be uploaded.'))
         }
     }
 
-    if (!profile) return <LoadingOverlay tip={t('Loading consultant profile')} />
+    // Week overview: every day on one shared time scale, widened if any window falls outside 06:00–20:00.
+    const scaleStart = Math.min(6 * 60, ...profile.availability.map((slot) => timeToMinutes(slot.startTime)))
+    const scaleEnd = Math.max(20 * 60, ...profile.availability.map((slot) => timeToMinutes(slot.endTime)))
+    const toPercent = (minutes: number) => ((minutes - scaleStart) / (scaleEnd - scaleStart)) * 100
+    const weekendOff = profile.weekendAvailability === 'unavailable'
+    const daySlots = profile.availability.filter((slot) => slot.dayOfWeek === activeAvailabilityDay).sort((left, right) => timeToMinutes(left.startTime) - timeToMinutes(right.startTime))
+    const currencies = SUPPORTED_COUNTRIES.find(({ value }) => value === profile.country)?.currencies || []
 
-    const diallingCode = diallingCodeForCountry(profile.country)
-    const expectedPhoneLength = expectedPhoneLengthForCountry(profile.country)
-    const primaryPhoneIsValid = localPhoneNumber(profile.phone).length === expectedPhoneLength && expectedPhoneLength > 0
-    const alternativePhoneIsValid = !profile.alternativePhone || localPhoneNumber(profile.alternativePhone).length === expectedPhoneLength
+    const tabLabel = (section: Section, icon: React.ReactNode, label: string) => (
+        <span className="consultant-profile-tab">
+            {icon} {label}
+            {sectionsNeedingWork.has(section) && <span className="consultant-profile-tab-dot" aria-label={t('Something here still needs adding')} />}
+        </span>
+    )
 
     return (
         <DashboardPage className="consultant-page">
             <div className="consultant-profile-layout">
                 <Card className="consultant-profile-identity-card">
                     <div className="consultant-profile-hero">
-                        <div className="consultant-profile-photo">
+                        <div className="consultant-profile-photo" id="consultant-photo">
                             <Upload accept="image/*" showUploadList={false} beforeUpload={(file) => { void uploadImage(file as File); return false }}>
                                 <div className="consultant-profile-photo-target" role="button" tabIndex={0} aria-label={t('Change profile photo')}>
-                                    <Avatar size={180} src={profile.profileImageUrl || undefined} icon={!profile.profileImageUrl && <UserOutlined />} />
+                                    <Avatar size={120} src={profile.profileImageUrl || undefined} icon={!profile.profileImageUrl && <UserOutlined />} />
                                     <span className="consultant-profile-photo-edit"><CameraOutlined /></span>
                                 </div>
                             </Upload>
                         </div>
                         <div className="consultant-profile-identity">
-                            <Typography.Title level={3} style={{ margin: 0 }}>{profile.name}</Typography.Title>
-                            {profile.verificationStatus === 'verified' && <Tag color="blue" icon={<SafetyCertificateOutlined />}>{t('Verified consultant')}</Tag>}
-                            {profile.status === 'published' && <Tag color="green">{t('Published')}</Tag>}
+                            <Typography.Title level={4} style={{ margin: 0 }}>{profile.name}</Typography.Title>
                             <Typography.Paragraph type="secondary" className="consultant-profile-headline">{profile.headline || t('Add a professional headline to introduce your expertise.')}</Typography.Paragraph>
+                            <div className="consultant-profile-badges">
+                                {profile.verificationStatus === 'verified' && <Tag color="blue" icon={<SafetyCertificateOutlined />}>{t('Verified consultant')}</Tag>}
+                                <Tag color={saved?.status === 'published' ? 'green' : 'gold'}>{saved?.status === 'published' ? t('Published') : t('Draft')}</Tag>
+                            </div>
                         </div>
                     </div>
-                    <div className="consultant-profile-facts" aria-label={t('Consultant profile summary')}>
-                        <div className="consultant-profile-fact consultant-profile-fact-green"><MailOutlined /><span><small>{t('Email')}</small><strong>{user?.email || t('Not added')}</strong></span></div>
-                        <div className="consultant-profile-fact consultant-profile-fact-amber"><PhoneOutlined /><span><small>{t('Phone')}</small><strong>{profile.phone || t('Not added')}</strong></span></div>
-                        <div className="consultant-profile-fact consultant-profile-fact-teal"><SolutionOutlined /><span><small>{t('Expertise')}</small><strong>{profile.specialties.length ? `${profile.specialties.length} area${profile.specialties.length === 1 ? '' : 's'}` : t('Not added')}</strong></span></div>
-                        <div className="consultant-profile-fact consultant-profile-fact-rose"><EnvironmentOutlined /><span><small>{t('Based in')}</small><strong>{[profile.province, profile.country].filter(Boolean).join(', ') || t('Not added')}</strong></span></div>
-                    </div>
+
                     <div className="consultant-profile-acceptance">
-                        <Switch checked={profile.acceptingClients} onChange={(acceptingClients) => update({ acceptingClients })} />
-                        <span>{profile.acceptingClients ? t('Accepting new SME requests') : t('Not accepting new requests')}</span>
-                        <Tag color={profile.status === 'published' ? 'green' : 'gold'}>{profile.status === 'published' ? t('Published') : t('Draft')}</Tag>
+                        <span>{t('Accepting new requests')}</span>
+                        <Switch checked={profile.acceptingClients} onChange={(acceptingClients) => update({ acceptingClients })} aria-label={t('Accepting new requests')} />
+                    </div>
+
+                    <div className="consultant-profile-checklist" aria-label={t('Profile checklist')}>
+                        <div className="consultant-profile-checklist-head">
+                            <strong>{t('Profile {done} of {total} done', undefined, { done: doneCount, total: checklist.length })}</strong>
+                        </div>
+                        <Progress percent={Math.round((doneCount / checklist.length) * 100)} showInfo={false} size="small" strokeColor="#15803D" />
+                        <ul>
+                            {checklist.map((item) => (
+                                <li key={item.key} className={item.done ? 'is-done' : item.required ? 'is-missing' : 'is-optional'}>
+                                    {item.done ? <CheckCircleFilled /> : <span className="consultant-profile-checklist-ring" />}
+                                    <span>{item.label}{!item.done && !item.required && <small> · {t('optional')}</small>}</span>
+                                    {!item.done && <button type="button" onClick={() => goTo(item.section, item.field)}>{t('Add')}</button>}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+
+                    <div className="consultant-profile-actions">
+                        <Button block icon={<EyeOutlined />} onClick={() => setPreviewOpen(true)}>{t('Preview as SME')}</Button>
+                        {saved?.status === 'published'
+                            ? <Button block loading={saving} onClick={() => void unpublish()}>{t('Unpublish profile')}</Button>
+                            : <Button block type="primary" loading={saving} disabled={!readyToPublish} title={readyToPublish ? undefined : t('Finish the checklist to publish.')} onClick={() => void publish()}>{t('Publish profile')}</Button>}
                     </div>
                 </Card>
+
                 <Card className="dashboard-section-card consultant-profile-editor-card">
-                    <Form layout="vertical" requiredMark={false} className={`consultant-profile-form consultant-profile-form-${activeSection.toLowerCase()}`}>
-                        <div className="consultant-profile-editor-top"><Segmented block value={activeSection} onChange={changeSection} options={[{ label: <span><SolutionOutlined /> {t('Professional')}</span>, value: 'Professional' }, { label: <span><EnvironmentOutlined /> {t('Location')}</span>, value: 'Location' }, { label: <span><IdcardOutlined /> {t('Contact')}</span>, value: 'Contact' }, { label: <span><EnvironmentOutlined /> {t('Availability')}</span>, value: 'Availability' }]} /></div>
-                        {activeSection === 'Professional' && <div className="consultant-inline-services"><div className="consultant-inline-services-head"><div><Typography.Title level={4}>{t('Services & rates')}</Typography.Title><Typography.Paragraph type="secondary">{t('Add services using the expertise areas above.')}</Typography.Paragraph></div><Button icon={<PlusOutlined />} disabled={!profile.specialties.length} onClick={addService}>{t('Add service')}</Button></div>{profile.services.map((service) => <Card key={service.id} id={`consultant-service-${service.id}`} size="small" className="consultant-inline-service-card"><div className="consultant-inline-service-head"><Typography.Text strong>{service.areaOfSupport || t('New service')}</Typography.Text><Button danger type="text" icon={<DeleteOutlined />} onClick={() => update({ services: profile.services.filter((item) => item.id !== service.id) })} /></div><Row gutter={[10, 8]}><Col xs={24} md={10}><Select style={{ width: '100%' }} placeholder={t('Area of support')} value={service.areaOfSupport || undefined} options={profile.specialties.map((value) => ({ value, label: value }))} onChange={(value) => updateService(service.id, { areaOfSupport: value })} /></Col><Col xs={24} md={14}><Select mode="tags" style={{ width: '100%' }} placeholder={t('Specific interventions')} value={service.interventionExamples} onChange={(value) => updateService(service.id, { interventionExamples: value })} /></Col><Col xs={24} md={8}><Select style={{ width: '100%' }} value={service.deliveryMode} options={[{ value: 'online', label: t('Online') }, { value: 'in_person', label: t('In person') }, { value: 'hybrid', label: t('Hybrid') }]} onChange={(value) => updateService(service.id, { deliveryMode: value })} /></Col><Col xs={24} md={8}><InputNumber min={0} value={service.rate} style={{ width: '100%' }} addonAfter={profile.currency || 'rate'} onChange={(value) => updateService(service.id, { rate: Number(value) || 0 })} /></Col><Col xs={24} md={8}><Select style={{ width: '100%' }} value={service.rateUnit} options={[{ value: 'day', label: t('Per day') }]} onChange={(value) => updateService(service.id, { rateUnit: value })} /></Col></Row></Card>)}</div>}
-                        {activeSection === 'Availability' && <div className="consultant-availability-editor">
-                            <div className="consultant-special-availability">
-                                <div className="consultant-special-availability-row"><div><strong>{t('Weekend availability')}</strong><small>{t('Set your usual Saturday and Sunday availability before adding any weekend time windows.')}</small></div><div className="consultant-special-options" role="radiogroup" aria-label={t('Weekend availability')}>{SPECIAL_AVAILABILITY_OPTIONS.map(({ value, label }) => <button type="button" key={value} role="radio" aria-checked={profile.weekendAvailability === value} className={profile.weekendAvailability === value ? 'is-selected' : ''} onClick={() => setWeekendAvailability(value)}>{label}</button>)}</div></div>
+                    <Form layout="vertical" className={`consultant-profile-form consultant-profile-form-${activeSection.toLowerCase()}`}>
+                        <div className="consultant-profile-editor-top">
+                            <Segmented<Section>
+                                block
+                                value={activeSection}
+                                onChange={setActiveSection}
+                                options={[
+                                    { label: tabLabel('Professional', <SolutionOutlined />, t('Professional')), value: 'Professional' },
+                                    { label: tabLabel('Location', <EnvironmentOutlined />, t('Location')), value: 'Location' },
+                                    { label: tabLabel('Contact', <IdcardOutlined />, t('Contact')), value: 'Contact' },
+                                    { label: tabLabel('Availability', <CalendarOutlined />, t('Availability')), value: 'Availability' },
+                                ]}
+                            />
+                        </div>
+
+                        {activeSection === 'Professional' && (
+                            <div className="consultant-inline-services">
+                                <div className="consultant-inline-services-head">
+                                    <div><Typography.Title level={4}>{t('Services & rates')}</Typography.Title><Typography.Paragraph type="secondary">{t('Add services using the expertise areas above.')}</Typography.Paragraph></div>
+                                    <Button icon={<PlusOutlined />} disabled={!profile.specialties.length} onClick={addService}>{t('Add service')}</Button>
+                                </div>
+                                {profile.services.map((service) => (
+                                    <Card key={service.id} id={`consultant-service-${service.id}`} size="small" className="consultant-inline-service-card">
+                                        <div className="consultant-inline-service-head">
+                                            <Typography.Text strong>{service.areaOfSupport || t('New service')}</Typography.Text>
+                                            <Button danger type="text" icon={<DeleteOutlined />} aria-label={t('Remove service')} onClick={() => update({ services: profile.services.filter((item) => item.id !== service.id) })} />
+                                        </div>
+                                        <Row gutter={[10, 8]}>
+                                            <Col xs={24} md={10}><Select style={{ width: '100%' }} placeholder={t('Area of support')} value={service.areaOfSupport || undefined} options={profile.specialties.map((value) => ({ value, label: value }))} onChange={(value) => updateService(service.id, { areaOfSupport: value })} /></Col>
+                                            <Col xs={24} md={14}><Select mode="tags" style={{ width: '100%' }} placeholder={t('Specific interventions')} value={service.interventionExamples} onChange={(value) => updateService(service.id, { interventionExamples: value })} /></Col>
+                                            <Col xs={24} md={12}>
+                                                <Segmented<ConsultantServiceOffer['deliveryMode']> block value={service.deliveryMode} onChange={(value) => updateService(service.id, { deliveryMode: value })} options={[{ value: 'online', label: t('Online') }, { value: 'in_person', label: t('In person') }, { value: 'hybrid', label: t('Hybrid') }]} />
+                                            </Col>
+                                            <Col xs={24} md={12}>
+                                                {/* Daily rate is the only unit, so it's stated rather than offered as a one-option choice. */}
+                                                <InputNumber min={0} value={service.rate} style={{ width: '100%' }} addonBefore={profile.currency || t('Rate')} addonAfter={t('per day')} onChange={(value) => updateService(service.id, { rate: Number(value) || 0 })} />
+                                            </Col>
+                                        </Row>
+                                    </Card>
+                                ))}
                             </div>
-                            <div className="consultant-weekday-grid" role="tablist" aria-label={t('Select a weekday')}>
-                                {WEEK_DAYS.map((day, dayOfWeek) => {
-                                    const slotCount = profile.availability.filter((slot) => slot.dayOfWeek === dayOfWeek).length
-                                    const isUnavailableWeekend = (dayOfWeek === 0 || dayOfWeek === 6) && profile.weekendAvailability === 'unavailable'
-                                    return <button type="button" key={day} role="tab" disabled={isUnavailableWeekend} aria-selected={activeAvailabilityDay === dayOfWeek} className={`consultant-weekday-card${activeAvailabilityDay === dayOfWeek ? ' is-selected' : ''}${isUnavailableWeekend ? ' is-disabled' : ''}`} onClick={() => setActiveAvailabilityDay(dayOfWeek)}><CalendarOutlined /><strong>{day.slice(0, 3)}</strong><small>{isUnavailableWeekend ? t('Unavailable') : slotCount ? `${slotCount} time ${slotCount === 1 ? 'window' : 'windows'}` : t('Not set')}</small></button>
-                                })}
+                        )}
+
+                        {activeSection === 'Availability' && (
+                            <div className="consultant-availability-editor">
+                                <div className="consultant-week" id="consultant-week" role="tablist" aria-label={t('Your week')}>
+                                    <div className="consultant-week-head">
+                                        <strong>{t('Your week')}</strong>
+                                        <Typography.Text type="secondary">{minutesToTime(scaleStart)} – {minutesToTime(scaleEnd)}</Typography.Text>
+                                    </div>
+                                    {WEEK_ORDER.map((dayOfWeek) => {
+                                        const off = (dayOfWeek === 0 || dayOfWeek === 6) && weekendOff
+                                        const windows = profile.availability.filter((slot) => slot.dayOfWeek === dayOfWeek)
+                                        return (
+                                            <button
+                                                type="button"
+                                                role="tab"
+                                                key={dayOfWeek}
+                                                disabled={off}
+                                                aria-selected={activeAvailabilityDay === dayOfWeek}
+                                                aria-label={`${t(WEEK_DAYS[dayOfWeek])}: ${off ? t('Unavailable') : windows.length ? windows.map((slot) => `${slot.startTime}–${slot.endTime}`).join(', ') : t('Not set')}`}
+                                                className={`consultant-week-day${activeAvailabilityDay === dayOfWeek ? ' is-selected' : ''}${off ? ' is-off' : ''}`}
+                                                onClick={() => setActiveAvailabilityDay(dayOfWeek)}
+                                            >
+                                                {/* Short names are their own keys: slicing a translated day name gives odd results. */}
+                                                <span className="consultant-week-name">{t(WEEK_DAYS[dayOfWeek].slice(0, 3))}</span>
+                                                <span className="consultant-week-track">
+                                                    {windows.map((slot) => <span key={slot.id} className="consultant-week-window" style={{ left: `${toPercent(timeToMinutes(slot.startTime))}%`, width: `${toPercent(timeToMinutes(slot.endTime)) - toPercent(timeToMinutes(slot.startTime))}%` }} />)}
+                                                </span>
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+
+                                <div className="consultant-day-schedule">
+                                    <div className="consultant-inline-services-head">
+                                        <div><Typography.Title level={5}>{t(WEEK_DAYS[activeAvailabilityDay])}</Typography.Title><Typography.Paragraph type="secondary">{t('Add more than one range when you have a break during the day.')}</Typography.Paragraph></div>
+                                        <div className="consultant-day-actions">
+                                            {WEEKDAYS.includes(activeAvailabilityDay) && daySlots.length > 0 && <Button icon={<CopyOutlined />} onClick={copyToWeekdays}>{t('Copy to weekdays')}</Button>}
+                                            <Button icon={<PlusOutlined />} onClick={addAvailabilitySlot}>{t('Add time')}</Button>
+                                        </div>
+                                    </div>
+                                    {daySlots.length === 0 && <div className="consultant-availability-empty"><ClockCircleOutlined /> {t('No times added for {day} yet.', undefined, { day: t(WEEK_DAYS[activeAvailabilityDay]) })}</div>}
+                                    {daySlots.map((slot) => <div className="consultant-availability-row" key={slot.id}><ClockCircleOutlined /><TimePicker.RangePicker aria-label={t('Availability time range')} value={[dayjs(slot.startTime, 'HH:mm'), dayjs(slot.endTime, 'HH:mm')]} format="HH:mm" minuteStep={15} allowClear={false} onChange={(range) => { if (range?.[0] && range?.[1]) updateAvailabilitySlot(slot.id, { startTime: range[0].format('HH:mm'), endTime: range[1].format('HH:mm') }) }} /><Button danger type="text" aria-label={t('Remove time')} icon={<DeleteOutlined />} onClick={() => update({ availability: profile.availability.filter((item) => item.id !== slot.id) })} /></div>)}
+                                </div>
+
+                                <div className="consultant-special-availability">
+                                    <div className="consultant-special-availability-row">
+                                        <div><strong>{t('Weekends')}</strong><small>{t('Your usual Saturday and Sunday availability.')}</small></div>
+                                        <Segmented value={profile.weekendAvailability} onChange={(value) => setWeekendAvailability(value as ConsultantMarketplaceProfile['weekendAvailability'])} options={SPECIAL_AVAILABILITY_OPTIONS.map(({ value, label }) => ({ value, label }))} />
+                                    </div>
+                                    <div className="consultant-special-availability-row">
+                                        <div><strong>{t('Public holidays')}</strong><small>{t('Whether SMEs can request holiday support.')}</small></div>
+                                        <Segmented value={profile.holidayAvailability} onChange={(value) => update({ holidayAvailability: value as ConsultantMarketplaceProfile['holidayAvailability'] })} options={SPECIAL_AVAILABILITY_OPTIONS.map(({ value, label }) => ({ value, label }))} />
+                                    </div>
+                                </div>
                             </div>
-                            <div className="consultant-day-schedule">
-                                <div className="consultant-inline-services-head"><div><Typography.Title level={5}>{WEEK_DAYS[activeAvailabilityDay]}</Typography.Title><Typography.Paragraph type="secondary">{t('Add more than one range when you have a break during the day.')}</Typography.Paragraph></div><Button icon={<PlusOutlined />} onClick={addAvailabilitySlot} disabled={(activeAvailabilityDay === 0 || activeAvailabilityDay === 6) && profile.weekendAvailability === 'unavailable'}>{t('Add time')}</Button></div>
-                                {profile.availability.filter((slot) => slot.dayOfWeek === activeAvailabilityDay).length === 0 && <div className="consultant-availability-empty"><ClockCircleOutlined /> {t('No times added for')} {WEEK_DAYS[activeAvailabilityDay]} {t('yet.')}</div>}
-                                {profile.availability.filter((slot) => slot.dayOfWeek === activeAvailabilityDay).sort((left, right) => timeToMinutes(left.startTime) - timeToMinutes(right.startTime)).map((slot) => <div className="consultant-availability-row" key={slot.id}><ClockCircleOutlined /><TimePicker.RangePicker aria-label={t('Availability time range')} value={[dayjs(slot.startTime, 'HH:mm'), dayjs(slot.endTime, 'HH:mm')]} format="HH:mm" minuteStep={15} allowClear={false} onChange={(range) => { if (range?.[0] && range?.[1]) updateAvailabilitySlot(slot.id, { startTime: range[0].format('HH:mm'), endTime: range[1].format('HH:mm') }) }} /><Button danger type="text" aria-label={t('Remove time')} icon={<DeleteOutlined />} onClick={() => update({ availability: profile.availability.filter((item) => item.id !== slot.id) })} /></div>)}
-                            </div>
-                            <div className="consultant-special-availability">
-                                <div className="consultant-special-availability-row"><div><strong>{t('Public holiday availability')}</strong><small>{t('Let SMEs know whether they can request holiday support.')}</small></div><div className="consultant-special-options" role="radiogroup" aria-label={t('Public holiday availability')}>{SPECIAL_AVAILABILITY_OPTIONS.map(({ value, label }) => <button type="button" key={value} role="radio" aria-checked={profile.holidayAvailability === value} className={profile.holidayAvailability === value ? 'is-selected' : ''} onClick={() => update({ holidayAvailability: value })}>{label}</button>)}</div></div>
-                            </div>
-                        </div>}
+                        )}
+
                         <Row className="consultant-profile-fields" id="consultant-section-professional" gutter={[16, 8]}>
-                            <Col className="consultant-field-professional" xs={24} md={12}>
+                            <Col className="consultant-field-professional" xs={24} md={12} id="consultant-field-headline">
                                 <Form.Item label={t('Professional headline')}>
                                     <Input value={profile.headline} maxLength={100} placeholder={t('e.g. SME finance and growth strategy specialist')} onChange={(event) => update({ headline: event.target.value })} />
                                 </Form.Item>
@@ -243,20 +440,18 @@ function ConsultantMarketplaceProfileForm() {
                                     <Input.TextArea rows={5} maxLength={800} showCount value={profile.bio} placeholder={t('Summarise the outcomes you help SMEs achieve.')} onChange={(event) => update({ bio: event.target.value })} />
                                 </Form.Item>
                             </Col>
-                            <Col className="consultant-field-professional" xs={24}>
+                            <Col className="consultant-field-professional" xs={24} id="consultant-field-expertise">
                                 <Form.Item label={t('Areas of expertise')}>
                                     <Select mode="tags" value={profile.specialties} tokenSeparators={[',']} placeholder={t('Finance, marketing, operations...')} onChange={(value) => update({ specialties: value })} />
                                 </Form.Item>
                             </Col>
-                            <Col className="consultant-field-location" id="consultant-section-location" xs={24}>
-                                <Form.Item label={t('Where are you based?')} required>
+                            <Col className="consultant-field-location" id="consultant-field-country" xs={24}>
+                                <Form.Item label={t('Where are you based?')} required validateStatus={showErrors && issues.country ? 'error' : undefined} help={showErrors ? issues.country : undefined}>
                                     <div className="consultant-location-choice-grid" role="radiogroup" aria-label={t('Country')}>
-                                        {SUPPORTED_COUNTRIES.map(({ value, currencies, Icon }) =>
-                                            <button key={value} type="button" role="radio" aria-checked={profile.country === value} className={`consultant-profile-choice-card${profile.country === value ? ' is-selected' : ''}`} onClick={() => update({ country: value, province: '', currency: currencies[0], phone: withDiallingCode(profile.phone, value), alternativePhone: withDiallingCode(profile.alternativePhone, value) })}>
+                                        {SUPPORTED_COUNTRIES.map(({ value, currencies: options, Icon }) =>
+                                            <button key={value} type="button" role="radio" aria-checked={profile.country === value} className={`consultant-profile-choice-card${profile.country === value ? ' is-selected' : ''}`} onClick={() => update({ country: value, province: '', currency: options[0], phone: withDiallingCode(profile.phone, value), alternativePhone: withDiallingCode(profile.alternativePhone, value) })}>
                                                 <Icon />
-                                                <span>
-                                                    <strong>{value}</strong>
-                                                </span>
+                                                <span><strong>{value}</strong></span>
                                             </button>)}
                                     </div>
                                 </Form.Item>
@@ -273,53 +468,50 @@ function ConsultantMarketplaceProfileForm() {
                             </Col>
                             <Col className="consultant-field-location" xs={24} md={12}>
                                 <Form.Item label={t('In-person radius')}>
-                                    <div className="consultant-radius-choice-grid" role="radiogroup" aria-label={t('In-person radius')}>
-                                        {[10, 25, 50, 100, 250].map((radius) => <button key={radius} type="button" role="radio" aria-checked={profile.serviceRadiusKm === radius} className={`consultant-profile-choice-card${profile.serviceRadiusKm === radius ? ' is-selected' : ''}`} onClick={() => update({ serviceRadiusKm: radius })}><AimOutlined /><span><strong>{radius === 250 ? t('250+ km') : `${radius} km`}</strong><small>{radius <= 25 ? t('Nearby') : radius <= 100 ? t('Regional') : t('Wide reach')}</small></span></button>)}
-                                    </div>
+                                    <Segmented
+                                        block
+                                        value={profile.serviceRadiusKm}
+                                        onChange={(serviceRadiusKm) => update({ serviceRadiusKm: Number(serviceRadiusKm) })}
+                                        options={[10, 25, 50, 100, 250].map((radius) => ({ value: radius, label: radius === 250 ? t('250+ km') : `${radius} km` }))}
+                                    />
                                 </Form.Item>
                             </Col>
                             <Col className="consultant-field-location" xs={24} md={12}>
                                 <Form.Item label={t('Daily-rate currency')} required>
-                                    <div className="consultant-location-choice-grid consultant-currency-choice-grid" role="radiogroup"
-                                        aria-label={t('Daily-rate currency')}>
-                                        {SUPPORTED_COUNTRIES.filter(({ value }) =>
-                                            value === profile.country).flatMap(({ currencies }) =>
-                                                currencies.map((currency) =>
-                                                    <button
-                                                        key={currency}
-                                                        type="button"
-                                                        role="radio"
-                                                        aria-checked={profile.currency === currency}
-                                                        className={`consultant-profile-choice-card${profile.currency === currency ? ' is-selected' : ''}`}
-                                                        onClick={() => update({ currency })}>
-                                                        <BankOutlined />
-                                                        <span>
-                                                            <strong>{currency}</strong>
-                                                        </span>
-                                                    </button>))}
-                                        {!SUPPORTED_COUNTRIES.some(({ value }) => value === profile.country) && <div className="consultant-profile-choice-empty">{t('Choose a country to set your currency.')}</div>}
-                                    </div>
+                                    {currencies.length > 1
+                                        ? <Segmented block value={profile.currency} onChange={(currency) => update({ currency: String(currency) })} options={currencies.map((currency) => ({ value: currency, label: currency }))} />
+                                        // With one currency there's nothing to choose, so it's stated.
+                                        : currencies.length === 1
+                                            ? <div className="consultant-profile-fixed-value"><BankOutlined /> {currencies[0]}</div>
+                                            : <div className="consultant-profile-choice-empty">{t('Choose a country to set your currency.')}</div>}
                                 </Form.Item>
                             </Col>
                         </Row>
+
                         <Row id="consultant-section-contact" className="consultant-contact-fields" gutter={[16, 8]}>
                             <Col xs={24}>
                                 <div className="consultant-contact-email-card"><MailOutlined /><div><small>{t('System login email')}</small><strong>{profile.email || user?.email || t('Not added')}</strong></div><Tag color="blue">{t('Account')}</Tag></div>
                             </Col>
-                                <Col xs={24}>
-                                    <Form.Item label={t('Additional email')}>
-                                        <Input prefix={<MailOutlined />} type="email" value={profile.alternativeEmail} placeholder={t('Optional work or personal email')} onChange={(event) => update({ alternativeEmail: event.target.value })} />
-                                    </Form.Item>
-                                </Col>
-                                <Col xs={24} md={12}>
-                                    <Form.Item label={t('Primary phone')} required validateStatus={profile.phone && !primaryPhoneIsValid ? 'error' : undefined} help={profile.phone && !primaryPhoneIsValid ? `Enter ${expectedPhoneLength || 9} digits after ${diallingCode || 'the country code'}.` : undefined}>
-                                        <div className="consultant-phone-input-row"><Input addonBefore={diallingCode || '—'} disabled={!diallingCode} maxLength={11} value={formatLocalPhoneNumber(profile.phone)} placeholder="78 571 9132" onChange={(event) => update({ phone: withDiallingCode(event.target.value, profile.country) })} /><Checkbox checked={profile.phoneIsWhatsApp} disabled={!profile.phone.trim()} onChange={(event) => update({ phoneIsWhatsApp: event.target.checked })}>{t('WhatsApp')}</Checkbox></div>
-                                    </Form.Item>
-                                </Col>
-                                <Col xs={24} md={12}>
-                                    <Form.Item label={t('Alternative phone')} validateStatus={profile.alternativePhone && !alternativePhoneIsValid ? 'error' : undefined} help={profile.alternativePhone && !alternativePhoneIsValid ? `Enter ${expectedPhoneLength || 9} digits after ${diallingCode || 'the country code'}.` : undefined}>
-                                        <div className="consultant-phone-input-row"><Input addonBefore={diallingCode || '—'} disabled={!diallingCode} maxLength={11} value={formatLocalPhoneNumber(profile.alternativePhone)} placeholder="78 571 9132" onChange={(event) => update({ alternativePhone: withDiallingCode(event.target.value, profile.country) })} /><Checkbox checked={profile.alternativePhoneIsWhatsApp} disabled={!profile.alternativePhone.trim()} onChange={(event) => update({ alternativePhoneIsWhatsApp: event.target.checked })}>{t('WhatsApp')}</Checkbox></div>
-                                    </Form.Item>
+                            <Col xs={24}>
+                                <Form.Item label={t('Additional email')}>
+                                    <Input prefix={<MailOutlined />} type="email" value={profile.alternativeEmail} placeholder={t('Optional work or personal email')} onChange={(event) => update({ alternativeEmail: event.target.value })} />
+                                </Form.Item>
+                            </Col>
+                            <Col xs={24} md={12} id="consultant-field-phone">
+                                <Form.Item label={t('Primary phone')} required validateStatus={fieldError('phone') ? 'error' : undefined} help={fieldError('phone')}>
+                                    <div className="consultant-phone-input-row"><Input addonBefore={diallingCode || '—'} disabled={!diallingCode} maxLength={11} value={formatLocalPhoneNumber(profile.phone)} placeholder="78 571 9132" onChange={(event) => update({ phone: withDiallingCode(event.target.value, profile.country) })} /><Checkbox checked={profile.phoneIsWhatsApp} disabled={!profile.phone.trim()} onChange={(event) => update({ phoneIsWhatsApp: event.target.checked })}>{t('WhatsApp')}</Checkbox></div>
+                                </Form.Item>
+                                <Form.Item validateStatus={fieldError('phoneProvider') ? 'error' : undefined} help={fieldError('phoneProvider')} className="consultant-phone-provider">
+                                    <Select allowClear showSearch={false} value={profile.phoneProvider || undefined} disabled={!profile.phone.trim()} placeholder={t('Service provider')} style={{ minWidth: 150 }} options={providersForCountry(profile.country).map((value) => ({ value, label: value }))} onChange={(value) => update({ phoneProvider: value || '' })} />
+                                </Form.Item>
+                            </Col>
+                            <Col xs={24} md={12} id="consultant-field-alternative-phone">
+                                <Form.Item label={t('Alternative phone')} validateStatus={fieldError('alternativePhone') ? 'error' : undefined} help={fieldError('alternativePhone')}>
+                                    <div className="consultant-phone-input-row"><Input addonBefore={diallingCode || '—'} disabled={!diallingCode} maxLength={11} value={formatLocalPhoneNumber(profile.alternativePhone)} placeholder="78 571 9132" onChange={(event) => update({ alternativePhone: withDiallingCode(event.target.value, profile.country) })} /><Checkbox checked={profile.alternativePhoneIsWhatsApp} disabled={!profile.alternativePhone.trim()} onChange={(event) => update({ alternativePhoneIsWhatsApp: event.target.checked })}>{t('WhatsApp')}</Checkbox></div>
+                                </Form.Item>
+                                <Form.Item validateStatus={fieldError('alternativePhoneProvider') ? 'error' : undefined} help={fieldError('alternativePhoneProvider')} className="consultant-phone-provider">
+                                    <Select allowClear showSearch={false} value={profile.alternativePhoneProvider || undefined} disabled={!profile.alternativePhone.trim()} placeholder={t('Service provider')} style={{ minWidth: 150 }} options={providersForCountry(profile.country).map((value) => ({ value, label: value }))} onChange={(value) => update({ alternativePhoneProvider: value || '' })} />
+                                </Form.Item>
                             </Col>
                             <Col xs={24} md={12}>
                                 <Form.Item label={t('Website')}>
@@ -337,10 +529,23 @@ function ConsultantMarketplaceProfileForm() {
                                 </Form.Item>
                             </Col>
                         </Row>
-                        <Button className="consultant-profile-save" type="primary" icon={<SaveOutlined />} loading={saving} onClick={() => void save()}>{t('Save profile')}</Button>
+
+                        <div className="consultant-profile-save">
+                            {dirty && <span className="consultant-profile-unsaved">{t('Unsaved changes')}</span>}
+                            <Button block type="primary" icon={<SaveOutlined />} loading={saving} disabled={!dirty && !showErrors} onClick={() => void save()}>{t('Save profile')}</Button>
+                        </div>
                     </Form>
                 </Card>
             </div>
+
+            <ResponsiveModal open={previewOpen} onClose={() => setPreviewOpen(false)} title={t('How SMEs see your profile')} width={420} centered>
+                <Typography.Paragraph type="secondary">
+                    {saved?.status === 'published'
+                        ? t('This is your card in the consultant marketplace, including any changes you haven’t saved yet.')
+                        : t('Once published, this is how your card appears in the consultant marketplace.')}
+                </Typography.Paragraph>
+                <ConsultantMarketplaceCard profile={profile} action={<Button type="primary" block disabled>{t('Choose this consultant')}</Button>} />
+            </ResponsiveModal>
         </DashboardPage>
     )
 }

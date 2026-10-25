@@ -10,6 +10,7 @@ import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { useLanguage, tEnglish } from '@/providers/LanguageProvider'
 import { getSystemSettings } from '@/services/companySettingsService'
+import { canManageArea } from '@/services/companyDelegationService'
 import { listDirectorOrgUnits, saveDirectorOrgUnit } from '@/services/directorStructureService'
 import { useRegisterAgentPageContext } from '@/shared/hooks/useRegisterAgentPageContext'
 import type { SystemSettingsRecord } from '@/types/companySettings'
@@ -47,6 +48,8 @@ export const DirectorStructurePage = () => {
   const [modalOpen, setModalOpen] = useState(false)
   const [form] = Form.useForm<FormValues>()
 
+  // Everyone in the company can view; only the director, or roles the director delegated to, can change.
+  const canEdit = canManageArea(user?.role, settings, 'structure')
   const hasDepartments = !!settings?.hasDepartments
   const hasOffices = !!settings?.hasBranches
   const enabledTypes = useMemo<DirectorOrgUnitType[]>(() => [
@@ -152,7 +155,7 @@ export const DirectorStructurePage = () => {
     { title: unitLabel, dataIndex: 'name', key: 'name', render: (_, row) => <Space direction="vertical" size={0}><strong>{row.name}</strong><span className="director-muted">{row.code || t('common.noCode', 'No code')}</span></Space> },
     { title: t('director.structure.manager', 'Manager'), key: 'manager', render: (_, row) => <Space direction="vertical" size={0}><span>{row.managerName || t('common.unassigned', 'Unassigned')}</span><span className="director-muted">{row.managerEmail}</span></Space> },
     { title: t('common.status', 'Status'), dataIndex: 'status', key: 'status', width: 120, render: value => <Tag color={statusColor(value)}>{String(value).toUpperCase()}</Tag> },
-    { title: '', key: 'actions', width: 100, align: 'right', render: (_, row) => <Button icon={<EditOutlined />} onClick={() => openModal(row)}>{t('common.edit', 'Edit')}</Button> },
+    ...(canEdit ? [{ title: '', key: 'actions', width: 100, align: 'right' as const, render: (_: unknown, row: DirectorOrgUnit) => <Button icon={<EditOutlined />} onClick={() => openModal(row)}>{t('common.edit', 'Edit')}</Button> }] : []),
   ]
 
   return (
@@ -173,6 +176,10 @@ export const DirectorStructurePage = () => {
           description={t('director.structure.enableHint', 'Enable departments or branches/offices in Company Settings first, or submit a setup addition request.')}
           action={<Button onClick={() => navigate('/director/settings')}>{t('nav.companySettings', 'Company Settings')}</Button>}
         />
+      )}
+
+      {!!enabledTypes.length && !canEdit && (
+        <Alert type="info" showIcon className="director-section-gap" message={t('You can view your company structure. Your director manages changes to it.')} />
       )}
 
       {!!enabledTypes.length && (
@@ -196,7 +203,7 @@ export const DirectorStructurePage = () => {
                 <Select value={status} onChange={setStatus} options={[{ value: 'all', label: t('common.all', 'All') }, { value: 'active', label: t('common.active', 'Active') }, { value: 'inactive', label: t('common.inactive', 'Inactive') }]} />
               </>
             }
-            actions={<Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>{t('director.structure.add', 'Add')} {unitLabel}</Button>}
+            actions={canEdit ? <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>{t('director.structure.add', 'Add')} {unitLabel}</Button> : undefined}
           />
 
           <Card className="dashboard-section-card motion-card director-section-gap">
@@ -211,7 +218,7 @@ export const DirectorStructurePage = () => {
                     <Space style={{ justifyContent: 'space-between', width: '100%' }}><strong>{row.name}</strong><Tag color={statusColor(row.status)}>{row.status.toUpperCase()}</Tag></Space>
                     <span className="director-muted">{row.code || t('common.noCode', 'No code')}</span>
                     <span>{row.managerName || t('common.unassigned', 'Unassigned')}</span>
-                    <Button icon={<EditOutlined />} onClick={() => openModal(row)}>{t('common.edit', 'Edit')}</Button>
+                    {canEdit && <Button icon={<EditOutlined />} onClick={() => openModal(row)}>{t('common.edit', 'Edit')}</Button>}
                   </Space>
                 )}
               />

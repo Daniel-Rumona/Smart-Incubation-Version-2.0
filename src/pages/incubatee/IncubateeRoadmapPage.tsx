@@ -61,7 +61,7 @@ import {
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { auth, db, storage } from "@/firebase";
 import { MotionCard } from "@/components/shared/Header";
-import { LoadingOverlay } from "@/components/shared/LoadingOverlay";
+import { PageSkeleton } from "@/components/shared/PageSkeleton";
 import DashboardHeader from "@/components/shared/DashboardHeader";
 import { ThemedHighcharts } from "@/components/shared/ThemedHighcharts";
 import { agentApiBaseUrl, isAgentApiConfigured } from "@/config/agent";
@@ -293,7 +293,7 @@ const urgencyFromDueDate = (dueDate?: FirestoreDate): UrgencyLevel => {
 const roadmapStatusFromIntervention = (status: IncubateeIntervention["status"]): RoadmapItem["status"] => {
     if (status === "Completed") return "completed";
     if (status === "Declined" || status === "Rejected") return "blocked";
-    if (status === "In Progress" || status === "Awaiting Confirmation" || status === "Awaiting Your Acceptance") return "in_progress";
+    if (status === "In Progress" || status === "Awaiting Confirmation") return "in_progress";
     return "not_started";
 };
 
@@ -1485,9 +1485,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
 
     if (loading) {
         return (
-            <div style={{ minHeight: '100vh' }}>
-                <LoadingOverlay tip={t('Loading AI roadmap')} />
-            </div>
+            <PageSkeleton variant="detail" label={t('Loading AI roadmap')} />
         )
 
     }

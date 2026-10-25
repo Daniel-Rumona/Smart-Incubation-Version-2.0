@@ -119,7 +119,8 @@ export const UpcomingWeekCard = ({ interventionDueItems, loading: interventionsL
     const weekDays = useMemo(() => {
         const today = dayjs().startOf('day')
         const daysSinceMonday = (today.day() + 6) % 7
-        const monday = today.subtract(daysSinceMonday, 'day')
+        // From Saturday the working week is over, so the card looks ahead to the coming one.
+        const monday = daysSinceMonday >= 5 ? today.add(7 - daysSinceMonday, 'day') : today.subtract(daysSinceMonday, 'day')
         return Array.from({ length: 5 }, (_, index) => monday.add(index, 'day'))
     }, [])
 
@@ -177,7 +178,7 @@ export const UpcomingWeekCard = ({ interventionDueItems, loading: interventionsL
                     tagColor: appointmentStatusColor(status),
                     icon: meetingIcon(row.meetingType),
                     accent: token.colorPrimary,
-                    onClick: () => (onViewSchedule ? onViewSchedule() : navigate('/operations/interventions/appointments')),
+                    onClick: () => (onViewSchedule ? onViewSchedule() : navigate('/shared/interventions/appointments')),
                 })
             })
 
@@ -364,7 +365,7 @@ export const UpcomingWeekCard = ({ interventionDueItems, loading: interventionsL
                 </Space>
             )}
             extra={onViewSchedule || navigate ? (
-                <Button size="small" onClick={() => (onViewSchedule ? onViewSchedule() : navigate('/operations/interventions/appointments'))}>
+                <Button size="small" onClick={() => (onViewSchedule ? onViewSchedule() : navigate('/shared/interventions/appointments'))}>
                     {t('View schedule')}
                 </Button>
             ) : null}

@@ -1,0 +1,486 @@
+/* =========================================================
+   SME DIAGNOSTIC PLAN PAGE
+   Same layout family as the compliance and interventions pages:
+   plan score + metrics, the next step, the intervention list
+   (rows open to show their steps), then sign-off.
+   ========================================================= */
+
+.incubatee-plan-page {
+    --plan-ease: cubic-bezier(0.23, 1, 0.32, 1);
+    --plan-accent: #6d5dfb;
+    --plan-border: rgba(109, 93, 251, 0.12);
+    --plan-surface: var(--ant-color-bg-container, #fff);
+    --plan-divider: rgba(15, 23, 42, 0.06);
+    --plan-muted: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.55));
+    display: grid;
+    /* The page fills the viewport; without this the few rows share the spare height as gaps. */
+    align-content: start;
+    gap: 16px;
+}
+
+/* Sections settle in on first paint; short so the page never feels slow. */
+.plan-summary,
+.plan-next,
+.plan-section {
+    animation: plan-fade-in 260ms var(--plan-ease) both;
+}
+
+.plan-next { animation-delay: 40ms; }
+.plan-section { animation-delay: 80ms; }
+
+@keyframes plan-fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/* ---------- score + metrics row ---------- */
+
+.plan-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+/* The score tile is a dashboard-metric-card; tighten its gap so the ring sits like an icon. */
+.plan-score-card .dashboard-metric-row {
+    gap: 12px;
+}
+
+.plan-score-value {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* ---------- next step ---------- */
+
+.plan-next {
+    display: grid;
+    gap: 8px;
+    padding: 16px 20px;
+    border: 2px solid var(--plan-accent);
+    border-radius: 14px;
+    background: var(--plan-surface);
+}
+
+.plan-next-eyebrow {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--plan-accent);
+}
+
+.plan-next-body {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+}
+
+.plan-next-icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    font-size: 19px;
+    color: var(--plan-accent);
+    background: rgba(109, 93, 251, 0.1);
+}
+
+.plan-next.is-awaiting .plan-next-icon { color: #d97706; background: rgba(217, 119, 6, 0.1); }
+
+.plan-next-text {
+    display: grid;
+    flex: 1;
+    gap: 2px;
+    min-width: 200px;
+}
+
+.plan-next-title {
+    font-size: 16px;
+}
+
+.plan-next-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* ---------- sections ---------- */
+
+.plan-section-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.plan-section-head h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.plan-section-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+/* ---------- intervention list ---------- */
+
+.plan-list {
+    margin: 0;
+    padding: 0 16px;
+    list-style: none;
+    border: 1px solid var(--plan-border);
+    border-radius: 14px;
+    background: var(--plan-surface);
+}
+
+.plan-row {
+    border-top: 1px solid var(--plan-divider);
+}
+
+.plan-row:first-child {
+    border-top: none;
+}
+
+.plan-row-head {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 12px 0;
+    border: 0;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    background: none;
+    cursor: pointer;
+}
+
+.plan-row-head:focus-visible {
+    outline: 2px solid var(--plan-accent);
+    outline-offset: 2px;
+    border-radius: 8px;
+}
+
+.plan-row-icon {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    font-size: 16px;
+    color: #94a3b8;
+    background: rgba(148, 163, 184, 0.12);
+}
+
+.plan-row.is-completed .plan-row-icon { color: #059669; background: rgba(5, 150, 105, 0.1); }
+.plan-row.is-in-progress .plan-row-icon { color: #3b82f6; background: rgba(59, 130, 246, 0.1); }
+.plan-row.is-awaiting-confirmation .plan-row-icon { color: #d97706; background: rgba(217, 119, 6, 0.1); }
+.plan-row.is-declined .plan-row-icon { color: #dc2626; background: rgba(220, 38, 38, 0.1); }
+
+.plan-row-main {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.plan-row-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.plan-row-title .ant-tag {
+    margin: 0;
+}
+
+.plan-row-meta {
+    font-size: 13px;
+}
+
+.plan-row-progress {
+    max-width: 280px;
+    margin: 2px 0 0 !important;
+}
+
+.plan-row-chevron {
+    color: var(--plan-muted);
+    transition: color 160ms ease;
+}
+
+.plan-row-head:hover .plan-row-chevron {
+    color: var(--plan-accent);
+}
+
+.plan-row-detail {
+    display: grid;
+    gap: 10px;
+    margin: 0 0 14px 48px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--plan-divider);
+    animation: plan-fade-in 200ms var(--plan-ease) both;
+}
+
+.plan-steps {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.plan-step {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+}
+
+.plan-step-state {
+    margin: 0;
+}
+
+.plan-step-meta {
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+/* ---------- sign-off ---------- */
+
+.plan-signoff {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.plan-signoff-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--plan-border);
+    border-radius: 14px;
+    background: var(--plan-surface);
+}
+
+.plan-signoff-icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    font-size: 16px;
+    color: #94a3b8;
+    background: rgba(148, 163, 184, 0.12);
+}
+
+.plan-signoff-card.is-confirmed .plan-signoff-icon { color: #059669; background: rgba(5, 150, 105, 0.1); }
+
+.plan-signoff-text {
+    display: grid;
+    flex: 1;
+    min-width: 0;
+}
+
+.plan-signoff-meta {
+    font-size: 12px;
+}
+
+.plan-signoff-signature {
+    max-width: 110px;
+    height: 36px;
+    object-fit: contain;
+}
+
+/* ---------- plan not ready yet ---------- */
+
+/* The card is the whole page here, so it sits in the middle of the available space. */
+.incubatee-plan-page.is-pending {
+    align-content: center;
+    justify-items: center;
+    min-height: 100%;
+}
+
+.plan-pending {
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+    width: 100%;
+    max-width: 560px;
+    padding: 32px 24px;
+    text-align: center;
+    border: 1px solid var(--plan-border);
+    border-radius: 18px;
+    background: var(--plan-surface);
+    animation: plan-fade-in 260ms var(--plan-ease) both;
+}
+
+.plan-pending-icon {
+    display: grid;
+    place-items: center;
+    width: 52px;
+    height: 52px;
+    margin-bottom: 6px;
+    border-radius: 16px;
+    font-size: 24px;
+    color: var(--plan-accent);
+    background: rgba(109, 93, 251, 0.1);
+}
+
+.plan-pending-title {
+    font-size: 17px;
+}
+
+.plan-pending-steps {
+    display: grid;
+    gap: 14px;
+    width: 100%;
+    margin: 18px 0 20px;
+    padding: 16px 18px;
+    list-style: none;
+    text-align: left;
+    border-radius: 14px;
+    background: rgba(109, 93, 251, 0.04);
+}
+
+.plan-pending-step {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.plan-pending-dot {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    font-size: 16px;
+    color: #94a3b8;
+}
+
+.plan-pending-step.is-done .plan-pending-dot { color: #059669; }
+.plan-pending-step.is-current .plan-pending-dot { color: var(--plan-accent); }
+
+.plan-pending-step-text {
+    display: grid;
+    gap: 1px;
+}
+
+.plan-pending-step.is-next .plan-pending-step-text > .ant-typography:first-child {
+    color: var(--plan-muted);
+}
+
+.plan-pending-step-meta {
+    font-size: 12px;
+}
+
+/* Press feedback: the interface heard the tap. */
+.incubatee-plan-page .ant-btn {
+    transition: transform 160ms ease-out, background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.incubatee-plan-page .ant-btn:not(:disabled):active {
+    transform: scale(0.97);
+}
+
+/* ---------- dark ---------- */
+
+html[data-theme='dark'] .incubatee-plan-page {
+    --plan-accent: #8b7dff;
+    --plan-border: rgba(139, 92, 246, 0.18);
+    --plan-divider: rgba(255, 255, 255, 0.08);
+    --plan-muted: var(--ant-color-text-secondary, rgba(255, 255, 255, 0.6));
+}
+
+html[data-theme='dark'] .plan-row.is-completed .plan-row-icon,
+html[data-theme='dark'] .plan-signoff-card.is-confirmed .plan-signoff-icon { color: #34d399; background: rgba(52, 211, 153, 0.12); }
+html[data-theme='dark'] .plan-row.is-in-progress .plan-row-icon { color: #60a5fa; background: rgba(96, 165, 250, 0.12); }
+html[data-theme='dark'] .plan-row.is-awaiting-confirmation .plan-row-icon,
+html[data-theme='dark'] .plan-next.is-awaiting .plan-next-icon { color: #fbbf24; background: rgba(251, 191, 36, 0.12); }
+html[data-theme='dark'] .plan-row.is-declined .plan-row-icon { color: #f87171; background: rgba(248, 113, 113, 0.12); }
+html[data-theme='dark'] .plan-pending-step.is-done .plan-pending-dot { color: #34d399; }
+html[data-theme='dark'] .plan-pending-steps { background: rgba(139, 92, 246, 0.08); }
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 1100px) {
+    .plan-summary {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .plan-score-card {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 767px) {
+    .plan-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .plan-next {
+        padding: 14px 16px;
+    }
+
+    .plan-next-actions,
+    .plan-next-actions .ant-btn {
+        width: 100%;
+    }
+
+    .plan-list {
+        padding: 0 12px;
+    }
+
+    .plan-row-head {
+        gap: 10px;
+    }
+
+    .plan-row-detail {
+        margin-left: 0;
+    }
+
+    /* Step state and share drop under the step name. */
+    .plan-step {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 2px;
+    }
+
+    .plan-step-state {
+        justify-self: start;
+    }
+
+    .plan-signoff {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    @keyframes plan-fade-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    .incubatee-plan-page .ant-btn:not(:disabled):active {
+        transform: none;
+    }
+}

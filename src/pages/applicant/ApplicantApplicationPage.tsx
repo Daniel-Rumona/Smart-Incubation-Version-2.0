@@ -3,7 +3,7 @@ import { ArrowLeftOutlined, SendOutlined } from '@ant-design/icons'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import DashboardPage from '@/components/shared/DashboardPage'
-import { LoadingOverlay } from '@/components/shared/LoadingOverlay'
+import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import { getApplicantProfileBundle, isApplicantProfileComplete, listApplicantPrograms, submitApplicantApplication } from '@/services/applicantService'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { useLanguage } from '@/providers/LanguageProvider'
@@ -41,7 +41,7 @@ export const ApplicantApplicationPage = () => {
       .finally(() => setLoading(false))
   }, [form, message, programId, t, user])
 
-  if (loading) return <LoadingOverlay tip={t('applicant.application.loading')} />
+  if (loading) return <PageSkeleton variant="detail" label={t('applicant.application.loading')} />
   if (!program || !user) return <DashboardPage><Alert type="warning" showIcon message={t('applicant.application.notFound')} /></DashboardPage>
   if (!isApplicantProfileComplete(profile)) return <DashboardPage><Alert type="warning" showIcon message={t('applicant.application.profileRequired')} action={<Button onClick={() => navigate('/applicant/profile')}>{t('applicant.application.completeProfile')}</Button>} /></DashboardPage>
   const questions = program.onboardingQuestions || []

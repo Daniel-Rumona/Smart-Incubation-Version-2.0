@@ -1,0 +1,282 @@
+/* =========================================================
+   CONSULTANT — MY SMEs
+   Metrics, who needs attention, then a dense list of SMEs.
+   Clicking an SME still opens the summary modal.
+   ========================================================= */
+
+.consultant-smes-page {
+    --smes-ease: cubic-bezier(0.23, 1, 0.32, 1);
+    --smes-accent: #6d5dfb;
+    --smes-border: rgba(109, 93, 251, 0.12);
+    --smes-surface: var(--ant-color-bg-container, #fff);
+    --smes-divider: rgba(15, 23, 42, 0.06);
+    --smes-muted: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.55));
+    --smes-green: #059669;
+    --smes-blue: #3b82f6;
+    --smes-amber: #f59e0b;
+    --smes-red: #dc2626;
+    display: grid;
+    align-content: start;
+    gap: 16px;
+}
+
+.smes-summary,
+.smes-attention,
+.smes-list,
+.smes-empty {
+    animation: smes-fade-in 260ms var(--smes-ease) both;
+}
+
+.smes-attention { animation-delay: 40ms; }
+.smes-list { animation-delay: 80ms; }
+
+@keyframes smes-fade-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+}
+
+/* ---------- metrics ---------- */
+
+.smes-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+/* ---------- needs attention ---------- */
+
+.smes-attention {
+    display: grid;
+    gap: 8px;
+    padding: 14px 18px;
+    border: 2px solid var(--smes-accent);
+    border-radius: 14px;
+    background: var(--smes-surface);
+}
+
+.smes-attention-eyebrow {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--smes-accent);
+}
+
+.smes-attention-body {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 14px;
+}
+
+.smes-attention-title {
+    font-size: 15px;
+}
+
+.smes-attention-list {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.smes-attention-pill {
+    padding: 3px 10px;
+    border: 0;
+    border-radius: 999px;
+    font: inherit;
+    font-size: 12px;
+    color: var(--smes-red);
+    background: rgba(220, 38, 38, 0.1);
+    cursor: pointer;
+    transition: background-color 160ms ease;
+}
+
+.smes-attention-pill:hover {
+    background: rgba(220, 38, 38, 0.16);
+}
+
+/* ---------- SME list ---------- */
+
+.smes-list {
+    margin: 0;
+    padding: 0 16px;
+    list-style: none;
+    border: 1px solid var(--smes-border);
+    border-radius: 14px;
+    background: var(--smes-surface);
+}
+
+.smes-list > li + li {
+    border-top: 1px solid var(--smes-divider);
+}
+
+.smes-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1.3fr) minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 12px 0;
+    border: 0;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    background: none;
+    cursor: pointer;
+}
+
+.smes-row:focus-visible {
+    outline: 2px solid var(--smes-accent);
+    outline-offset: 2px;
+    border-radius: 8px;
+}
+
+.smes-avatar {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--smes-accent);
+    background: rgba(109, 93, 251, 0.1);
+}
+
+.smes-row.is-risk .smes-avatar {
+    color: var(--smes-red);
+    background: rgba(220, 38, 38, 0.1);
+}
+
+.smes-row-main,
+.smes-row-progress {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.smes-row-name,
+.smes-row-sub {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.smes-row-sub,
+.smes-row-meta {
+    font-size: 12px;
+}
+
+.smes-row-overdue {
+    color: var(--smes-red);
+}
+
+.smes-bar {
+    display: flex;
+    gap: 2px;
+    height: 6px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(109, 93, 251, 0.08);
+}
+
+.smes-bar-segment.is-completed { background: var(--smes-green); }
+.smes-bar-segment.is-active { background: var(--smes-blue); }
+.smes-bar-segment.is-pending { background: var(--smes-amber); }
+.smes-bar-segment.is-overdue { background: var(--smes-red); }
+
+.smes-row-chevron {
+    color: var(--smes-muted);
+    transition: color 160ms ease, transform 160ms ease;
+}
+
+.smes-row:hover .smes-row-chevron {
+    color: var(--smes-accent);
+    transform: translateX(2px);
+}
+
+.smes-pagination {
+    display: flex;
+    justify-content: center;
+}
+
+/* ---------- empty ---------- */
+
+.smes-empty {
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+    padding: 40px 16px;
+    text-align: center;
+    border: 1px dashed var(--smes-border);
+    border-radius: 14px;
+    background: var(--smes-surface);
+}
+
+.smes-empty-icon {
+    font-size: 30px;
+    color: var(--smes-accent);
+}
+
+/* ---------- dark ---------- */
+
+html[data-theme='dark'] .consultant-smes-page {
+    --smes-accent: #8b7dff;
+    --smes-border: rgba(139, 92, 246, 0.18);
+    --smes-divider: rgba(255, 255, 255, 0.06);
+    --smes-muted: var(--ant-color-text-secondary, rgba(255, 255, 255, 0.6));
+    --smes-green: #34d399;
+    --smes-blue: #60a5fa;
+    --smes-amber: #fbbf24;
+    --smes-red: #f87171;
+}
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 767px) {
+    .smes-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .smes-attention {
+        padding: 14px 16px;
+    }
+
+    .smes-list {
+        padding: 0 12px;
+    }
+
+    /* Progress drops under the name on a phone. */
+    .smes-row {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: 4px 12px;
+    }
+
+    .smes-row-progress {
+        grid-column: 2 / 3;
+        grid-row: 2;
+    }
+
+    .smes-row-chevron {
+        grid-row: 1 / span 2;
+        grid-column: 3;
+    }
+
+    .smes-avatar {
+        grid-row: 1 / span 2;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    @keyframes smes-fade-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    .smes-row:hover .smes-row-chevron {
+        transform: none;
+    }
+}

@@ -35,6 +35,8 @@ export type ProgramInterventionPolicy = {
   forcedInterventionIds?: string[]
   forcedInterventions?: ProgramIntervention[]
   allowSmeSelection?: boolean
+  /** When SMEs choose their own interventions: the most they may pick. null / missing = no limit. */
+  maxSelections?: number | null
 }
 
 export type ProgramIntervention = {

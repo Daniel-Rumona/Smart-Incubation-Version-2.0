@@ -10,7 +10,7 @@
 .applications-detail-stack > div { display: grid; gap: 7px; }
 .applications-detail-stack .ant-select { width: 100%; }
 .applications-decision-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.applications-decision-card { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px; border: 1px solid rgba(109, 93, 251, .14); border-radius: 12px; background: #fff; cursor: pointer; font: inherit; transition: border-color .15s ease, background .15s ease; }
+.applications-decision-card { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px; border: 1.5px solid rgba(109, 93, 251, .35); border-radius: 12px; background: #fff; cursor: pointer; font: inherit; transition: border-color .15s ease, background .15s ease; }
 .applications-decision-card:hover { border-color: rgba(109, 93, 251, .4); background: rgba(109, 93, 251, .04); }
 .applications-decision-icon { font-size: 18px; color: #94a3b8; }
 .applications-decision-label { font-size: 12px; font-weight: 600; color: #475569; }
@@ -20,25 +20,31 @@
 .applications-decision-card.is-accepted.is-active { border-color: #389e0d; background: rgba(56, 158, 13, .08); color: #237804; }
 .applications-decision-card.is-rejected.is-active { border-color: #cf1322; background: rgba(207, 19, 34, .08); color: #a8071a; }
 .applications-decision-result { display: grid; justify-items: start; gap: 8px; padding: 12px; border: 1px dashed rgba(148, 163, 184, .4); border-radius: 12px; }
-html[data-theme='dark'] .applications-decision-card { background: rgba(30, 41, 59, .9); border-color: rgba(255, 255, 255, .12); }
+html[data-theme='dark'] .applications-decision-card { background: rgba(30, 41, 59, .9); border-color: rgba(255, 255, 255, .3); }
 html[data-theme='dark'] .applications-decision-result { border-color: rgba(255, 255, 255, .18); }
-.applications-analytics-grid { display: grid; align-items: start; grid-template-columns: 1fr 1fr; gap: 14px; }
+.applications-analytics-grid { display: grid; align-items: start; grid-template-columns: 1fr 1fr; grid-template-areas: 'gauge gender' 'gauge bee' 'words words'; gap: 14px; }
+.applications-analytics-gender { grid-area: gender; }
+.applications-analytics-bee { grid-area: bee; }
 .applications-analytics-card { display: grid; align-content: start; gap: 10px; padding: 14px; border: 1px solid rgba(109, 93, 251, .12); border-radius: 14px; background: rgba(109, 93, 251, .03); }
-.applications-analytics-gauge { justify-items: center; text-align: center; }
+.applications-analytics-gauge { grid-area: gauge; justify-items: center; text-align: center; }
 .applications-analytics-gauge .ant-progress { margin-top: 4px; }
 .applications-analytics-bar-row { display: grid; grid-template-columns: 72px 1fr auto; align-items: center; gap: 8px; }
 .applications-analytics-bar-label { overflow: hidden; font-size: 12px; font-weight: 600; color: #475569; text-overflow: ellipsis; text-transform: capitalize; white-space: nowrap; }
 .applications-analytics-bar-value { font-size: 12px; color: #64748b; white-space: nowrap; }
-.applications-analytics-wordmap-card { grid-column: 1 / -1; }
+.applications-analytics-wordmap-card { grid-area: words; }
 .applications-analytics-wordmap { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; padding: 4px 0 2px; }
 .applications-wordmap-word { font-weight: 700; line-height: 1; text-transform: lowercase; }
 html[data-theme='dark'] .applications-analytics-card { background: rgba(30, 41, 59, .55); border-color: rgba(255, 255, 255, .12); }
 html[data-theme='dark'] .applications-analytics-bar-label { color: #cbd5e1; }
 html[data-theme='dark'] .applications-analytics-bar-value { color: #94a3b8; }
 @media (max-width: 640px) {
-  .applications-analytics-grid { grid-template-columns: 1fr; }
+  .applications-analytics-grid { grid-template-columns: 1fr; grid-template-areas: 'gauge' 'gender' 'bee' 'words'; }
 }
 @media (max-width: 767px) {
   .applications-metrics > div:nth-child(n + 3) { display: none; }
   .applications-panel .ant-card-body { padding: 8px; }
 }
+
+.applications-document-row { display: flex; align-items: center; gap: 10px; }
+.applications-document-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.applications-document-row .ant-btn { flex: none; margin-left: auto; }

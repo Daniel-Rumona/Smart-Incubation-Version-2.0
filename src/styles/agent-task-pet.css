@@ -18,6 +18,12 @@
     gap: 16px;
 }
 
+/* The heading takes the free width; without this it shrank to a narrow column beside the button. */
+.agent-task-panel-header > div {
+    flex: 1;
+    min-width: 0;
+}
+
 .agent-task-panel-header h3 {
     margin: 0;
     color: #1f2937;
@@ -542,5 +548,42 @@ html[data-theme='dark'] .floating-agent-pet-count {
 
     .floating-agent-pet-speech {
         right: 60px;
+    }
+}
+
+
+/* Phones: slim one-line chips (count then label), like the Agentic metrics. */
+@media (max-width: 767px) {
+    .agent-task-panel {
+        gap: 12px;
+    }
+
+    .agent-task-panel-header {
+        align-items: center;
+    }
+
+    .agent-task-panel-header h3 {
+        font-size: 16px;
+    }
+
+    .agent-task-panel-header p {
+        margin-top: 2px;
+    }
+
+    .agent-task-summary {
+        gap: 6px;
+    }
+
+    .agent-task-summary-item {
+        padding: 8px 10px;
+        border-radius: 12px;
+        flex-direction: row;
+        align-items: baseline;
+        justify-content: center;
+        gap: 5px;
+    }
+
+    .agent-task-summary-item strong {
+        font-size: 15px;
     }
 }

@@ -1,0 +1,181 @@
+/* =========================================================
+   FILL WITH AI
+   One chat column: the assistant's messages, the SME's notes and
+   answers, and one message box with voice and send.
+   ========================================================= */
+
+.ai-assist {
+    --ai-accent: #6d5dfb;
+    --ai-bubble: rgba(15, 23, 42, 0.05);
+    --ai-border: rgba(109, 93, 251, 0.18);
+    display: grid;
+    gap: 10px;
+}
+
+.ai-assist-note {
+    font-size: 12px;
+}
+
+.ai-assist-chat {
+    display: grid;
+    align-content: start;
+    gap: 8px;
+    max-height: min(52vh, 460px);
+    min-height: 140px;
+    padding: 4px 2px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.ai-assist-bubble {
+    display: grid;
+    gap: 6px;
+    max-width: 85%;
+    padding: 9px 12px;
+    border-radius: 14px;
+    font-size: 14px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    animation: ai-assist-in 220ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+.ai-assist-bubble.is-assistant {
+    justify-self: start;
+    border-top-left-radius: 4px;
+    background: var(--ai-bubble);
+}
+
+.ai-assist-bubble.is-user {
+    justify-self: end;
+    border-top-right-radius: 4px;
+    color: #fff;
+    background: var(--ai-accent);
+}
+
+.ai-assist-bubble.is-question {
+    border: 1px solid var(--ai-accent);
+    background: transparent;
+}
+
+.ai-assist-field {
+    justify-self: start;
+    padding: 1px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ai-accent);
+    background: rgba(109, 93, 251, 0.1);
+}
+
+.ai-assist-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.ai-assist-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    color: #047857;
+    background: rgba(5, 150, 105, 0.12);
+}
+
+/* Three dots while the AI reads the message. */
+.ai-assist-bubble.is-typing {
+    display: flex;
+    gap: 4px;
+    padding: 12px 14px;
+}
+
+.ai-assist-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.4;
+    animation: ai-assist-dot 1s ease-in-out infinite;
+}
+
+.ai-assist-dot:nth-child(2) { animation-delay: 150ms; }
+.ai-assist-dot:nth-child(3) { animation-delay: 300ms; }
+
+@keyframes ai-assist-dot {
+    0%, 100% { opacity: 0.25; transform: translateY(0); }
+    50% { opacity: 0.8; transform: translateY(-2px); }
+}
+
+@keyframes ai-assist-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: none; }
+}
+
+/* ---------- composer ---------- */
+
+.ai-assist-composer {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    padding-top: 10px;
+    border-top: 1px solid var(--ai-border);
+}
+
+.ai-assist-composer .ant-input {
+    flex: 1;
+    border-radius: 14px;
+    resize: none;
+}
+
+.ai-assist-composer > .ant-btn {
+    flex: none;
+    width: 36px;
+    height: 36px;
+}
+
+.ai-assist-composer > .ant-btn.is-listening {
+    color: #dc2626;
+    border-color: #dc2626;
+    animation: ai-assist-listening 1.4s ease-in-out infinite;
+}
+
+@keyframes ai-assist-listening {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.35); }
+    50% { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0); }
+}
+
+.ai-assist-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 12px;
+}
+
+.ai-assist-status .ant-btn {
+    padding: 0;
+}
+
+/* ---------- dark ---------- */
+
+html[data-theme='dark'] .ai-assist {
+    --ai-accent: #8b7dff;
+    --ai-bubble: rgba(255, 255, 255, 0.07);
+    --ai-border: rgba(139, 92, 246, 0.24);
+}
+
+html[data-theme='dark'] .ai-assist-chip {
+    color: #34d399;
+    background: rgba(52, 211, 153, 0.14);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ai-assist-bubble,
+    .ai-assist-dot,
+    .ai-assist-composer > .ant-btn.is-listening {
+        animation: none;
+    }
+}

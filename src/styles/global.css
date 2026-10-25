@@ -14,6 +14,32 @@ html[data-theme='dark'] {
   --app-autofill-text: #f5f7fb;
 }
 
+/* =========================================================
+   MODAL / DRAWER OVERLAY
+   Every modal (including Modal.confirm) and drawer dims and blurs the page behind it.
+   ========================================================= */
+
+.ant-modal-mask,
+.ant-drawer-mask {
+  background: rgba(15, 23, 42, 0.38) !important;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+html[data-theme='dark'] .ant-modal-mask,
+html[data-theme='dark'] .ant-drawer-mask {
+  background: rgba(2, 4, 12, 0.58) !important;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .ant-modal-mask,
+  .ant-drawer-mask {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: rgba(15, 23, 42, 0.62) !important;
+  }
+}
+
 html,
 body,
 #root {
@@ -259,14 +285,17 @@ html[data-theme='dark'] .public-result-page {
   }
 }
 
-@media (max-width: 767px) {
-  /* No scrollbars anywhere on a phone - every scroller still scrolls, it just
-     does not spend width on a bar the user cannot grab anyway. */
+/* No scrollbars on phones and tablets - every scroller still scrolls, it just does not spend width on a
+   bar a finger cannot grab anyway. Up to 1194px covers tablets in landscape (iPad Air/Pro 11"), whatever
+   pointer they report; wider touch-only screens (iPad Pro 12.9") too. Laptops from 1280px keep theirs. */
+@media (max-width: 1194px), (max-width: 1366px) and (pointer: coarse) {
+  /* !important: several pages style their own scrollers (thin bars, custom thumbs), and a class
+     selector would otherwise beat this universal one. */
   html,
   body,
   * {
-    scrollbar-width: none;
-    -ms-overflow-style: none;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
   }
 
   html::-webkit-scrollbar,
@@ -274,12 +303,14 @@ html[data-theme='dark'] .public-result-page {
   *::-webkit-scrollbar,
   *::-webkit-scrollbar-thumb,
   *::-webkit-scrollbar-track {
-    width: 0;
-    height: 0;
+    width: 0 !important;
+    height: 0 !important;
 
-    display: none;
+    display: none !important;
   }
+}
 
+@media (max-width: 767px) {
   .responsive-list-card .ant-btn:not(.ant-btn-icon-only),
   .ant-modal .ant-modal-footer .ant-btn,
   .ant-modal .ant-modal-body .ant-btn:not(.ant-btn-icon-only),

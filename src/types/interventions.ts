@@ -11,7 +11,8 @@ export type ProgressStep = {
   createdAt?: unknown
   actorUid?: string | null
   actorRole?: string | null
-  source?: UpdateMode
+  /** 'agent' marks a deliverable an AI agent generated and attached as evidence. */
+  source?: UpdateMode | 'agent'
   hoursAdded?: number
   unitsAdded?: number
   progressBefore?: number
@@ -22,10 +23,42 @@ export type ProgressStep = {
   targetActualAfter?: number | null
   notes?: string
   evidenceFiles?: string[]
+  /** Openable evidence, e.g. a deliverable an AI agent generated (also listed by name in evidenceFiles). */
+  evidenceLinks?: { name: string, url: string, documentId?: string }[]
+}
+
+/** The kind of change an intervention is meant to produce (not a deliverable). */
+export type InterventionOutcomeType =
+  | 'capability_established'
+  | 'process_implemented'
+  | 'behaviour_adopted'
+  | 'compliance_achieved'
+  | 'risk_reduced'
+  | 'performance_improved'
+  | 'access_achieved'
+  | 'issue_resolved'
+
+/**
+ * Optional outcome configuration on an intervention. Every field is optional and legacy
+ * interventions simply have none. The deliverable is the tangible output stored as POE evidence;
+ * the intended outcome is the change we hope it produces.
+ */
+export type InterventionOutcomeDefinition = {
+  intendedOutcome?: string
+  outcomeType?: InterventionOutcomeType
+  deliverableName?: string
+  deliverableDescription?: string
+  deliverableRequired?: boolean
+  followUpDays?: number
 }
 
 export type AssignedInterventionLike = {
   id: string
+  /** Snapshot of the library definition taken at assignment time. */
+  outcomeDefinition?: InterventionOutcomeDefinition
+  /** Set when completion is confirmed and the intervention defines followUpDays. */
+  followUpDueAt?: FirestoreDate
+  followUpStatus?: 'pending' | 'done'
   interventionId?: string
   interventionTitle?: string
   /** @deprecated Legacy field, replaced by `businessName`. See scripts/FIELD_MIGRATIONS.md. Kept only so older unmigrated documents still type-check. */
@@ -117,6 +150,8 @@ export type ProgressUpdateForm = {
   progressAfter?: number
   notes?: string
   evidenceFiles?: string[]
+  /** The chosen POE files themselves, uploaded to Storage when the update is saved. */
+  evidenceUploads?: File[]
 }
 
 export type AiReview = {

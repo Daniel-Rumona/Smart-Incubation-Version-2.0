@@ -119,9 +119,9 @@ export function getOperationsMenu(): SystemMenuItem[] {
                     label: <Link to="/operations/movs">{tr('MOVs')}</Link>,
                 },
                 {
-                    key: '/operations/interventions/setup',
+                    key: '/shared/interventions/setup',
                     icon: <SettingOutlined />,
-                    label: <Link to="/operations/interventions/setup">{tr('Setup')}</Link>,
+                    label: <Link to="/shared/interventions/setup">{tr('Setup')}</Link>,
                 },
             ],
         },

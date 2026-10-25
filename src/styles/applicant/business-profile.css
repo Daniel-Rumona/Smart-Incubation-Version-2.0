@@ -1,0 +1,338 @@
+/* =========================================================
+   BUSINESS PROFILE (accepted SME)
+   The applicant profile's data, read at a glance and edited one
+   section at a time — no wizard. Same look as the other SME pages.
+   ========================================================= */
+
+.business-profile-page {
+    --business-profile-ease: cubic-bezier(0.23, 1, 0.32, 1);
+    --business-profile-accent: #6d5dfb;
+    --business-profile-border: rgba(109, 93, 251, 0.12);
+    --business-profile-surface: var(--ant-color-bg-container, #fff);
+    --business-profile-muted: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.55));
+    display: grid;
+    /* The page fills the viewport; without this the few rows share the spare height as gaps. */
+    align-content: start;
+    gap: 16px;
+}
+
+/* Sections settle in on first paint; short so the page never feels slow. */
+.business-profile-header,
+.business-profile-notice,
+.business-profile-section {
+    animation: business-profile-fade-in 260ms var(--business-profile-ease) both;
+}
+
+.business-profile-notice { animation-delay: 40ms; }
+.business-profile-section { animation-delay: 80ms; }
+
+@keyframes business-profile-fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/* ---------- header ---------- */
+
+.business-profile-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 16px;
+    border: 1px solid var(--business-profile-border);
+    border-radius: 14px;
+    background: var(--business-profile-surface);
+}
+
+.business-profile-score {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.business-profile-header-text {
+    display: grid;
+    flex: 1;
+    min-width: 200px;
+}
+
+.business-profile-name {
+    font-size: 16px;
+}
+
+/* ---------- missing details / AI answers ---------- */
+
+.business-profile-notice {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border: 2px solid var(--business-profile-accent);
+    border-radius: 14px;
+    background: var(--business-profile-surface);
+}
+
+.business-profile-notice-icon {
+    font-size: 20px;
+    color: var(--business-profile-accent);
+}
+
+.business-profile-notice-text {
+    display: grid;
+    flex: 1;
+    min-width: 200px;
+}
+
+.business-profile-notice-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* ---------- sections ---------- */
+
+/* The business in a wide column, the people beside it; one column on narrower screens. */
+.business-profile-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 14px;
+}
+
+.business-profile-column {
+    display: grid;
+    gap: 10px;
+}
+
+/* The side column is narrow, so a section's form fields stack there while it is being edited. */
+.business-profile-column.is-side .business-profile-section .ant-row > .ant-col {
+    flex: 0 0 100%;
+    max-width: 100%;
+}
+
+.business-profile-column-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.business-profile-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.business-profile-fact,
+.business-profile-tag {
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 12px;
+    color: var(--business-profile-accent);
+    background: rgba(109, 93, 251, 0.08);
+}
+
+.business-profile-fact.is-positive {
+    color: #047857;
+    background: rgba(5, 150, 105, 0.12);
+}
+
+.business-profile-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.business-profile-more {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    margin-top: 10px;
+    font-size: 12px;
+}
+
+.business-profile-more .ant-btn {
+    padding: 0;
+    font-size: 12px;
+}
+
+.business-profile-section {
+    padding: 14px 16px;
+    border: 1px solid var(--business-profile-border);
+    border-radius: 14px;
+    background: var(--business-profile-surface);
+    scroll-margin-top: 80px;
+    transition: border-color 160ms ease;
+}
+
+.business-profile-section.is-editing {
+    border-color: var(--business-profile-accent);
+}
+
+.business-profile-section-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.business-profile-section-icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    font-size: 15px;
+    color: var(--business-profile-accent);
+    background: rgba(109, 93, 251, 0.1);
+}
+
+.business-profile-section-title {
+    flex: 1;
+}
+
+.business-profile-section-state {
+    font-size: 12px;
+}
+
+/* The manual form's step panels bring their own heading and intro; the section header already says it. */
+.business-profile-section .applicant-profile-step-panel > h4,
+.business-profile-section .applicant-profile-step-panel > h5,
+.business-profile-section .applicant-profile-step-panel > h4 + .ant-typography,
+.business-profile-section .applicant-profile-step-panel > h5 + .ant-typography {
+    display: none;
+}
+
+.business-profile-section .applicant-profile-step-panel > .ant-row {
+    margin-top: 0 !important;
+}
+
+.business-profile-section-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+/* ---------- read view ---------- */
+
+.business-profile-values {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 20px;
+    margin: 0;
+}
+
+.business-profile-value.is-paragraph dd {
+    line-height: 1.55;
+    white-space: pre-line;
+}
+
+.business-profile-value {
+    min-width: 0;
+}
+
+.business-profile-value.is-wide {
+    grid-column: 1 / -1;
+}
+
+.business-profile-value dt {
+    font-size: 12px;
+    color: var(--business-profile-muted);
+}
+
+.business-profile-value dd {
+    margin: 2px 0 0;
+    overflow-wrap: anywhere;
+    font-size: 14px;
+}
+
+.business-profile-value.is-missing dt,
+.business-profile-value.is-missing dd {
+    color: #dc2626;
+}
+
+/* Press feedback: the interface heard the tap. */
+.business-profile-page .ant-btn {
+    transition: transform 160ms ease-out, background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.business-profile-page .ant-btn:not(:disabled):active {
+    transform: scale(0.97);
+}
+
+/* ---------- dark ---------- */
+
+html[data-theme='dark'] .business-profile-page {
+    --business-profile-accent: #8b7dff;
+    --business-profile-border: rgba(139, 92, 246, 0.18);
+    --business-profile-muted: var(--ant-color-text-secondary, rgba(255, 255, 255, 0.6));
+}
+
+html[data-theme='dark'] .business-profile-value.is-missing dt,
+html[data-theme='dark'] .business-profile-value.is-missing dd {
+    color: #f87171;
+}
+
+html[data-theme='dark'] .business-profile-fact.is-positive {
+    color: #34d399;
+    background: rgba(52, 211, 153, 0.14);
+}
+
+html[data-theme='dark'] .business-profile-fact,
+html[data-theme='dark'] .business-profile-tag {
+    background: rgba(139, 92, 246, 0.14);
+}
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 1100px) {
+    .business-profile-columns {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 767px) {
+    .business-profile-values {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .business-profile-header > .ant-btn,
+    .business-profile-notice-actions,
+    .business-profile-notice-actions .ant-btn {
+        width: 100%;
+    }
+
+    .business-profile-notice-actions .ant-btn {
+        flex: 1;
+    }
+
+    .business-profile-section {
+        padding: 12px;
+    }
+
+    .business-profile-section-actions .ant-btn {
+        flex: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    @keyframes business-profile-fade-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    .business-profile-page .ant-btn:not(:disabled):active {
+        transform: none;
+    }
+}

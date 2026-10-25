@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Avatar, Card, Col, Empty, Input, Pagination, Progress, Row, Select, Space, Tag, Typography, theme } from 'antd'
+import { Empty, Input, Pagination, Select, Typography } from 'antd'
 import {
+  ArrowRightOutlined,
   CalendarOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
   FundOutlined,
+  RightOutlined,
   SearchOutlined,
   TeamOutlined,
   WarningOutlined,
@@ -13,6 +15,7 @@ import dayjs from 'dayjs'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
+import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import { NEON_GREEN, NEON_PURPLE, SummaryModal, type SummaryDetail } from '@/components/shared/SummaryModal'
 import { useAssignedInterventions, type AssignedIntervention } from '@/contexts/AssignedInterventionsContext'
 import { useLanguage } from '@/providers/LanguageProvider'
@@ -26,17 +29,18 @@ import {
   toDate,
 } from './ConsultantWorkspaceUtils'
 import '@/styles/consultant.css'
+import '@/styles/consultant-smes.css'
 
 const { Text } = Typography
 
-const PAGE_SIZE = 6
-const STATUS_COLORS = { completed: '#16A34A', active: '#2563EB', pending: '#F59E0B', overdue: '#E07A7A' }
+const PAGE_SIZE = 12
 
 type SmeRow = {
   key: string
   name: string
   programs: string[]
   sector: string
+  /** Engagements still in play: declined and cancelled work is left out of every count. */
   assignments: number
   completed: number
   active: number
@@ -50,77 +54,12 @@ type SortKey = 'attention' | 'progress' | 'name' | 'engagements'
 
 const initialsOf = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || '?'
 
-const StatusBar = ({ row }: { row: SmeRow }) => {
-  const segments = [
-    { key: 'completed', value: row.completed, color: STATUS_COLORS.completed },
-    { key: 'active', value: row.active, color: STATUS_COLORS.active },
-    { key: 'pending', value: row.pending, color: STATUS_COLORS.pending },
-    { key: 'overdue', value: row.overdue, color: STATUS_COLORS.overdue },
-  ].filter((segment) => segment.value > 0)
-  return (
-    <div style={{ display: 'flex', height: 8, borderRadius: 999, overflow: 'hidden', gap: 2 }}>
-      {segments.map((segment) => <div key={segment.key} style={{ flex: segment.value, background: segment.color }} title={`${segment.key}: ${segment.value}`} />)}
-    </div>
-  )
-}
-
-const SmeCard = ({ row, onClick }: { row: SmeRow; onClick: () => void }) => {
-  const { token } = theme.useToken()
-  const { t } = useLanguage()
-  const accent = row.overdue > 0 ? STATUS_COLORS.overdue : row.averageProgress >= 75 ? STATUS_COLORS.completed : STATUS_COLORS.active
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        width: '100%',
-        height: '100%',
-        textAlign: 'left',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 14,
-        padding: 16,
-        borderRadius: 16,
-        border: `1px solid ${token.colorBorderSecondary}`,
-        background: token.colorBgContainer,
-        boxShadow: token.boxShadowTertiary,
-        cursor: 'pointer',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <Avatar size={44} shape="circle" style={{ flexShrink: 0, background: accent, color: '#fff', fontWeight: 600 }}>{initialsOf(row.name)}</Avatar>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <Text strong ellipsis style={{ display: 'block', fontSize: 15 }}>{row.name}</Text>
-          <Space size={4} wrap style={{ marginTop: 2 }}>
-            {row.sector && <Tag bordered={false} style={{ margin: 0 }}>{row.sector}</Tag>}
-            {row.programs.slice(0, 1).map((program) => <Tag key={program} bordered={false} style={{ margin: 0 }}>{program}</Tag>)}
-          </Space>
-        </div>
-        <Progress type="circle" size={52} percent={row.averageProgress} strokeColor={accent} format={(value) => `${value}%`} />
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-        {[
-          { label: t('Engagements'), value: row.assignments },
-          { label: t('Active'), value: row.active },
-          { label: t('Overdue'), value: row.overdue, color: row.overdue ? STATUS_COLORS.overdue : undefined },
-        ].map((stat) => (
-          <div key={stat.label} style={{ padding: '8px 10px', borderRadius: 10, background: token.colorFillQuaternary }}>
-            <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>{stat.label}</Text>
-            <Text strong style={{ fontSize: 16, color: stat.color }}>{stat.value}</Text>
-          </div>
-        ))}
-      </div>
-
-      <div>
-        <StatusBar row={row} />
-        <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 6 }}>
-          {row.completed} {t('completed')} · {row.pending} {t('pending')}
-        </Text>
-      </div>
-    </button>
-  )
-}
+const SEGMENTS: Array<{ key: 'completed' | 'active' | 'pending' | 'overdue', label: string }> = [
+  { key: 'completed', label: 'Completed' },
+  { key: 'active', label: 'In progress' },
+  { key: 'pending', label: 'Not started' },
+  { key: 'overdue', label: 'Overdue' },
+]
 
 export default function ConsultantSmesPage() {
   const { t } = useLanguage()
@@ -137,7 +76,8 @@ export default function ConsultantSmesPage() {
     const groups = new Map<string, { name: string; programs: Set<string>; sector: string; list: AssignedIntervention[] }>()
     assignments.filter(isMine).forEach((assignment) => {
       const name = assignmentParticipant(assignment)
-      const key = name.trim().toLowerCase()
+      // The participant id keeps two businesses with the same name apart; the name is only a fallback.
+      const key = String(assignment.participantId || '').trim() || `name:${name.trim().toLowerCase()}`
       const current = groups.get(key) || { name, programs: new Set<string>(), sector: '', list: [] }
       const sector = String((assignment as unknown as Record<string, unknown>).sector || '').trim()
       if (sector && !current.sector) current.sector = sector
@@ -148,27 +88,28 @@ export default function ConsultantSmesPage() {
     })
 
     return Array.from(groups.entries()).map(([key, group]) => {
-      const items = group.list
-      const statuses = items.map((assignment) => ({ assignment, status: deriveConsultantStatus(assignment), progress: progressForAssignment(assignment) }))
-      const overdue = statuses.filter(({ assignment, status }) => status !== 'Completed' && isOverdueAssignment(assignment))
+      const statuses = group.list
+        .map((assignment) => ({ assignment, status: deriveConsultantStatus(assignment) }))
+        .filter(({ status }) => status !== 'Rejected')
+        .map((item) => ({ ...item, progress: progressForAssignment(item.assignment, item.status), overdue: isOverdueAssignment(item.assignment) }))
       return {
         key,
         name: group.name,
         programs: [...group.programs],
         sector: group.sector,
-        assignments: items.length,
+        assignments: statuses.length,
         completed: statuses.filter(({ status }) => status === 'Completed').length,
-        active: statuses.filter(({ status, assignment }) => status === 'In progress' && !isOverdueAssignment(assignment)).length,
-        pending: statuses.filter(({ status, assignment }) => status === 'Pending' && !isOverdueAssignment(assignment)).length,
-        overdue: overdue.length,
-        averageProgress: Math.round(statuses.reduce((sum, item) => sum + item.progress, 0) / Math.max(items.length, 1)),
+        active: statuses.filter(({ status, overdue }) => status === 'In progress' && !overdue).length,
+        pending: statuses.filter(({ status, overdue }) => status === 'Pending' && !overdue).length,
+        overdue: statuses.filter(({ overdue }) => overdue).length,
+        averageProgress: Math.round(statuses.reduce((sum, item) => sum + item.progress, 0) / Math.max(statuses.length, 1)),
         upcoming: statuses
           .filter(({ status }) => status !== 'Completed')
           .map(({ assignment }) => ({ title: assignmentTitle(assignment), due: toDate(assignment.dueDate) }))
           .filter((item): item is { title: string; due: Date } => !!item.due)
           .sort((left, right) => left.due.getTime() - right.due.getTime()),
       }
-    })
+    }).filter((row) => row.assignments > 0)
   }, [assignments, isMine])
 
   const sectors = useMemo(() => ['All', ...Array.from(new Set(rows.map((row) => row.sector).filter(Boolean))).sort()], [rows])
@@ -185,18 +126,22 @@ export default function ConsultantSmesPage() {
     return [...matches].sort(sorters[sortKey])
   }, [rows, search, sector, sortKey])
 
-  const pagedRows = useMemo(() => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filtered, page])
+  // A refresh can shrink the list under the current page; fall back to the last page that exists.
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const currentPage = Math.min(page, pageCount)
+  const pagedRows = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
   const totals = useMemo(() => {
     const engagements = rows.reduce((sum, row) => sum + row.assignments, 0)
     return {
       smes: rows.length,
-      engagements,
-      active: rows.reduce((sum, row) => sum + row.active, 0),
+      active: rows.reduce((sum, row) => sum + row.active + row.overdue, 0),
       overdue: rows.reduce((sum, row) => sum + row.overdue, 0),
       progress: engagements ? Math.round(rows.reduce((sum, row) => sum + row.averageProgress * row.assignments, 0) / engagements) : 0,
     }
   }, [rows])
+
+  const atRisk = useMemo(() => rows.filter((row) => row.overdue > 0).sort((left, right) => right.overdue - left.overdue), [rows])
 
   const openDetail = (row: SmeRow) => {
     const completionRate = row.assignments ? Math.round((row.completed / row.assignments) * 100) : 0
@@ -213,18 +158,18 @@ export default function ConsultantSmesPage() {
           icon: <FundOutlined />,
           label: t('Overall progress'),
           value: `${row.averageProgress}%`,
-          delta: { text: `${progressDiff > 0 ? '+' : ''}${progressDiff} pts`, positive: progressDiff >= 0 },
-          note: `${t('Compared to')} ${totals.progress}% ${t('across all your SMEs')}`,
+          delta: { text: t('{sign}{points} pts', undefined, { sign: progressDiff > 0 ? '+' : '', points: progressDiff }), positive: progressDiff >= 0 },
+          note: t('Compared to {percent}% across all your SMEs', undefined, { percent: totals.progress }),
         },
         {
           icon: <CheckCircleOutlined />,
           label: t('Completed'),
           value: `${row.completed}/${row.assignments}`,
-          note: `${completionRate}% ${t('of engagements delivered')}`,
+          note: t('{percent}% of engagements delivered', undefined, { percent: completionRate }),
         },
       ],
       right: [
-        { icon: <ClockCircleOutlined />, label: t('In progress'), value: String(row.active), note: `${row.pending} ${t('waiting to start')}` },
+        { icon: <ClockCircleOutlined />, label: t('In progress'), value: String(row.active), note: t('{count} waiting to start', undefined, { count: row.pending }) },
         {
           icon: <WarningOutlined />,
           label: t('Overdue'),
@@ -240,52 +185,108 @@ export default function ConsultantSmesPage() {
     })
   }
 
+  const rowMeta = (row: SmeRow) => {
+    const parts = [
+      row.assignments === 1 ? t('1 engagement') : t('{count} engagements', undefined, { count: row.assignments }),
+      `${row.averageProgress}%`,
+    ]
+    if (!row.overdue && row.upcoming[0]) parts.push(t('next due {date}', undefined, { date: dayjs(row.upcoming[0].due).format('D MMM') }))
+    return parts.join(' · ')
+  }
+
+  if (loading && !assignments.length) return <PageSkeleton variant="table" label={t('Loading your SMEs')} />
+
   return (
-    <DashboardPage className="consultant-page">
-      <Row gutter={[12, 12]} className="dashboard-metrics-row">
-        <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={loading} icon={<TeamOutlined />} label={t('My SMEs')} value={totals.smes} /></Col>
-        <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={loading} icon={<CalendarOutlined />} label={t('Engagements')} value={totals.engagements} hint={`${totals.active} ${t('active')}`} /></Col>
-        <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={loading} icon={<FundOutlined />} label={t('Avg progress')} value={`${totals.progress}%`} /></Col>
-        {(loading || totals.overdue > 0) && <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={loading} icon={<WarningOutlined />} iconClassName="is-risk" label={t('Overdue')} value={totals.overdue} /></Col>}
-      </Row>
+    <DashboardPage className="consultant-page consultant-smes-page">
+      <section className="smes-summary">
+        <DashboardMetricCard icon={<TeamOutlined />} label={t('My SMEs')} value={totals.smes} />
+        <DashboardMetricCard icon={<CalendarOutlined />} label={t('Active engagements')} value={totals.active} />
+        <DashboardMetricCard icon={<FundOutlined />} label={t('Avg progress')} value={`${totals.progress}%`} />
+        <DashboardMetricCard icon={<WarningOutlined />} iconClassName={totals.overdue ? 'is-risk' : undefined} label={t('Overdue')} value={totals.overdue} />
+      </section>
 
-      <FilterBar
-        primary={(
-          <>
-            <Input prefix={<SearchOutlined />} value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder={t('Search SMEs')} allowClear />
-            <Select value={sector} onChange={(value) => { setSector(value); setPage(1) }} options={sectors.map((value) => ({ value, label: value === 'All' ? t('All sectors') : value }))} />
-            <Select
-              value={sortKey}
-              onChange={setSortKey}
-              options={[
-                { value: 'attention', label: t('Sort: Needs attention') },
-                { value: 'progress', label: t('Sort: Progress') },
-                { value: 'engagements', label: t('Sort: Engagements') },
-                { value: 'name', label: t('Sort: Name') },
-              ]}
-            />
-          </>
-        )}
-      />
-
-      <Card loading={loading} className="dashboard-section-card motion-card" extra={<Text type="secondary">{t('Click an SME for the full picture')}</Text>}>
-        {filtered.length ? (
-          <>
-            <Row gutter={[14, 18]} className="consultant-sme-grid">
-              {pagedRows.map((row) => (
-                <Col xs={24} md={12} xl={8} key={row.key}>
-                  <SmeCard row={row} onClick={() => openDetail(row)} />
-                </Col>
+      {atRisk.length > 0 && (
+        <section className="smes-attention">
+          <span className="smes-attention-eyebrow"><ArrowRightOutlined /> {t('Needs your attention')}</span>
+          <div className="smes-attention-body">
+            <Text strong className="smes-attention-title">
+              {atRisk.length === 1 ? t('1 SME has overdue work') : t('{count} SMEs have overdue work', undefined, { count: atRisk.length })}
+            </Text>
+            <div className="smes-attention-list">
+              {atRisk.slice(0, 4).map((row) => (
+                <button key={row.key} type="button" className="smes-attention-pill" onClick={() => openDetail(row)}>
+                  {row.name} · {row.overdue === 1 ? t('1 overdue') : t('{count} overdue', undefined, { count: row.overdue })}
+                </button>
               ))}
-            </Row>
-            {filtered.length > PAGE_SIZE && (
-              <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
-                <Pagination current={page} pageSize={PAGE_SIZE} total={filtered.length} showSizeChanger={false} onChange={setPage} />
-              </div>
-            )}
-          </>
-        ) : <Empty description={t('SMEs will appear here once work is assigned to you.')} />}
-      </Card>
+              {atRisk.length > 4 && <Text type="secondary">{t('and {count} more', undefined, { count: atRisk.length - 4 })}</Text>}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {rows.length > 0 && (
+        <FilterBar
+          primary={(
+            <>
+              <Input prefix={<SearchOutlined />} value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder={t('Search SMEs')} allowClear />
+              <Select value={sector} onChange={(value) => { setSector(value); setPage(1) }} options={sectors.map((value) => ({ value, label: value === 'All' ? t('All sectors') : value }))} />
+              <Select
+                value={sortKey}
+                onChange={(value) => { setSortKey(value); setPage(1) }}
+                options={[
+                  { value: 'attention', label: t('Needs attention first') },
+                  { value: 'progress', label: t('Most progress first') },
+                  { value: 'engagements', label: t('Most engagements first') },
+                  { value: 'name', label: t('Name, A to Z') },
+                ]}
+              />
+            </>
+          )}
+        />
+      )}
+
+      {!rows.length ? (
+        <section className="smes-empty">
+          <TeamOutlined className="smes-empty-icon" />
+          <Text strong>{t('No SMEs yet')}</Text>
+          <Text type="secondary">{t('SMEs will appear here once work is assigned to you.')}</Text>
+        </section>
+      ) : !filtered.length ? (
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('No SMEs match your search or filters.')} />
+      ) : (
+        <>
+          <ul className="smes-list">
+            {pagedRows.map((row) => (
+              <li key={row.key}>
+                <button type="button" className={`smes-row${row.overdue ? ' is-risk' : ''}`} onClick={() => openDetail(row)}>
+                  <span className="smes-avatar" aria-hidden="true">{initialsOf(row.name)}</span>
+                  <span className="smes-row-main">
+                    <Text strong className="smes-row-name">{row.name}</Text>
+                    <Text type="secondary" className="smes-row-sub">{[row.sector, row.programs[0]].filter(Boolean).join(' · ') || t('Not specified')}</Text>
+                  </span>
+                  <span className="smes-row-progress">
+                    <span className="smes-bar" role="img" aria-label={SEGMENTS.map((segment) => `${t(segment.label)}: ${row[segment.key]}`).join(', ')}>
+                      {SEGMENTS.filter((segment) => row[segment.key] > 0).map((segment) => (
+                        <span key={segment.key} className={`smes-bar-segment is-${segment.key}`} style={{ flex: row[segment.key] }} />
+                      ))}
+                    </span>
+                    <Text type="secondary" className="smes-row-meta">
+                      {rowMeta(row)}
+                      {row.overdue > 0 && <span className="smes-row-overdue"> · {row.overdue === 1 ? t('1 overdue') : t('{count} overdue', undefined, { count: row.overdue })}</span>}
+                    </Text>
+                  </span>
+                  <RightOutlined className="smes-row-chevron" aria-hidden="true" />
+                </button>
+              </li>
+            ))}
+          </ul>
+          {filtered.length > PAGE_SIZE && (
+            <div className="smes-pagination">
+              <Pagination current={currentPage} pageSize={PAGE_SIZE} total={filtered.length} showSizeChanger={false} onChange={setPage} />
+            </div>
+          )}
+        </>
+      )}
 
       <SummaryModal detail={detail} onClose={() => setDetail(null)} />
     </DashboardPage>

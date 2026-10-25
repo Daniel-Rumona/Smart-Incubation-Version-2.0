@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { Alert, App, Button, Card, Checkbox, Col, Descriptions, Empty, Form, Input, Modal, Row, Segmented, Space, Tag, Typography } from 'antd'
 import { ApartmentOutlined, ExclamationCircleOutlined, MailOutlined, SettingOutlined, UserOutlined } from '@ant-design/icons'
 import DashboardPage from '@/components/shared/DashboardPage'
-import { LoadingOverlay } from '@/components/shared/LoadingOverlay'
+import { PageLoadingBar } from '@/components/shared/PageSkeleton'
 import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
+import { CompanyLogoCard, DelegationCard } from '@/components/settings/CompanyDelegationCards'
 import { getSystemSettings, listMySystemSettingsChangeRequests, submitSystemSettingsChangeRequest } from '@/services/companySettingsService'
 import { useRegisterAgentPageContext } from '@/shared/hooks/useRegisterAgentPageContext'
 import { DEFAULT_INTERVENTION_DELIVERY_ROLES, type InterventionDeliveryRole, type SystemSettingsChangeRequest, type SystemSettingsRecord } from '@/types/companySettings'
@@ -113,7 +114,7 @@ export const CompanySettingsPage = () => {
 
   return (
     <DashboardPage>
-      {loading && <LoadingOverlay tip={t('Loading settings')} />}
+      <PageLoadingBar active={Boolean(loading)} label={t('Loading settings')} />
 
       <Card className="dashboard-section-card motion-card" style={{ marginBottom: 16 }}>
         <Segmented<SectionKey>
@@ -188,6 +189,8 @@ export const CompanySettingsPage = () => {
                 </Button>
               </Space>
             </Card>
+            <div style={{ marginTop: 16 }}><CompanyLogoCard settings={settings} onChanged={() => void load()} /></div>
+            <div style={{ marginTop: 16 }}><DelegationCard key={JSON.stringify(settings?.delegation ?? null)} settings={settings} onChanged={() => void load()} /></div>
           </Col>
         </Row>
       )}

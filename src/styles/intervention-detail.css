@@ -1,0 +1,45 @@
+/* Intervention detail view inside the assignments modal. Colours follow antd's CSS variables for light and dark mode. */
+.id-panel { display: flex; flex-direction: column; gap: 12px; }
+.id-back.ant-btn { align-self: flex-start; margin-left: -8px; }
+.id-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.id-title.ant-typography { margin: 0 0 6px; }
+.id-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.id-tags .ant-tag { margin: 0; }
+.id-progress { display: flex; flex: none; flex-direction: column; align-items: flex-end; }
+.id-progress-value { font-size: 30px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+
+.id-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; margin-top: 4px; }
+.id-section { padding: 16px; border: 1px solid var(--ant-color-border-secondary, rgba(128, 128, 128, .2)); border-radius: 14px; }
+.id-section .ant-typography h5, .id-section h5.ant-typography { margin-top: 0; }
+
+.id-timeline { position: relative; display: flex; flex-direction: column; gap: 14px; margin: 0; padding: 0; list-style: none; }
+.id-timeline::before { content: ''; position: absolute; top: 8px; bottom: 8px; left: 11px; width: 2px; background: var(--ant-color-border-secondary, rgba(128, 128, 128, .25)); }
+.id-entry { position: relative; display: flex; gap: 12px; }
+.id-node { z-index: 1; display: grid; place-items: center; flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--ant-color-bg-container, #fff); font-size: 16px; }
+.id-entry.is-done .id-node { color: #52c41a; }
+.id-entry.is-active .id-node { color: var(--ant-color-primary, #6d5dfb); }
+.id-entry.is-upcoming .id-node { color: var(--ant-color-text-quaternary, #bbb); }
+.id-entry.is-late .id-node { color: #ff4d4f; }
+.id-entry-body { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+.id-entry-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.id-entry-date { flex: none; font-size: 12px; }
+.id-entry-sub { font-size: 12px; }
+
+.id-fields { display: flex; flex-direction: column; gap: 12px; margin: 0; }
+.id-field dt { color: var(--ant-color-text-tertiary, #888); font-size: 12px; letter-spacing: .03em; text-transform: uppercase; }
+.id-field dd { margin: 2px 0 0; font-weight: 500; overflow-wrap: anywhere; }
+
+.id-appointments { grid-column: 1 / -1; }
+.id-appointment-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+.id-appointment { display: flex; gap: 12px; padding: 12px 14px; border: 1px solid var(--ant-color-border-secondary, rgba(128, 128, 128, .2)); border-radius: 12px; background: var(--ant-color-fill-quaternary, rgba(128, 128, 128, .06)); }
+.id-appointment-icon { display: grid; flex: none; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: color-mix(in srgb, var(--ant-color-primary, #6d5dfb) 12%, transparent); color: var(--ant-color-primary, #6d5dfb); }
+.id-appointment-body { display: flex; flex: 1; flex-direction: column; min-width: 0; gap: 2px; }
+
+@media (max-width: 767px) {
+  .id-grid { grid-template-columns: 1fr; }
+  .id-appointment-list { grid-template-columns: 1fr; }
+}
+
+/* Rows in the intervention list open that intervention's detail. */
+.id-row-clickable { cursor: pointer; }
+.id-row-clickable:hover > td { background: color-mix(in srgb, var(--ant-color-primary, #6d5dfb) 6%, transparent) !important; }

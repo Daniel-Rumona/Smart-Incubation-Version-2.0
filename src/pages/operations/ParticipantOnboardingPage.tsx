@@ -85,7 +85,7 @@ export const ParticipantOnboardingPage = () => {
         })
       }))
       message.success(t('operations.participants.created'))
-      navigate('/operations/participants/all')
+      navigate('/shared/participants')
     } catch (error) {
       message.error(error instanceof Error ? error.message : t('operations.participants.createError'))
     } finally {
@@ -93,10 +93,10 @@ export const ParticipantOnboardingPage = () => {
     }
   }
 
-  if (isAllPrograms) return <DashboardPage><Alert type="warning" showIcon message={t('operations.participants.selectProgramme')} action={<Button onClick={() => navigate('/operations/participants/all')}>{t('common.back')}</Button>} /></DashboardPage>
+  if (isAllPrograms) return <DashboardPage><Alert type="warning" showIcon message={t('operations.participants.selectProgramme')} action={<Button onClick={() => navigate('/shared/participants')}>{t('common.back')}</Button>} /></DashboardPage>
 
   return <DashboardPage className="operations-participant-onboarding">
-    <Card title={t('operations.participants.add')} extra={<Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/operations/participants/all')}>{t('common.back')}</Button>}>
+    <Card title={t('operations.participants.add')} extra={<Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/shared/participants')}>{t('common.back')}</Button>}>
       <Alert type="info" showIcon message={`${t('operations.participants.programme')}: ${config?.name || activeProgramId}`} style={{ marginBottom: 16 }} />
       <Steps current={step} responsive items={[
         { title: t('operations.participants.details') },
@@ -142,7 +142,7 @@ export const ParticipantOnboardingPage = () => {
           ]} />
         </Space>}
         <div className="operations-onboarding-footer">
-          <Button icon={<ArrowLeftOutlined />} onClick={() => step ? setStep((current) => current - 1) : navigate('/operations/participants/all')}>{step ? t('common.back') : t('common.cancel')}</Button>
+          <Button icon={<ArrowLeftOutlined />} onClick={() => step ? setStep((current) => current - 1) : navigate('/shared/participants')}>{step ? t('common.back') : t('common.cancel')}</Button>
           {step < 3 ? <Button type="primary" onClick={() => void next()}>{t('common.continue')}</Button> : <Button type="primary" icon={<UserAddOutlined />} loading={saving} onClick={() => void save()}>{t('operations.participants.create')}</Button>}
         </div>
       </Form>

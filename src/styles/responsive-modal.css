@@ -1,0 +1,94 @@
+/* =========================================================
+   RESPONSIVE MODAL — bottom sheet on phones
+   ========================================================= */
+
+/* antd 6 names the panel .ant-drawer-section; older builds used .ant-drawer-content. */
+.responsive-modal-sheet .ant-drawer-section,
+.responsive-modal-sheet .ant-drawer-content {
+    border-radius: 18px 18px 0 0;
+}
+
+/* Never taller than most of the screen; the body scrolls and the footer stays put above the keyboard. */
+.responsive-modal-sheet .ant-drawer-content-wrapper,
+.responsive-modal-sheet .ant-drawer-section {
+    max-height: 90dvh;
+}
+
+.responsive-modal-sheet .ant-drawer-body {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+/* A grab handle so it reads as a sheet, not a page. */
+.responsive-modal-sheet .ant-drawer-header {
+    position: relative;
+    padding-top: 22px;
+}
+
+.responsive-modal-sheet .ant-drawer-header::before {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(148, 163, 184, 0.5);
+    content: '';
+    transform: translateX(-50%);
+}
+
+.responsive-modal-sheet .ant-drawer-footer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+}
+
+.responsive-modal-sheet .ant-drawer-footer > .ant-btn {
+    flex: 1;
+}
+
+.chart-details-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.chart-details-modal .ant-table-row.is-clickable { cursor: pointer; }
+
+/* Close button: same look as the desktop modals' close (red outlined circle, filled on hover). */
+/* Title centred on the sheet, not in the space left of the close button. */
+.responsive-modal-sheet .ant-drawer-title {
+    position: absolute;
+    top: 22px;
+    left: 48px;
+    right: 48px;
+    overflow: hidden;
+    line-height: 32px;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.responsive-modal-sheet .ant-drawer-header-title {
+    justify-content: flex-end;
+}
+
+.responsive-modal-sheet .ant-drawer-close {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    margin: 0;
+    padding: 0;
+    border: 1px solid #dc2626;
+    border-radius: 50%;
+    color: #dc2626;
+    transition: background-color 150ms ease, color 150ms ease, transform 100ms ease-out;
+}
+
+.responsive-modal-sheet .ant-drawer-close:hover {
+    color: #fff;
+    background: #dc2626;
+}
+
+.responsive-modal-sheet .ant-drawer-close:active {
+    transform: scale(0.94);
+}

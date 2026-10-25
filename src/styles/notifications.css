@@ -1,176 +1,247 @@
 /* =========================================================
-   Notifications Modal
+   Notifications: top-bar dropdown, slim cards and the notification center.
+   Tone colours drive the icon chip; the surface follows light / dark.
    ========================================================= */
 
-.notifications-modal .notifications-summary {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+.notif-panel,
+.notification-center-page {
+    --notif-surface: #ffffff;
+    --notif-surface-soft: rgba(109, 93, 251, .04);
+    --notif-border: rgba(109, 93, 251, .14);
+    --notif-border-strong: rgba(109, 93, 251, .34);
+    --notif-text: #172033;
+    --notif-muted: #64748b;
+    --notif-accent: #6d5dfb;
+    --notif-unread-bg: rgba(109, 93, 251, .07);
+    --notif-danger: #dc2626;
+    --notif-warning: #d97706;
+    --notif-success: #059669;
+    --notif-info: #6d5dfb;
+}
 
+html[data-theme='dark'] .notif-panel,
+html[data-theme='dark'] .notification-center-page {
+    --notif-surface: #171923;
+    --notif-surface-soft: rgba(139, 92, 246, .08);
+    --notif-border: rgba(139, 92, 246, .26);
+    --notif-border-strong: rgba(167, 139, 250, .5);
+    --notif-text: #edf1f8;
+    --notif-muted: #9aa6bb;
+    --notif-accent: #a78bfa;
+    --notif-unread-bg: rgba(139, 92, 246, .15);
+    --notif-danger: #f87171;
+    --notif-warning: #fbbf24;
+    --notif-success: #34d399;
+    --notif-info: #a78bfa;
+}
+
+
+/* ---------- Dropdown shell ---------- */
+
+.notif-dropdown { padding-top: 6px; }
+
+.notif-panel {
+    display: grid;
     gap: 12px;
 
-    flex-wrap: wrap;
+    width: 396px;
+    max-width: calc(100vw - 24px);
+    padding: 14px;
 
-    margin-bottom: 4px;
-    padding-bottom: 8px;
+    transform-origin: top right;
 
-    border-bottom: 1px solid rgba(109, 93, 251, .12);
+    color: var(--notif-text);
+
+    border: 1px solid var(--notif-border);
+    border-radius: 20px;
+
+    background: var(--notif-surface);
+
+    box-shadow: 0 24px 60px rgba(15, 23, 42, .18), 0 2px 8px rgba(15, 23, 42, .06);
 }
 
-.notifications-modal .notifications-summary>.ant-typography {
-    flex: 0 1 auto;
+html[data-theme='dark'] .notif-panel { box-shadow: 0 24px 60px rgba(0, 0, 0, .55), 0 0 0 1px rgba(139, 92, 246, .1); }
 
-    min-width: 0;
+.notif-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 
-    white-space: nowrap;
-}
+.notif-panel-title { display: grid; gap: 1px; min-width: 0; }
+.notif-panel-title strong { font-size: 16px; line-height: 1.2; }
+.notif-panel-title span { color: var(--notif-muted); font-size: 12px; }
 
-/* The shell stretches modal-body buttons on mobile; this one stays a compact inline link. */
-.notifications-modal .notifications-summary .ant-btn {
-    flex: 0 0 auto;
+.notif-panel-head .ant-btn { flex: 0 0 auto; color: var(--notif-accent); font-size: 12px; font-weight: 600; }
 
-    width: auto !important;
+.notif-panel-body { max-height: min(54vh, 360px); margin-inline: -4px; padding-inline: 4px; overflow-y: auto; overscroll-behavior: contain; }
+.notif-panel-body .ant-empty { margin: 18px 0; }
 
-    padding-inline: 0;
-}
+.notif-panel-foot { display: flex; justify-content: center; padding-top: 8px; border-top: 1px solid var(--notif-border); }
+.notif-panel-foot .ant-btn { color: var(--notif-accent); font-weight: 600; }
 
 
-/* =========================================================
-   Notification Row
-   ========================================================= */
+/* ---------- Filter (All | Unread) ---------- */
 
-.notifications-modal .notification-item {
-    align-items: flex-start;
+.notif-filter { height: 40px; }
+.notif-filter .ant-segmented-item-label { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; line-height: 32px; }
+.notif-filter .ant-segmented-item-icon { display: inline-flex; font-size: 14px; }
+.notif-filter-label { display: inline-flex; align-items: center; gap: 6px; }
+.notif-filter-label em { min-width: 20px; padding: 0 6px; border-radius: 999px; background: rgba(109, 93, 251, .12); font-size: 11px; font-style: normal; font-weight: 700; line-height: 18px; text-align: center; }
+html[data-theme='dark'] .notif-filter-label em { background: rgba(255, 255, 255, .12); }
+.notif-filter .ant-segmented-item-selected .notif-filter-label em { background: rgba(109, 93, 251, .16); }
+html[data-theme='dark'] .notif-filter .ant-segmented-item-selected .notif-filter-label em { background: rgba(255, 255, 255, .22); }
 
-    gap: 10px;
 
-    margin-block: 6px;
-    padding: 10px 12px !important;
+/* ---------- Slim cards ---------- */
 
-    border-radius: 12px;
+.notif-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.notif-card-wrap { margin: 0; padding: 0; list-style: none; }
 
-    transition: background .18s ease, border-color .18s ease;
-}
-
-.notifications-modal .notification-item .ant-list-item-meta {
+.notif-card {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
     align-items: center;
-}
+    gap: 11px;
 
-.notifications-modal .notification-item .ant-list-item-meta-title {
-    margin-bottom: 2px !important;
+    width: 100%;
+    padding: 9px 11px;
 
-    font-size: 14px;
-}
+    color: inherit;
+    font: inherit;
+    text-align: left;
 
-.notifications-modal .notification-item .ant-list-item-meta-description {
-    font-size: 12px;
-}
-
-
-/* =========================================================
-   Unread
-   ========================================================= */
-
-.notifications-modal .notification-item.is-unread {
     cursor: pointer;
 
-    border: 1px solid rgba(109, 93, 251, .2);
+    border: 1px solid transparent;
+    border-radius: 14px;
 
-    background: rgba(109, 93, 251, .06);
+    background: var(--notif-surface-soft);
+
+    transition: border-color .16s ease, background .16s ease, box-shadow .16s ease;
 }
 
-.notifications-modal .notification-item.is-unread:hover {
-    border-color: rgba(109, 93, 251, .4);
+.notif-card:hover { border-color: var(--notif-border-strong); }
+.notif-card:focus-visible { outline: 2px solid var(--notif-accent); outline-offset: 2px; }
 
-    background: rgba(109, 93, 251, .1);
-}
+.notif-card.is-unread { border-color: var(--notif-border); background: var(--notif-unread-bg); }
+.notif-card.is-read { opacity: .78; }
+.notif-card.is-selected { border-color: var(--notif-accent); box-shadow: 0 0 0 1px var(--notif-accent) inset; opacity: 1; }
 
-.notifications-modal .notification-item.is-unread .ant-list-item-meta-title {
-    font-weight: 700;
-}
-
-.notification-state {
+.notif-card-icon,
+.notif-detail-icon {
+    display: grid;
     flex: 0 0 auto;
+    place-items: center;
 
-    width: 8px;
-    height: 8px;
-
-    margin-top: 7px;
+    width: 34px;
+    height: 34px;
 
     border-radius: 50%;
 
-    background: transparent;
+    font-size: 16px;
 }
 
-.notification-item.is-unread .notification-state {
-    background: #6d5dfb;
+.notif-card.is-danger .notif-card-icon, .notif-detail-icon.is-danger { color: var(--notif-danger); background: color-mix(in srgb, var(--notif-danger) 14%, transparent); }
+.notif-card.is-warning .notif-card-icon, .notif-detail-icon.is-warning { color: var(--notif-warning); background: color-mix(in srgb, var(--notif-warning) 16%, transparent); }
+.notif-card.is-success .notif-card-icon, .notif-detail-icon.is-success { color: var(--notif-success); background: color-mix(in srgb, var(--notif-success) 15%, transparent); }
+.notif-card.is-info .notif-card-icon, .notif-detail-icon.is-info { color: var(--notif-info); background: color-mix(in srgb, var(--notif-info) 15%, transparent); }
 
-    box-shadow: 0 0 0 3px rgba(109, 93, 251, .16);
+.notif-card-copy { display: grid; gap: 1px; min-width: 0; }
+
+.notif-card-title { overflow: hidden; color: var(--notif-text); font-size: 13.5px; font-weight: 600; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.notif-card.is-unread .notif-card-title { font-weight: 700; }
+
+.notif-card-preview { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--notif-muted); font-size: 12px; line-height: 1.35; }
+.notif-card-preview-text { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notif-card-preview em { flex: 0 0 auto; padding: 0 6px; border-radius: 999px; background: color-mix(in srgb, var(--notif-accent) 14%, transparent); color: var(--notif-accent); font-size: 10.5px; font-style: normal; font-weight: 700; }
+
+.notif-card-meta { display: grid; justify-items: end; gap: 6px; }
+.notif-card-time { color: var(--notif-muted); font-size: 11px; white-space: nowrap; }
+.notif-card-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--notif-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--notif-accent) 22%, transparent); }
+
+
+/* ---------- Loading skeleton ---------- */
+
+.notif-skeleton { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 11px; padding: 9px 11px; border-radius: 14px; background: var(--notif-surface-soft); animation: notif-pulse 1.3s ease-in-out infinite; }
+.notif-skeleton-icon { width: 34px; height: 34px; border-radius: 50%; background: color-mix(in srgb, var(--notif-muted) 22%, transparent); }
+.notif-skeleton-lines { display: grid; gap: 7px; }
+.notif-skeleton-lines i { display: block; height: 9px; border-radius: 999px; background: color-mix(in srgb, var(--notif-muted) 22%, transparent); }
+.notif-skeleton-lines i:first-child { width: 72%; }
+.notif-skeleton-lines i:last-child { width: 48%; height: 7px; }
+
+@keyframes notif-pulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+
+
+/* ---------- Notification center (two panels) ---------- */
+
+.notif-center {
+    display: grid;
+    grid-template-columns: minmax(320px, 400px) minmax(0, 1fr);
+    gap: 16px;
+
+    height: calc(100dvh - 150px);
+    min-height: 480px;
 }
 
-.notification-state-label {
-    position: absolute;
+.notif-center.is-compact { grid-template-columns: minmax(0, 1fr); height: auto; min-height: 0; }
 
-    width: 1px;
-    height: 1px;
+.notif-center-list,
+.notif-center-detail {
+    display: flex;
+    flex-direction: column;
 
-    overflow: hidden;
+    min-height: 0;
 
-    clip-path: inset(50%);
+    color: var(--notif-text);
 
-    white-space: nowrap;
+    border: 1px solid var(--notif-border);
+    border-radius: 20px;
+
+    background: var(--notif-surface);
+
+    box-shadow: 0 12px 34px rgba(15, 23, 42, .06);
 }
 
+html[data-theme='dark'] .notif-center-list,
+html[data-theme='dark'] .notif-center-detail { box-shadow: 0 12px 34px rgba(0, 0, 0, .35); }
 
-/* =========================================================
-   Read
-   ========================================================= */
+.notif-center-tools { display: grid; gap: 10px; padding: 14px 14px 10px; border-bottom: 1px solid var(--notif-border); }
+.notif-center-tools .ant-btn-link { justify-self: end; height: auto; padding: 0; color: var(--notif-accent); font-weight: 600; }
+.notif-center-tools .ant-input-affix-wrapper { border-radius: 999px; }
 
-.notifications-modal .notification-item.is-read {
-    border: 1px solid transparent;
+.notif-center-scroll { flex: 1; min-height: 0; padding: 10px 12px 14px; overflow-y: auto; overscroll-behavior: contain; }
+.notif-center-scroll .ant-empty { margin: 36px 0; }
 
-    background: transparent;
+.notif-center-detail { overflow-y: auto; }
+.notif-detail-empty { display: grid; flex: 1; place-items: center; padding: 24px; }
 
-    opacity: .62;
+.notif-detail { display: grid; align-content: start; gap: 18px; padding: 24px 26px 26px; }
+.notif-detail-back { justify-self: start; margin-left: -8px; color: var(--notif-muted); }
+
+.notif-detail-head { display: flex; align-items: flex-start; gap: 14px; }
+.notif-detail-icon { width: 46px; height: 46px; font-size: 21px; }
+.notif-detail-head h4.ant-typography { margin: 0 0 8px; color: var(--notif-text); font-size: 19px; line-height: 1.3; }
+
+.notif-detail-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; color: var(--notif-muted); font-size: 12.5px; }
+.notif-detail-meta .ant-tag { margin: 0; }
+.notif-tone.is-danger { color: var(--notif-danger); border-color: transparent; background: color-mix(in srgb, var(--notif-danger) 13%, transparent); }
+.notif-tone.is-warning { color: var(--notif-warning); border-color: transparent; background: color-mix(in srgb, var(--notif-warning) 15%, transparent); }
+.notif-tone.is-success { color: var(--notif-success); border-color: transparent; background: color-mix(in srgb, var(--notif-success) 14%, transparent); }
+.notif-tone.is-info { color: var(--notif-info); border-color: transparent; background: color-mix(in srgb, var(--notif-info) 14%, transparent); }
+
+.notif-detail-body { padding: 16px 18px; border: 1px solid var(--notif-border); border-radius: 16px; background: var(--notif-surface-soft); }
+.notif-detail-body p { margin: 0; color: var(--notif-text); font-size: 14px; line-height: 1.65; }
+.notif-detail-body ul { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.notif-detail-body li { position: relative; padding-left: 18px; color: var(--notif-text); font-size: 14px; line-height: 1.55; }
+.notif-detail-body li::before { content: ''; position: absolute; top: .6em; left: 2px; width: 7px; height: 7px; border-radius: 50%; background: var(--notif-accent); }
+
+.notif-detail-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+
+
+@media (max-width: 991px) {
+    .notif-panel { width: min(396px, calc(100vw - 24px)); }
+    .notif-detail { padding: 18px; }
+    .notif-center-scroll { max-height: none; }
 }
-
-.notifications-modal .notification-item.is-read .ant-list-item-meta-title {
-    font-weight: 500;
-}
-
-
-/* =========================================================
-   Dark Mode
-   ========================================================= */
-
-html[data-theme='dark'] .notifications-modal .notifications-summary {
-    border-bottom-color: rgba(139, 92, 246, .2);
-}
-
-html[data-theme='dark'] .notifications-modal .notification-item.is-unread {
-    border-color: rgba(139, 92, 246, .28);
-
-    background: rgba(139, 92, 246, .14);
-}
-
-html[data-theme='dark'] .notifications-modal .notification-item.is-unread:hover {
-    border-color: rgba(167, 139, 250, .5);
-
-    background: rgba(139, 92, 246, .2);
-}
-
-html[data-theme='dark'] .notification-item.is-unread .notification-state {
-    background: #a78bfa;
-
-    box-shadow: 0 0 0 3px rgba(139, 92, 246, .22);
-}
-
-/* =========================================================
-   Reduced Motion
-   ========================================================= */
 
 @media (prefers-reduced-motion: reduce) {
-    .notifications-modal .notification-item {
-        transition: none;
-    }
+    .notif-card { transition: none; }
+    .notif-skeleton { animation: none; }
 }

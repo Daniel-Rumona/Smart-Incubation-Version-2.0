@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react'
 import { sendAgentMessage } from '@/services/agentService'
+import { useIdentity } from '@/contexts/IdentityProvider'
 import type { AgentChatMessage, AgentPageContext, AgentProposal } from '@/types/agent'
 
 export type BackgroundTaskStatus = 'queued' | 'running' | 'completed' | 'failed'
@@ -34,13 +35,26 @@ type BackgroundTasksContextValue = {
 }
 
 const STORAGE_KEY = 'smart-incubation-background-agent-tasks'
+/** Tasks are a short-term inbox: anything last touched more than a day ago is dropped on load. */
+const TASK_TTL_MS = 24 * 60 * 60 * 1000
+const MAX_TASKS = 10
 const BackgroundTasksContext = createContext<BackgroundTasksContextValue | undefined>(undefined)
 
-const loadStoredTasks = (): BackgroundAgentTask[] => {
+/** Each signed-in person has their own list, so people sharing a browser never see each other's tasks. */
+const storageKey = (uid: string) => `${STORAGE_KEY}:${uid}`
+
+const loadStoredTasks = (uid?: string): BackgroundAgentTask[] => {
+  if (!uid) return []
   try {
-    const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || '[]') as BackgroundAgentTask[]
+    // The old list was shared by everyone on the browser; it can't be attributed to anyone, so drop it.
+    window.localStorage.removeItem(STORAGE_KEY)
+    const stored = JSON.parse(window.localStorage.getItem(storageKey(uid)) || '[]') as BackgroundAgentTask[]
     const now = new Date().toISOString()
-    return stored.slice(0, 20).map((task) => ['queued', 'running'].includes(task.status)
+    const cutoff = Date.now() - TASK_TTL_MS
+    return stored
+      .filter((task) => new Date(task.updatedAt || task.createdAt).getTime() >= cutoff)
+      .slice(0, MAX_TASKS)
+      .map((task) => ['queued', 'running'].includes(task.status)
       ? { ...task, status: 'failed', progress: 100, statusMessage: 'Interrupted when the workspace closed', error: 'This task did not finish before the previous session ended.', updatedAt: now }
       : task)
   } catch {
@@ -54,17 +68,31 @@ const taskTitle = (prompt: string) => {
 }
 
 export const BackgroundTasksProvider = ({ children }: PropsWithChildren) => {
-  const [tasks, setTasks] = useState<BackgroundAgentTask[]>(loadStoredTasks)
+  const uid = useIdentity().user?.uid
+  // The list is kept with the person it belongs to, so a sign-out or account switch can never save one
+  // person's tasks under another's key.
+  const [store, setStore] = useState(() => ({ owner: uid, tasks: loadStoredTasks(uid) }))
+  if (store.owner !== uid) setStore({ owner: uid, tasks: loadStoredTasks(uid) })
+  const tasks = store.owner === uid ? store.tasks : []
+
+  const setTasks = useCallback((update: (current: BackgroundAgentTask[]) => BackgroundAgentTask[]) => {
+    setStore((current) => ({ ...current, tasks: update(current.tasks) }))
+  }, [])
 
   useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks.slice(0, 20)))
-  }, [tasks])
+    if (!store.owner) return
+    try {
+      window.localStorage.setItem(storageKey(store.owner), JSON.stringify(store.tasks.slice(0, MAX_TASKS)))
+    } catch {
+      // Storage full or blocked: the list still works for this visit.
+    }
+  }, [store])
 
   const updateTask = useCallback((taskId: string, update: Partial<BackgroundAgentTask>) => {
     setTasks((current) => current.map((task) => task.id === taskId
       ? { ...task, ...update, updatedAt: new Date().toISOString() }
       : task))
-  }, [])
+  }, [setTasks])
 
   const queueTask = useCallback((input: QueueTaskInput) => {
     const id = `agent-task-${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -79,7 +107,7 @@ export const BackgroundTasksProvider = ({ children }: PropsWithChildren) => {
       createdAt: now,
       updatedAt: now,
     }
-    setTasks((current) => [task, ...current].slice(0, 20))
+    setTasks((current) => [task, ...current].slice(0, MAX_TASKS))
 
     window.setTimeout(() => {
       updateTask(id, { status: 'running', progress: 18, statusMessage: 'Reviewing workspace context' })
@@ -120,15 +148,15 @@ export const BackgroundTasksProvider = ({ children }: PropsWithChildren) => {
     }, 250)
 
     return id
-  }, [updateTask])
+  }, [setTasks, updateTask])
 
   const dismissTask = useCallback((taskId: string) => {
     setTasks((current) => current.filter((task) => task.id !== taskId))
-  }, [])
+  }, [setTasks])
 
   const clearFinished = useCallback(() => {
     setTasks((current) => current.filter((task) => ['queued', 'running'].includes(task.status)))
-  }, [])
+  }, [setTasks])
 
   const value = useMemo(() => ({ tasks, queueTask, dismissTask, clearFinished }), [clearFinished, dismissTask, queueTask, tasks])
 

@@ -1,0 +1,74 @@
+/* SME control tower. Colours come from antd's CSS variables so light and dark mode follow the app theme. */
+.ct-card.ant-card { border-radius: 18px; border: 1px solid var(--ant-color-border-secondary, rgba(128, 128, 128, .2)); }
+.ct-card .ant-card-head { border-bottom: 0; min-height: 52px; }
+
+.ct-blockers { margin: 12px 0 16px; }
+.ct-lens { flex: none; }
+.ct-blockers .ant-card-body { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 14px 20px; }
+.ct-blocker-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.ct-blocker { padding: 5px 14px; border: 1px solid var(--ant-color-border, rgba(128, 128, 128, .35)); border-radius: 999px; background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; transition: border-color .15s, background .15s; }
+.ct-blocker:hover { border-color: var(--ant-color-primary, #6d5dfb); }
+.ct-blocker.is-active { border-color: var(--ant-color-primary, #6d5dfb); background: color-mix(in srgb, var(--ant-color-primary, #6d5dfb) 10%, transparent); }
+.ct-blocker strong { margin-left: 4px; }
+
+.ct-split { display: grid; grid-template-columns: 400px minmax(0, 1fr); gap: 16px; align-items: stretch; }
+.ct-list-card { min-height: 480px; }
+.ct-list-card .ant-card-body { display: flex; flex-direction: column; height: 100%; padding: 14px; }
+.ct-list-controls { margin-bottom: 12px; }
+.ct-list { display: flex; flex: 1; flex-direction: column; gap: 8px; min-height: 0; overflow-y: auto; padding-right: 4px; }
+.ct-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 14px; border: 1px solid var(--ant-color-border-secondary, rgba(128, 128, 128, .2)); border-radius: 999px; background: var(--ant-color-bg-container, #fff); color: inherit; font: inherit; text-align: left; cursor: pointer; transition: border-color .15s, box-shadow .15s, background .15s; }
+.ct-row:hover { border-color: var(--ant-color-primary, #6d5dfb); }
+.ct-row.is-selected { border-color: var(--ant-color-primary, #6d5dfb); background: color-mix(in srgb, var(--ant-color-primary, #6d5dfb) 8%, transparent); box-shadow: 0 4px 14px rgba(0, 0, 0, .06); }
+.ct-row.is-skeleton { cursor: default; pointer-events: none; }
+.ct-row.is-skeleton .ct-row-main { gap: 6px; }
+.ct-row.is-skeleton .ant-skeleton-input, .ct-row.is-skeleton .ant-skeleton-button { height: 12px !important; min-height: 12px !important; line-height: 12px; }
+.ct-row-main { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+.ct-row-sub { font-size: 12px; }
+.ct-row-chip.ant-tag { flex: none; margin: 0; border-radius: 999px; }
+.ct-row-arrow { flex: none; font-size: 11px; color: var(--ant-color-text-tertiary, #999); }
+
+.ct-back { margin-bottom: 12px; }
+/* Hero: the SME's picture fills the card; name and contact sit on a frosted panel over the bottom. */
+.ct-hero { height: 100%; overflow: hidden; }
+.ct-hero-media { position: relative; display: flex; align-items: flex-end; height: 100%; min-height: 210px; padding: 12px; background: linear-gradient(145deg, color-mix(in srgb, var(--ant-color-primary, #6d5dfb) 22%, transparent), color-mix(in srgb, var(--ant-color-primary, #6d5dfb) 6%, transparent)) center / cover no-repeat; }
+.ct-hero-initials { position: absolute; top: 38%; left: 50%; transform: translate(-50%, -50%); display: grid; place-items: center; width: 84px; height: 84px; border-radius: 50%; background: color-mix(in srgb, var(--ant-color-primary, #6d5dfb) 28%, transparent); color: var(--ant-color-primary, #6d5dfb); font-size: 28px; font-weight: 700; }
+.ct-hero-info { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 12px 14px; border-radius: 18px; background: rgba(40, 48, 58, .42); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); color: #fff; }
+.ct-hero-text { min-width: 0; }
+.ct-hero-name { overflow: hidden; font-size: 17px; font-weight: 600; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.ct-hero-sub { overflow: hidden; font-size: 12px; opacity: .8; text-overflow: ellipsis; white-space: nowrap; }
+.ct-hero-info .ant-btn { border-color: transparent; background: rgba(255, 255, 255, .92); color: #1f2937; }
+
+.ct-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; height: 100%; }
+.ct-tile { display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 10px 16px; border: 1px solid var(--ant-color-border-secondary, rgba(128, 128, 128, .2)); border-radius: 18px; background: var(--ant-color-fill-quaternary, rgba(128, 128, 128, .06)); }
+.ct-tile-label { font-size: 12px; letter-spacing: .03em; text-transform: uppercase; }
+.ct-tile-value { font-size: 21px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.ct-tile-hint { font-size: 12px; }
+
+.ct-track-head { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+.ct-gates { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.ct-gate { display: flex; align-items: flex-start; gap: 10px; }
+.ct-gate-title { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ct-required.ant-tag { margin: 0; font-size: 11px; line-height: 18px; }
+.ct-gate-detail { font-size: 12px; }
+.ct-gate-icon { flex: none; margin-top: 3px; font-size: 16px; }
+.ct-gate-icon.is-met { color: #52c41a; }
+.ct-gate-icon.is-partial { color: #faad14; }
+.ct-gate-icon.is-missing { color: #ff4d4f; }
+.ct-gate-icon.is-unknown { color: var(--ant-color-text-quaternary, #bbb); }
+
+.ct-steps { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.ct-step { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border: 1px solid var(--ant-color-border-secondary, rgba(128, 128, 128, .2)); border-radius: 14px; background: var(--ant-color-fill-quaternary, rgba(128, 128, 128, .06)); }
+
+/* On desktop the list card takes its height from the detail panel beside it and scrolls inside, so the two match. */
+@media (min-width: 992px) {
+  .ct-list-card { contain: size; }
+}
+
+/* The track being viewed is outlined; the other stays visible beside it. */
+.ct-track.ant-card { transition: border-color .2s, box-shadow .2s; }
+.ct-track.is-focused.ant-card { border-color: var(--ant-color-primary, #6d5dfb); box-shadow: 0 0 0 1px var(--ant-color-primary, #6d5dfb), 0 6px 20px color-mix(in srgb, var(--ant-color-primary, #6d5dfb) 18%, transparent); }
+
+@media (max-width: 991px) {
+  .ct-split { grid-template-columns: 1fr; }
+  .ct-list { flex: none; max-height: 420px; }
+}

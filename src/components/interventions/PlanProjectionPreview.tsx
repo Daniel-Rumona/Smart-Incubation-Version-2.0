@@ -8,7 +8,7 @@ type ProjectionItem = { interventionId?: string, id?: string, title: string, are
 
 const STEP_MS = 1900
 
-const statusTone = (status?: string) => status === 'Completed' ? 'green' : status === 'In progress' ? 'blue' : 'orange'
+const statusTone = (status?: string) => status === 'Completed' ? 'green' : status === 'In progress' ? 'blue' : status === 'Awaiting confirmation' ? 'gold' : status === 'Declined' ? 'red' : 'default'
 
 export const PlanProjectionPreview = ({ interventions }: { interventions: ProjectionItem[] }) => {
     const { t } = useLanguage()
@@ -72,7 +72,7 @@ export const PlanProjectionPreview = ({ interventions }: { interventions: Projec
                     <span className="plan-projection-area">{current.areaOfSupport || t('General support')}</span>
 
                     <Tag color={statusTone(current.status)} className="plan-projection-tag">
-                        {current.status || t('Awaiting action')}
+                        {current.status || t('Not started')}
                     </Tag>
 
                     <Progress percent={current.progress || 0} size="small" className="plan-projection-item-progress" />

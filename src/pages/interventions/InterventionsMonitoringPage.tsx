@@ -19,8 +19,10 @@ import { createInterventionReminder, listInterventionAssignmentApplications, typ
 import { generateInterventionMonitoringInsights, type InterventionMonitoringInsights, type MonitoringInsight } from '@/services/interventionMonitoringInsightsService'
 import { getParticipants } from '@/services/participantService'
 import { matchesActiveProgram } from '@/services/workspaceProgramsService'
+import { deriveHoldUp } from '@/services/interventionHoldUp'
 import type { Participant } from '@/types/participant.types'
 import { useLanguage, tr } from '@/providers/LanguageProvider'
+import { hasWorkStarted } from '@/utils/interventionStart'
 
 type AssignmentKind = 'all' | 'single' | 'grouped'
 type HealthFilter = 'all' | 'on_track' | 'held_up' | 'overdue' | 'completed'
@@ -139,63 +141,9 @@ const deriveStandardStatus = (assignment: AssignedIntervention, progress: number
     if (assigneeCompletion === 'done' || rawStatus === 'awaiting_confirmation' || rawStatus.includes('awaiting')) return 'Awaiting Completion Confirmation'
     if (assigneeStatus !== 'accepted') return 'Awaiting Assignee Acceptance'
     if (participantStatus !== 'accepted') return 'Awaiting SME Acceptance'
-    if (rawStatus === 'in-progress' || rawStatus === 'in_progress' || progress > 0) return 'In Progress'
+    // Started = an appointment accepted or attended, progress logged, or an agent run (src/utils/interventionStart.ts).
+    if (progress > 0 || hasWorkStarted(assignment as Record<string, unknown>)) return 'In Progress'
     return 'Assigned'
-}
-
-const deriveHoldUp = (assignment: AssignedIntervention, progress: number, isCompleted: boolean) => {
-    if (isCompleted) return { holdUp: 'Completed', reason: 'Completion has been recorded.' }
-
-    const status = normalize(assignment.status)
-    const assigneeStatus = normalize(assignment.assigneeStatus)
-    const participantStatus = normalize(assignment.participantStatus)
-    const assigneeCompletion = normalize(assignment.assigneeCompletionStatus)
-    const participantCompletion = normalize(assignment.participantCompletionStatus)
-    const declineReason = String((assignment as Record<string, unknown>).declineReason || '').trim()
-    const assignmentRecord = assignment as Record<string, unknown>
-    const agentWorkStatus = normalize(assignmentRecord.agentWorkStatus)
-    const reviewStatus = normalize(assignmentRecord.reviewStatus)
-
-    if (assignment.deliveryActorType === 'agent' && agentWorkStatus === 'awaiting_review' && reviewStatus !== 'approved') {
-        return { holdUp: 'Human review', reason: `Agent work is ready for ${String(assignmentRecord.reviewerType || 'operations')} review.` }
-    }
-    if (assignment.deliveryActorType === 'agent' && agentWorkStatus === 'draft_ready') {
-        return { holdUp: 'Agent work in progress', reason: 'The SME has a generated draft and is preparing the final deliverable.' }
-    }
-
-    if (assigneeStatus === 'pending' || assigneeStatus === '') {
-        return { holdUp: 'Assignee acceptance', reason: 'The assigned facilitator has not accepted the intervention yet.' }
-    }
-
-    if (assigneeStatus === 'declined') {
-        return { holdUp: 'Assignee declined', reason: declineReason || 'The assigned facilitator declined the intervention.' }
-    }
-
-    if (participantStatus === 'pending' || participantStatus === '') {
-        return { holdUp: 'SME acceptance', reason: 'The SME has not accepted the intervention or first appointment yet.' }
-    }
-
-    if (participantStatus === 'declined') {
-        return { holdUp: 'SME declined', reason: declineReason || 'The SME declined the intervention.' }
-    }
-
-    if (progress >= 100 && participantCompletion !== 'confirmed') {
-        return { holdUp: 'SME completion confirmation', reason: 'Delivery is marked complete and needs SME confirmation.' }
-    }
-
-    if (assigneeCompletion === 'done' && participantCompletion !== 'confirmed') {
-        return { holdUp: 'SME completion confirmation', reason: 'The assignee submitted completion and the SME has not confirmed it.' }
-    }
-
-    if (status.includes('awaiting')) {
-        return { holdUp: 'Awaiting next action', reason: `Current status is ${String(assignment.status || 'awaiting action')}.` }
-    }
-
-    if (progress > 0) {
-        return { holdUp: 'In delivery', reason: 'The intervention is in progress.' }
-    }
-
-    return { holdUp: 'Not started', reason: 'The intervention has been assigned but progress has not started.' }
 }
 
 const healthColor = (health: MonitorRow['health']) => {
@@ -234,7 +182,7 @@ const STANDARD_STATUS_OPTIONS: Array<{ value: StandardStatusFilter; label: strin
     { value: 'all', get label() { return tr('All statuses') } },
     { value: 'Assigned', get label() { return tr('Assigned') } },
     { value: 'Awaiting Assignee Acceptance', get label() { return tr('Awaiting assignee acceptance') } },
-    { value: 'Awaiting SME Acceptance', get label() { return tr('Awaiting SME acceptance') } },
+    { value: 'Awaiting SME Acceptance', get label() { return tr('Awaiting plan sign-off') } },
     { value: 'In Progress', get label() { return tr('In Progress') } },
     { value: 'Awaiting Completion Confirmation', get label() { return tr('Awaiting completion confirmation') } },
     { value: 'Completed', get label() { return tr('Completed') } },
@@ -566,7 +514,7 @@ export const InterventionsMonitoringPage = () => {
         if (awaitingSme.length) {
             insights.push({
                 title: t('SME action is gating delivery'),
-                body: `${plural(awaitingSme.length, 'assignment')} need SME acceptance or completion confirmation. Prioritize reminders to incubatees for these.`,
+                body: `${plural(awaitingSme.length, 'assignment')} need the SME to sign their plan or confirm completion. Prioritise reminders to these SMEs.`,
                 tone: 'warning',
             })
         }
@@ -967,7 +915,7 @@ export const InterventionsMonitoringPage = () => {
                             </Card>
                         )}
                         <InterventionOpsActions
-                            assignment={{ id: selected.id, companyCode: selected.raw.companyCode, assigneeId: selected.raw.assigneeId, assigneeName: selected.raw.assigneeName }}
+                            assignment={{ id: selected.id, companyCode: selected.raw.companyCode, assigneeId: selected.raw.assigneeId, assigneeName: selected.raw.assigneeName, changeRequest: (selected.raw as { changeRequest?: unknown }).changeRequest }}
                             title={selected.title}
                             participantName={selected.participantName}
                             isCompleted={selected.isCompleted}

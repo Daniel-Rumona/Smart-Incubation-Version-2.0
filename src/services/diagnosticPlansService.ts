@@ -1,9 +1,12 @@
+import { readSwotItems } from '@/utils/swotOutcomes'
 import {
   collection,
   deleteField,
   doc,
   getDoc,
   getDocs,
+  query,
+  where,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -11,6 +14,7 @@ import {
 import { getFirebaseDb } from '@/config/firebase'
 import { hasRolePermission } from '@/config/permissions'
 import { listOperationsParticipants } from '@/services/operationsParticipantsService'
+import { loadDefinitions } from '@/services/interventionDefinitionLookup'
 import type {
   DiagnosticApplicationSummary,
   DiagnosticInterventionOption,
@@ -215,19 +219,20 @@ export const listDiagnosticPlanParticipants = async (
   const [participants, plansSnapshot, applicationsSnapshot] = await Promise.all([
     listOperationsParticipants(user, activeProgramId),
     getDocs(collection(db, 'diagnosticPlans')),
-    getDocs(collection(db, 'applications')),
+    getDocs(user.companyCode ? query(collection(db, 'applications'), where('companyCode', '==', user.companyCode)) : collection(db, 'applications')),
   ])
 
   const plans = new Map(plansSnapshot.docs.map((row) => [row.id, row.data()]))
   const applicationsById = new Map(
     applicationsSnapshot.docs.map((row) => [row.id, row.data()]),
   )
-  const definitionIds = [...new Set(plansSnapshot.docs.flatMap(row => {
-    const interventions = row.data().interventions
-    return Array.isArray(interventions) ? interventions.map(item => String(asRecord(item).interventionId || '')).filter(Boolean) : []
-  }))]
-  const definitionSnapshots = await Promise.all(definitionIds.map(id => getDoc(doc(db, 'interventions', id))))
-  const definitionsById = new Map(definitionSnapshots.filter(snapshot => snapshot.exists()).map(snapshot => [snapshot.id, snapshot.data()]))
+  const definitions = await loadDefinitions(db, plansSnapshot.docs.flatMap(row => {
+    const data = row.data()
+    const interventions = data.interventions
+    return Array.isArray(interventions)
+      ? interventions.map(item => ({ interventionId: String(asRecord(item).interventionId || ''), companyCode: String(data.companyCode || '') })).filter(ref => ref.interventionId)
+      : []
+  }))
 
   return participants.map((participant) => {
     const application = asRecord(applicationsById.get(participant.applicationId))
@@ -241,7 +246,7 @@ export const listDiagnosticPlanParticipants = async (
     const interventions: DiagnosticPlanIntervention[] = Array.isArray(interventionSource)
       ? interventionSource.map((item) => {
           const row = asRecord(item)
-          const definition = asRecord(definitionsById.get(String(row.interventionId || '')))
+          const definition = asRecord(definitions.get(String(row.interventionId || ''), String(stored.companyCode || application.companyCode || user.companyCode || '')))
 
           return {
             interventionId: String(row.interventionId || ''),
@@ -275,6 +280,7 @@ export const listDiagnosticPlanParticipants = async (
         confirmedAt: stored.confirmedAt ? String(stored.confirmedAt) : undefined,
       },
       swot: getSwot(application),
+      swotItems: readSwotItems(application),
       applicationSummary: getApplicationSummary(application),
     } satisfies DiagnosticPlanParticipant
   })

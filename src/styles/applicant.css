@@ -22,3 +22,18 @@ html[data-theme='dark'] .applicant-card { background: rgba(23, 25, 35, 0.9); }
 @media (max-width: 767px) {
   .applicant-metrics .applicant-metric-col:nth-child(n + 3) { display: none; }
 }
+
+/* Programmes page intro: "Your programme" (programme SMEs) or "Find a programme" (independents). */
+.applicant-programs-intro {
+    display: grid;
+    gap: 2px;
+    margin-bottom: 12px;
+}
+
+.applicant-programs-intro h4 {
+    margin: 0 !important;
+}
+
+.applicant-programs-page .program-link-join {
+    margin-bottom: 16px;
+}

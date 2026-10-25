@@ -3,6 +3,7 @@ import { doc, getDoc, serverTimestamp, setDoc, writeBatch } from 'firebase/fires
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { getFirebaseAuth, getFirebaseDb, getFirebaseStorage } from '@/config/firebase'
 import { requestBrandedVerificationEmail } from '@/services/brandedEmailService'
+import { encodeSignatureStrokes, type SignatureStrokes } from '@/utils/signatureStrokes'
 
 export type OnboardingRole = 'incubatee' | 'consultant'
 
@@ -91,7 +92,11 @@ export const updateOnboardingPassword = async (password: string) => {
   ])
 }
 
-export const saveOnboardingSignature = async (signature: Blob, filename = 'signature.png') => {
+/**
+ * Saves the signature image and, for a drawn signature, the pen movement behind it so signing can replay it.
+ * Typed and uploaded signatures clear any old strokes, which would no longer match the image.
+ */
+export const saveOnboardingSignature = async (signature: Blob, filename = 'signature.png', strokes: SignatureStrokes | null = null) => {
   const user = getFirebaseAuth().currentUser
   if (!user) throw new Error('You are not signed in.')
 
@@ -107,6 +112,7 @@ export const saveOnboardingSignature = async (signature: Blob, filename = 'signa
       storagePath,
       updatedAt: new Date().toISOString(),
     },
+    signatureStrokes: strokes ? encodeSignatureStrokes(strokes) : null,
     signatureUpdatedAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   }
@@ -117,6 +123,27 @@ export const saveOnboardingSignature = async (signature: Blob, filename = 'signa
   ])
 
   return signatureURL
+}
+
+/** Roughly E.164 or local format: optional +, then 9 to 15 digits once spaces, dashes and brackets are removed. */
+export const isValidWhatsAppNumber = (value: string) => /^\+?\d{9,15}$/.test(value.replace(/[\s\-()]/g, ''))
+
+/**
+ * Records the person's WhatsApp choice on their own user document. Opting in also marks the number as a
+ * WhatsApp number so the bot can recognise them. Declining keeps any number already saved but blocks alerts.
+ * Consent is stored with source and time so it can be audited; replying STOP later overrides it server-side.
+ */
+export const saveWhatsAppConsent = async (input: ({ optIn: true, phone: string } | { optIn: false }) & { source?: 'welcome' | 'profile' }) => {
+  const user = getFirebaseAuth().currentUser
+  if (!user) throw new Error('You are not signed in.')
+  const phone = input.optIn ? input.phone.trim() : ''
+  if (input.optIn && !isValidWhatsAppNumber(phone)) throw new Error('Enter a valid WhatsApp number.')
+
+  await setDoc(doc(getFirebaseDb(), 'users', user.uid), {
+    ...(input.optIn ? { phone, phoneIsWhatsApp: true } : {}),
+    whatsappConsent: { status: input.optIn ? 'opted_in' : 'declined', source: input.source || 'welcome', at: new Date().toISOString(), ...(phone ? { phone } : {}) },
+    updatedAt: serverTimestamp(),
+  }, { merge: true })
 }
 
 export const completeFirstLogin = async () => {

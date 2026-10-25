@@ -438,7 +438,7 @@ export const DirectorPortfolioPage = () => {
                       <DashboardMetricCard icon={<WarningOutlined />} iconClassName="is-attention" label={t('Overdue')} value={selected.execution.overdue} hint={t('Past due, not completed')} />
                     </Col>
                     <Col span={12}>
-                      <DashboardMetricCard icon={<FundOutlined />} iconClassName="is-users" label={t('Unresponsive')} value={selected.execution.unresponsive} hint={t('Pending SME acceptance 7+ days')} />
+                      <DashboardMetricCard icon={<FundOutlined />} iconClassName="is-users" label={t('Unresponsive')} value={selected.execution.unresponsive} hint={t('Plan not signed for 7+ days')} />
                     </Col>
                     <Col span={12}>
                       <DashboardMetricCard icon={<RiseOutlined />} iconClassName="is-participants" label={t('Upcoming')} value={selected.execution.upcoming} hint={t('Due within 14 days')} />

@@ -21,23 +21,37 @@ export const SystemSettingsProvider = ({ children }: PropsWithChildren) => {
   const [settings, setSettings] = useState<SystemSettings>({})
   const [loading, setLoading] = useState(false)
 
+  const uid = user?.uid
+  const companyCode = String(user?.companyCode || '').trim()
+
+  // Settings are only readable once signed in, and must reload when the signed-in user changes
+  // (not just their company: an SME without a companyCode would otherwise keep the signed-out, empty settings).
   const load = useCallback(async () => {
+    if (!uid) {
+      setSettings({})
+      return
+    }
+
     setLoading(true)
     try {
-      const companyCode = String(user?.companyCode || '').trim()
-      const [globalSnapshot, companySnapshot] = await Promise.all([
+      const [globalSnapshot, companySnapshot, plansSnapshot] = await Promise.all([
         getDoc(doc(db, 'systemSettings', 'global')),
         companyCode ? getDoc(doc(db, 'companies', companyCode)) : Promise.resolve(null),
+        // What each plan tier includes (edited on the admin Company plans page); optional, defaults apply without it.
+        getDoc(doc(db, 'systemSettings', 'plans')).catch(() => null),
       ])
       setSettings(Object.assign(
         {},
         globalSnapshot.exists() ? globalSnapshot.data() : {},
         companySnapshot?.exists() ? companySnapshot.data() : {},
+        plansSnapshot?.exists() ? { planDefinitions: plansSnapshot.data() } : {},
       ))
+    } catch (error) {
+      console.warn('Could not load system settings; using defaults.', error)
     } finally {
       setLoading(false)
     }
-  }, [user?.companyCode])
+  }, [companyCode, uid])
 
   useEffect(() => {
     void load()

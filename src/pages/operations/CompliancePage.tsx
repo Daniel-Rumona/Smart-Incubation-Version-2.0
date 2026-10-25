@@ -14,6 +14,7 @@ import { useLanguage } from '@/providers/LanguageProvider'
 import { listComplianceParticipants, saveComplianceDocument, scanComplianceDocuments, uploadComplianceFile, verifyComplianceDocument } from '@/services/operationsComplianceService'
 import type { ComplianceDocument, ComplianceParticipant, ComplianceStatus, SaveComplianceDocument } from '@/types/compliance'
 import { COMPLIANCE_DOCUMENT_TYPES } from '@/services/complianceService'
+import { requirementKeyFor } from '@/config/complianceDocuments'
 import '@/styles/operations-compliance.css'
 
 const { TextArea } = Input
@@ -24,10 +25,21 @@ const MANUAL_STATUS_OPTIONS: Array<{ value: ComplianceStatus, icon: ReactNode }>
 type DocumentForm = Omit<SaveComplianceDocument, 'participantId' | 'programId' | 'companyCode' | 'issueDate' | 'expiryDate' | 'documentName' | 'notes'> & { participantId: string, issueDate?: dayjs.Dayjs, expiryDate?: dayjs.Dayjs }
 const titleCase = (value: string) => value.charAt(0).toUpperCase() + value.slice(1)
 const statusColor = (value: ComplianceStatus) => value === 'valid' ? 'green' : value === 'pending' ? 'blue' : value === 'expired' ? 'orange' : 'red'
-const score = (participant: ComplianceParticipant) => participant.documents.length
-    ? Math.round((participant.documents.filter((document) => document.currentStatus === 'valid').length / COMPLIANCE_DOCUMENT_TYPES.length) * 100)
-    : 0
-const missingCount = (participant: ComplianceParticipant) => Math.max(0, COMPLIANCE_DOCUMENT_TYPES.length - participant.documents.length)
+// Scored against the participant's programme: valid required documents out of required documents.
+const requiredKeys = (participant: ComplianceParticipant) => participant.requirements.filter((requirement) => requirement.required).map((requirement) => requirement.key)
+const keysWith = (participant: ComplianceParticipant, valid: boolean) => new Set(participant.documents
+    .filter((document) => !valid || document.currentStatus === 'valid')
+    .map((document) => requirementKeyFor(document.type || document.key)))
+const score = (participant: ComplianceParticipant) => {
+    const required = requiredKeys(participant)
+    if (!required.length) return 100
+    const valid = keysWith(participant, true)
+    return Math.round((required.filter((key) => valid.has(key)).length / required.length) * 100)
+}
+const missingCount = (participant: ComplianceParticipant) => {
+    const onFile = keysWith(participant, false)
+    return requiredKeys(participant).filter((key) => !onFile.has(key)).length
+}
 const needsAction = (participant: ComplianceParticipant) => missingCount(participant) > 0 || participant.documents.some((document) => document.currentStatus !== 'valid')
 
 /** A selectable card used for binary choices, e.g. the manual document status field. */

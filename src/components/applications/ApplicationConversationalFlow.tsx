@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Button, Card, DatePicker, Grid, Input, Progress, Tag, Typography, Upload, theme } from 'antd'
+import { App, Button, Card, DatePicker, Grid, Input, Progress, Tag, Typography, Upload, theme } from 'antd'
 import {
     ArrowLeftOutlined,
     ArrowRightOutlined,
@@ -148,6 +148,8 @@ type Props = {
     interventionGroups: ProgramInterventionGroup[]
     interventionSelections: Record<string, string[]>
     onInterventionSelectionsChange: (value: Record<string, string[]>) => void
+    /** The programme's cap on how many interventions an SME may choose; null / undefined = no limit. */
+    maxInterventionSelections?: number | null
     onComplete: () => void
     programName?: string
     saving?: boolean
@@ -163,11 +165,13 @@ export default function ApplicationConversationalFlow({
     interventionGroups,
     interventionSelections,
     onInterventionSelectionsChange,
+    maxInterventionSelections,
     onComplete,
     programName,
     saving = false,
 }: Props) {
     const { t } = useLanguage()
+    const { message } = App.useApp()
     const { token } = theme.useToken()
     const reduceMotion = useReducedMotion()
     const screens = useBreakpoint()
@@ -365,6 +369,12 @@ export default function ApplicationConversationalFlow({
     const toggleIntervention = (area: string, interventionId: string) => {
         const current = interventionSelections[area] || []
         const selected = current.includes(interventionId)
+        const limit = Number(maxInterventionSelections) > 0 ? Number(maxInterventionSelections) : 0
+        const total = Object.values(interventionSelections).reduce((sum, ids) => sum + ids.length, 0)
+        if (!selected && limit && total >= limit) {
+            message.warning(`${t('This programme lets you choose up to')} ${limit} ${t(limit === 1 ? 'intervention' : 'interventions')}. ${t('Remove one to pick another.')}`)
+            return
+        }
         onInterventionSelectionsChange({
             ...interventionSelections,
             [area]: selected ? current.filter((id) => id !== interventionId) : [...current, interventionId],
@@ -655,7 +665,9 @@ export default function ApplicationConversationalFlow({
                 <div style={{ marginBottom: 14 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
                         <Text type="secondary" style={{ fontSize: 13 }}>{t('Support needs')}</Text>
-                        <Text type="secondary" style={{ fontSize: 12 }}>{selectedInterventionCount} {t('selected')}</Text>
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                            {Number(maxInterventionSelections) > 0 ? `${selectedInterventionCount} ${t('of')} ${Number(maxInterventionSelections)} ${t('selected')}` : `${selectedInterventionCount} ${t('selected')}`}
+                        </Text>
                     </div>
                 </div>
             )

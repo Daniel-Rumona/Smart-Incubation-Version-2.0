@@ -1,19 +1,11 @@
-import { useRef, useState } from 'react'
-import { Avatar, Button, Card, Input, Space, Tag, Typography, message } from 'antd'
-import {
-    AudioOutlined,
-    CheckCircleOutlined,
-    EditOutlined,
-    PauseCircleOutlined,
-    RobotOutlined,
-    SendOutlined,
-    ThunderboltOutlined,
-    UserOutlined,
-} from '@ant-design/icons'
+import { useEffect, useRef, useState } from 'react'
+import { Button, Input, Typography, message } from 'antd'
+import { AudioOutlined, CheckOutlined, PauseCircleOutlined, SendOutlined } from '@ant-design/icons'
 import type { ApplicantProfileFormValues } from '@/pages/applicant/ApplicantProfilePage'
 import { useLanguage } from '@/providers/LanguageProvider'
+import '@/styles/applicant/ai-assist.css'
 
-const { Text, Paragraph } = Typography
+const { Text } = Typography
 
 const AGENT_API_BASE_URL = String(import.meta.env.VITE_AGENT_API_BASE_URL || '').replace(/\/$/, '')
 const AGENT_SHARED_SECRET = String(import.meta.env.VITE_AGENT_SHARED_SECRET || '').trim()
@@ -35,6 +27,8 @@ type ConversationMessage = {
     role: 'assistant' | 'user'
     content: string
     field?: string
+    /** Labels of the details a reply filled in; shown as chips, never sent to the AI. */
+    mapped?: string[]
 }
 
 type ApplicantAIResponse = {
@@ -57,6 +51,11 @@ type RawApplicantAIResponse = ApplicantAIResponse & {
     data?: ApplicantAIResponse | RawApplicantAIResponse
 }
 
+type SpeechResultEvent = {
+    resultIndex: number
+    results: ArrayLike<ArrayLike<{ transcript: string }>>
+}
+
 type SpeechRecognitionType = {
     continuous: boolean
     interimResults: boolean
@@ -64,8 +63,8 @@ type SpeechRecognitionType = {
     start: () => void
     stop: () => void
     abort: () => void
-    onresult: ((event: any) => void) | null
-    onerror: ((event: any) => void) | null
+    onresult: ((event: SpeechResultEvent) => void) | null
+    onerror: ((event: unknown) => void) | null
     onend: (() => void) | null
 }
 
@@ -209,7 +208,7 @@ async function extractApplicantDump(input: {
             rawDump: input.rawDump,
             currentValues: input.currentValues || {},
             missingFields: input.missingFields || [],
-            conversationHistory: input.conversationHistory || [],
+            conversationHistory: (input.conversationHistory || []).map(({ role, content, field }) => ({ role, content, field })),
             language: input.language || 'mixed',
         }),
     })
@@ -242,19 +241,26 @@ export default function ApplicantProfileAIAssist({
     const [conversation, setConversation] = useState<ConversationMessage[]>([
         {
             role: 'assistant',
-            content: 'Tell me about the applicant and business. You can mix languages. I will use the AI engine to map the details into the profile form.',
+            content: t('Tell me about yourself and your business, in your own words. Any language is fine, and you can type or talk.'),
         },
     ])
     const [followUps, setFollowUps] = useState<FollowUpQuestion[]>([])
-    const [answerDraft, setAnswerDraft] = useState('')
+    // One message box: the first message is profile notes, later ones answer the current question.
+    const [draft, setDraft] = useState('')
     const recognitionRef = useRef<SpeechRecognitionType | null>(null)
+    const endRef = useRef<HTMLDivElement | null>(null)
+    const asked = conversation.some((item) => item.role === 'user')
+    const allDone = t("That's everything I needed. Check the details on your profile, then save.")
+
+    useEffect(() => {
+        endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    }, [conversation, followUps])
 
     const applyResponse = (
         result: ApplicantAIResponse,
         options?: {
             answeredField?: string
             answeredLabel?: string
-            suppressGenericMappedMessage?: boolean
         }
     ) => {
         const normalized = normalizeAIResponse(result)
@@ -265,103 +271,70 @@ export default function ApplicantProfileAIAssist({
         onApplyExtractedFields(fields, extractedMissing)
         setFollowUps(nextFollowUps)
 
-        const mappedCount = Object.keys(fields).length
+        // Which details changed, as labels for the chips under the reply.
+        const mapped = [...new Set(Object.keys(fields).map((field) => t(formatFieldLabel(field))))]
 
+        // The AI's own wording wins; the fallbacks only cover replies with no usable message.
         let assistantContent = normalized.assistantMessage
-
-        if (!assistantContent || assistantContent.trim().startsWith('{')) {
+        if (!assistantContent || assistantContent.trim().startsWith('{') || /^I mapped \d+ fields/.test(assistantContent)) {
             if (options?.answeredField) {
-                const nextQuestion = nextFollowUps[0]?.question
-
-                assistantContent = nextQuestion
-                    ? `Got it. I updated ${options.answeredLabel || formatFieldLabel(options.answeredField)}. Next: ${nextQuestion}`
-                    : `Got it. I updated ${options.answeredLabel || formatFieldLabel(options.answeredField)}. No further AI follow-up questions are pending.`
-            } else if (mappedCount > 0) {
-                assistantContent = `I mapped ${mappedCount} profile field${mappedCount === 1 ? '' : 's'}. Please review the form before saving.`
-            } else if (extractedMissing.length > 0) {
-                assistantContent = `I still need ${extractedMissing.length} item${extractedMissing.length === 1 ? '' : 's'} to complete the profile.`
+                assistantContent = t('Got it, I updated {field}.', undefined, { field: t(options.answeredLabel || formatFieldLabel(options.answeredField)) })
+            } else if (mapped.length) {
+                assistantContent = mapped.length === 1 ? t('I filled in 1 detail:') : t('I filled in {count} details:', undefined, { count: mapped.length })
             } else {
-                assistantContent = 'I updated the profile details I could confirm. Please review before saving.'
+                assistantContent = t("I couldn't pick out any details from that. Try adding your name, business name, sector and where you're based.")
             }
         }
 
         setConversation((current) => [
             ...current,
-            {
-                role: 'assistant',
-                content: assistantContent,
-            },
+            { role: 'assistant', content: assistantContent, mapped },
+            ...(nextFollowUps.length ? [] : [{ role: 'assistant' as const, content: allDone }]),
         ])
     }
 
-    const handleExtract = async () => {
-        if (!rawDump.trim()) {
-            message.warning(t('Paste or dictate applicant details first'))
-            return
+    const reportFailure = (error: unknown) => {
+        console.error(error)
+        const errorMessage = error instanceof Error ? error.message : ''
+        if (errorMessage.includes('503') || errorMessage.toLowerCase().includes('busy') || errorMessage.toLowerCase().includes('high demand')) {
+            message.warning(t('The AI model is temporarily busy. Please try again in a moment.'))
+        } else {
+            message.error(t('AI mapping failed. Please try again.'))
         }
+    }
 
-        const userMessage: ConversationMessage = { role: 'user', content: rawDump.trim() }
-        const nextConversation = [...conversation, userMessage]
+    const sendNotes = async (text: string) => {
+        const combinedDump = [rawDump.trim(), text].filter(Boolean).join('\n')
+        const nextConversation: ConversationMessage[] = [...conversation, { role: 'user', content: text }]
+
+        setConversation(nextConversation)
+        onRawDumpChange(combinedDump)
 
         try {
             setLoading(true)
-            setConversation(nextConversation)
-
-            const result = await extractApplicantDump({
-                rawDump,
+            applyResponse(await extractApplicantDump({
+                rawDump: combinedDump,
                 currentValues,
                 missingFields,
                 conversationHistory: nextConversation,
-            })
-
-            applyResponse(result)
+            }))
         } catch (error) {
-            console.error(error)
-            const errorMessage = error instanceof Error ? error.message : ''
-
-            if (errorMessage.includes('503') || errorMessage.toLowerCase().includes('busy') || errorMessage.toLowerCase().includes('high demand')) {
-                message.warning(t('The AI model is temporarily busy. Please try again in a moment.'))
-            } else {
-                message.error(t('AI mapping failed. Please try again.'))
-            }
+            reportFailure(error)
         } finally {
             setLoading(false)
         }
     }
 
-    const handleAnswerFollowUp = async () => {
-        const answer = answerDraft.trim()
-        if (!answer) return
-
-        const activeQuestion = followUps[0]
-        if (!activeQuestion?.field) return
-
+    const sendAnswer = async (answer: string, activeQuestion: FollowUpQuestion) => {
         const answeredField = activeQuestion.field as keyof ApplicantProfileFormValues
-        const answeredPatch = {
-            [answeredField]: answer,
-        } as Partial<ApplicantProfileFormValues>
-
-        const updatedValues = {
-            ...currentValues,
-            ...answeredPatch,
-        }
-
+        const answeredPatch = { [answeredField]: answer } as Partial<ApplicantProfileFormValues>
+        const updatedValues = { ...currentValues, ...answeredPatch }
         const nextFollowUpsBeforeAI = followUps.slice(1)
         const nextMissingBeforeAI = nextFollowUpsBeforeAI.map((item) => item.field)
-
-        const nextConversation: ConversationMessage[] = [
-            ...conversation,
-            {
-                role: 'user',
-                content: answer,
-                field: activeQuestion.field,
-            },
-        ]
+        const nextConversation: ConversationMessage[] = [...conversation, { role: 'user', content: answer, field: activeQuestion.field }]
 
         setConversation(nextConversation)
-        setAnswerDraft('')
         setFollowUps(nextFollowUpsBeforeAI)
-
         onApplyExtractedFields(answeredPatch, nextMissingBeforeAI)
 
         const combinedDump = `${rawDump}\n${formatFieldLabel(activeQuestion.field)}: ${answer}`.trim()
@@ -369,26 +342,39 @@ export default function ApplicantProfileAIAssist({
 
         try {
             setLoading(true)
-
-            const result = await extractApplicantDump({
+            applyResponse(await extractApplicantDump({
                 rawDump: combinedDump,
                 currentValues: updatedValues,
                 missingFields: nextMissingBeforeAI,
                 conversationHistory: nextConversation,
-            })
-
-            applyResponse(result, {
+            }), {
                 answeredField: activeQuestion.field,
                 answeredLabel: formatFieldLabel(activeQuestion.field),
-                suppressGenericMappedMessage: true,
             })
         } catch (error) {
             console.error(error)
-
             message.warning(t('Your answer was applied, but AI could not refresh the next question. Please continue manually or try again.'))
         } finally {
             setLoading(false)
         }
+    }
+
+    const send = () => {
+        const text = draft.trim()
+        if (!text || loading) return
+        if (isListening) {
+            recognitionRef.current?.stop()
+            setIsListening(false)
+        }
+        setDraft('')
+        if (followUps[0]?.field) void sendAnswer(text, followUps[0])
+        else void sendNotes(text)
+    }
+
+    const skipQuestion = () => {
+        const rest = followUps.slice(1)
+        setFollowUps(rest)
+        if (!rest.length) setConversation((current) => [...current, { role: 'assistant', content: allDone }])
     }
 
     const toggleListening = () => {
@@ -410,12 +396,14 @@ export default function ApplicantProfileAIAssist({
         recognition.interimResults = true
         recognition.lang = 'en-ZA'
 
-        recognition.onresult = (event: any) => {
+        // Spoken words land in the message box, so they can be checked before sending.
+        const before = draft
+        recognition.onresult = (event) => {
             let transcript = ''
             for (let index = event.resultIndex; index < event.results.length; index += 1) {
                 transcript += event.results[index][0].transcript
             }
-            onRawDumpChange(`${rawDump}${rawDump ? ' ' : ''}${transcript}`.trim())
+            setDraft(`${before}${before ? ' ' : ''}${transcript}`.trim())
         }
 
         recognition.onerror = () => {
@@ -429,81 +417,71 @@ export default function ApplicantProfileAIAssist({
         setIsListening(true)
     }
 
+    const question = followUps[0]
+
     return (
-        <div className="applicant-profile-ai">
-            <Card className="applicant-profile-ai-panel" bordered={false}>
-                <div className="applicant-profile-ai-head">
-                    <Space>
-                        <Avatar icon={<RobotOutlined />} />
-                        <div>
-                            <Text strong>{t('AI profile assist')}</Text>
-                            <Paragraph type="secondary" style={{ margin: 0 }}>
-                                {t('Paste a rough profile, dictate notes, then review the AI-mapped fields manually before saving.')}
-                            </Paragraph>
-                        </div>
-                    </Space>
-                    <Tag icon={<ThunderboltOutlined />} color="processing">
-                        {t('AI engine')}
-                    </Tag>
-                </div>
+        <div className="ai-assist">
+            <Text type="secondary" className="ai-assist-note">{t('Nothing is saved until you check it and save your profile.')}</Text>
 
-                <Input.TextArea
-                    value={rawDump}
-                    onChange={(event) => onRawDumpChange(event.target.value)}
-                    autoSize={{ minRows: 6, maxRows: 12 }}
-                    placeholder={t('Example: My name is Daniel, my business is Smart Foods, we are in retail in Gauteng, trading for 2 years...')}
-                />
-
-                <div className="applicant-profile-ai-actions">
-                    <Button icon={isListening ? <PauseCircleOutlined /> : <AudioOutlined />} onClick={toggleListening}>
-                        {isListening ? t('Stop voice') : t('Voice input')}
-                    </Button>
-                    <Button type="primary" icon={<ThunderboltOutlined />} loading={loading} onClick={handleExtract}>
-                        {t('Map with AI')}
-                    </Button>
-                </div>
-            </Card>
-
-            <Card className="applicant-profile-ai-panel" bordered={false}>
-                <div className="applicant-profile-chat-list">
-                    {conversation.map((item, index) => (
-                        <div key={`${item.role}-${index}`} className={`applicant-profile-chat-row is-${item.role}`}>
-                            <Avatar icon={item.role === 'assistant' ? <RobotOutlined /> : <UserOutlined />} />
-                            <div className="applicant-profile-chat-bubble">
-                                <Text>{item.content}</Text>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-
-                {followUps.length ? (
-                    <div className="applicant-profile-followups">
-                        <Text strong>{t('Next missing detail')}</Text>
-                        <Card size="small" className="applicant-profile-followup-card">
-                            <Space direction="vertical" size={10} style={{ width: '100%' }}>
-                                <Tag icon={<EditOutlined />}>{formatFieldLabel(followUps[0].field)}</Tag>
-                                <Text>{followUps[0].question}</Text>
-                                <Space.Compact style={{ width: '100%' }}>
-                                    <Input
-                                        value={answerDraft}
-                                        onChange={(event) => setAnswerDraft(event.target.value)}
-                                        onPressEnter={handleAnswerFollowUp}
-                                        placeholder={t('Type the answer')}
-                                    />
-                                    <Button type="primary" icon={<SendOutlined />} loading={loading} onClick={handleAnswerFollowUp}>
-                                        {t('Send')}
-                                    </Button>
-                                </Space.Compact>
-                            </Space>
-                        </Card>
+            <div className="ai-assist-chat" aria-live="polite">
+                {conversation.map((item, index) => (
+                    <div key={`${item.role}-${index}`} className={`ai-assist-bubble is-${item.role}`}>
+                        <span>{item.content}</span>
+                        {!!item.mapped?.length && (
+                            <span className="ai-assist-chips">
+                                {item.mapped.map((label) => <span key={label} className="ai-assist-chip"><CheckOutlined aria-hidden="true" /> {label}</span>)}
+                            </span>
+                        )}
                     </div>
-                ) : (
-                    <div className="applicant-profile-ai-done">
-                        <CheckCircleOutlined />
-                        <Text>{t('No AI follow-up questions pending. Switch to Manual to review fields before saving.')}</Text>
+                ))}
+                {question && !loading && (
+                    <div className="ai-assist-bubble is-assistant is-question">
+                        <span className="ai-assist-field">{t(formatFieldLabel(question.field))}</span>
+                        <span>{question.question}</span>
                     </div>
                 )}
-            </Card>
+                {loading && (
+                    <div className="ai-assist-bubble is-assistant is-typing" role="status" aria-label={t('Reading your message')}>
+                        <span className="ai-assist-dot" /><span className="ai-assist-dot" /><span className="ai-assist-dot" />
+                    </div>
+                )}
+                <div ref={endRef} />
+            </div>
+
+            <div className="ai-assist-composer">
+                <Button
+                    shape="circle"
+                    className={isListening ? 'is-listening' : undefined}
+                    icon={isListening ? <PauseCircleOutlined /> : <AudioOutlined />}
+                    onClick={toggleListening}
+                    aria-label={isListening ? t('Stop voice') : t('Voice input')}
+                />
+                <Input.TextArea
+                    value={draft}
+                    onChange={(event) => setDraft(event.target.value)}
+                    onPressEnter={(event) => {
+                        if (event.shiftKey) return
+                        event.preventDefault()
+                        send()
+                    }}
+                    autoSize={{ minRows: 1, maxRows: asked ? 4 : 6 }}
+                    placeholder={question
+                        ? t('Type your answer')
+                        : asked
+                            ? t('Add anything else about you or your business')
+                            : t('Example: My name is Thandeka, I run Ubuntu Bakery in Soweto, we have been trading since 2019...')}
+                />
+                <Button type="primary" shape="circle" icon={<SendOutlined />} loading={loading} disabled={!draft.trim()} onClick={send} aria-label={t('Send')} />
+            </div>
+
+            {question && (
+                <div className="ai-assist-status">
+                    <Text type="secondary">
+                        {followUps.length === 1 ? t('1 more question') : t('{count} more questions', undefined, { count: followUps.length })}
+                    </Text>
+                    <Button type="link" size="small" onClick={skipQuestion} disabled={loading}>{t('Skip this one')}</Button>
+                </div>
+            )}
         </div>
     )
 }

@@ -229,6 +229,12 @@ def _plan_confirmed(application: dict[str, Any], plan: dict[str, Any]) -> bool:
     return _norm(application.get("applicationStatus")) == "accepted" and bool(_required_interventions(application, plan)) and ops
 
 
+def sme_confirmed_plan(plan: dict[str, Any]) -> bool:
+    """The SME signed the plan. That is their acceptance of every intervention on it (no per-intervention accept)."""
+    confirmed_by = plan.get("confirmedBy") if isinstance(plan.get("confirmedBy"), dict) else {}
+    return bool(confirmed_by.get("participant") or confirmed_by.get("incubatee") or confirmed_by.get("sme"))
+
+
 def declined_key(intervention_id: Any) -> str:
     """Key of an intervention in diagnosticPlans.declinedInterventions (same rule as the web app)."""
     return re.sub(r"[./]", "_", str(intervention_id or "").strip())
@@ -663,7 +669,9 @@ def execute_assign_intervention(db: Any, actor: Actor, args: dict[str, Any]) -> 
         "stepCount": len(intervention["steps"]) or None,
         "agentId": None, "agentName": None, "reviewRequired": False, "reviewerType": None, "reviewerId": None,
         "reviewerName": None, "reviewStatus": None, "agentWorkStatus": None,
-        "type": "singular", "status": "assigned", "assigneeStatus": "pending", "participantStatus": "pending",
+        "type": "singular", "status": "assigned", "assigneeStatus": "pending",
+        "participantStatus": "accepted" if sme_confirmed_plan(plan) else "pending",
+        **({"participantAcceptedVia": "plan", "participantAcceptedAt": firestore.SERVER_TIMESTAMP} if sme_confirmed_plan(plan) else {}),
         "assigneeCompletionStatus": "pending", "participantCompletionStatus": "pending", "progress": 0,
         "dueDate": parse_when(payload["dueDate"]) if payload.get("dueDate") else None,
         "targetMetric": None, "targetValue": None,

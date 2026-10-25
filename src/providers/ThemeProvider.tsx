@@ -61,16 +61,24 @@ export const ThemeProvider: React.FC<React.PropsWithChildren> = ({ children }) =
         }
     }, [mode, setMode])
 
-    const config = mode === 'light' ? lightTheme : darkTheme
+    const themeConfig = useMemo(() => ({
+        ...(mode === 'light' ? lightTheme : darkTheme),
+        algorithm: mode === 'dark' ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
+    }), [mode])
+
+    // Static calls (message.success, Modal.confirm, notification.open) render outside this tree, so they
+    // would always be light. holderRender wraps them in the same theme, so they follow light/dark too.
+    useEffect(() => {
+        ConfigProvider.config({
+            holderRender: (children) => <ConfigProvider theme={themeConfig}>{children}</ConfigProvider>,
+        })
+    }, [themeConfig])
 
     return (
         <ThemeContext.Provider value={value}>
             <ConfigProvider
                 pagination={{ showSizeChanger: false }}
-                theme={{
-                    ...config,
-                    algorithm: mode === 'dark' ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
-                }}
+                theme={themeConfig}
             >
                 {children}
             </ConfigProvider>

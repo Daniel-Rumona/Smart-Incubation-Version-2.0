@@ -1,0 +1,7 @@
+.feature-permissions { display: grid; gap: 10px; width: 100%; }
+.feature-permissions-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.feature-permission-card { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 10px 12px; border: 1px solid var(--ant-color-border); border-radius: 12px; background: var(--ant-color-bg-container); cursor: pointer; transition: border-color .18s ease, background .18s ease, box-shadow .18s ease; }
+.feature-permission-card:hover { border-color: #8b7cf6; }
+.feature-permission-card.is-selected { border-color: #6d5dfb; background: rgba(109, 93, 251, .08); box-shadow: 0 0 0 2px rgba(109, 93, 251, .1); }
+.feature-permission-card-full { grid-column: 1 / -1; }
+@media (max-width: 575px) { .feature-permissions-grid { grid-template-columns: 1fr; } }

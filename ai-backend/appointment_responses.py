@@ -227,14 +227,21 @@ def respond_to_appointment(
         })
         if appointment.get("declineNeedsReview"):
             withdraw_drop_request("SME accepted the appointment")
-        # Booked together with the intervention -> accepted together (mirrors acceptIncubateeIntervention).
-        if (assignment and str(appointment.get("acceptanceBundle") or "").startswith("intervention_")
-                and assignment.get("participantId") == appointment.get("participantId")
-                and _norm(assignment.get("participantStatus")) == "pending"):
-            batch.update(db.collection("assignedInterventions").document(assignment["id"]), {
-                "participantStatus": "accepted", "participantAcceptedAt": firestore.SERVER_TIMESTAMP,
-                "status": "in-progress", "updatedAt": firestore.SERVER_TIMESTAMP,
-            })
+        # The first appointment the SME accepts starts the intervention (src/utils/interventionStart.ts).
+        # Confirming the diagnostic plan is what accepts it; an SME who replies before confirming the plan
+        # has plainly accepted the work too, so that is recorded here as well.
+        if assignment and assignment.get("participantId") == appointment.get("participantId"):
+            start: dict[str, Any] = {}
+            if _norm(assignment.get("participantStatus")) in {"", "pending"}:
+                start.update({"participantStatus": "accepted", "participantAcceptedVia": "appointment",
+                              "participantAcceptedAt": firestore.SERVER_TIMESTAMP})
+            if not assignment.get("workStartedAt"):
+                start.update({"workStartedAt": firestore.SERVER_TIMESTAMP, "workStartedVia": "appointment_accepted"})
+                if _norm(assignment.get("status")) in {"", "assigned", "accepted", "awaiting_sme_acceptance"}:
+                    start["status"] = "in-progress"
+            if start:
+                batch.update(db.collection("assignedInterventions").document(assignment["id"]),
+                             {**start, "updatedAt": firestore.SERVER_TIMESTAMP})
         batch.set(db.collection("notifications").document(), _notification(
             appointment, "appointment_accepted", f"{who} confirmed the {title} appointment."))
         batch.commit()

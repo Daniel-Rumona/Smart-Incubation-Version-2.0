@@ -1,0 +1,42 @@
+/* =========================================================
+   Shared profile pieces (staff and SME profiles), matching the
+   consultant profile: a completeness checklist on the identity
+   card, a red dot on tabs with something missing, and a
+   full-width save bar that says when there are unsaved changes.
+   ========================================================= */
+
+.profile-checklist { display: grid; gap: 6px; width: 100%; margin-top: 18px; padding-top: 16px; border-top: 1px solid rgba(109, 93, 251, .16); text-align: left; }
+.profile-checklist strong { font-size: 13px; }
+.profile-checklist ul { display: grid; gap: 2px; margin: 4px 0 0; padding: 0; list-style: none; }
+.profile-checklist li { display: flex; align-items: center; gap: 8px; min-height: 26px; font-size: 12.5px; }
+.profile-checklist li > span:not(.profile-checklist-ring) { flex: 1; min-width: 0; }
+.profile-checklist li small { color: var(--ant-color-text-tertiary); }
+.profile-checklist li.is-done { color: var(--ant-color-text-secondary); }
+.profile-checklist li.is-done .anticon { color: #15803D; }
+.profile-checklist-ring { flex: none; width: 12px; height: 12px; border: 1.5px solid #94A3B8; border-radius: 50%; }
+.profile-checklist li.is-missing .profile-checklist-ring { border-color: #DC2626; }
+.profile-checklist li button { padding: 2px 6px; border: 0; border-radius: 6px; background: transparent; color: #6d5dfb; font: inherit; font-weight: 600; cursor: pointer; transition: background-color 150ms ease, transform 160ms cubic-bezier(0.23, 1, 0.32, 1); }
+.profile-checklist li button:active { transform: scale(.96); }
+@media (hover: hover) and (pointer: fine) { .profile-checklist li button:hover { background: rgba(109, 93, 251, .08); } }
+
+.profile-tab { display: inline-flex; align-items: center; gap: 6px; }
+.profile-tab-dot { width: 7px; height: 7px; border-radius: 50%; background: #DC2626; }
+
+/* Full-width save, kept in view at the bottom of the page. */
+.profile-save-bar { position: sticky; bottom: 0; z-index: 2; display: grid; gap: 6px; padding: 10px 0 2px; background: var(--ant-color-bg-layout, transparent); }
+.profile-save-bar .ant-btn { min-height: 40px; }
+.profile-unsaved { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: #b45309; }
+.profile-unsaved::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+/* Desktop: the identity column sizes to its content and stays in view while the details scroll beside it.
+   Phones stack the columns, where a pinned card would cover the form, so it scrolls normally there. */
+@media (min-width: 992px) {
+  .profile-identity-col { position: sticky; top: 0; align-self: flex-start; }
+}
+
+.profile-access-group + .profile-access-group { margin-top: 12px; }
+.profile-access-group > span { display: block; margin-bottom: 6px; font-size: 12px; color: var(--ant-color-text-secondary); }
+
+html[data-theme='dark'] .profile-unsaved { color: #fbbf24; }
+html[data-theme='dark'] .profile-checklist li button { color: #b4a9ff; }
+html[data-theme='dark'] .profile-checklist { border-top-color: rgba(167, 139, 250, .2); }

@@ -5,6 +5,7 @@ export type OperationsApplication = {
   id: string
   businessName: string
   email: string
+  imageUrl?: string
   gender?: string
   ageGroup?: string
   stage?: string
@@ -26,6 +27,7 @@ export type OperationsApplication = {
   submittedAt?: unknown
   documents: Array<{ type?: string, url?: string }>
   growthPlanDocUrl?: string
+  rejectionReason?: string
 }
 
 export type ManagedUser = {
@@ -41,4 +43,5 @@ export type ManagedUser = {
   alternativePhone?: string
   phoneIsWhatsApp?: boolean
   alternativePhoneIsWhatsApp?: boolean
+  phoneProvider?: string
 }
