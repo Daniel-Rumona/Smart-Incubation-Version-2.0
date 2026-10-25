@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { App, Button, Card, Checkbox, Col, Input, Row, Select, Space, Switch, Table, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { CrownOutlined, InfoCircleOutlined, RocketOutlined, SaveOutlined, SearchOutlined, StarOutlined, UndoOutlined } from '@ant-design/icons'
+import { CrownOutlined, RocketOutlined, SaveOutlined, SearchOutlined, StarOutlined, UndoOutlined } from '@ant-design/icons'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
 import { PageLoadingBar } from '@/components/shared/PageSkeleton'
@@ -159,16 +159,6 @@ export const CompanyPlansPage = () => {
     <DashboardPage className="company-plans-page admin-overview">
       <PageLoadingBar active={Boolean(loading)} label={t('Loading companies')} />
 
-      <div className="company-plans-section-head">
-        <div>
-          <h2>{t('Plans')}</h2>
-          <span>{t('What each plan includes. Changes apply to every company on that plan within a minute.')}</span>
-        </div>
-        <Space wrap>
-          {plansChanged && <Button shape="round" icon={<UndoOutlined />} onClick={() => setPlanFeatures(savedPlanFeatures)}>{t('Undo changes')}</Button>}
-          <Button type="primary" shape="round" icon={<SaveOutlined />} disabled={!plansChanged} loading={savingPlans} onClick={savePlans}>{t('Save plan contents')}</Button>
-        </Space>
-      </div>
       <Row gutter={[16, 16]}>
         {PLAN_TIERS.map((tier) => {
           const changed = !sameFeatures(planFeatures[tier], savedPlanFeatures[tier])
@@ -205,7 +195,10 @@ export const CompanyPlansPage = () => {
           )
         })}
       </Row>
-      <p className="company-plans-note"><InfoCircleOutlined /> {t('Legacy companies (no plan recorded) keep every feature. New self-registered companies start on Basic. A new feature needs code before it can be added to a plan.')}</p>
+      <div className="company-plans-actions">
+        <Button block shape="round" size="large" type="primary" icon={<SaveOutlined />} disabled={!plansChanged} loading={savingPlans} onClick={savePlans}>{t('Save plan contents')}</Button>
+        {plansChanged && <Button shape="round" size="large" icon={<UndoOutlined />} onClick={() => setPlanFeatures(savedPlanFeatures)}>{t('Undo changes')}</Button>}
+      </div>
 
       <Card className="admin-card company-plans-companies" bordered={false}>
         <FilterBar
