@@ -20,6 +20,11 @@ type DashboardMetricCardProps = {
     loading?: boolean
     /** Set to false to omit this card entirely on mobile. Defaults to true. */
     onMobile?: boolean
+    /**
+     * Phones show two metrics as full cards and the rest as a slim one-line strip (count + label). By default
+     * the first two in the row are the full ones; 'key' keeps this card full wherever it sits, 'strip' slims it.
+     */
+    mobileProminence?: 'key' | 'strip'
     onClick?: () => void
     /**
      * Change against an earlier period. Shown as a compact badge beside the figure (an arrow and `amount`, e.g. "12");
@@ -118,6 +123,7 @@ export default function DashboardMetricCard({
     active = false,
     loading = false,
     onMobile = true,
+    mobileProminence,
     onClick,
     trend,
     sparkline,
@@ -137,6 +143,7 @@ export default function DashboardMetricCard({
         loading ? 'is-loading' : '',
         !loading && (clickable || onClick) ? 'is-clickable' : '',
         !loading && active ? 'is-active' : '',
+        mobileProminence ? `is-mobile-${mobileProminence}` : '',
     ]
         .filter(Boolean)
         .join(' ')

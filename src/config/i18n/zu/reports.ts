@@ -135,4 +135,5 @@ export const zuReports: Record<string, string> = {
   "Full report with data tables and commentary for each section": "Umbiko ophelele onamathebula edatha nezincazelo zesigaba ngasinye",
   "Preparing your report…": "Iyalungisa umbiko wakho…",
   "Report downloaded. The AI summary service was unavailable, so the narrative was built from the figures.": "Umbiko ulandiwe. Insizakalo yesifinyezo se-AI ibingatholakali, ngakho indaba yakhiwe ngezibalo.",
+  "Intake": "Ukwamukelwa",
 }

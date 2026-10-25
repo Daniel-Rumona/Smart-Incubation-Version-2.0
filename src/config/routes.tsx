@@ -4,6 +4,7 @@ import {
     BellOutlined,
     DollarOutlined,
     AuditOutlined,
+    ExperimentOutlined,
     AudioOutlined,
     BarChartOutlined,
     CalendarOutlined,
@@ -54,6 +55,7 @@ import AgentRegistryPage from '@/pages/admin/AgentRegistryPage'
 import CompanyPlansPage from '@/pages/admin/CompanyPlansPage'
 import AgentRatingsPage from '@/pages/admin/AgentRatingsPage'
 import ConsultantVerificationPage from '@/pages/admin/ConsultantVerificationPage'
+import SalesPitchPage from '@/pages/admin/SalesPitchPage'
 import DirectorDashboardPage from '@/pages/director/DirectorDashboardPage'
 import { DirectorPortfolioPage } from '@/pages/director/DirectorPortfolioPage'
 import { DirectorSectorsPage } from '@/pages/director/DirectorSectorsPage'
@@ -428,6 +430,7 @@ export const appRoutes: AppRoute[] = [
     },
     { path: '/admin/plans', labelKey: 'nav.companyPlans', icon: <DollarOutlined />, element: <CompanyPlansPage />, allowedRoles: adminRoles, requiredPermission: 'manage_users', audiences: ['platform'], showInNav: true },
     { path: '/admin/agent-ratings', labelKey: 'nav.agentRatings', icon: <StarOutlined />, element: <AgentRatingsPage />, allowedRoles: [USER_ROLES.SYSTEM_ADMIN, USER_ROLES.ADMIN], audiences: ['platform'], showInNav: true },
+    { path: '/admin/sales-pitch', labelKey: 'nav.salesPitch', icon: <ExperimentOutlined />, element: <SalesPitchPage />, allowedRoles: [USER_ROLES.SYSTEM_ADMIN], audiences: ['platform'], showInNav: true },
     { path: '/notifications', labelKey: 'nav.notifications', icon: <BellOutlined />, element: <NotificationCenterPage />, allowedRoles: [USER_ROLES.INCUBATEE, USER_ROLES.OPERATIONS, USER_ROLES.PROJECT_ADMIN, USER_ROLES.PROJECT_MANAGER, USER_ROLES.CONSULTANT], audiences: ['platform', 'applicant', 'incubatee', 'operations'], showInNav: false },
     { path: '/profile', labelKey: 'nav.profile', icon: <ProfileOutlined />, element: <UserProfilePage />, allowedRoles: allRoles.filter(role => role !== USER_ROLES.INCUBATEE), audiences: ['platform'], showInNav: false },
     { path: '/settings', labelKey: 'nav.companySettings', icon: <SettingOutlined />, element: <CompanySettingsPage />, allowedRoles: allRoles, audiences: ['platform'], showInNav: false },

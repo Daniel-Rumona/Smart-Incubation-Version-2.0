@@ -8,7 +8,6 @@ import {
   Empty,
   Grid,
   Input,
-  Modal,
   Pagination,
   Progress,
   Row,
@@ -25,6 +24,7 @@ import {
   DollarOutlined,
   EyeOutlined,
   FundOutlined,
+  RightOutlined,
   RiseOutlined,
   SearchOutlined,
   TeamOutlined,
@@ -32,7 +32,9 @@ import {
   WarningOutlined,
 } from '@ant-design/icons'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
+import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
+import ResponsiveModal from '@/components/shared/ResponsiveModal'
 import { ThemedHighcharts } from '@/components/shared/ThemedHighcharts'
 import { useActiveProgramId } from '@/hooks/useActiveProgramId'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
@@ -173,11 +175,12 @@ export const DirectorPortfolioPage = () => {
   const revenueEmployeesChart = useMemo<Highcharts.Options | null>(() => {
     if (!selected?.trend.length) return null
     const trend = selected.trend
+    // Phones: shorter, and no axis titles (the legend and tooltip name both series), so the bars get the width.
     return {
-      chart: { type: 'column', height: 300 },
-      title: { text: tr('Growth Trend') },
+      chart: { type: 'column', height: isMobile ? 240 : 300, ...(isMobile ? { spacing: [8, 4, 8, 4] } : {}) },
+      title: { text: tr('Growth Trend'), ...(isMobile ? { style: { fontSize: '14px' } } : {}) },
       xAxis: { categories: trend.map(item => item.month) },
-      yAxis: [{ title: { text: tr('Revenue (ZAR)') } }, { title: { text: tr('Employees') }, opposite: true, allowDecimals: false }],
+      yAxis: [{ title: { text: isMobile ? undefined : tr('Revenue (ZAR)') } }, { title: { text: isMobile ? undefined : tr('Employees') }, opposite: true, allowDecimals: false }],
       tooltip: { shared: true },
       plotOptions: { column: { borderRadius: 6 } },
       series: [
@@ -185,7 +188,7 @@ export const DirectorPortfolioPage = () => {
         { name: tr('Employees'), type: 'line', data: trend.map(item => item.employees), yAxis: 1 },
       ],
     }
-  }, [selected])
+  }, [isMobile, selected])
 
   const pageSize = isMobile ? MOBILE_PAGE_SIZE : DESKTOP_PAGE_SIZE
   const pagedRows = useMemo(() => filtered.slice((page - 1) * pageSize, page * pageSize), [filtered, page, pageSize])
@@ -233,39 +236,37 @@ export const DirectorPortfolioPage = () => {
     },
   ]
 
+  // Phones: the whole card opens the SME's performance (with a chevron saying so), instead of a
+  // full-width button on every card.
   const renderPortfolioCard = (row: DirectorPortfolioSme) => (
-    <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-      <Space align="start" style={{ width: '100%', justifyContent: 'space-between' }}>
-        <Space align="start">
-          <SmeAvatar sme={row} />
-          <div>
-            <strong>{row.name}</strong>
-            <div style={{ fontSize: 12, opacity: 0.75 }}>{row.sector}</div>
-          </div>
-        </Space>
-        <Tag color={riskColor(row.risk)}>{row.risk}</Tag>
-      </Space>
-      <Space wrap>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+        <SmeAvatar sme={row} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <strong style={{ display: 'block', overflowWrap: 'anywhere' }}>{row.name}</strong>
+          <div style={{ fontSize: 12, opacity: 0.75 }}>{row.sector}</div>
+        </div>
+        <Tag color={riskColor(row.risk)} style={{ marginInlineEnd: 0 }}>{row.risk}</Tag>
+        <RightOutlined aria-hidden="true" style={{ alignSelf: 'center', opacity: 0.45, fontSize: 12 }} />
+      </div>
+      <Space wrap size={[6, 6]}>
         <Tag color={stageColor(row.stage)}>{row.stage}</Tag>
         <Tag color={statusColor(row.status)}>{row.status}</Tag>
         {row.programName && <Tag>{row.programName}</Tag>}
       </Space>
       <Progress percent={row.progress} size="small" status={row.risk === 'High' ? 'exception' : row.progress >= 80 ? 'success' : 'active'} />
-      <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
         <span className="director-muted">{t('Revenue')}</span>
         <strong>{formatCurrency(row.metrics.revenue)}</strong>
-      </Space>
-      <Button block icon={<EyeOutlined />} type="primary" onClick={() => openPerformance(row)}>
-        {t('View Performance')}
-      </Button>
-    </Space>
+      </div>
+    </div>
   )
 
   return (
-    <div className="director-page director-portfolio-page">
+    <DashboardPage className="director-page director-portfolio-page">
       <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
         <Col xs={12} md={6}>
-          <DashboardMetricCard loading={loading} icon={<TeamOutlined />} iconClassName="is-users" label={t('Portfolio SMEs')} value={kpis.total} />
+          <DashboardMetricCard loading={loading} icon={<TeamOutlined />} iconClassName="is-users" label={t('Portfolio SMEs')} value={kpis.total} mobileProminence="strip" />
         </Col>
 
         <Col xs={12} md={6}>
@@ -273,7 +274,7 @@ export const DirectorPortfolioPage = () => {
         </Col>
 
         <Col xs={12} md={6}>
-          <DashboardMetricCard loading={loading} icon={<RiseOutlined />} iconClassName="is-delivery" label={t('Avg Progress')} value={`${kpis.avgProgress}%`} />
+          <DashboardMetricCard loading={loading} icon={<RiseOutlined />} iconClassName="is-delivery" label={t('Avg Progress')} value={`${kpis.avgProgress}%`} mobileProminence="key" />
         </Col>
 
         <Col xs={12} md={6}>
@@ -344,7 +345,16 @@ export const DirectorPortfolioPage = () => {
             {isMobile ? (
               <div className="director-mobile-records">
                 {pagedRows.map(row => (
-                  <Card key={row.id} className="responsive-list-card">
+                  <Card
+                    key={row.id}
+                    className="responsive-list-card"
+                    hoverable
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`${t('View Performance')}: ${row.name}`}
+                    onClick={() => openPerformance(row)}
+                    onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openPerformance(row) } }}
+                  >
                     {renderPortfolioCard(row)}
                   </Card>
                 ))}
@@ -376,12 +386,11 @@ export const DirectorPortfolioPage = () => {
         )}
       </Card>
 
-      <Modal
+      {/* Desktop modal, bottom sheet on phones. */}
+      <ResponsiveModal
         open={open}
-        onCancel={() => setOpen(false)}
-        footer={null}
-        width={isMobile ? '100%' : 980}
-        style={isMobile ? { top: 0, paddingBottom: 0 } : undefined}
+        onClose={() => setOpen(false)}
+        width={980}
         title={selected ? (
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.25 }}>{selected.name}</div>
@@ -452,8 +461,8 @@ export const DirectorPortfolioPage = () => {
             </Row>
           </>
         )}
-      </Modal>
-    </div>
+      </ResponsiveModal>
+    </DashboardPage>
   )
 }
 

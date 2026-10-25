@@ -1395,17 +1395,15 @@ html[data-theme='dark'] .dashboard-metric-card:hover .dashboard-metric-arrow {
         width: 100%;
     }
 
-    .dashboard-metrics-row>div:nth-child(n + 3),
-    .operations-participants-metrics>div:nth-child(n + 3),
-    .operations-compliance-metrics>div:nth-child(n + 3),
-    .usage-analytics-metrics>div:nth-child(n + 3) {
-        display: none;
+    /* Two metrics per row as full cards; the slim strip (end of this file) takes the rest. */
+    .metrics-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
     }
 
-    /* Always 2 metrics per row on mobile, never stacked full-width. */
-    .metrics-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 8px;
+    .metrics-grid > * {
+        flex: 1 1 calc(50% - 4px);
     }
 
     /* =====================================================
@@ -1836,4 +1834,75 @@ html[data-theme='dark'] .dashboard-metric-sparkline-area { fill: rgba(165, 155, 
 /* On a phone-sized card the whole card is the tap target, so the arrow gives its room to the label. */
 @container (max-width: 200px) {
     .dashboard-metric-arrow { display: none; }
+}
+
+/* =========================================================
+   Phones: two key metrics, the rest as a slim strip
+   Applies to any row of metric cards (the classes above, or any antd Row of DashboardMetricCards).
+   The first two metrics in a row stay full cards. Every other one becomes a slim "count label" pill, and the
+   pills share one line under the cards. DashboardMetricCard's mobileProminence="key" keeps a card full
+   wherever it sits; "strip" slims it. Full cards always come first.
+   ========================================================= */
+
+@media (max-width: 767px) {
+    :is(.dashboard-metrics-row, .operations-participants-metrics, .operations-compliance-metrics, .usage-analytics-metrics, .metrics-grid, .ant-row:has(> .ant-col > .dashboard-metric-card)) > :is(:nth-child(n + 3):not(.is-mobile-key, :has(.is-mobile-key)), .is-mobile-strip, :has(.is-mobile-strip)) {
+        /* Sized to their text: they share a line when they fit and wrap when they don't, never truncating a label to fit. */
+        order: 1;
+        flex: 1 1 max-content !important;
+        width: auto !important;
+        min-width: 0;
+        max-width: 100% !important;
+    }
+
+    :is(:is(.dashboard-metrics-row, .operations-participants-metrics, .operations-compliance-metrics, .usage-analytics-metrics, .metrics-grid, .ant-row:has(> .ant-col > .dashboard-metric-card)) > :is(:nth-child(n + 3):not(.is-mobile-key, :has(.is-mobile-key)), .is-mobile-strip, :has(.is-mobile-strip)).dashboard-metric-card, :is(.dashboard-metrics-row, .operations-participants-metrics, .operations-compliance-metrics, .usage-analytics-metrics, .metrics-grid, .ant-row:has(> .ant-col > .dashboard-metric-card)) > :is(:nth-child(n + 3):not(.is-mobile-key, :has(.is-mobile-key)), .is-mobile-strip, :has(.is-mobile-strip)) .dashboard-metric-card) {
+        min-height: 0;
+        border-radius: 999px !important;
+        box-shadow: none;
+        /* The card's size containment (for the sparkline rule) would make its text count as zero width. */
+        container-type: normal;
+    }
+
+    :is(:is(.dashboard-metrics-row, .operations-participants-metrics, .operations-compliance-metrics, .usage-analytics-metrics, .metrics-grid, .ant-row:has(> .ant-col > .dashboard-metric-card)) > :is(:nth-child(n + 3):not(.is-mobile-key, :has(.is-mobile-key)), .is-mobile-strip, :has(.is-mobile-strip)).dashboard-metric-card, :is(.dashboard-metrics-row, .operations-participants-metrics, .operations-compliance-metrics, .usage-analytics-metrics, .metrics-grid, .ant-row:has(> .ant-col > .dashboard-metric-card)) > :is(:nth-child(n + 3):not(.is-mobile-key, :has(.is-mobile-key)), .is-mobile-strip, :has(.is-mobile-strip)) .dashboard-metric-card) .ant-card-body {
+        padding: 5px 12px !important;
+    }
+
+    :is(:is(.dashboard-metrics-row, .operations-participants-metrics, .operations-compliance-metrics, .usage-analytics-metrics, .metrics-grid, .ant-row:has(> .ant-col > .dashboard-metric-card)) > :is(:nth-child(n + 3):not(.is-mobile-key, :has(.is-mobile-key)), .is-mobile-strip, :has(.is-mobile-strip)).dashboard-metric-card, :is(.dashboard-metrics-row, .operations-participants-metrics, .operations-compliance-metrics, .usage-analytics-metrics, .metrics-grid, .ant-row:has(> .ant-col > .dashboard-metric-card)) > :is(:nth-child(n + 3):not(.is-mobile-key, :has(.is-mobile-key)), .is-mobile-strip, :has(.is-mobile-strip)) .dashboard-metric-card) .dashboard-metric-row {
+        justify-content: center;
+        gap: 0;
+    }
+
+    :is(:is(.dashboard-metrics-row, .operations-participants-metrics, .operations-compliance-metrics, .usage-analytics-metrics, .metrics-grid, .ant-row:has(> .ant-col > .dashboard-metric-card)) > :is(:nth-child(n + 3):not(.is-mobile-key, :has(.is-mobile-key)), .is-mobile-strip, :has(.is-mobile-strip)).dashboard-metric-card, :is(.dashboard-metrics-row, .operations-participants-metrics, .operations-compliance-metrics, .usage-analytics-metrics, .metrics-grid, .ant-row:has(> .ant-col > .dashboard-metric-card)) > :is(:nth-child(n + 3):not(.is-mobile-key, :has(.is-mobile-key)), .is-mobile-strip, :has(.is-mobile-strip)) .dashboard-metric-card) .dashboard-metric-value-line {
+        flex: 0 0 auto;
+    }
+
+    /* Count first, then the label, on one line. */
+    :is(:is(.dashboard-metrics-row, .operations-participants-metrics, .operations-compliance-metrics, .usage-analytics-metrics, .metrics-grid, .ant-row:has(> .ant-col > .dashboard-metric-card)) > :is(:nth-child(n + 3):not(.is-mobile-key, :has(.is-mobile-key)), .is-mobile-strip, :has(.is-mobile-strip)).dashboard-metric-card, :is(.dashboard-metrics-row, .operations-participants-metrics, .operations-compliance-metrics, .usage-analytics-metrics, .metrics-grid, .ant-row:has(> .ant-col > .dashboard-metric-card)) > :is(:nth-child(n + 3):not(.is-mobile-key, :has(.is-mobile-key)), .is-mobile-strip, :has(.is-mobile-strip)) .dashboard-metric-card) .dashboard-metric-copy {
+        flex-direction: row-reverse;
+        justify-content: center;
+        align-items: baseline;
+        gap: 5px;
+        padding-left: 0;
+    }
+
+    :is(:is(.dashboard-metrics-row, .operations-participants-metrics, .operations-compliance-metrics, .usage-analytics-metrics, .metrics-grid, .ant-row:has(> .ant-col > .dashboard-metric-card)) > :is(:nth-child(n + 3):not(.is-mobile-key, :has(.is-mobile-key)), .is-mobile-strip, :has(.is-mobile-strip)).dashboard-metric-card, :is(.dashboard-metrics-row, .operations-participants-metrics, .operations-compliance-metrics, .usage-analytics-metrics, .metrics-grid, .ant-row:has(> .ant-col > .dashboard-metric-card)) > :is(:nth-child(n + 3):not(.is-mobile-key, :has(.is-mobile-key)), .is-mobile-strip, :has(.is-mobile-strip)) .dashboard-metric-card) .dashboard-metric-value {
+        flex: 0 0 auto;
+        font-size: 15px !important;
+        line-height: 22px;
+        overflow: visible;
+    }
+
+    :is(:is(.dashboard-metrics-row, .operations-participants-metrics, .operations-compliance-metrics, .usage-analytics-metrics, .metrics-grid, .ant-row:has(> .ant-col > .dashboard-metric-card)) > :is(:nth-child(n + 3):not(.is-mobile-key, :has(.is-mobile-key)), .is-mobile-strip, :has(.is-mobile-strip)).dashboard-metric-card, :is(.dashboard-metrics-row, .operations-participants-metrics, .operations-compliance-metrics, .usage-analytics-metrics, .metrics-grid, .ant-row:has(> .ant-col > .dashboard-metric-card)) > :is(:nth-child(n + 3):not(.is-mobile-key, :has(.is-mobile-key)), .is-mobile-strip, :has(.is-mobile-strip)) .dashboard-metric-card) .dashboard-metric-label {
+        flex: 0 1 auto;
+        font-size: 11.5px !important;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+
+    :is(:is(.dashboard-metrics-row, .operations-participants-metrics, .operations-compliance-metrics, .usage-analytics-metrics, .metrics-grid, .ant-row:has(> .ant-col > .dashboard-metric-card)) > :is(:nth-child(n + 3):not(.is-mobile-key, :has(.is-mobile-key)), .is-mobile-strip, :has(.is-mobile-strip)).dashboard-metric-card, :is(.dashboard-metrics-row, .operations-participants-metrics, .operations-compliance-metrics, .usage-analytics-metrics, .metrics-grid, .ant-row:has(> .ant-col > .dashboard-metric-card)) > :is(:nth-child(n + 3):not(.is-mobile-key, :has(.is-mobile-key)), .is-mobile-strip, :has(.is-mobile-strip)) .dashboard-metric-card) :is(.dashboard-metric-icon, .dashboard-metric-hint, .dashboard-metric-arrow, .dashboard-metric-sparkline, .dashboard-metric-trend) {
+        display: none !important;
+    }
+
+    :is(:is(.dashboard-metrics-row, .operations-participants-metrics, .operations-compliance-metrics, .usage-analytics-metrics, .metrics-grid, .ant-row:has(> .ant-col > .dashboard-metric-card)) > :is(:nth-child(n + 3):not(.is-mobile-key, :has(.is-mobile-key)), .is-mobile-strip, :has(.is-mobile-strip)).dashboard-metric-card, :is(.dashboard-metrics-row, .operations-participants-metrics, .operations-compliance-metrics, .usage-analytics-metrics, .metrics-grid, .ant-row:has(> .ant-col > .dashboard-metric-card)) > :is(:nth-child(n + 3):not(.is-mobile-key, :has(.is-mobile-key)), .is-mobile-strip, :has(.is-mobile-strip)) .dashboard-metric-card).is-loading .ant-skeleton-avatar {
+        display: none;
+    }
 }

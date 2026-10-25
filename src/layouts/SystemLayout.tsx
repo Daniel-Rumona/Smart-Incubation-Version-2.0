@@ -16,7 +16,6 @@ import {
     LogoutOutlined,
     MenuOutlined,
     MoonOutlined,
-    ProjectOutlined,
     RobotOutlined,
     AppstoreOutlined,
     ArrowLeftOutlined,
@@ -605,7 +604,7 @@ export const SystemLayout = () => {
                             <header
                                 ref={topbarRef}
                                 id="guide-app-topbar"
-                                className="app-topbar-pill"
+                                className={`app-topbar-pill${isMobile && !isTablet && projectSelector ? ' has-phone-scope' : ''}`}
                                 style={{
                                     left: isMobile ? 10 : 12,
                                 }}
@@ -656,6 +655,9 @@ export const SystemLayout = () => {
                                 {!isMobile && <div className="app-topbar-center">{shellMode === 'workspace' && quickLinksSwitch}</div>}
 
                                 {isTablet && <div className="app-topbar-center">{projectSelector}</div>}
+
+                                {/* Phones: the programme sits in the top bar too, between the page name and the actions. */}
+                                {isMobile && !isTablet && projectSelector && <div className="app-topbar-center app-topbar-scope">{projectSelector}</div>}
 
                                 {isMobile ? (
                                     <Space size={6} className="app-topbar-actions is-mobile-pills">
@@ -778,15 +780,6 @@ export const SystemLayout = () => {
                         onCancel={() => setAccountOpen(false)}
                         className="app-account-modal"
                     >
-                        {isMobile && !isTablet && projectSelector && (
-                            <div className="app-account-section">
-                                <div className="app-account-row">
-                                    <span className="app-account-row-label"><ProjectOutlined /> {t('Programme')}</span>
-                                    {projectSelector}
-                                </div>
-                            </div>
-                        )}
-
                         <div className="app-account-section">
                             <div className="app-account-row">
                                 <span className="app-account-row-label"><GlobalOutlined /> {t('Language')}</span>

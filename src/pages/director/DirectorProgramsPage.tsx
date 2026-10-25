@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { App, Card, Col, Empty, Input, Modal, Pagination, Progress, Row, Segmented, Select, Space, Tag, Typography, theme } from 'antd'
+import { App, Card, Col, Empty, Grid, Input, Pagination, Progress, Row, Segmented, Select, Space, Tag, Typography, theme } from 'antd'
 import {
     AppstoreOutlined,
     BarChartOutlined,
@@ -15,6 +15,7 @@ import type Highcharts from 'highcharts'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
+import ResponsiveModal from '@/components/shared/ResponsiveModal'
 import { ThemedHighcharts } from '@/components/shared/ThemedHighcharts'
 import { CHART_COLORS } from '@/config/chartPalette'
 import { useActiveProgramId } from '@/hooks/useActiveProgramId'
@@ -107,9 +108,9 @@ const ProgramCard = ({ row, onClick }: { row: DirectorProgramPerformance, onClic
                     { label: t('Employees'), value: row.totalEmployees.toLocaleString() },
                     { label: t('Revenue'), value: formatCurrency(row.totalRevenue) },
                 ].map((stat) => (
-                    <div key={stat.label} style={{ padding: '8px 10px', borderRadius: 10, background: token.colorFillQuaternary }}>
-                        <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block' }}>{stat.label}</Typography.Text>
-                        <Typography.Text strong style={{ fontSize: 14 }}>{stat.value}</Typography.Text>
+                    <div key={stat.label} style={{ minWidth: 0, padding: '8px 10px', borderRadius: 10, background: token.colorFillQuaternary }}>
+                        <Typography.Text type="secondary" ellipsis style={{ fontSize: 11, display: 'block' }}>{stat.label}</Typography.Text>
+                        <Typography.Text strong ellipsis={{ tooltip: stat.value }} style={{ fontSize: 14, display: 'block' }}>{stat.value}</Typography.Text>
                     </div>
                 ))}
             </div>
@@ -146,6 +147,7 @@ export const DirectorProgramsPage = () => {
     const [chartView, setChartView] = useState<ChartView>('delivery')
     const [page, setPage] = useState(1)
     const [selectedId, setSelectedId] = useState<string>()
+    const isMobile = !Grid.useBreakpoint().md
 
     useEffect(() => {
         let mounted = true
@@ -214,7 +216,7 @@ export const DirectorProgramsPage = () => {
 
     const selected = useMemo(() => rows.find((row) => row.id === selectedId) || null, [rows, selectedId])
 
-    const chartOptions = useMemo<Highcharts.Options>(() => {
+    const baseChartOptions = useMemo<Highcharts.Options>(() => {
         const categories = filtered.map((row) => row.name)
         if (chartView === 'risk') {
             return {
@@ -264,6 +266,37 @@ export const DirectorProgramsPage = () => {
         }
     }, [chartView, filtered])
 
+    // Phones: no axis titles (the legend and tooltips say it), so the plot gets the width.
+    const chartOptions = useMemo<Highcharts.Options>(() => {
+        if (!isMobile) return baseChartOptions
+        const dropTitle = (axis: Highcharts.YAxisOptions) => ({ ...axis, title: { text: undefined } })
+        const yAxis = baseChartOptions.yAxis as Highcharts.YAxisOptions | Highcharts.YAxisOptions[] | undefined
+        return {
+            ...baseChartOptions,
+            chart: { ...baseChartOptions.chart, height: chartView === 'risk' ? baseChartOptions.chart?.height : 280, spacing: [8, 4, 8, 4] },
+            yAxis: Array.isArray(yAxis) ? yAxis.map(dropTitle) : yAxis && dropTitle(yAxis),
+            xAxis: { ...(baseChartOptions.xAxis as Highcharts.XAxisOptions), labels: { style: { fontSize: '11px', textOverflow: 'ellipsis' } } },
+            legend: { itemStyle: { fontSize: '11px' } },
+        }
+    }, [baseChartOptions, chartView, isMobile])
+
+    const chartViewSwitch = (
+        <Segmented<ChartView>
+            block={isMobile}
+            value={chartView}
+            onChange={setChartView}
+            options={isMobile ? [
+                { label: t('Delivery'), value: 'delivery' },
+                { label: t('Risk'), value: 'risk' },
+                { label: t('Intake'), value: 'funnel' },
+            ] : [
+                { label: t('Delivery & Revenue'), value: 'delivery', icon: <CheckCircleOutlined /> },
+                { label: t('Risk Mix'), value: 'risk', icon: <ExclamationCircleOutlined /> },
+                { label: t('Intake Funnel'), value: 'funnel', icon: <TeamOutlined /> },
+            ]}
+        />
+    )
+
     const statusOptions = useMemo(
         () => [{ value: 'all', label: t('common.all', 'All') }, ...Array.from(new Set(rows.map((row) => row.status.toLowerCase()))).map((value) => ({ value, label: value.toUpperCase() }))],
         [rows, t],
@@ -272,10 +305,10 @@ export const DirectorProgramsPage = () => {
     return (
         <DashboardPage className="director-page director-programs-page">
             <Row gutter={[12, 12]} className="dashboard-metrics-row">
-                <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={loading} icon={<ProjectOutlined />} iconClassName="is-users" label={t('director.programs.programs', 'Programs')} value={metrics.programs} /></Col>
+                <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={loading} icon={<ProjectOutlined />} iconClassName="is-users" label={t('director.programs.programs', 'Programs')} value={metrics.programs} mobileProminence="strip" /></Col>
                 <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={loading} icon={<TeamOutlined />} iconClassName="is-participants" label={t('director.programs.smes', 'SMEs')} value={metrics.smes} hint={`${metrics.employees.toLocaleString()} employees`} /></Col>
                 <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={loading} icon={<DollarOutlined />} iconClassName="is-participants" label={t('Revenue')} value={formatCurrency(metrics.revenue)} /></Col>
-                <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={loading} icon={<CheckCircleOutlined />} iconClassName="is-delivery" label={t('Delivery rate')} value={`${metrics.completionRate}%`} hint={`${metrics.avgProgress}% avg progress`} /></Col>
+                <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={loading} icon={<CheckCircleOutlined />} iconClassName="is-delivery" label={t('Delivery rate')} mobileProminence="key" value={`${metrics.completionRate}%`} hint={`${metrics.avgProgress}% avg progress`} /></Col>
                 {(loading || metrics.overdue > 0) && (
                     <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={loading} icon={<ExclamationCircleOutlined />} iconClassName="is-attention" label={t('director.programs.overdue', 'Overdue')} value={metrics.overdue} /></Col>
                 )}
@@ -307,7 +340,7 @@ export const DirectorProgramsPage = () => {
                         loading={loading}
                         className="dashboard-section-card motion-card"
                         title={<Space><AppstoreOutlined /> {t('Program Scorecards')}</Space>}
-                        extra={<Typography.Text type="secondary">{t('Click a program for its full breakdown')}</Typography.Text>}
+                        extra={isMobile ? undefined : <Typography.Text type="secondary">{t('Click a program for its full breakdown')}</Typography.Text>}
                     >
                         {filtered.length ? (
                             <>
@@ -332,29 +365,20 @@ export const DirectorProgramsPage = () => {
                         loading={loading}
                         className="dashboard-section-card motion-card"
                         title={<Space><BarChartOutlined /> {t('Comparison')}</Space>}
-                        extra={(
-                            <Segmented<ChartView>
-                                value={chartView}
-                                onChange={setChartView}
-                                options={[
-                                    { label: t('Delivery & Revenue'), value: 'delivery', icon: <CheckCircleOutlined /> },
-                                    { label: t('Risk Mix'), value: 'risk', icon: <ExclamationCircleOutlined /> },
-                                    { label: t('Intake Funnel'), value: 'funnel', icon: <TeamOutlined /> },
-                                ]}
-                            />
-                        )}
+                        // Phones: the switch moves under the title, full width, so the header doesn't overflow.
+                        extra={isMobile ? undefined : chartViewSwitch}
                     >
+                        {isMobile && <div style={{ marginBottom: 12 }}>{chartViewSwitch}</div>}
                         {filtered.length ? <ThemedHighcharts options={chartOptions} /> : <Empty description={t('director.programs.empty', 'No programs match the current filters.')} />}
                     </Card>
                 </Col>
             </Row>
 
-            <Modal
+            {/* Desktop modal, bottom sheet on phones. */}
+            <ResponsiveModal
                 open={!!selected}
-                onCancel={() => setSelectedId(undefined)}
-                footer={null}
+                onClose={() => setSelectedId(undefined)}
                 width={820}
-                destroyOnClose
                 title={selected ? (
                     <Space direction="vertical" size={2}>
                         <Space><ProjectOutlined /> {selected.name}</Space>
@@ -415,7 +439,7 @@ export const DirectorProgramsPage = () => {
                         </Row>
                     </Space>
                 )}
-            </Modal>
+            </ResponsiveModal>
         </DashboardPage>
     )
 }

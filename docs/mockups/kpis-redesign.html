@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KPIs redesign</title>
+<style>
+  :root {
+    --accent: #6d5dfb; --accent-2: #4f7df3;
+    --bg: #f5f6fb; --surface: #ffffff; --surface-2: #eef0f8; --ink: #172033; --muted: #5b6478; --line: rgba(109,93,251,.14);
+    --ok: #15803d; --ok-bg: rgba(21,128,61,.1);
+    --behind: #b45309; --behind-bg: rgba(217,119,6,.12);
+    --off: #dc2626; --off-bg: rgba(220,38,38,.1);
+    --none: #64748b; --none-bg: rgba(100,116,139,.12);
+    --ease: cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  [data-theme="dark"] {
+    --bg: #0f1117; --surface: #1b1e2a; --surface-2: #232737; --ink: #eef0f6; --muted: #a1a9bd; --line: rgba(139,92,246,.24);
+    --ok: #4ade80; --ok-bg: rgba(74,222,128,.12); --behind: #fbbf24; --behind-bg: rgba(251,191,36,.12);
+    --off: #f87171; --off-bg: rgba(248,113,113,.12); --none: #94a3b8; --none-bg: rgba(148,163,184,.12);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
+  button { font: inherit; color: inherit; }
+
+  .controls { position: sticky; top: 0; z-index: 9; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; padding: 12px; background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+  .seg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); }
+  .seg button { border: 0; background: none; color: var(--muted); font-weight: 650; font-size: 13px; padding: 7px 14px; border-radius: 999px; cursor: pointer; transition: color .2s var(--ease); }
+  .seg button.on { color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+  .seg.block { display: flex; width: 100%; } .seg.block button { flex: 1; }
+  .note { font-size: 12px; color: var(--muted); }
+
+  .stage { display: flex; flex-wrap: wrap; gap: 28px; justify-content: center; align-items: flex-start; padding: 24px 16px 48px; }
+  .label { font: 700 11px/1 system-ui; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px 4px; }
+  .screen { position: relative; overflow: auto; border: 1px solid var(--line); background: var(--bg); scrollbar-width: none; }
+  .screen::-webkit-scrollbar { display: none; }
+  .desktop .screen { width: 1060px; max-width: calc(100vw - 32px); height: 780px; border-radius: 22px; padding: 20px; }
+  .phone .screen { width: 375px; height: 780px; border-radius: 36px; padding: 16px; }
+
+  /* toolbar */
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+  .toolbar .spacer { flex: 1; }
+  .scope { color: var(--muted); font-size: 13px; }
+  .btn { border: 0; border-radius: 10px; padding: 8px 14px; font-weight: 650; color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent-2)); cursor: pointer; }
+
+  /* summary */
+  .summary { display: grid; grid-template-columns: 1.4fr repeat(4, 1fr); gap: 10px; margin-bottom: 18px; }
+  .verdict { padding: 14px 16px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); }
+  .verdict small { color: var(--muted); display: block; margin-bottom: 4px; }
+  .verdict p { margin: 0; font-weight: 600; }
+  .chip { display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; text-align: left; transition: transform .15s var(--ease), box-shadow .2s var(--ease); }
+  .chip:active { transform: scale(.97); }
+  .chip strong { font-size: 24px; line-height: 1.1; }
+  .chip span { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .chip.on { box-shadow: 0 0 0 2px var(--accent) inset; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
+  .s-ok { --c: var(--ok); --cb: var(--ok-bg); } .s-behind { --c: var(--behind); --cb: var(--behind-bg); }
+  .s-off { --c: var(--off); --cb: var(--off-bg); } .s-none { --c: var(--none); --cb: var(--none-bg); }
+  .dot { background: var(--c); }
+
+  /* groups + cards */
+  .group-head { display: flex; align-items: center; gap: 8px; margin: 18px 0 10px; font-weight: 700; }
+  .group-head .count { color: var(--muted); font-weight: 500; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .card { position: relative; display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); }
+  .card::before { content: ''; position: absolute; left: 0; top: 14px; bottom: 14px; width: 3px; border-radius: 0 3px 3px 0; background: var(--c); }
+  .card-head { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+  .card-head strong { font-size: 14px; }
+  .pill { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; color: var(--c); background: var(--cb); white-space: nowrap; }
+  .figure { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .figure .value { font-size: 26px; font-weight: 750; letter-spacing: -.02em; }
+  .figure .target { color: var(--muted); font-size: 12px; }
+  .bar { position: relative; height: 8px; border-radius: 999px; background: var(--surface-2); overflow: visible; }
+  .bar .fill { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--c); }
+  .bar .pace { position: absolute; top: -3px; bottom: -3px; width: 2px; border-radius: 2px; background: var(--ink); opacity: .55; }
+  .bar .limit { position: absolute; top: -4px; bottom: -4px; width: 2px; border-radius: 2px; background: var(--ink); opacity: .7; }
+  .bar-caption { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: -4px; }
+  .foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .delta { font-size: 12px; font-weight: 700; padding: 1px 7px; border-radius: 999px; }
+  .delta.good { color: var(--ok); background: var(--ok-bg); } .delta.bad { color: var(--off); background: var(--off-bg); } .delta.flat { color: var(--none); background: var(--none-bg); }
+  .period { font-size: 11px; color: var(--muted); }
+  svg.spark { width: 72px; height: 22px; overflow: visible; }
+  svg.spark path { fill: none; stroke: var(--c); stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+  svg.spark circle { fill: var(--c); }
+  .manual { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 8px; }
+  .manual button { border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px; padding: 3px 9px; font-size: 12px; cursor: pointer; }
+
+  /* table */
+  .table-wrap { border-radius: 18px; border: 1px solid var(--line); background: var(--surface); overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); background: var(--surface-2); }
+  td.kpi-name { font-weight: 650; } td.kpi-name small { display: block; font-weight: 400; color: var(--muted); }
+  .cell { display: inline-flex; align-items: center; gap: 7px; padding: 4px 9px; border-radius: 10px; background: var(--cb); }
+  .cell b { color: var(--c); } .cell span { color: var(--muted); font-size: 12px; }
+  tr.group-row td { background: transparent; font-weight: 700; padding-top: 14px; font-size: 12px; }
+
+  /* phone */
+  .p-head { font-size: 20px; font-weight: 750; margin: 2px 0 10px; }
+  .p-chips { display: flex; gap: 8px; overflow-x: auto; margin: 0 -16px 12px; padding: 0 16px 2px; scrollbar-width: none; }
+  .p-chips::-webkit-scrollbar { display: none; }
+  .p-chip { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; font-weight: 650; cursor: pointer; }
+  .p-chip.on { color: #fff; border-color: transparent; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+  .p-verdict { font-size: 13px; color: var(--muted); margin: 0 0 6px; }
+  .rows { display: flex; flex-direction: column; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); overflow: hidden; }
+  .row { border-bottom: 1px solid var(--line); }
+  .row:last-child { border-bottom: 0; }
+  .row-main { width: 100%; display: grid; grid-template-columns: 10px 1fr auto 14px; align-items: center; gap: 10px; padding: 11px 14px; border: 0; background: none; text-align: left; cursor: pointer; }
+  .row-main .name { font-weight: 600; font-size: 13.5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row-main .val { font-weight: 750; font-size: 14px; text-align: right; }
+  .row-main .val small { display: block; font-weight: 500; font-size: 11px; color: var(--muted); }
+  .row-main .chev { color: var(--muted); transition: transform .25s var(--ease); font-size: 12px; }
+  .row.open .chev { transform: rotate(90deg); }
+  .row-more { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .3s var(--ease); }
+  .row.open .row-more { grid-template-rows: 1fr; }
+  .row-more > div { overflow: hidden; }
+  .row-more .inner { display: flex; flex-direction: column; gap: 10px; padding: 0 14px 14px 34px; }
+  .p-group { font-size: 12px; font-weight: 700; color: var(--muted); margin: 14px 4px 6px; display: flex; gap: 6px; align-items: center; }
+
+  /* "As at" month picker: every KPI shows its own period that contains this month. */
+  .asat { display: inline-flex; align-items: center; gap: 6px; padding: 4px 4px 4px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font-size: 13px; font-weight: 600; }
+  .asat select { appearance: none; border: 0; border-radius: 999px; padding: 5px 26px 5px 10px; font: 700 13px system-ui, sans-serif; color: var(--ink); background: var(--surface-2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236d5dfb' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat right 10px center; cursor: pointer; }
+  .p-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 2px 0 6px; }
+  .p-top .p-head { margin: 0; }
+  .device { display: none; }
+
+  /* Opened on a phone: show one view at a time, full width, without the device frames. */
+  @media (max-width: 760px) {
+    .device { display: inline-flex; }
+    .note { display: none; }
+    .stage { padding: 0; gap: 0; display: block; }
+    .stage .label { display: none; }
+    body:not(.show-desktop) .desktop, body.show-desktop .phone { display: none; }
+    .phone .screen { width: 100%; height: auto; border: 0; border-radius: 0; overflow: visible; }
+    .desktop { overflow-x: auto; }
+    .desktop .screen { max-width: none; height: auto; border-radius: 0; border-width: 0 0 1px; }
+    .callout { padding: 16px; }
+  }
+
+  .callout { max-width: 1440px; margin: 0 auto; padding: 0 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .callout div { padding: 12px 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); font-size: 13px; }
+  .callout b { display: block; margin-bottom: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="controls">
+  <div class="seg device" id="device"><button class="on" data-v="phone">Phone</button><button data-v="desktop">Desktop</button></div>
+  <div class="seg" id="theme"><button class="on" data-v="light">Light</button><button data-v="dark">Dark</button></div>
+  <div class="seg" id="view"><button class="on" data-v="cards">Cards</button><button data-v="table">Table</button></div>
+  <span class="note">Mock-up · sample figures for Test Engagement · change "As at", click the status chips and phone rows</span>
+</div>
+
+<div class="stage">
+  <section class="desktop">
+    <p class="label">Desktop</p>
+    <div class="screen" id="desktop"></div>
+  </section>
+  <section class="phone">
+    <p class="label">Phone</p>
+    <div class="screen" id="phone"></div>
+  </section>
+</div>
+
+<div class="callout">
+  <div><b>1 · Status first</b>The verdict and four status counts lead. Each count filters the page, so "what's behind?" is one tap.</div>
+  <div><b>2 · Grouped by status</b>Needs attention, then on track, then no data. Problems are never mixed in with the ten fine ones.</div>
+  <div><b>3 · Trend on every KPI</b>Change against the previous period and a small line over the last periods: is it getting better?</div>
+  <div><b>4 · Lower-is-better gets a bar</b>It fills towards the limit (the marker) and turns red past it, so Overdue reads as clearly as Completion.</div>
+  <div><b>5 · Programme table</b>KPIs down, programmes across, each cell actual against target in its status colour: the director's comparison.</div>
+  <div><b>6 · Phone rows</b>One line per KPI (status dot, name, value / target); tap to expand the bar, trend and period.</div>
+</div>
+
+<script>
+const KPIS = [
+  { name: 'Completion rate', unit: '%', cadence: 'Quarterly', period: 'Q4 2026', value: 72, target: 80, dir: 'higher', status: 'behind', trend: [58, 61, 64, 72], prev: 64, pace: null, desc: 'Share of the quarter’s interventions complete', prog: { all: [70, 75], te: [72, 80], ye: [81, 75], tr: [63, 75] } },
+  { name: 'Interventions completed', unit: '', cadence: 'Quarterly', period: 'Q4 2026', value: 18, target: 30, dir: 'higher', status: 'behind', trend: [22, 26, 24, 18], prev: 24, pace: 21, desc: 'Completed and confirmed by the SME', prog: { all: [41, 40], te: [18, 30], ye: [14, 10], tr: [9, 10] } },
+  { name: 'Overdue interventions', unit: '', cadence: 'Monthly', period: 'Oct 2026', value: 6, target: 3, dir: 'lower', status: 'off', trend: [2, 3, 4, 6], prev: 4, desc: 'Open and past their due date now', prog: { all: [9, 5], te: [6, 3], ye: [1, 3], tr: [2, 3] } },
+  { name: 'Financially ready SMEs', unit: '', cadence: 'Yearly', period: '2026', value: 7, target: 12, dir: 'higher', status: 'behind', trend: [2, 4, 5, 7], prev: 5, pace: 10, desc: 'At least 2 of 3 finance interventions', prog: { all: [16, 15], te: [7, 12], ye: [6, 5], tr: [3, 5] } },
+  { name: 'Sponsor funding unlocked', unit: 'R', cadence: 'Yearly', period: '2026', value: 640000, target: 1500000, dir: 'higher', status: 'off', trend: [120000, 310000, 480000, 640000], prev: 480000, pace: 1220000, desc: 'Reported to the sponsor · manual', manual: 'Entered by Thandi M.', prog: { all: [910000, 2000000], te: [640000, 1500000], ye: [270000, 500000], tr: [null, null] } },
+  { name: 'Delivered on time', unit: '%', cadence: 'Quarterly', period: 'Q4 2026', value: 88, target: 85, dir: 'higher', status: 'ok', trend: [79, 83, 86, 88], prev: 86, desc: 'Finished by their due date', prog: { all: [86, 85], te: [88, 85], ye: [90, 85], tr: [78, 85] } },
+  { name: 'Median turnaround', unit: ' days', cadence: 'Quarterly', period: 'Q4 2026', value: 37, target: 40, dir: 'lower', status: 'ok', trend: [52, 46, 41, 37], prev: 41, desc: 'Assignment to completion', prog: { all: [39, 45], te: [37, 40], ye: [33, 45], tr: [49, 45] } },
+  { name: 'Client rating', unit: ' / 5', cadence: 'Quarterly', period: 'Q4 2026', value: 4.6, target: 4.5, dir: 'higher', status: 'ok', trend: [4.3, 4.4, 4.5, 4.6], prev: 4.5, desc: 'Average SME rating', prog: { all: [4.5, 4.2], te: [4.6, 4.5], ye: [4.7, 4.2], tr: [4.1, 4.2] } },
+  { name: 'SMEs supported', unit: '', cadence: 'Yearly', period: '2026', value: 34, target: 40, dir: 'higher', status: 'ok', trend: [9, 18, 27, 34], prev: 27, pace: 33, desc: 'At least one completion this year', prog: { all: [58, 50], te: [34, 40], ye: [15, 10], tr: [9, 10] } },
+  { name: 'Market-ready SMEs', unit: '', cadence: 'Quarterly', period: 'Q4 2026', value: 10, target: 10, dir: 'higher', status: 'ok', trend: [4, 7, 8, 10], prev: 8, pace: 7, desc: 'Any market, marketing or e-commerce', prog: { all: [17, 10], te: [10, 10], ye: [5, 5], tr: [2, 5] } },
+  { name: 'Jobs created', unit: '', cadence: 'Quarterly', period: 'Q4 2026', value: 9, target: 25, dir: 'higher', status: 'ok', trend: [14, 19, 22, 9], prev: 22, pace: 7, desc: 'Reported by SMEs · manual', manual: 'Entered by Thandi M.', newPeriod: true, prog: { all: [15, 30], te: [9, 25], ye: [4, 5], tr: [2, 5] } },
+  { name: 'Appointment attendance', unit: '%', cadence: 'Monthly', period: 'Oct 2026', value: null, target: 90, dir: 'higher', status: 'none', trend: [86, 92, 90], prev: 90, desc: 'No appointments held yet this month', prog: { all: [null, 90], te: [null, 90], ye: [94, 90], tr: [null, 90] } },
+]
+const STATUS = { off: ['Off track', 's-off'], behind: ['Behind', 's-behind'], ok: ['On track', 's-ok'], none: ['No data', 's-none'] }
+const GROUPS = [['attention', 'Needs attention', ['off', 'behind']], ['ok', 'On track', ['ok']], ['none', 'No data yet', ['none']]]
+let filter = 'all', view = 'cards', openRow = 0, asAt = 0
+// Picked month -> each KPI's own period containing it (month, quarter or year), and the one before.
+const MONTHS = [['2026-10', 'Oct 2026'], ['2026-09', 'Sep 2026'], ['2026-08', 'Aug 2026'], ['2026-07', 'Jul 2026'], ['2026-06', 'Jun 2026'], ['2026-03', 'Mar 2026'], ['2025-12', 'Dec 2025']].map(([key, label]) => ({ key, label }))
+const periodOf = (cadence, back = 0) => {
+  const [y, m] = MONTHS[asAt].key.split('-').map(Number)
+  if (cadence === 'Monthly') { const d = new Date(y, m - 1 - back, 1); return d.toLocaleString('en-ZA', { month: 'short', year: 'numeric' }) }
+  if (cadence === 'Quarterly') { const q = Math.floor((m - 1) / 3) - back; const yy = y + Math.floor(q / 4); return `Q${((q % 4) + 4) % 4 + 1} ${yy}` }
+  return String(y - back)
+}
+const asAtPicker = () => `<label class="asat">As at <select data-asat>${MONTHS.map((month, i) => `<option value="${i}" ${i === asAt ? 'selected' : ''}>${month.label}</option>`).join('')}</select></label>`
+
+const money = (v) => v >= 1e6 ? `R${(v / 1e6).toFixed(v % 1e6 ? 2 : 0)}M` : `R${Math.round(v / 1000)}k`
+const fmt = (k, v) => v === null || v === undefined ? '—' : k.unit === 'R' ? money(v) : k.unit === '%' ? `${v}%` : `${v}${k.unit}`
+const visible = () => KPIS.filter((k) => filter === 'all' || (filter === 'attention' ? ['off', 'behind'].includes(k.status) : k.status === filter))
+
+function spark(values) {
+  const max = Math.max(...values), min = Math.min(...values), span = max - min || 1
+  const pts = values.map((v, i) => [(i / (values.length - 1)) * 72, 20 - ((v - min) / span) * 18])
+  return `<svg class="spark" viewBox="0 0 72 22" aria-hidden="true"><path d="M${pts.map((p) => p.join(',')).join(' L')}"/><circle cx="${pts.at(-1)[0]}" cy="${pts.at(-1)[1]}" r="2.4"/></svg>`
+}
+function delta(k) {
+  if (k.value === null || k.newPeriod) return `<span class="delta flat">${k.newPeriod ? 'New quarter' : 'No data'}</span>`
+  const d = Math.round((k.value - k.prev) * 10) / 10
+  const good = k.dir === 'higher' ? d > 0 : d < 0
+  const unitText = k.unit === '%' ? ' pts' : k.unit === 'R' ? '' : k.unit
+  const shown = k.unit === 'R' ? money(Math.abs(d)) : `${Math.abs(d)}${unitText}`
+  return `<span class="delta ${d === 0 ? 'flat' : good ? 'good' : 'bad'}" title="vs ${periodOf(k.cadence, 1)}">${d > 0 ? '↑' : d < 0 ? '↓' : '→'} ${shown} <small style="font-weight:500;opacity:.8">vs ${periodOf(k.cadence, 1)}</small></span>`
+}
+function bar(k) {
+  if (k.value === null) return `<div class="bar"></div>`
+  if (k.dir === 'lower') {
+    // Scale to twice the limit: the marker is the limit, red past it.
+    const scale = k.target * 2, fill = Math.min(100, (k.value / scale) * 100), limit = 50
+    return `<div class="bar"><span class="fill" style="width:${fill}%"></span><span class="limit" style="left:${limit}%" title="Limit"></span></div><div class="bar-caption"><span>0</span><span>limit ${fmt(k, k.target)}</span><span></span></div>`
+  }
+  const fill = Math.min(100, (k.value / k.target) * 100)
+  const pace = k.pace ? `<span class="pace" style="left:${Math.min(100, (k.pace / k.target) * 100)}%" title="Expected by now"></span>` : ''
+  return `<div class="bar"><span class="fill" style="width:${fill}%"></span>${pace}</div>${k.pace ? `<div class="bar-caption"><span></span><span>▏expected by now: ${fmt(k, k.pace)}</span></div>` : ''}`
+}
+function card(k) {
+  const [label, cls] = STATUS[k.status]
+  const target = k.dir === 'lower' ? `limit ${fmt(k, k.target)}` : `of ${fmt(k, k.target)} target`
+  return `<article class="card ${cls}">
+    <div class="card-head"><div><strong>${k.name}</strong><div class="period">${k.desc}</div></div><span class="pill">${label}</span></div>
+    <div class="figure"><span class="value">${fmt(k, k.value)}</span><span class="target">${target}</span></div>
+    ${bar(k)}
+    <div class="foot">${delta(k)}${spark(k.trend)}<span class="period">${k.cadence} · ${periodOf(k.cadence)}</span></div>
+    ${k.manual ? `<div class="manual"><span>${k.manual}</span><button>Update actual</button></div>` : ''}
+  </article>`
+}
+function summary(compact) {
+  const count = (s) => KPIS.filter((k) => s.includes(k.status)).length
+  const items = [['all', 'All KPIs', KPIS.length, ''], ['attention', 'Need attention', count(['off', 'behind']), 's-off'], ['ok', 'On track', count(['ok']), 's-ok'], ['none', 'No data', count(['none']), 's-none']]
+  if (compact) return `<div class="p-chips">${items.map(([key, label, n, cls]) => `<button class="p-chip ${cls} ${filter === key ? 'on' : ''}" data-filter="${key}">${cls ? '<i class="dot"></i>' : ''}${n} ${label}</button>`).join('')}</div>`
+  return `<div class="summary">
+    <div class="verdict"><small>Test Engagement · as at ${MONTHS[asAt].label}</small><p>5 of 12 KPIs need attention: overdue work and sponsor funding are off track.</p></div>
+    ${items.map(([key, label, n, cls]) => `<button class="chip ${cls} ${filter === key ? 'on' : ''}" data-filter="${key}"><strong>${n}</strong><span>${cls ? '<i class="dot"></i>' : ''}${label}</span></button>`).join('')}
+  </div>`
+}
+function grouped(render, wrap) {
+  return GROUPS.map(([key, title, statuses]) => {
+    const list = visible().filter((k) => statuses.includes(k.status))
+    return list.length ? wrap(key, title, list.length, list.map(render).join('')) : ''
+  }).join('')
+}
+function table() {
+  const cols = [['all', 'Company'], ['te', 'Test Engagement'], ['ye', 'Youth Enterprise'], ['tr', 'Township Retail']]
+  const cell = (k, [v, t]) => {
+    if (t === null) return '<span class="period">No target</span>'
+    const ok = v === null ? 'none' : k.dir === 'lower' ? (v <= t ? 'ok' : 'off') : (v >= t ? 'ok' : v >= t * 0.8 ? 'behind' : 'off')
+    return `<span class="cell ${STATUS[ok][1]}"><i class="dot"></i><b>${fmt(k, v)}</b><span>/ ${fmt(k, t)}</span></span>`
+  }
+  return `<div class="table-wrap"><table><thead><tr><th>KPI</th>${cols.map(([, label]) => `<th>${label}</th>`).join('')}</tr></thead><tbody>
+    ${GROUPS.map(([, title, statuses]) => {
+      const list = visible().filter((k) => statuses.includes(k.status))
+      return list.length ? `<tr class="group-row"><td colspan="5">${title}</td></tr>` + list.map((k) => `<tr><td class="kpi-name">${k.name}<small>${k.cadence} · ${periodOf(k.cadence)}</small></td>${cols.map(([key]) => `<td>${cell(k, k.prog[key])}</td>`).join('')}</tr>`).join('') : ''
+    }).join('')}
+  </tbody></table></div>`
+}
+function desktop() {
+  return `<div class="toolbar">${asAtPicker()}<span class="scope">Test Engagement</span><span class="spacer"></span><div class="seg" id="dview"><button class="${view === 'cards' ? 'on' : ''}" data-v="cards">Cards</button><button class="${view === 'table' ? 'on' : ''}" data-v="table">Programmes</button></div><button class="btn">+ New KPI</button></div>
+    ${summary(false)}
+    ${view === 'table' ? table() : grouped(card, (key, title, n, body) => `<div class="group-head"><i class="dot ${key === 'attention' ? 's-off' : key === 'ok' ? 's-ok' : 's-none'}"></i>${title}<span class="count">${n}</span></div><div class="grid">${body}</div>`)}`
+}
+function phone() {
+  let index = 0
+  const row = (k) => {
+    const i = index++, [label, cls] = STATUS[k.status]
+    const target = k.dir === 'lower' ? `limit ${fmt(k, k.target)}` : `of ${fmt(k, k.target)}`
+    return `<div class="row ${cls} ${openRow === i ? 'open' : ''}">
+      <button class="row-main" data-row="${i}" aria-expanded="${openRow === i}"><i class="dot"></i><span class="name">${k.name}</span><span class="val">${fmt(k, k.value)}<small>${target}</small></span><span class="chev">›</span></button>
+      <div class="row-more"><div><div class="inner">${bar(k)}<div class="foot">${delta(k)}${spark(k.trend)}<span class="pill">${label}</span></div><span class="period">${k.desc} · ${k.cadence} · ${periodOf(k.cadence)}</span>${k.manual ? `<div class="manual"><span>${k.manual}</span><button>Update</button></div>` : ''}</div></div></div>
+    </div>`
+  }
+  return `<div class="p-head">KPIs</div>
+    <p class="p-verdict">Test Engagement · 5 of 12 need attention</p>
+    <div style="margin-bottom:10px">${asAtPicker()}</div>
+    ${summary(true)}
+    ${grouped(row, (key, title, n, body) => `<div class="p-group"><i class="dot ${key === 'attention' ? 's-off' : key === 'ok' ? 's-ok' : 's-none'}"></i>${title} · ${n}</div><div class="rows">${body}</div>`)}`
+}
+function render() {
+  document.getElementById('desktop').innerHTML = desktop()
+  document.getElementById('phone').innerHTML = phone()
+  document.querySelectorAll('#view button').forEach((b) => b.classList.toggle('on', b.dataset.v === view))
+}
+document.addEventListener('click', (event) => {
+  const f = event.target.closest('[data-filter]'); if (f) { filter = f.dataset.filter; openRow = -1; render(); return }
+  const r = event.target.closest('[data-row]'); if (r) { const i = Number(r.dataset.row); openRow = openRow === i ? -1 : i; render(); return }
+  const v = event.target.closest('#view button, #dview button'); if (v) { view = v.dataset.v; render(); return }
+  const dv = event.target.closest('#device button'); if (dv) { document.body.classList.toggle('show-desktop', dv.dataset.v === 'desktop'); document.querySelectorAll('#device button').forEach((b) => b.classList.toggle('on', b === dv)); return }
+  const t = event.target.closest('#theme button'); if (t) { document.documentElement.dataset.theme = t.dataset.v; document.querySelectorAll('#theme button').forEach((b) => b.classList.toggle('on', b === t)) }
+})
+document.addEventListener('change', (event) => { if (event.target.matches('[data-asat]')) { asAt = Number(event.target.value); render() } })
+render()
+</script>
+</body>
+</html>

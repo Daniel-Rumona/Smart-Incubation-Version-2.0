@@ -1655,3 +1655,62 @@ html[data-theme='dark'] .app-topbar-actions.is-mobile-pills .app-icon-btn.app-ic
 }
 
 .app-topbar-pill[data-fit~='modes'] .app-mode-switch .ant-segmented-item { min-width: 0; }
+
+/* =========================================================
+   PHONES: programme selector in the top bar
+   Page tag | programme | action pills. The page tag and the programme share the free width and
+   both cut off with an ellipsis; the actions keep their size.
+   ========================================================= */
+
+@media (max-width: 767px) {
+    .app-topbar-pill.has-phone-scope {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) auto;
+        gap: 6px;
+    }
+
+    .app-topbar-scope {
+        min-width: 0;
+        justify-content: stretch;
+    }
+
+    .app-topbar-scope .app-project-select {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .app-topbar-scope .app-project-select .ant-select-selector {
+        height: 34px !important;
+        padding-inline: 10px !important;
+    }
+
+    .app-topbar-scope .app-project-tag {
+        max-width: 100%;
+        height: 34px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .has-phone-scope .app-topbar-left {
+        min-width: 0;
+    }
+
+    /* In Agentic the left side is the Go to Workspace button; it shrinks rather than pushing the programme out. */
+    .has-phone-scope .app-goto-workspace {
+        max-width: 100%;
+        min-width: 0;
+        overflow: hidden;
+    }
+
+    .has-phone-scope .app-goto-workspace > span:not(.anticon) {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .has-phone-scope .app-brand-lockup,
+    .has-phone-scope .app-brand-copy {
+        min-width: 0;
+        max-width: 100%;
+    }
+}
