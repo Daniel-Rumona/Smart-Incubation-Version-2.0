@@ -10,6 +10,7 @@ import ResponsiveModal from '@/components/shared/ResponsiveModal'
 import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
 import { USER_ROLES, USER_ROLE_LABELS, type UserRole } from '@/config/roles'
 import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
+import { useActiveCompanyCode } from '@/hooks/useActiveCompanyCode'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { cleanupOrphanUsers, createManagedUser, deleteManagedUser, listManagedUsers, previewOrphanUsers, updateManagedUser, type OrphanUserRecord } from '@/services/usersService'
 import type { ManagedUser } from '@/types/operations'
@@ -45,6 +46,7 @@ export const UserManagementPage = () => {
     const { message } = App.useApp()
     const { t } = useLanguage()
     const { user } = useFullIdentity()
+    const { activeCompanyCode, isAllCompanies } = useActiveCompanyCode()
     const [form] = Form.useForm<UserForm>()
     const selectedRole = Form.useWatch('role', form)
     const watchedPermissions = Form.useWatch('permissions', form)
@@ -79,17 +81,19 @@ export const UserManagementPage = () => {
         return () => window.clearTimeout(timeout)
     }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    const rows = useMemo(() => users.filter((row) => `${row.name} ${row.email} ${row.role} ${row.phone || ''} ${row.alternativePhone || ''}`.toLowerCase().includes(search.trim().toLowerCase())), [search, users])
+    // The company picked in the top bar narrows the list and the counts; the company-code picker still offers every company.
+    const companyUsers = useMemo(() => isAllCompanies ? users : users.filter((row) => row.companyCode === activeCompanyCode), [activeCompanyCode, isAllCompanies, users])
+    const rows = useMemo(() => companyUsers.filter((row) => `${row.name} ${row.email} ${row.role} ${row.phone || ''} ${row.alternativePhone || ''}`.toLowerCase().includes(search.trim().toLowerCase())), [companyUsers, search])
     const metrics = useMemo(() => ({
-        users: users.length,
-        active: users.filter((row) => row.status === 'active').length,
-        inactive: users.filter((row) => row.status === 'inactive').length,
-        companies: new Set(users.map((row) => row.companyCode).filter(Boolean)).size,
-    }), [users])
+        users: companyUsers.length,
+        active: companyUsers.filter((row) => row.status === 'active').length,
+        inactive: companyUsers.filter((row) => row.status === 'inactive').length,
+        companies: new Set(companyUsers.map((row) => row.companyCode).filter(Boolean)).size,
+    }), [companyUsers])
     const companyOptions = useMemo(() => [...new Set(users.map((row) => row.companyCode).filter((code): code is string => !!code))]
         .sort()
         .map((value) => ({ value })), [users])
-    useRegisterAgentPageContext({ pageKey: 'admin-users', pageName: 'User management', purpose: 'Manage platform accounts and role access.', filters: { search }, metrics: { users: users.length }, tables: { visibleUsers: rows.length } })
+    useRegisterAgentPageContext({ pageKey: 'admin-users', pageName: 'User management', purpose: 'Manage platform accounts and role access.', filters: { search }, metrics: { users: companyUsers.length }, tables: { visibleUsers: rows.length } })
 
     const openModal = (record?: ManagedUser) => {
         setEditing(record)
@@ -184,7 +188,7 @@ export const UserManagementPage = () => {
                 <div className="admin-card-head">
                     <div>
                         <h3>{t('All users')}</h3>
-                        <span>{t('{count} of {total} shown', undefined, { count: rows.length, total: users.length })}</span>
+                        <span>{t('{count} of {total} shown', undefined, { count: rows.length, total: companyUsers.length })}</span>
                     </div>
                 </div>
                 <FilterBar primary={<Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('Search users')} allowClear />} actions={<>{user && (user.role === USER_ROLES.SYSTEM_ADMIN || user.role === USER_ROLES.ADMIN) && <Button danger icon={<UserDeleteOutlined />} loading={scanningOrphans} onClick={() => void scanOrphans()}>{t('Clean orphan records')}</Button>}<Button icon={<ReloadOutlined />} onClick={() => void load()}>{t('Refresh')}</Button><Button type="primary" icon={<UserAddOutlined />} onClick={() => openModal()}>{t('Add user')}</Button></>} />

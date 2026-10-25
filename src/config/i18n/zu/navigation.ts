@@ -58,6 +58,7 @@ export const zuNavigation: Record<string, string> = {
   "Manage operational email activity and communication history.": "Phatha umsebenzi wemeyili wemisebenzi nomlando wezokuxhumana.",
   "Review and action company settings change requests.": "Buyekeza futhi wenze izicelo zoshintsho lwezilungiselelo zenkampani.",
   "Review ratings and feedback for AI-assisted support.": "Buyekeza izilinganiso nempendulo yosizo olusizwa yi-AI.",
+  "Play the evidence-based sales pitch for Smart Incubation.": "Dlala ukwethula kokuthengisa kwe-Smart Incubation okusekelwe ebufakazini.",
   "Your work today, what’s coming up, and how you’re doing.": "Umsebenzi wakho wanamuhla, okuzayo, nokuthi wenza kanjani.",
   "What SMEs see when they look for a consultant.": "Lokho ama-SME akubonayo uma efuna umeluleki.",
   "The SMEs you support and the work for each one.": "Ama-SME owasekelayo nomsebenzi wawo ngamunye.",

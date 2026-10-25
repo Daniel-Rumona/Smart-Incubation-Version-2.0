@@ -156,6 +156,7 @@ const NAVIGATION_DESCRIPTIONS: Record<string, string> = {
     '/admin/email-operations': 'Manage operational email activity and communication history.',
     '/admin/company-change-requests': 'Review and action company settings change requests.',
     '/admin/agent-ratings': 'Review ratings and feedback for AI-assisted support.',
+    '/admin/sales-pitch': 'Play the evidence-based sales pitch for Smart Incubation.',
 }
 
 const navigationDescription = (route: AppRoute, label: string) => {

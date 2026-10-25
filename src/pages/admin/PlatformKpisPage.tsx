@@ -21,12 +21,14 @@ import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
 import ResponsiveModal from '@/components/shared/ResponsiveModal'
 import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
+import { useActiveCompanyCode } from '@/hooks/useActiveCompanyCode'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { useLanguage } from '@/providers/LanguageProvider'
 import {
     createPlatformKpi,
     listPlatformKpis,
     loadPlatformKpiData,
+    narrowPlatformKpiData,
     platformKpiActual,
     platformKpiStatus,
     platformPeriod,
@@ -118,15 +120,20 @@ export const PlatformKpisPage = () => {
     const active = useMemo(() => kpis.filter((kpi) => kpi.active), [kpis])
     const missingRecommended = RECOMMENDED_PLATFORM_KPIS.filter((seed) => !active.some((kpi) => kpi.seedKey === seed.seedKey)).length
 
+    // The company picked in the top bar narrows the automatic figures.
+    const { activeCompanyCode, isAllCompanies } = useActiveCompanyCode()
+    const companyCode = isAllCompanies ? undefined : activeCompanyCode
+    const scopedData = useMemo(() => data && companyCode ? narrowPlatformKpiData(data, companyCode) : data, [companyCode, data])
+
     const rows = useMemo<Row[]>(() => active.map((kpi) => {
         const period = platformPeriod(kpi.cadence, offset)
-        const actual = platformKpiActual(kpi, data, period)
+        const actual = platformKpiActual(kpi, scopedData, period)
         const history = Array.from({ length: 6 }, (_, index) => {
             const past = platformPeriod(kpi.cadence, offset - 5 + index)
-            return { period: past, value: platformKpiActual(kpi, data, past).value }
+            return { period: past, value: platformKpiActual(kpi, scopedData, past).value }
         })
         return { kpi, period, actual, status: platformKpiStatus(kpi, actual, period), history }
-    }), [active, data, offset])
+    }), [active, offset, scopedData])
     const visible = rows.filter((row) => category === 'all' || row.kpi.category === category)
     const counts = {
         good: rows.filter((row) => row.status === 'met' || row.status === 'on_track').length,
@@ -258,6 +265,7 @@ export const PlatformKpisPage = () => {
     return (
         <DashboardPage className="platform-kpis-page admin-overview">
             {error && <Alert type="error" showIcon message={error} style={{ marginBottom: 16 }} />}
+            {companyCode && <Alert type="info" showIcon message={t('Automatic figures are for {company} only. Manual figures and targets are platform-wide.', undefined, { company: companyCode })} style={{ marginBottom: 16 }} />}
             <Row gutter={[16, 16]}>
                 <Col xs={24} sm={12} xl={6}><AdminKpiTile loading={loading} icon={<AimOutlined />} label={t('KPIs tracked')} value={rows.length} /></Col>
                 <Col xs={24} sm={12} xl={6}><AdminKpiTile loading={loading} icon={<CheckCircleOutlined />} label={t('Met or on track')} value={counts.good} visual={<AdminShareRing value={counts.good} total={rows.length} />} /></Col>

@@ -9,6 +9,7 @@ import DashboardPage from '@/components/shared/DashboardPage'
 import { USER_ROLE_LABELS } from '@/config/roles'
 import { ThemedHighcharts } from '@/components/shared/ThemedHighcharts'
 import { FilterBar } from '@/components/shared/FilterBar'
+import { useActiveCompanyCode } from '@/hooks/useActiveCompanyCode'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { getAdminDashboardSummary, type AdminApplicationStatus, type AdminDashboardMonth, type AdminDashboardSummary } from '@/services/adminDashboardService'
 import { useLanguage } from '@/providers/LanguageProvider'
@@ -47,21 +48,30 @@ export const SystemAdminDashboardPage = () => {
   const navigate = useNavigate()
   const isMobile = !Grid.useBreakpoint().md
   const [summary, setSummary] = useState<AdminDashboardSummary>()
-  const [loading, setLoading] = useState(true)
+  // The request the figures on screen came from; while it differs from the current one, the cards show loading.
+  const [loadedKey, setLoadedKey] = useState<string>()
   const [error, setError] = useState<string>()
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>([dayjs().startOf('month'), dayjs().endOf('month')])
+  const { activeCompanyCode, isAllCompanies } = useActiveCompanyCode()
+
+  const requestKey = `${activeCompanyCode}|${dateRange[0].valueOf()}|${dateRange[1].valueOf()}`
+  const loading = loadedKey !== requestKey
 
   useEffect(() => {
     if (!user || !['systemadmin', 'admin'].includes(user.role)) return
+    let active = true
     const prior = previousRange(dateRange)
-    getAdminDashboardSummary(user, [dateRange[0].toDate(), dateRange[1].toDate()], [prior[0].toDate(), prior[1].toDate()])
+    // The company picked in the top bar narrows the whole overview.
+    getAdminDashboardSummary(user, [dateRange[0].toDate(), dateRange[1].toDate()], [prior[0].toDate(), prior[1].toDate()], isAllCompanies ? undefined : activeCompanyCode)
       .then((nextSummary) => {
+        if (!active) return
         setSummary(nextSummary)
         setError(undefined)
       })
-      .catch(() => setError(t('admin.dashboard.loadError')))
-      .finally(() => setLoading(false))
-  }, [dateRange, t, user])
+      .catch(() => { if (active) setError(t('admin.dashboard.loadError')) })
+      .finally(() => { if (active) setLoadedKey(requestKey) })
+    return () => { active = false }
+  }, [activeCompanyCode, dateRange, isAllCompanies, requestKey, t, user])
 
   /** Higher is good for most figures; for errors a rise is bad news. */
   const trend = (current = 0, previous = 0, higherIsGood = true): AdminKpiTrend => {

@@ -151,9 +151,9 @@ export const platformPeriod = (cadence: PlatformKpiCadence, offset = 0, from: Da
 // ---------------------------------------------------------------------------
 
 export type PlatformKpiData = {
-    users: Array<{ uid: string; companyCode: string; createdAt: Date | null }>
-    applications: Array<{ createdAt: Date | null }>
-    emails: Array<{ status: string; createdAt: Date | null }>
+    users: Array<{ uid: string; companyCode: string; email: string; createdAt: Date | null }>
+    applications: Array<{ companyCode: string; createdAt: Date | null }>
+    emails: Array<{ status: string; recipients: string[]; createdAt: Date | null }>
     sessions: UsageSessionRecord[]
     pageViews: UsagePageViewRecord[]
     ratings: AgentRatingRecord[]
@@ -173,12 +173,34 @@ export const loadPlatformKpiData = async (user: FullIdentity): Promise<PlatformK
         listAgentRatings(user).catch(() => []),
     ])
     return {
-        users: users.map((row) => ({ uid: row.id, companyCode: String(row.companyCode || '').trim(), createdAt: toDate(row.createdAt) })),
-        applications: applications.map((row) => ({ createdAt: toDate(row.createdAt || row.submittedAt) })),
-        emails: emails.map((row) => ({ status: String(row.status || ''), createdAt: toDate(row.createdAt) })),
+        users: users.map((row) => ({ uid: row.id, companyCode: String(row.companyCode || '').trim(), email: String(row.email || '').trim().toLowerCase(), createdAt: toDate(row.createdAt) })),
+        applications: applications.map((row) => ({ companyCode: String(row.companyCode || '').trim(), createdAt: toDate(row.createdAt || row.submittedAt) })),
+        emails: emails.map((row) => ({
+            status: String(row.status || ''),
+            recipients: [row.recipients, row.to, row.email].flat().filter((address): address is string => typeof address === 'string'),
+            createdAt: toDate(row.createdAt),
+        })),
         sessions,
         pageViews,
         ratings,
+    }
+}
+
+/**
+ * The same data for one company. Users, applications and ratings carry their company; sessions and page views
+ * follow the company's users by uid, and email logs by recipient address.
+ */
+export const narrowPlatformKpiData = (data: PlatformKpiData, companyCode: string): PlatformKpiData => {
+    const users = data.users.filter((row) => row.companyCode === companyCode)
+    const uids = new Set(users.map((row) => row.uid))
+    const emails = new Set(users.map((row) => row.email).filter(Boolean))
+    return {
+        users,
+        applications: data.applications.filter((row) => row.companyCode === companyCode),
+        emails: data.emails.filter((row) => row.recipients.some((address) => emails.has(address.trim().toLowerCase()))),
+        sessions: data.sessions.filter((session) => uids.has(session.uid)),
+        pageViews: data.pageViews.filter((view) => uids.has(view.uid)),
+        ratings: data.ratings.filter((row) => row.companyCode === companyCode),
     }
 }
 

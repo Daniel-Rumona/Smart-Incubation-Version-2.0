@@ -10,6 +10,7 @@ import { FilterBar } from '@/components/shared/FilterBar'
 import ResponsiveModal from '@/components/shared/ResponsiveModal'
 import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
 import { ThemedHighcharts } from '@/components/shared/ThemedHighcharts'
+import { sentToScope, useCompanyScope } from '@/hooks/useCompanyScope'
 import { getEmailOperations, sendAdminEmail, type EmailDeliveryLog, type EmailOperations } from '@/services/emailOperationsService'
 import { useLanguage } from '@/providers/LanguageProvider'
 import '@/styles/email-operations.css'
@@ -44,7 +45,7 @@ export const EmailOperationsPage = () => {
   const { message } = App.useApp()
   const { t } = useLanguage()
   const [form] = Form.useForm<SendForm>()
-  const [data, setData] = useState<EmailOperations>()
+  const [allData, setData] = useState<EmailOperations>()
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
@@ -81,6 +82,28 @@ export const EmailOperationsPage = () => {
       setSending(false)
     }
   }
+
+  // The company picked in the top bar: logs and suppressions carry no company, so they follow its users' addresses.
+  // The summary is rebuilt the way getEmailOperations builds it, from the same latest 200 logs.
+  const scope = useCompanyScope()
+  const data = useMemo<EmailOperations | undefined>(() => {
+    if (!allData || !scope.companyCode) return allData
+    if (!scope.ready) return undefined
+    const logs = allData.logs.filter((row) => sentToScope(scope, row.recipients))
+    const suppressions = allData.suppressions.filter((row) => sentToScope(scope, row.email))
+    return {
+      logs,
+      suppressions,
+      summary: {
+        sent: logs.filter((row) => row.status === 'sent').length,
+        failed: logs.filter((row) => row.status === 'failed').length,
+        rejected: logs.reduce((total, row) => total + row.rejected.length, 0),
+        bounced: logs.filter((row) => row.reason === 'bounced').length,
+        suppressed: suppressions.length,
+        invalid: logs.filter((row) => row.reason === 'invalid_email').length,
+      },
+    }
+  }, [allData, scope])
 
   const summary = data?.summary
   const logs = useMemo(() => data?.logs || [], [data])
@@ -151,21 +174,21 @@ export const EmailOperationsPage = () => {
 
   return <DashboardPage className="email-operations-page admin-overview">
     <Row gutter={[16, 16]}>
-      <Col xs={24} sm={12} xl={6}><AdminKpiTile loading={loading && !data} icon={<CheckCircleOutlined />} label={t('emailOps.sent')} value={summary?.sent || 0} visual={<AdminMiniBars bars={weekBars((row) => row.status === 'sent')} />} /></Col>
-      <Col xs={24} sm={12} xl={6}><AdminKpiTile loading={loading && !data} icon={<MailOutlined />} label={t('Delivery rate')} value={attempted ? `${Math.round(((summary?.sent || 0) / attempted) * 100)}%` : '—'} visual={<AdminShareRing value={summary?.sent || 0} total={attempted} />} /></Col>
-      <Col xs={24} sm={12} xl={6}><AdminKpiTile loading={loading && !data} icon={<CloseCircleOutlined />} label={t('Failed or rejected')} value={problems} visual={<AdminMiniBars bars={weekBars((row) => isProblem(row.status))} />} /></Col>
-      <Col xs={24} sm={12} xl={6}><AdminKpiTile loading={loading && !data} icon={<StopOutlined />} label={t('emailOps.suppressed')} value={summary?.suppressed || 0} /></Col>
+      <Col xs={24} sm={12} xl={6}><AdminKpiTile loading={!data && (loading || !scope.ready)} icon={<CheckCircleOutlined />} label={t('emailOps.sent')} value={summary?.sent || 0} visual={<AdminMiniBars bars={weekBars((row) => row.status === 'sent')} />} /></Col>
+      <Col xs={24} sm={12} xl={6}><AdminKpiTile loading={!data && (loading || !scope.ready)} icon={<MailOutlined />} label={t('Delivery rate')} value={attempted ? `${Math.round(((summary?.sent || 0) / attempted) * 100)}%` : '—'} visual={<AdminShareRing value={summary?.sent || 0} total={attempted} />} /></Col>
+      <Col xs={24} sm={12} xl={6}><AdminKpiTile loading={!data && (loading || !scope.ready)} icon={<CloseCircleOutlined />} label={t('Failed or rejected')} value={problems} visual={<AdminMiniBars bars={weekBars((row) => isProblem(row.status))} />} /></Col>
+      <Col xs={24} sm={12} xl={6}><AdminKpiTile loading={!data && (loading || !scope.ready)} icon={<StopOutlined />} label={t('emailOps.suppressed')} value={summary?.suppressed || 0} /></Col>
     </Row>
 
     <Row gutter={[16, 16]} className="email-operations-row">
       <Col xs={24} lg={16}>
-        <Card className="admin-card" bordered={false} loading={loading && !data}>
+        <Card className="admin-card" bordered={false} loading={!data && (loading || !scope.ready)}>
           {cardHead(t('emailOps.delivery'), t('Last 14 days'))}
           {logs.length ? <ThemedHighcharts options={activityChart} /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />}
         </Card>
       </Col>
       <Col xs={24} lg={8}>
-        <Card className="admin-card" bordered={false} loading={loading && !data}>
+        <Card className="admin-card" bordered={false} loading={!data && (loading || !scope.ready)}>
           {cardHead(t('Outcomes'), t('All recorded emails'))}
           {outcomeTotal ? (
             <>
@@ -184,7 +207,7 @@ export const EmailOperationsPage = () => {
 
     <Row gutter={[16, 16]} className="email-operations-row">
       <Col xs={24} lg={8}>
-        <Card className="admin-card" bordered={false} loading={loading && !data}>
+        <Card className="admin-card" bordered={false} loading={!data && (loading || !scope.ready)}>
           {cardHead(t('By source'), t('Which part of the system sent them'))}
           {sources.length ? (
             <ol className="usage-rank-list email-source-list">

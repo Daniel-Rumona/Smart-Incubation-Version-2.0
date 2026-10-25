@@ -14,6 +14,7 @@ import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
 import { ThemedHighcharts } from '@/components/shared/ThemedHighcharts'
 import { USER_ROLES, USER_ROLE_LABELS, type UserRole } from '@/config/roles'
+import { useCompanyScope } from '@/hooks/useCompanyScope'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { useLanguage } from '@/providers/LanguageProvider'
 import {
@@ -68,9 +69,9 @@ const formatDuration = (seconds: number) => {
 export const UsageAnalyticsPage = () => {
     const { user } = useFullIdentity()
     const { t, language } = useLanguage()
-    const [sessions, setSessions] = useState<UsageSessionRecord[]>([])
-    const [pageViews, setPageViews] = useState<UsagePageViewRecord[]>([])
-    const [loading, setLoading] = useState(true)
+    const [allSessions, setSessions] = useState<UsageSessionRecord[]>([])
+    const [allPageViews, setPageViews] = useState<UsagePageViewRecord[]>([])
+    const [fetching, setLoading] = useState(true)
     const [error, setError] = useState<string>()
     const [roleFilter, setRoleFilter] = useState('all')
     const [userFilter, setUserFilter] = useState('all')
@@ -93,6 +94,12 @@ export const UsageAnalyticsPage = () => {
             .catch(() => setError(t('usage.loadError')))
             .finally(() => setLoading(false))
     }, [canView, t])
+
+    // The company picked in the top bar: usage records carry no company, so they follow its users by uid.
+    const scope = useCompanyScope()
+    const loading = fetching || !scope.ready
+    const sessions = useMemo(() => scope.companyCode ? allSessions.filter((session) => scope.uids.has(session.uid)) : allSessions, [allSessions, scope.companyCode, scope.uids])
+    const pageViews = useMemo(() => scope.companyCode ? allPageViews.filter((pageView) => scope.uids.has(pageView.uid)) : allPageViews, [allPageViews, scope.companyCode, scope.uids])
 
     const withinDateRange = useCallback((date: Date) => !dateRange || dayjs(date).isBetween(dateRange[0], dateRange[1], 'day', '[]'), [dateRange])
     const filteredSessions = useMemo(() => sessions.filter((session) =>

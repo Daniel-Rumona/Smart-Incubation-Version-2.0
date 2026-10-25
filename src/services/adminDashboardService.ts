@@ -65,16 +65,30 @@ const statusBucket = (value: unknown): AdminApplicationStatus => {
   return 'other'
 }
 
-export const getAdminDashboardSummary = async (user: FullIdentity, range?: [Date, Date], previousRange?: [Date, Date]): Promise<AdminDashboardSummary> => {
+/** `companyCode` narrows every figure to one company; leave it out for the whole platform. */
+export const getAdminDashboardSummary = async (user: FullIdentity, range?: [Date, Date], previousRange?: [Date, Date], companyCode?: string): Promise<AdminDashboardSummary> => {
   if (!['systemadmin', 'admin'].includes(user.role)) throw new Error('forbidden')
   const db = getFirebaseDb()
-  const [users, applications, failedLogs, sessions] = await Promise.all([
+  const [allUsers, allApplications, failedLogs, allSessions] = await Promise.all([
     getDocs(collection(db, 'users')),
     getDocs(collection(db, 'applications')),
     getDocs(collection(db, 'emailDeliveryLogs')),
     // Activity is a nice-to-have: the rest of the overview still loads without it.
     getDocs(collection(db, 'usageSessions')).catch(() => undefined),
   ])
+  // Users and applications carry their company; sessions and email logs don't, so they follow the company's own
+  // users (by uid and by recipient address).
+  const company = companyCode?.trim()
+  const ofCompany = (data: { companyCode?: unknown }) => !company || String(data.companyCode || '').trim() === company
+  const users = { docs: allUsers.docs.filter((record) => ofCompany(record.data())) }
+  const applications = { docs: allApplications.docs.filter((record) => ofCompany(record.data())) }
+  const companyUids = new Set(users.docs.flatMap((record) => [record.id, String(record.data().uid || '')]).filter(Boolean))
+  const companyEmails = new Set(users.docs.map((record) => String(record.data().email || '').trim().toLowerCase()).filter(Boolean))
+  const sessions = allSessions && { docs: allSessions.docs.filter((record) => !company || companyUids.has(String(record.data().uid || record.id))) }
+  const sentToCompany = (data: Record<string, unknown>) => {
+    if (!company) return true
+    return [data.recipients, data.to, data.email].flat().some((address) => typeof address === 'string' && companyEmails.has(address.trim().toLowerCase()))
+  }
   const applicationDate = (record: (typeof applications.docs)[number]) => record.data().createdAt || record.data().submittedAt
   const companiesBy = (end?: Date) => {
     const codes = new Set<string>()
@@ -92,7 +106,7 @@ export const getAdminDashboardSummary = async (user: FullIdentity, range?: [Date
   const previousUsers = users.docs.filter((record) => beforeEnd(record.data().createdAt, previousRange?.[1]))
   const currentApplications = applications.docs.filter((record) => inRange(applicationDate(record), range))
   const previousApplications = applications.docs.filter((record) => inRange(applicationDate(record), previousRange))
-  const failed = failedLogs.docs.filter((record) => record.data().status === 'failed')
+  const failed = failedLogs.docs.filter((record) => record.data().status === 'failed' && sentToCompany(record.data()))
   const currentErrors = failed.filter((record) => inRange(record.data().createdAt, range))
   const previousErrors = failed.filter((record) => inRange(record.data().createdAt, previousRange))
   const active = (record: (typeof users.docs)[number]) => record.data().status !== 'inactive' && record.data().status !== 'deleted' && record.data().active !== false
