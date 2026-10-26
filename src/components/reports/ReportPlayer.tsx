@@ -71,6 +71,20 @@ export type PlayerSlide =
     bars?: PlayerBar[]
     barsTitle?: string
   }
+  | {
+    /** A screenshot of the product in a browser frame, with up to three points on what it shows. */
+    kind: 'screen'
+    title: string
+    lead?: string
+    icon: ReactNode
+    accent: string
+    image: string
+    /** Describes the screenshot for screen readers. */
+    alt: string
+    /** Zooms in on the part of the screenshot that makes the point: x and y in percent of its width and height. */
+    focus?: { x: number; y: number; scale: number }
+    points?: Array<{ icon: ReactNode; text: string; tone: PlayerTone }>
+  }
   | { kind: 'closing'; title: string; subtitle: string; icon: ReactNode; accent: string }
 
 const SLIDE_SECONDS = 10
@@ -78,11 +92,17 @@ const SLIDE_SECONDS = 10
 // the visual), never shorter than a plain slide, never so long the player feels stuck.
 const WORDS_PER_SECOND = 3
 const MAX_SLIDE_SECONDS = 40
+// A screenshot needs looking at as well as its words reading.
+const SCREEN_LOOK_SECONDS = 4
 
 const wordCount = (...texts: Array<string | undefined>) => texts.reduce((sum, text) => sum + (text ? text.trim().split(/\s+/).length : 0), 0)
 
 const slideSeconds = (slide?: PlayerSlide) => {
   if (!slide) return SLIDE_SECONDS
+  if (slide.kind === 'screen') {
+    const screenWords = wordCount(slide.title, slide.lead, ...(slide.points || []).map((point) => point.text))
+    return Math.min(MAX_SLIDE_SECONDS, Math.max(SLIDE_SECONDS, Math.round(4 + SCREEN_LOOK_SECONDS + screenWords / WORDS_PER_SECOND)))
+  }
   const words = slide.kind === 'narrative'
     ? wordCount(slide.title, slide.lead, slide.paragraph, ...(slide.points || []).flatMap((point) => [point.text, point.meta]), slide.note)
     : slide.kind === 'title' || slide.kind === 'closing'
@@ -201,6 +221,35 @@ const SlideView = ({ slide, back, position }: { slide: PlayerSlide; back: boolea
               )}
               {slide.note && <div className="rp-note">{slide.note}</div>}
             </>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  if (slide.kind === 'screen') {
+    return (
+      <div key={position} className={`rp-slide${back ? ' is-back' : ''}`} style={style}>
+        <SlideHead icon={slide.icon} title={slide.title} lead={slide.lead} />
+        <div className={`rp-screen${slide.points?.length ? ' has-points' : ''}`}>
+          <figure className="rp-screen-frame">
+            <div className="rp-screen-bar" aria-hidden><i /><i /><i /></div>
+            <div
+              className="rp-screen-view"
+              style={slide.focus ? { '--rp-zoom': slide.focus.scale, '--rp-zoom-x': `${slide.focus.x}%`, '--rp-zoom-y': `${slide.focus.y}%` } as CSSProperties : undefined}
+            >
+              <img src={slide.image} alt={slide.alt} draggable={false} />
+            </div>
+          </figure>
+          {!!slide.points?.length && (
+            <div className="rp-points rp-screen-points">
+              {slide.points.map((point, index) => (
+                <div key={index} className="rp-point" style={{ '--rp-i': index, '--rp-tone': TONE_COLORS[point.tone] } as CSSProperties}>
+                  <span className="rp-point-icon">{point.icon}</span>
+                  <span className="rp-point-text"><span>{point.text}</span></span>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </div>
