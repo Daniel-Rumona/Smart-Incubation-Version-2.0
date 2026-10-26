@@ -2,10 +2,6 @@
     align-items: center;
 }
 
-.operations-reports-page .filter-bar-primary .ant-segmented {
-    width: max-content;
-}
-
 .project-admin-report-chart-grid {
     margin-bottom: 20px;
 }
@@ -47,205 +43,101 @@
     background: rgba(124, 58, 237, .11);
 }
 
-.operations-insight-card {
-    height: 100%;
+.operations-reports-page .dashboard-metric-icon.is-growth {
+    color: #db2777;
+    background: rgba(219, 39, 119, .1);
 }
 
-.operations-insight-card .ant-alert {
-    border-radius: 14px;
-}
-
-.operations-status-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    width: 100%;
-    padding: 10px 0;
-    border-bottom: 1px solid rgba(109, 93, 251, .1);
-}
-
-.operations-status-row:last-of-type {
-    border-bottom: 0;
-}
-
-.operations-overview-grid {
+/* Analytics: tabs, the panel with "Break down by", and the table behind it. */
+.operations-reports-empty-alert,
+.operations-reports-tabs {
     margin-bottom: 16px;
 }
 
-.operations-health-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 12px;
+.operations-analytics-panel {
+    margin-bottom: 16px;
 }
 
-.operations-health-tile {
-    min-height: 128px;
-    padding: 14px;
-    text-align: left;
-    border: 1px solid rgba(15, 23, 42, .08);
-    border-radius: 14px;
-    background: #fff;
-    cursor: pointer;
-    transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
-}
-
-.operations-health-tile:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 14px 28px rgba(15, 23, 42, .08);
-}
-
-.operations-health-tile strong {
-    display: block;
-    margin: 8px 0 4px;
-    font-size: 30px;
-    line-height: 1;
-}
-
-.operations-health-tile span {
-    display: block;
-    color: rgba(15, 23, 42, .62);
-}
-
-.operations-health-tile.is-good {
-    border-color: rgba(22, 163, 74, .22);
-    background: linear-gradient(180deg, rgba(22, 163, 74, .08), rgba(255, 255, 255, .96));
-}
-
-.operations-health-tile.is-good strong {
-    color: #15803d;
-}
-
-.operations-health-tile.is-watch {
-    border-color: rgba(245, 158, 11, .28);
-    background: linear-gradient(180deg, rgba(245, 158, 11, .1), rgba(255, 255, 255, .96));
-}
-
-.operations-health-tile.is-watch strong {
-    color: #b45309;
-}
-
-.operations-health-tile.is-risk {
-    border-color: rgba(220, 38, 38, .22);
-    background: linear-gradient(180deg, rgba(220, 38, 38, .08), rgba(255, 255, 255, .96));
-}
-
-.operations-health-tile.is-risk strong {
-    color: #b91c1c;
-}
-
-.operations-action-brief {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 12px;
-    border: 1px solid rgba(15, 23, 42, .08);
-    border-radius: 14px;
-    background: rgba(248, 250, 252, .76);
-}
-
-.operations-action-brief > div {
-    display: grid;
-    gap: 2px;
-    min-width: 0;
-}
-
-.operations-action-brief.is-good {
-    border-color: rgba(22, 163, 74, .18);
-}
-
-.operations-action-brief.is-watch {
-    border-color: rgba(245, 158, 11, .24);
-}
-
-.operations-action-brief.is-risk {
-    border-color: rgba(220, 38, 38, .2);
-}
-
-.operations-mini-panel {
-    min-height: 132px;
-}
-
-.operations-mini-panel h4 {
-    margin: 6px 0 8px !important;
-    font-size: 18px !important;
-}
-
-.operations-attendance-summary {
-    margin-bottom: 14px;
-}
-
-.operations-attendance-summary .ant-card {
-    height: 100%;
-    border-radius: 14px;
-    border-color: rgba(109, 93, 251, .12);
-    background: rgba(248, 250, 252, .72);
-}
-
-.operations-attendance-summary h4 {
-    margin: 4px 0 0 !important;
-}
-
-.operations-workload-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-}
-
-.operations-workload-card,
-.operations-facilitator-card {
-    width: 100%;
-    border: 1px solid rgba(15, 23, 42, .1);
-    border-radius: 14px;
-    padding: 14px;
-    text-align: left;
-    background: rgba(255, 255, 255, .88);
-    cursor: pointer;
-    transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
-}
-
-.operations-workload-card:hover,
-.operations-facilitator-card:hover {
-    transform: translateY(-2px);
-    border-color: rgba(109, 93, 251, .42);
-    box-shadow: 0 12px 24px rgba(15, 23, 42, .09);
-}
-
-.operations-workload-counts {
+.operations-analytics-head {
     display: flex;
     flex-wrap: wrap;
-    gap: 10px;
-    color: rgba(15, 23, 42, .62);
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.operations-analytics-head h3 {
+    margin: 0 0 2px;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.operations-analytics-by {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
     font-size: 12px;
 }
 
-.operations-workload-counts strong {
-    color: rgba(15, 23, 42, .92);
+.operations-analytics-label {
+    margin-bottom: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .02em;
+    color: var(--ant-color-text-secondary);
+    text-transform: uppercase;
 }
 
-.operations-facilitator-list {
+.operations-analytics-table-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.operations-analytics-table-actions .ant-tag {
+    margin-inline-end: 0;
+}
+
+.operations-analytics-cards {
     display: grid;
-    gap: 10px;
-    max-height: min(62vh, 600px);
-    overflow-y: auto;
-    padding-right: 2px;
+    gap: 8px;
 }
 
-.operations-facilitator-card.is-at-risk {
-    border-color: rgba(220, 38, 38, .3);
-    background: linear-gradient(180deg, rgba(254, 226, 226, .72), rgba(255, 255, 255, .96));
+.operations-analytics-row-card {
+    display: grid;
+    gap: 4px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: var(--ant-color-fill-quaternary);
+    font-size: 13px;
 }
 
-.operations-facilitator-card.is-watch {
-    border-color: rgba(245, 158, 11, .3);
-    background: linear-gradient(180deg, rgba(254, 243, 199, .72), rgba(255, 255, 255, .96));
+.operations-analytics-row-card > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
 }
 
-html[data-theme='dark'] .operations-workload-card,
-html[data-theme='dark'] .operations-facilitator-card {
-    background: rgba(30, 41, 59, .9);
-    border-color: rgba(255, 255, 255, .12);
+.operations-analytics-row-card > div > span {
+    min-width: 0;
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
+.operations-analytics-followup {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--ant-color-border-secondary);
+    font-size: 13px;
+}
+
+.operations-analytics-followup a {
+    font-weight: 600;
 }
 
 @media (max-width: 767px) {
@@ -253,23 +145,13 @@ html[data-theme='dark'] .operations-facilitator-card {
         display: grid;
     }
 
-    .operations-reports-page .filter-bar-primary .ant-segmented,
-    .operations-reports-page .filter-bar-primary .ant-picker,
-    .operations-reports-page .filter-bar-primary .ant-select {
+    .operations-reports-page .filter-bar-primary .ant-picker {
         width: 100%;
     }
 
-    .operations-health-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .operations-action-brief {
-        align-items: flex-start;
-        flex-direction: column;
-    }
-
-    .operations-workload-grid {
-        grid-template-columns: minmax(0, 1fr);
+    .operations-analytics-by .ant-segmented {
+        max-width: 100%;
+        overflow-x: auto;
     }
 }
 

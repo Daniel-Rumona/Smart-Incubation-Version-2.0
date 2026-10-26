@@ -92,13 +92,14 @@ const monthlySeries = (history: unknown): Array<{ key: string; value: number }> 
   return []
 }
 
-const isAssignmentCompleted = (row: AnyDoc) =>
+// The delivery rules the director dashboard, Programme performance and Reports share: completed against required.
+export const isAssignmentCompleted = (row: AnyDoc) =>
   String(row.status || '').toLowerCase() === 'completed'
   || String(row.completionStatus || '').toLowerCase() === 'completed'
   || (String(row.assigneeCompletionStatus || '').toLowerCase() === 'done' && String(row.participantCompletionStatus || '').toLowerCase() === 'confirmed')
   || toNumber(row.progress) >= 100
 
-const requiredCount = (application: AnyDoc) => {
+export const requiredCount = (application: AnyDoc) => {
   const interventions = application.interventions as { required?: unknown } | undefined
   const required = interventions?.required || application.interventionsRequired || application.requiredInterventions
   return Array.isArray(required) ? required.length : 0
