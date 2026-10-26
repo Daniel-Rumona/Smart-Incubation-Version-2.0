@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Landing simplified</title>
+<style>
+  :root {
+    --accent: #6d5dfb; --accent-2: #3b82f6;
+    --bg: #f7f8fc; --surface: #ffffff; --surface-2: #eef0f8; --ink: #172033; --muted: #5b6478; --line: rgba(109,93,251,.14);
+    --ok: #16a34a; --sme: #3b82f6; --funder: #16a34a; --facilitator: #d97706; --incubator: #6d5dfb;
+    --note: #b45309; --note-bg: rgba(217,119,6,.1);
+    --ease: cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  [data-theme="dark"] {
+    --bg: #0f1117; --surface: #1b1e2a; --surface-2: #232737; --ink: #e5e7eb; --muted: #9aa2b7; --line: rgba(139,92,246,.24);
+    --sme: #60a5fa; --funder: #4ade80; --facilitator: #fbbf24; --incubator: #a59bff;
+    --note: #fbbf24; --note-bg: rgba(251,191,36,.12);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 system-ui, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
+  button, a { font: inherit; color: inherit; }
+
+  /* mockup controls */
+  .controls { position: sticky; top: 0; z-index: 9; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; padding: 12px; background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+  .seg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); }
+  .seg button { border: 0; background: none; color: var(--muted); font-weight: 650; font-size: 13px; padding: 7px 14px; border-radius: 999px; cursor: pointer; }
+  .seg button.on { color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+  .stage { display: flex; justify-content: center; padding: 24px 16px 48px; }
+  .frame { width: 1180px; max-width: 100%; border: 1px solid var(--line); border-radius: 22px; overflow: hidden; background: var(--bg); container-type: inline-size; transition: width .35s var(--ease); }
+  .stage.phone .frame { width: 375px; border-radius: 36px; }
+
+  /* change notes */
+  .chg { display: none; margin: 0 0 14px; padding: 8px 12px; border-radius: 10px; font-size: 12.5px; line-height: 1.4; color: var(--note); background: var(--note-bg); border: 1px dashed color-mix(in srgb, var(--note) 50%, transparent); text-align: left; }
+  .chg b { font-weight: 700; }
+  .show-notes .chg { display: block; }
+
+  /* page */
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; }
+  .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 750; }
+  .brand-mark { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent-2)); font-size: 15px; }
+  .top-actions { display: flex; gap: 6px; align-items: center; }
+  .ghost { border: 1px solid var(--line); background: none; border-radius: 999px; padding: 6px 12px; font-size: 13px; color: var(--muted); cursor: pointer; }
+  .signin { border: 0; background: none; font-weight: 650; color: var(--accent); cursor: pointer; padding: 6px 10px; }
+
+  .btn { display: inline-flex; align-items: center; gap: 8px; height: 46px; padding: 0 22px; border-radius: 12px; font-weight: 650; text-decoration: none; cursor: pointer; border: 1px solid transparent; transition: transform .16s var(--ease); }
+  .btn:active { transform: scale(.97); }
+  .btn-primary { color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: 0 10px 24px -12px var(--accent); }
+  .btn-secondary { color: var(--ink); background: var(--surface); border-color: var(--line); }
+
+  .hero { display: grid; grid-template-columns: 1.05fr .95fr; gap: 48px; align-items: center; padding: 48px 0 56px; }
+  .hero h1 { font-size: 50px; line-height: 1.06; letter-spacing: -.02em; margin: 0 0 18px; }
+  .hero h1 span { color: var(--accent); }
+  .hero p.lead { font-size: 18px; color: var(--muted); margin: 0 0 28px; max-width: 30ch; }
+  .ctas { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .hint { margin: 14px 0 0; font-size: 13px; color: var(--muted); }
+
+  .preview { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 18px; box-shadow: 0 30px 60px -40px rgba(23,32,51,.45); }
+  .preview-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; font-weight: 700; font-size: 14px; }
+  .preview-head em { font-style: normal; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); background: var(--surface-2); padding: 3px 8px; border-radius: 999px; }
+  .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+  .kpi { background: var(--surface-2); border-radius: 12px; padding: 10px 12px; }
+  .kpi small { display: block; color: var(--muted); font-size: 11.5px; }
+  .kpi b { font-size: 22px; }
+  .sme-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 13.5px; }
+  .sme-row i { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; font-style: normal; font-weight: 700; font-size: 12px; color: #fff; background: var(--accent-2); }
+  .sme-row span { margin-left: auto; font-size: 12px; color: var(--muted); }
+
+  .diff { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; padding-bottom: 72px; }
+  .diff-item { display: flex; gap: 12px; align-items: flex-start; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+  .diff-icon { flex: none; width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; color: #fff; font-size: 16px; font-weight: 700; }
+  .diff-item strong { display: block; margin-bottom: 2px; }
+  .diff-item p { margin: 0; font-size: 13.5px; color: var(--muted); }
+
+  .section-head { text-align: center; max-width: 560px; margin: 0 auto 32px; }
+  .kicker { font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+  .section-head h2 { font-size: 32px; letter-spacing: -.01em; margin: 6px 0 0; }
+  .how { padding: 64px 0 72px; background: var(--surface-2); }
+  .steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
+  .step { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .step-num { font-size: 12px; font-weight: 700; color: var(--accent); }
+  .step strong { font-size: 15px; }
+  .step p { margin: 0; font-size: 13.5px; color: var(--muted); flex: 1; }
+  .roles { display: flex; flex-wrap: wrap; gap: 5px; }
+  .role { --role: var(--incubator); font-size: 11px; font-weight: 650; padding: 2px 8px; border-radius: 999px; color: var(--role); background: color-mix(in srgb, var(--role) 12%, transparent); }
+  .role.sme { --role: var(--sme); } .role.funder { --role: var(--funder); } .role.facilitator { --role: var(--facilitator); }
+
+  .final { text-align: center; padding: 72px 0; }
+  .final h2 { font-size: 32px; margin: 0 0 10px; }
+  .final p { color: var(--muted); margin: 0 0 24px; }
+  .final .ctas { justify-content: center; }
+
+  footer { border-top: 1px solid var(--line); padding: 22px 0; font-size: 13px; color: var(--muted); }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; }
+  footer nav { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+  footer a { text-decoration: none; color: var(--muted); }
+  footer a:hover { color: var(--ink); }
+
+  /* phone width, driven by the frame rather than the window */
+  @container (max-width: 760px) {
+    .wrap { padding: 0 16px; }
+    .topbar { padding: 14px 16px; }
+    .hero { grid-template-columns: 1fr; gap: 28px; padding: 24px 0 36px; }
+    .hero h1 { font-size: 34px; }
+    .hero p.lead { font-size: 16px; }
+    .ctas .btn { flex: 1 1 100%; justify-content: center; }
+    .diff { grid-template-columns: 1fr; gap: 10px; padding-bottom: 48px; }
+    .how { padding: 44px 0 48px; }
+    .section-head h2, .final h2 { font-size: 26px; }
+    .steps { grid-template-columns: 1fr; }
+    .final { padding: 48px 0; }
+    footer .wrap { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+<div class="controls">
+  <div class="seg" id="view"><button class="on" data-v="desktop">Desktop</button><button data-v="phone">Phone</button></div>
+  <div class="seg" id="theme"><button class="on" data-t="light">Light</button><button data-t="dark">Dark</button></div>
+  <div class="seg" id="notes"><button class="on" data-n="on">Show changes</button><button data-n="off">Hide changes</button></div>
+</div>
+
+<div class="stage show-notes" id="stage">
+  <div class="frame">
+    <header class="topbar">
+      <span class="brand"><span class="brand-mark">✦</span>Smart Incubation</span>
+      <div class="top-actions">
+        <button class="ghost" title="Theme">☾</button>
+        <button class="ghost" title="Language">EN</button>
+        <button class="signin">Sign in</button>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <section class="hero">
+        <div>
+          <div class="chg"><b>Removed:</b> "AI-powered incubation platform" label, scrolling Funding/Mentorship pills, bouncing scroll arrow and background glows. <b>Rewritten:</b> headline says what it is and who it's for. Subtitle cut from 26 words to 13.</div>
+          <h1>Run your incubation programme <span>in one place</span></h1>
+          <p class="lead">Applications, diagnostics, support and funder reports in one shared journey.</p>
+          <div class="ctas">
+            <a class="btn btn-primary" href="#">Book a demo →</a>
+            <a class="btn btn-secondary" href="#">Apply to a programme</a>
+          </div>
+          <p class="hint">SMEs: use the link your incubator sent you, or apply here.</p>
+          <div class="chg" style="margin-top:14px"><b>Two buttons, not six labels.</b> Incubators (the buyers) get the main button. SMEs keep a clear way in. "Get Started", "Talk to us", "Apply now" and the sticky bar are gone.</div>
+        </div>
+
+        <div class="preview" aria-label="Product preview">
+          <div class="preview-head">Programme overview <em>Sample data</em></div>
+          <div class="kpis">
+            <div class="kpi"><small>Active SMEs</small><b>48</b></div>
+            <div class="kpi"><small>Interventions</small><b>126</b></div>
+            <div class="kpi"><small>On track</small><b>87%</b></div>
+          </div>
+          <div class="sme-row"><i>U</i>Ubuntu Bakery<span>Diagnostic</span></div>
+          <div class="sme-row"><i style="background:var(--accent)">K</i>Khanya Solar<span>In support</span></div>
+          <div class="sme-row"><i style="background:var(--ok)">S</i>Siyakha Logistics<span>Graduating</span></div>
+        </div>
+      </section>
+
+      <section>
+        <div class="chg"><b>Moved up:</b> what sets you apart was at the bottom of the "Built for every side" section. Now it sits right under the hero, with text cut to one line each.</div>
+        <div class="diff">
+          <div class="diff-item"><span class="diff-icon" style="background:#25d366">✆</span><div><strong>Works on WhatsApp</strong><p>Plans, appointments and reminders where SMEs already are.</p></div></div>
+          <div class="diff-item"><span class="diff-icon" style="background:var(--accent-2)">A</span><div><strong>English and isiZulu</strong><p>Everyone works in the language they prefer.</p></div></div>
+          <div class="diff-item"><span class="diff-icon" style="background:var(--accent)">✦</span><div><strong>AI assistant built in</strong><p>Drafts business plans, coaches pitches, explains every page.</p></div></div>
+        </div>
+      </section>
+    </main>
+
+    <section class="how">
+      <div class="wrap">
+        <div class="chg"><b>Kept:</b> the five-step journey is the strongest section. Step text trimmed slightly. <b>Removed:</b> the audience cards (SMEs / Incubators / Funders) that followed it; the role chips already show who does what.</div>
+        <div class="section-head">
+          <span class="kicker">How it works</span>
+          <h2>From application to measurable impact</h2>
+        </div>
+        <ol class="steps">
+          <li class="step"><span class="step-num">01</span><strong>Launch a programme</strong><p>Set entry criteria and the support on offer. Funders can sponsor it.</p><span class="roles"><span class="role">Incubator</span><span class="role funder">Funder</span></span></li>
+          <li class="step"><span class="step-num">02</span><strong>Select SMEs</strong><p>SMEs apply online. You review and accept them.</p><span class="roles"><span class="role sme">SME</span><span class="role">Incubator</span></span></li>
+          <li class="step"><span class="step-num">03</span><strong>Diagnose and plan</strong><p>A diagnostic finds the gaps and becomes a growth plan for each SME.</p><span class="roles"><span class="role sme">SME</span><span class="role">Incubator</span></span></li>
+          <li class="step"><span class="step-num">04</span><strong>Deliver support</strong><p>Facilitators deliver interventions and capture proof of evidence.</p><span class="roles"><span class="role sme">SME</span><span class="role facilitator">Facilitator</span></span></li>
+          <li class="step"><span class="step-num">05</span><strong>Report impact</strong><p>Verified outcomes feed live dashboards and funder reports.</p><span class="roles"><span class="role">Incubator</span><span class="role funder">Funder</span></span></li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="final wrap">
+      <div class="chg"><b>Rewritten:</b> "Ready to grow smarter?" becomes a specific offer. Same two buttons as the hero.</div>
+      <h2>See it with your own programme</h2>
+      <p>We'll walk you through setup, delivery and reporting.</p>
+      <div class="ctas">
+        <a class="btn btn-primary" href="#">Book a demo →</a>
+        <a class="btn btn-secondary" href="#">Apply to a programme</a>
+      </div>
+    </section>
+
+    <footer>
+      <div class="wrap">
+        <div class="chg" style="flex-basis:100%;margin:0"><b>Simplified:</b> one row. The "Platform" column that repeated the page's own links is gone.</div>
+        <span>© 2026 Smart Incubation · Built by Quantilytix</span>
+        <nav>
+          <a href="#">admin@quantilytix.com</a>
+          <a href="#">+27 71 167 6548</a>
+          <a href="#">Privacy policy</a>
+          <a href="#">Terms of use</a>
+        </nav>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<script>
+  const seg = (id, fn) => document.getElementById(id).addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return
+    document.querySelectorAll('#' + id + ' button').forEach(x => x.classList.toggle('on', x === b))
+    fn(b.dataset)
+  })
+  const stage = document.getElementById('stage')
+  seg('view', d => stage.classList.toggle('phone', d.v === 'phone'))
+  seg('theme', d => document.documentElement.dataset.theme = d.t)
+  seg('notes', d => stage.classList.toggle('show-notes', d.n === 'on'))
+</script>
+</body>
+</html>
