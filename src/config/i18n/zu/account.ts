@@ -304,6 +304,8 @@ export const zuAccount: Record<string, string> = {
   "No agents match your filters.": "Awekho ama-ejenti afana nezihlungi zakho.",
   "Search agents": "Sesha ama-ejenti",
   "Search agents, providers or capabilities": "Sesha ama-ejenti, abahlinzeki noma amakhono",
+  "Filter agents": "Hlunga ama-ejenti",
+  "{percent}% coverage": "{percent}% ukumbozwa",
   "agents": "ama-ejenti",
   "Show fewer": "Bonisa okumbalwa",
   "Show all {count} agents": "Bonisa wonke ama-ejenti angu-{count}",

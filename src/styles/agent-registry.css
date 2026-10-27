@@ -669,14 +669,41 @@ html[data-theme='dark'] .agent-registry-detail-footer {
 
 
 /* Consolidated management view */
-.agent-management-tabs {
-    max-width: 520px;
-    width: 100%;
+/* One toolbar row per tab: tab switch first, that tab's controls after it; wraps on narrow screens. */
+.agent-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
 }
 
-.agent-management-tabs .ant-segmented {
-    padding: 5px;
-    border-radius: 14px;
+.agent-toolbar .agent-toolbar-tabs.ant-segmented {
+    flex: none;
+    padding: 4px;
+    border-radius: 12px;
+}
+
+.agent-toolbar .agent-toolbar-search {
+    flex: 1 1 220px;
+    min-width: 180px;
+}
+
+.agent-toolbar .agent-toolbar-company {
+    flex: 0 1 240px;
+    min-width: 180px;
+}
+
+.agent-toolbar .agent-toolbar-select {
+    flex: 0 0 150px;
+}
+
+.agent-toolbar .agent-toolbar-action {
+    margin-left: auto;
+}
+
+.agent-availability-embedded .agent-toolbar {
+    margin-bottom: 0;
 }
 
 .agent-availability-embedded {
@@ -686,56 +713,13 @@ html[data-theme='dark'] .agent-registry-detail-footer {
     min-width: 0;
 }
 
-.agent-availability-toolbar {
-    display: flex;
-    gap: 20px;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    background: var(--agent-panel-bg);
-    border: 1px solid var(--agent-border);
-    border-radius: 18px;
-    padding: 16px;
-}
-
-.agent-availability-company {
-    display: flex;
-    flex-direction: column;
-    gap: 7px;
-    min-width: min(320px, 100%);
-    flex: 1;
-}
-
-.agent-availability-label {
+.agent-availability-coverage {
+    flex: none;
     color: var(--agent-text-soft);
-    font-size: 12px;
+    font-size: 12.5px;
     font-weight: 600;
-}
-
-.agent-availability-company-select {
-    width: 100%;
-}
-
-.agent-availability-overview {
-    display: flex;
-    align-items: center;
-    gap: 22px;
-}
-
-.agent-availability-overview>div {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.agent-availability-overview strong {
-    font-size: 22px;
-    line-height: 1;
-}
-
-.agent-availability-overview span {
-    color: var(--agent-text-soft);
-    font-size: 12px;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
 }
 
 .agent-availability-content,
@@ -831,17 +815,30 @@ html[data-theme='dark'] .agent-registry-detail-footer {
 }
 
 @media (max-width: 640px) {
-    .agent-management-tabs {
-        max-width: none;
-    }
-
-    .agent-availability-toolbar {
-        padding: 12px;
-    }
-
-    .agent-availability-overview {
+    .agent-toolbar .agent-toolbar-tabs.ant-segmented {
         width: 100%;
-        justify-content: space-around;
+    }
+
+    .agent-toolbar .agent-toolbar-tabs .ant-segmented-item {
+        flex: 1;
+    }
+
+    .agent-toolbar .agent-toolbar-search,
+    .agent-toolbar .agent-toolbar-company {
+        flex-basis: 100%;
+    }
+
+    .agent-toolbar .agent-toolbar-select {
+        flex: 1 1 0;
+    }
+
+    .agent-toolbar .agent-toolbar-action {
+        flex-basis: 100%;
+        margin-left: 0;
+    }
+
+    .agent-availability-content-head {
+        flex-wrap: wrap;
     }
 
     .agent-availability-content-head {
@@ -892,10 +889,6 @@ html[data-theme='dark'] .agent-registry-detail-footer {
    Simplified agents page: tabs, agent cards, ratings summary
    (admin overview look, admin-dashboard.css)
    ========================================================= */
-
-.agent-management-tabs .ant-segmented {
-    max-width: 520px;
-}
 
 /* ---------- Agent card ---------- */
 

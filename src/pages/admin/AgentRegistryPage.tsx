@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AdminKpiTile, AdminShareRing } from '@/components/admin/AdminKpiTile'
 import { listAgentRatings, type AgentRatingRecord } from '@/services/agentRatingsService'
@@ -38,7 +38,6 @@ import {
     StarOutlined,
 } from '@ant-design/icons'
 import DashboardPage from '@/components/shared/DashboardPage'
-import { FilterBar } from '@/components/shared/FilterBar'
 import { listWorkspaceCompanies, type WorkspaceCompany } from '@/services/companiesService'
 import { getCompanyAgentSettings, saveCompanyAgentSettings } from '@/services/agentOrchestrationService'
 import type { AgentId } from '@/types/agentOrchestration'
@@ -88,7 +87,7 @@ const formatStatus = (status: AgentStatus) =>
 type ManagementView = 'registry' | 'availability' | 'ratings'
 const VIEWS: ManagementView[] = ['registry', 'availability', 'ratings']
 
-const CompanyAvailabilityPanel = ({ agents }: { agents: AgentDefinition[] }) => {
+const CompanyAvailabilityPanel = ({ agents, tabs }: { agents: AgentDefinition[], tabs: ReactNode }) => {
     const { t } = useLanguage()
     const { message, modal } = App.useApp()
     const { user } = useFullIdentity()
@@ -193,37 +192,27 @@ const CompanyAvailabilityPanel = ({ agents }: { agents: AgentDefinition[] }) => 
 
     return (
         <section className="agent-availability-embedded">
-            <div className="agent-availability-toolbar">
-                <div className="agent-availability-company">
-                    <span className="agent-availability-label"><ApartmentOutlined /> {t('Company')}</span>
-                    <Select
-                        showSearch
-                        optionFilterProp="label"
-                        value={companyCode}
-                        onChange={changeCompany}
-                        placeholder={t('Select a company')}
-                        loading={loadingCompanies}
-                        options={companies.map(company => ({ value: company.code, label: company.name }))}
-                        className="agent-availability-company-select"
-                    />
-                </div>
-                <div className="agent-availability-overview">
-                    <div><strong>{enabledCount}</strong><span>{t('Enabled')}</span></div>
-                    <div><strong>{Math.max(eligibleAgents.length - enabledCount, 0)}</strong><span>{t('Unavailable')}</span></div>
-                    <div><strong>{eligibleAgents.length ? Math.round(enabledCount / eligibleAgents.length * 100) : 0}%</strong><span>{t('Coverage')}</span></div>
-                </div>
+            <div className="agent-toolbar">
+                {tabs}
+                <Select
+                    showSearch
+                    optionFilterProp="label"
+                    value={companyCode}
+                    onChange={changeCompany}
+                    placeholder={t('Select a company')}
+                    loading={loadingCompanies}
+                    options={companies.map(company => ({ value: company.code, label: company.name }))}
+                    className="agent-toolbar-company"
+                    aria-label={t('Company')}
+                    suffixIcon={<ApartmentOutlined />}
+                />
+                <Input.Search value={search} allowClear onChange={e => setSearch(e.target.value)} placeholder={t('Search agents')} className="agent-toolbar-search" />
+                <Select value={availabilityFilter} onChange={setAvailabilityFilter} className="agent-toolbar-select" aria-label={t('Filter agents')} options={[
+                    { value: 'all', label: t('All agents') },
+                    { value: 'enabled', label: t('Enabled') },
+                    { value: 'disabled', label: t('Unavailable') },
+                ]} />
             </div>
-
-            <FilterBar
-                primary={<>
-                    <Input.Search value={search} allowClear onChange={e => setSearch(e.target.value)} placeholder={t('Search agents')} className="agent-registry-search" />
-                    <Select value={availabilityFilter} onChange={setAvailabilityFilter} className="agent-registry-filter-select" options={[
-                        { value: 'all', label: t('All agents') },
-                        { value: 'enabled', label: t('Enabled') },
-                        { value: 'disabled', label: t('Unavailable') },
-                    ]} />
-                </>}
-            />
 
             {!companyCode ? (
                 <div className="agent-availability-empty"><Empty description={t('Select a company to configure its agents.')} /></div>
@@ -236,7 +225,11 @@ const CompanyAvailabilityPanel = ({ agents }: { agents: AgentDefinition[] }) => 
                             <Typography.Title level={5}>{selectedCompany?.name ?? t('Company agents')}</Typography.Title>
                             <Typography.Text type="secondary">{t('Enable agents approved for this company. Changes only apply after saving.')}</Typography.Text>
                         </div>
-                        <Tag>{visibleAgents.length} {t('agents')}</Tag>
+                        <span className="agent-availability-coverage">
+                            {t('{count} of {total} enabled', undefined, { count: enabledCount, total: eligibleAgents.length })}
+                            <span aria-hidden="true"> · </span>
+                            {t('{percent}% coverage', undefined, { percent: eligibleAgents.length ? Math.round(enabledCount / eligibleAgents.length * 100) : 0 })}
+                        </span>
                     </div>
                     {settingsError && <Alert type="error" showIcon message={t('Could not load company settings. Editing is disabled to prevent overwriting existing access.')} />}
                     <Spin spinning={loadingSettings}>
@@ -516,6 +509,14 @@ const AgentRegistryPage = () => {
         )
     }
 
+    const tabs = (
+        <Segmented className="agent-toolbar-tabs" value={view} onChange={(next) => changeView(next as ManagementView)} options={[
+            { value: 'registry', label: t('Agents') },
+            { value: 'availability', label: t('Company access') },
+            { value: 'ratings', label: t('Ratings') },
+        ]} />
+    )
+
     const ratingFor = (agentId: string) => ratingsByAgent.get(agentId)
     const clearFilters = () => {
         setSearch('')
@@ -532,53 +533,43 @@ const AgentRegistryPage = () => {
                 <Col xs={24} sm={12} xl={6}><AdminKpiTile compact loading={ratingsLoading} icon={<StarOutlined />} label={t('Average rating')} value={ratings.length ? `${overallRating.toFixed(1)} / 5` : '—'} /></Col>
             </Row>
 
-            <div className="agent-management-tabs">
-                <Segmented value={view} onChange={(next) => changeView(next as ManagementView)} options={[
-                    { value: 'registry', label: t('Agents') },
-                    { value: 'availability', label: t('Company access') },
-                    { value: 'ratings', label: t('Ratings') },
-                ]} />
-            </div>
 
             {view === 'registry' && (
                 <>
-                    <FilterBar
-                        primary={
-                            <>
-                                <Input.Search
-                                    allowClear
-                                    value={search}
-                                    onChange={(event) => setSearch(event.target.value)}
-                                    placeholder={t('Search agents, providers or capabilities')}
-                                    className="agent-registry-search"
-                                />
-                                <Select
-                                    value={statusFilter}
-                                    onChange={setStatusFilter}
-                                    className="agent-registry-filter-select"
-                                    aria-label={t('Filter by status')}
-                                    options={[
-                                        { value: 'all', label: t('All statuses') },
-                                        { value: 'active', label: t('Active') },
-                                        { value: 'inactive', label: t('Inactive') },
-                                        { value: 'archived', label: t('Archived') },
-                                    ]}
-                                />
-                                <Select
-                                    value={executionFilter}
-                                    onChange={setExecutionFilter}
-                                    className="agent-registry-filter-select"
-                                    aria-label={t('Filter by execution type')}
-                                    options={[
-                                        { value: 'all', label: t('All types') },
-                                        { value: 'external_api', label: t('External API') },
-                                        { value: 'platform', label: t('Platform') },
-                                    ]}
-                                />
-                            </>
-                        }
-                        actions={<Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>{t('Add agent')}</Button>}
-                    />
+                    <div className="agent-toolbar">
+                        {tabs}
+                        <Input.Search
+                            allowClear
+                            value={search}
+                            onChange={(event) => setSearch(event.target.value)}
+                            placeholder={t('Search agents, providers or capabilities')}
+                            className="agent-toolbar-search"
+                        />
+                        <Select
+                            value={statusFilter}
+                            onChange={setStatusFilter}
+                            className="agent-toolbar-select"
+                            aria-label={t('Filter by status')}
+                            options={[
+                                { value: 'all', label: t('All statuses') },
+                                { value: 'active', label: t('Active') },
+                                { value: 'inactive', label: t('Inactive') },
+                                { value: 'archived', label: t('Archived') },
+                            ]}
+                        />
+                        <Select
+                            value={executionFilter}
+                            onChange={setExecutionFilter}
+                            className="agent-toolbar-select"
+                            aria-label={t('Filter by execution type')}
+                            options={[
+                                { value: 'all', label: t('All types') },
+                                { value: 'external_api', label: t('External API') },
+                                { value: 'platform', label: t('Platform') },
+                            ]}
+                        />
+                        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate} className="agent-toolbar-action">{t('Add agent')}</Button>
+                    </div>
 
                     {!agents.length ? (
                         <Card className="admin-card" bordered={false}>
@@ -642,9 +633,14 @@ const AgentRegistryPage = () => {
                 </>
             )}
 
-            {view === 'availability' && <CompanyAvailabilityPanel agents={agents} />}
+            {view === 'availability' && <CompanyAvailabilityPanel agents={agents} tabs={tabs} />}
 
-            {view === 'ratings' && <AgentRatingsSummary ratings={ratings} loading={ratingsLoading} />}
+            {view === 'ratings' && (
+                <>
+                    <div className="agent-toolbar">{tabs}</div>
+                    <AgentRatingsSummary ratings={ratings} loading={ratingsLoading} />
+                </>
+            )}
 
             <Modal
                 open={open}
