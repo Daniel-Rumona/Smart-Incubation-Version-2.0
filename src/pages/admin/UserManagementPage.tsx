@@ -216,10 +216,10 @@ export const UserManagementPage = () => {
     return (
         <DashboardPage className="user-management-page admin-overview">
             <Row gutter={[16, 16]}>
-                <Col xs={24} sm={12} xl={6}><AdminKpiTile loading={loading && !users.length} icon={<TeamOutlined />} label={t('Users')} value={metrics.users} visual={<AdminShareRing value={metrics.users} total={metrics.users} />} /></Col>
-                <Col xs={24} sm={12} xl={6}><AdminKpiTile loading={loading && !users.length} icon={<CheckCircleOutlined />} label={t('Active users')} value={metrics.active} visual={<AdminShareRing value={metrics.active} total={metrics.users} />} /></Col>
-                <Col xs={24} sm={12} xl={6}><AdminKpiTile loading={loading && !users.length} icon={<StopOutlined />} label={t('Inactive users')} value={metrics.inactive} visual={<AdminShareRing value={metrics.inactive} total={metrics.users} muted />} /></Col>
-                <Col xs={24} sm={12} xl={6}><AdminKpiTile loading={loading && !users.length} icon={<BankOutlined />} label={t('Companies')} value={metrics.companies} /></Col>
+                <Col xs={24} sm={12} xl={6}><AdminKpiTile compact loading={loading && !users.length} icon={<TeamOutlined />} label={t('Users')} value={metrics.users} visual={<AdminShareRing size={44} value={metrics.users} total={metrics.users} />} /></Col>
+                <Col xs={24} sm={12} xl={6}><AdminKpiTile compact loading={loading && !users.length} icon={<CheckCircleOutlined />} label={t('Active users')} value={metrics.active} visual={<AdminShareRing size={44} value={metrics.active} total={metrics.users} />} /></Col>
+                <Col xs={24} sm={12} xl={6}><AdminKpiTile compact loading={loading && !users.length} icon={<StopOutlined />} label={t('Inactive users')} value={metrics.inactive} visual={<AdminShareRing size={44} value={metrics.inactive} total={metrics.users} muted />} /></Col>
+                <Col xs={24} sm={12} xl={6}><AdminKpiTile compact loading={loading && !users.length} icon={<BankOutlined />} label={t('Companies')} value={metrics.companies} /></Col>
             </Row>
             <Card className="admin-card user-management-list">
                 <FilterBar
