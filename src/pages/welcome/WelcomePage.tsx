@@ -64,6 +64,9 @@ import { readPendingProgramLink } from '@/services/programLinkService'
 import type { ConsultantMarketplaceProfile } from '@/types/consultantMarketplace'
 import { provincesForCountry } from '@/config/sadc'
 import { getRoleHomePath } from '@/utils/roleRouting'
+import { AgreementForm } from '@/components/agreements/AgreementForm'
+import type { CompanyAgreementKey } from '@/config/agreements'
+import { agreementScope, missingAgreements, requiredAgreements, signAgreement } from '@/services/agreementsService'
 import '@/styles/welcome.css'
 
 type PasswordValues = {
@@ -73,8 +76,6 @@ type PasswordValues = {
 
 /** Roles only staff can give; people with them never choose a role in the welcome flow. */
 const ASSIGNED_ONLY_ROLES: string[] = ['systemadmin', 'admin', 'projectadmin', 'projectmanager', 'operations', 'funder']
-/** Roles that never sign documents (read-only funders, reception). */
-const NO_SIGNATURE_ROLES: string[] = ['funder', 'admin']
 
 type WelcomeStepKey =
     | 'intro'
@@ -90,6 +91,8 @@ type WelcomeStepKey =
     | 'directorLogo'
     | 'directorSettings'
     | 'signature'
+    | 'conduct'
+    | 'consent'
     | 'whatsapp'
     | 'complete'
 type SignatureMode = 'typed' | 'drawn' | 'upload'
@@ -194,6 +197,9 @@ export const WelcomePage = () => {
     const [savingSignature, setSavingSignature] = useState(false)
     const [finishing, setFinishing] = useState(false)
     const [whatsappDecided, setWhatsappDecided] = useState(false)
+    // Agreements still to sign (Code of Conduct for SMEs, the consent form for everyone); null until checked.
+    const [pendingAgreements, setPendingAgreements] = useState<CompanyAgreementKey[] | null>(null)
+    const [organisationName, setOrganisationName] = useState('')
     const [whatsappPhone, setWhatsappPhone] = useState('')
     const [whatsappAgreed, setWhatsappAgreed] = useState(false)
     const [savingWhatsapp, setSavingWhatsapp] = useState(false)
@@ -259,6 +265,21 @@ export const WelcomePage = () => {
     }, [selectedRole, typedName, user])
 
     useEffect(() => {
+        if (!user) return
+        let cancelled = false
+        const scope = agreementScope(user)
+        void Promise.all([
+            missingAgreements(user).catch(() => null),
+            scope === 'platform' ? Promise.resolve(null) : getCompanyOverview(scope, user.uid).catch(() => null),
+        ]).then(([missing, company]) => {
+            if (cancelled) return
+            setPendingAgreements(missing)
+            setOrganisationName(company?.name || (scope === 'platform' ? 'Smart Incubation' : scope))
+        })
+        return () => { cancelled = true }
+    }, [user])
+
+    useEffect(() => {
         if (!user || user.role !== 'director' || !user.companyCode) return
         let cancelled = false
         void getCompanyOverview(user.companyCode, user.uid)
@@ -290,8 +311,8 @@ export const WelcomePage = () => {
     const roleAssigned = ASSIGNED_ONLY_ROLES.includes(user.role) || user.mustChangePassword === true
     const firstName = (user.displayName || user.name || '').trim().split(/\s+/)[0]
     const hasSignature = Boolean(signatureComplete || user.signatureURL || signatureURL)
-    // Funders and reception admins never sign documents, so they skip the signature step.
-    const needsSignature = !hasSignature && !NO_SIGNATURE_ROLES.includes(effectiveRole)
+    // Everyone signs: the agreements below are signed with it.
+    const needsSignature = !hasSignature
     const languageItems = Object.entries(LANGUAGES).map(([value, label]) => ({
         key: value,
         label,
@@ -314,7 +335,22 @@ export const WelcomePage = () => {
 
     // Last setup step for every role: ask about WhatsApp updates once, unless a choice already exists.
     const alreadyDecidedWhatsapp = whatsappDecided || Boolean((user as unknown as { whatsappConsent?: unknown }).whatsappConsent)
-    const afterSetup = () => (alreadyDecidedWhatsapp ? 'complete' as const : 'whatsapp' as const)
+    // Agreements come after the signature they are signed with; unknown (still loading) means all of them.
+    const agreementsToSign = pendingAgreements ?? requiredAgreements(effectiveRole)
+    const afterAgreements = () => (alreadyDecidedWhatsapp ? 'complete' as const : 'whatsapp' as const)
+    const afterSetup = () => (agreementsToSign.includes('code-of-conduct') ? 'conduct' as const : agreementsToSign.includes('company-consent') ? 'consent' as const : afterAgreements())
+
+    const signPendingAgreement = async (key: CompanyAgreementKey) => {
+        try {
+            await signAgreement({ ...user, role: effectiveRole }, key, { signatureURL: signatureURL || user.signatureURL || '', companyName: organisationName })
+            const remaining = agreementsToSign.filter((item) => item !== key)
+            setPendingAgreements(remaining)
+            message.success(t('Signed.'))
+            goTo(remaining.includes('company-consent') ? 'consent' : afterAgreements())
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : t('The agreement could not be saved.'))
+        }
+    }
 
     // Directors cannot pick a role; they set up their company (name and code, logo, locked settings) instead.
     const directorNext = () => (directorConfigured ? (needsSignature ? 'signature' as const : afterSetup()) : 'directorCompany' as const)
@@ -344,6 +380,8 @@ export const WelcomePage = () => {
         directorCompany: 'Let’s set up your organisation first. Tell me your company’s name and choose a short, unique company code. It keeps your people, programmes and reports properly separated from other organisations.',
         directorLogo: 'Now add your company logo. It will appear on reports, dashboards and the documents we generate for you.',
         directorSettings: 'Last part for your company: how it operates. These choices shape onboarding and how interventions are assigned. Once you lock them they can’t be changed directly, so take a moment to review.',
+        conduct: 'Before you start, please read the programme Code of Conduct. It sets out how participation, funding and support work. Tick to accept, and your signature is added.',
+        consent: 'Next, your consent. This explains what information we collect about you, why, and who it may be shared with, as POPIA requires. Read it, tick to accept, and your signature is added.',
         whatsapp: 'One more thing. I can send important updates, like deadlines, follow-up reminders and appointment notices, to your WhatsApp. It’s your choice, and you can stop any time by replying STOP.',
         consultantLocation: editingFromReview ? 'Let’s revisit your location details. Update anything that needs changing, then save this section.' : 'Let’s make your profile useful from day one. Where are you based, and what area should clients recognise as your home base?',
         consultantReach: editingFromReview ? 'You’re editing your reach settings. Adjust the travel radius or currency, then update this section.' : 'Great. How far are you comfortable travelling for in-person work, and which currency should we use for your daily rate?',
@@ -477,6 +515,9 @@ export const WelcomePage = () => {
         try {
             setSavingDirector(true)
             await completeDirectorSetup({ ...settings, companyName: directorCompanyName.trim(), companyCode: directorCompanyCode, logoUrl: directorLogoUrl || undefined })
+            // The server now holds the new company; the agreements that follow are recorded against it.
+            updateIdentity({ companyCode: directorCompanyCode })
+            setOrganisationName(directorCompanyName.trim())
             setDirectorConfigured(true)
             message.success(t('Company settings saved and locked.'))
             goTo(needsSignature ? 'signature' : afterSetup())
@@ -1130,6 +1171,19 @@ export const WelcomePage = () => {
                                     <Button type="primary" size="large" icon={<LockOutlined />} loading={savingDirector} onClick={confirmLockSettings}>{t('Save and lock settings')}</Button>
                                 </div>
                             </Form>
+                        </div>
+                    )}
+
+                    {(activeStep === 'conduct' || activeStep === 'consent') && messageComplete && (
+                        <div className="welcome-panel welcome-reveal">
+                            <AgreementForm
+                                key={activeStep}
+                                agreementKey={activeStep === 'conduct' ? 'code-of-conduct' : 'company-consent'}
+                                organisationName={organisationName || 'Smart Incubation'}
+                                companyCode={agreementScope({ ...user, role: effectiveRole })}
+                                progress={requiredAgreements(effectiveRole).length > 1 ? t('{index} of {total}', undefined, { index: activeStep === 'conduct' ? 1 : 2, total: 2 }) : undefined}
+                                onSign={() => signPendingAgreement(activeStep === 'conduct' ? 'code-of-conduct' : 'company-consent')}
+                            />
                         </div>
                     )}
 

@@ -1,5 +1,5 @@
 import { App, Button, Card, Col, DatePicker, Descriptions, Empty, Form, Input, Modal, Progress, Row, Select, Space, Tag, theme, Typography, Upload, type TableProps, type UploadProps } from 'antd'
-import { CheckCircleOutlined, ClockCircleOutlined, CloseCircleOutlined, EditOutlined, EyeOutlined, FileProtectOutlined, FileSearchOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, UploadOutlined, WarningOutlined } from '@ant-design/icons'
+import { CheckCircleOutlined, ClockCircleOutlined, DownloadOutlined, CloseCircleOutlined, EditOutlined, EyeOutlined, FileProtectOutlined, FileSearchOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, UploadOutlined, WarningOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -16,6 +16,9 @@ import type { ComplianceDocument, ComplianceParticipant, ComplianceStatus, SaveC
 import { COMPLIANCE_DOCUMENT_TYPES } from '@/services/complianceService'
 import { requirementKeyFor } from '@/config/complianceDocuments'
 import { ModalActions } from '@/components/shared/ModalActions'
+import { COMPANY_AGREEMENTS, type CompanyAgreementKey } from '@/config/agreements'
+import { latestAgreementsByPerson, listCompanyAgreements, type SignedAgreement } from '@/services/agreementsService'
+import { getCompanyOverview } from '@/services/directorSetupService'
 import '@/styles/operations-compliance.css'
 
 const { TextArea } = Input
@@ -101,6 +104,38 @@ export const CompliancePage = () => {
     const [file, setFile] = useState<File>()
     const [uploading, setUploading] = useState(false)
     const [scanning, setScanning] = useState<'all' | string>()
+    // Agreements SMEs signed (Code of Conduct, consent form), latest per person and agreement.
+    const [agreements, setAgreements] = useState<Map<string, Partial<Record<CompanyAgreementKey, SignedAgreement>>>>(new Map())
+    const [organisation, setOrganisation] = useState<{ name: string, logoUrl?: string | null }>({ name: '' })
+    const [downloading, setDownloading] = useState<string>()
+
+    useEffect(() => {
+        const companyCode = String(user?.companyCode || '').trim()
+        if (!user || !companyCode) return
+        let cancelled = false
+        void Promise.all([listCompanyAgreements(companyCode).catch(() => []), getCompanyOverview(companyCode, user.uid).catch(() => null)])
+            .then(([rows, company]) => {
+                if (cancelled) return
+                setAgreements(latestAgreementsByPerson(rows))
+                setOrganisation({ name: company?.name || companyCode, logoUrl: company?.logoUrl })
+            })
+        return () => { cancelled = true }
+    }, [user])
+
+    const downloadAgreement = async (record: SignedAgreement, participant: ComplianceParticipant) => {
+        try {
+            setDownloading(record.id)
+            const { downloadAgreementDocx } = await import('@/utils/agreementDocx')
+            const result = await downloadAgreementDocx(record, { organisationName: organisation.name || record.companyName, fallbackBusinessName: participant.businessName, logoUrl: organisation.logoUrl })
+            if (!result.signatureEmbedded) message.info(t('Downloaded. The signature image could not be added, so the document notes that an electronic signature is on file.'))
+        } catch {
+            message.error(t('The agreement could not be downloaded.'))
+        } finally {
+            setDownloading(undefined)
+        }
+    }
+
+    const agreementsFor = (participant: ComplianceParticipant) => agreements.get(participant.participantId) || {}
 
     const load = async () => {
         if (!user) return
@@ -247,7 +282,7 @@ export const CompliancePage = () => {
         <FilterBar primary={<><Input prefix={<SearchOutlined />} placeholder={t('operations.compliance.search')} value={search} onChange={(event) => setSearch(event.target.value)} allowClear /><Select value={filter} onChange={setFilter} options={[{ value: 'all', label: t('operations.compliance.allParticipants') }, { value: 'issues', label: t('operations.compliance.onlyActionNeeded') }, { value: 'clean', label: t('operations.compliance.onlyCompliant') }]} /></>} actions={<Space><Button icon={<ReloadOutlined />} onClick={() => void load()}>{t('common.refresh')}</Button><Button icon={<FileSearchOutlined />} loading={scanning === 'all'} onClick={() => void scan()}>{t('operations.compliance.scanAll')}</Button><Button type="primary" icon={<PlusOutlined />} onClick={() => openDocumentModal()}>{t('operations.compliance.addDocument')}</Button></Space>} />
         <Card className="operations-compliance-card"><ResponsiveDataView rowKey="id" rows={visibleParticipants} columns={participantColumns} loading={loading} emptyText={t('operations.compliance.empty')} renderCard={(row) => <div className="operations-compliance-mobile-card"><Space orientation="vertical" size={8} className="operations-compliance-card-content"><Typography.Text strong>{row.businessName}</Typography.Text><Typography.Text type="secondary">{row.email || t('common.noEmail')}</Typography.Text><Progress percent={score(row)} size="small" /></Space><Space className="operations-compliance-card-actions"><Button icon={<FileSearchOutlined />} loading={scanning === row.participantId} onClick={() => void scan(row)}>{t('operations.compliance.scan')}</Button><Button icon={<EyeOutlined />} onClick={() => { setActive(row); setReviewModalOpen(true) }}>{t('common.review')}</Button></Space></div>} /></Card>
         <Modal title={active ? `${t('nav.compliance')}: ${active.businessName}` : t('nav.compliance')} open={reviewModalOpen} onCancel={() => setReviewModalOpen(false)} width={960} footer={<ModalActions><Button icon={<FileSearchOutlined />} loading={!!active && scanning === active.participantId} onClick={() => active && void scan(active)}>{t('operations.compliance.scan')}</Button><Button type="primary" icon={<PlusOutlined />} onClick={() => openDocumentModal(active)}>{t('operations.compliance.addDocument')}</Button></ModalActions>}>
-            {active ? <><Descriptions bordered size="small" items={[{ key: 'name', label: t('operations.compliance.participant'), children: active.businessName }, { key: 'email', label: t('common.email'), children: active.email || 'N/A' }, { key: 'score', label: t('operations.compliance.score'), children: `${score(active)}%` }]} style={{ marginBottom: 16 }} /><ResponsiveDataView rowKey="id" columns={documentColumns} rows={active.documents} emptyText={t('operations.compliance.noDocuments')} renderCard={(document) => <div className="operations-compliance-mobile-card"><Space orientation="vertical" className="operations-compliance-card-content"><Typography.Text strong>{document.type}</Typography.Text><Typography.Text>{document.documentName}</Typography.Text><Tag color={statusColor(document.currentStatus)}>{titleCase(document.currentStatus)}</Tag></Space><Space className="operations-compliance-card-actions"><Button icon={<EditOutlined />} onClick={() => openDocumentModal(active, document)}>{t('common.edit')}</Button><Button icon={<CheckCircleOutlined />} onClick={() => setVerifyDocument(document)}>{t('operations.compliance.verify')}</Button></Space></div>} /></> : <Empty />}
+            {active ? <><Descriptions bordered size="small" items={[{ key: 'name', label: t('operations.compliance.participant'), children: active.businessName }, { key: 'email', label: t('common.email'), children: active.email || 'N/A' }, { key: 'score', label: t('operations.compliance.score'), children: `${score(active)}%` }]} style={{ marginBottom: 16 }} /><div className="compliance-agreements"><Typography.Text strong>{t('Signed agreements')}</Typography.Text><div className="compliance-agreements-list">{(Object.keys(COMPANY_AGREEMENTS) as CompanyAgreementKey[]).map((key) => { const record = agreementsFor(active)[key]; return <div key={key} className="compliance-agreement-row"><div><Typography.Text strong>{COMPANY_AGREEMENTS[key].title}</Typography.Text><Typography.Text type="secondary">{record ? t('Signed {date}', undefined, { date: record.acceptedAt ? dayjs(record.acceptedAt).format('D MMM YYYY, HH:mm') : '' }) : t('Not signed yet')}</Typography.Text></div>{record ? <Button icon={<DownloadOutlined />} loading={downloading === record.id} onClick={() => void downloadAgreement(record, active)}>{t('Word document')}</Button> : <Tag color="orange">{t('Not signed')}</Tag>}</div> })}</div></div><ResponsiveDataView rowKey="id" columns={documentColumns} rows={active.documents} emptyText={t('operations.compliance.noDocuments')} renderCard={(document) => <div className="operations-compliance-mobile-card"><Space orientation="vertical" className="operations-compliance-card-content"><Typography.Text strong>{document.type}</Typography.Text><Typography.Text>{document.documentName}</Typography.Text><Tag color={statusColor(document.currentStatus)}>{titleCase(document.currentStatus)}</Tag></Space><Space className="operations-compliance-card-actions"><Button icon={<EditOutlined />} onClick={() => openDocumentModal(active, document)}>{t('common.edit')}</Button><Button icon={<CheckCircleOutlined />} onClick={() => setVerifyDocument(document)}>{t('operations.compliance.verify')}</Button></Space></div>} /></> : <Empty />}
         </Modal>
         <Modal open={documentModalOpen} title={documentParticipant ? `${t(editing ? 'operations.compliance.editDocument' : 'operations.compliance.addDocument')}: ${documentParticipant.businessName}` : t(editing ? 'operations.compliance.editDocument' : 'operations.compliance.addDocument')} footer={null} onCancel={() => setDocumentModalOpen(false)}>
             <Form form={form} layout="vertical" onFinish={(values) => void save(values)}>

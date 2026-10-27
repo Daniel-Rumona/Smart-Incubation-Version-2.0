@@ -39,6 +39,7 @@ import AuthPage from '@/pages/auth/AuthPage'
 import EmailVerificationPage from '@/pages/auth/EmailVerificationPage'
 import SetPasswordPage from '@/pages/auth/SetPasswordPage'
 import { WelcomePage } from '@/pages/welcome/WelcomePage'
+import { ConsentPage } from '@/pages/consent/ConsentPage'
 import JoinProgramPage from '@/pages/join/JoinProgramPage'
 import { DashboardPage } from '@/pages/dashboard/DashboardPage'
 import LandingPage from '@/pages/landing/LandingPage'
@@ -144,6 +145,7 @@ export const publicRoutes: PublicRoute[] = [
     { path: '/email-verification', labelKey: 'nav.emailVerification', element: EmailVerificationPage },
     { path: '/set-password', labelKey: 'nav.setPassword', element: SetPasswordPage },
     { path: '/welcome', labelKey: 'nav.welcome', element: WelcomePage },
+    { path: '/consent', labelKey: 'nav.consent', element: ConsentPage },
     { path: '/join/:programId', labelKey: 'nav.join', element: JoinProgramPage },
 ]
 

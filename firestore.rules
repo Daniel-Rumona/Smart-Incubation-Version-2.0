@@ -939,6 +939,32 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Signed agreements (Code of Conduct, POPIA consent form): one record per person, organisation, agreement
+    // and wording version (agreementsService). The person signs their own and can never edit or delete it;
+    // their company's operations staff and director, and platform admins, can read them.
+    match /companyAgreementSubmissions/{submissionId} {
+      function isOwnSubmissionId() {
+        return submissionId.matches('^.+_' + request.auth.uid + '_.+$');
+      }
+      function canReadSubmission() {
+        return resource.data.acceptedByUid == request.auth.uid
+          || isPlatformAdmin()
+          || ((hasRole(operationsStaffRoles()) || isOwnCompanyDirector()) && resource.data.companyCode == myCompany());
+      }
+
+      // A missing record (not signed yet) has no data to check, so the person may look up their own ids.
+      allow get: if signedIn() && ((resource == null && isOwnSubmissionId()) || (resource != null && canReadSubmission()));
+      allow list: if signedIn() && canReadSubmission();
+      allow create: if signedIn() && isOwnSubmissionId()
+        && request.resource.data.acceptedByUid == request.auth.uid
+        && request.resource.data.accepted == true
+        && request.resource.data.agreementKey in ['code-of-conduct', 'company-consent']
+        && ((myCompany() != '' && request.resource.data.companyCode == myCompany())
+          || (myCompany() == '' && request.resource.data.companyCode == 'platform'))
+        && request.resource.data.keys().hasOnly(['agreementKey', 'agreementTitle', 'accepted', 'acceptedAt', 'acceptedByUid', 'acceptedByEmail', 'acceptedByRole', 'companyCode', 'companyName', 'signatureURL', 'beneficiarySnapshot', 'version']);
+      allow update, delete: if false;
+    }
+
     // Platform (system-development) KPIs on the admin System KPIs page.
     // Platform admins only; archived, never deleted.
     match /platformKpis/{kpiId} {

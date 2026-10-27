@@ -29,6 +29,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFitSteps } from '@/hooks/useFitSteps'
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { useAgreementGate } from '@/hooks/useAgreementGate'
 import { doc, getDoc } from 'firebase/firestore'
 import { appRoutes } from '@/config/routes'
 import { hasRolePermission } from '@/config/permissions'
@@ -244,6 +245,8 @@ export const SystemLayout = () => {
     const { t, language, setLanguage } = useLanguage()
     const { mode, toggleTheme } = useThemeMode()
     const { user, loading: identityLoading } = useFullIdentity()
+    // Signed agreements (POPIA consent, SME Code of Conduct) are needed before working in the app.
+    useAgreementGate(user)
     const { settings, ready: settingsReady } = useSystemSettings()
     const entitlements = useEntitlements()
     const { message } = App.useApp()
@@ -541,14 +544,6 @@ export const SystemLayout = () => {
     // Phones: the bottom bar only holds Menu now, and only in Workspace.
     const hasPhoneBottomBar = isMobile && !isTablet && !pageChrome.hideChrome && shellMode === 'workspace'
 
-    // The scope reads as what it is ("Programme", "Company") above its name, so a cut-off name still makes sense.
-    const scopeLabel = (kicker: string, name: React.ReactNode) => (
-        <span className="app-scope-label">
-            <span className="app-scope-kicker">{kicker}</span>
-            <span className="app-scope-name">{name}</span>
-        </span>
-    )
-
     const companySelector = (
         <Select
             value={activeCompanyCode}
@@ -559,7 +554,6 @@ export const SystemLayout = () => {
             showSearch
             optionFilterProp="label"
             prefix={<ApartmentOutlined className="app-scope-icon" />}
-            labelRender={({ label }) => scopeLabel(t('Company'), label)}
             options={[{ code: ALL_COMPANIES, name: t('All companies') }, ...companies].map((company) => ({
                 value: company.code,
                 label: company.name,
@@ -569,7 +563,7 @@ export const SystemLayout = () => {
 
     // A single programme has nothing to choose between, so show it as a plain tag instead of a dropdown with "All programmes".
     const singleProgramTag = programs.length === 1
-        ? <Tag className="app-project-tag" title={programs[0].name} icon={<FolderOpenOutlined className="app-scope-icon" />}>{scopeLabel(t('Programme'), programs[0].name)}</Tag>
+        ? <Tag className="app-project-tag" title={programs[0].name} icon={<FolderOpenOutlined className="app-scope-icon" />}><span className="app-scope-name">{programs[0].name}</span></Tag>
         : null
 
     const projectSelector = showCompanySelector ? companySelector : isSmeWorkspace ? null : singleProgramTag ?? (
@@ -580,7 +574,6 @@ export const SystemLayout = () => {
             className="app-project-select"
             popupMatchSelectWidth={false}
             prefix={<FolderOpenOutlined className="app-scope-icon" />}
-            labelRender={({ label }) => scopeLabel(t('Programme'), label)}
             options={[{ id: ALL_PROGRAMS, name: t('shell.allPrograms') }, ...programs].map((project) => ({
                 value: project.id,
                 label: project.name,

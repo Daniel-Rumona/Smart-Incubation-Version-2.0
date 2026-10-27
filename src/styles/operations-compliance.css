@@ -8,3 +8,38 @@
   .operations-compliance-card-actions { align-items: stretch; flex-direction: column; }
   .operations-compliance-card-actions .ant-btn { width: 100%; }
 }
+
+/* Signed agreements in the review window (Code of Conduct, consent form). */
+.compliance-agreements {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.compliance-agreements-list {
+  display: grid;
+  gap: 8px;
+}
+
+.compliance-agreement-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--ant-color-border-secondary, rgba(128, 128, 128, .2));
+  border-radius: 12px;
+}
+
+.compliance-agreement-row > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+@media (max-width: 575px) {
+  .compliance-agreement-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

@@ -221,14 +221,25 @@ export const UserManagementPage = () => {
                 <Col xs={24} sm={12} xl={6}><AdminKpiTile loading={loading && !users.length} icon={<StopOutlined />} label={t('Inactive users')} value={metrics.inactive} visual={<AdminShareRing value={metrics.inactive} total={metrics.users} muted />} /></Col>
                 <Col xs={24} sm={12} xl={6}><AdminKpiTile loading={loading && !users.length} icon={<BankOutlined />} label={t('Companies')} value={metrics.companies} /></Col>
             </Row>
-            <Card className="admin-card user-management-list" bordered={false}>
-                <div className="admin-card-head">
-                    <div>
-                        <h3>{t('All users')}</h3>
-                        <span>{t('{count} of {total} shown', undefined, { count: rows.length, total: companyUsers.length })}</span>
-                    </div>
-                </div>
-                <FilterBar primary={<Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('Search users')} allowClear />} actions={<>{user && (user.role === USER_ROLES.SYSTEM_ADMIN) && <Button danger icon={<UserDeleteOutlined />} loading={scanningOrphans} onClick={() => void scanOrphans()}>{t('Clean orphan records')}</Button>}<Button icon={<ReloadOutlined />} onClick={() => void load()}>{t('Refresh')}</Button><Button type="primary" icon={<UserAddOutlined />} onClick={() => openModal()}>{t('Add user')}</Button></>} />
+            <Card className="admin-card user-management-list">
+                <FilterBar
+                    primary={
+                        <Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('Search users')} allowClear
+                        />}
+                    actions={<>
+                        {user && (user.role === USER_ROLES.SYSTEM_ADMIN) &&
+                            <Button danger icon={<UserDeleteOutlined />}
+                                loading={scanningOrphans}
+                                onClick={() => void scanOrphans()}>{t('Clean orphan records')}
+                            </Button>
+                        }
+                        <Button icon={<ReloadOutlined />}
+                            onClick={() => void load()}>{t('Refresh')}
+                        </Button>
+                        <Button type="primary" icon={<UserAddOutlined />}
+                            onClick={() => openModal()}>{t('Add user')}
+                        </Button></>}
+                />
                 <ResponsiveDataView rowKey="id" rows={rows} columns={columns} loading={loading} emptyText={t('No users match your search.')} renderCard={(row) => <Space orientation="vertical"><Space size={10}><UserAvatar row={row} size={40} /><Space orientation="vertical" size={0}><Typography.Text strong>{row.name}</Typography.Text><Typography.Text type="secondary">{row.email}</Typography.Text></Space></Space><Space><AdminRoleTag role={row.role} /><StatusPill status={row.status} /><Button shape="circle" icon={<EditOutlined />} onClick={() => openModal(row)} /></Space></Space>} />
             </Card>
             <ResponsiveModal

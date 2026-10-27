@@ -1,0 +1,174 @@
+/* Agreements (AgreementForm): Welcome steps and the /consent page. */
+
+.agreement-form {
+  --agreement-accent: #6d5dfb;
+  --agreement-soft: rgba(109, 93, 251, 0.12);
+  --agreement-ink: #1f2433;
+  --agreement-muted: #64748b;
+  --agreement-border: rgba(31, 36, 51, 0.1);
+  --agreement-paper: #ffffff;
+  display: grid;
+  gap: 16px;
+  text-align: left;
+}
+
+html[data-theme='dark'] .agreement-form {
+  --agreement-soft: rgba(109, 93, 251, 0.22);
+  --agreement-ink: #e5e7eb;
+  --agreement-muted: #9ca3af;
+  --agreement-border: rgba(255, 255, 255, 0.1);
+  --agreement-paper: #1b1e2a;
+}
+
+.agreement-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.agreement-head h4.ant-typography {
+  margin: 2px 0 4px;
+}
+
+.agreement-head .ant-typography {
+  margin-bottom: 4px;
+}
+
+.agreement-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--agreement-soft);
+  color: var(--agreement-accent);
+  font-size: 22px;
+}
+
+.agreement-progress {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--agreement-accent);
+}
+
+.agreement-body {
+  max-height: min(46vh, 440px);
+  overflow-y: auto;
+  padding: 16px 18px;
+  border: 1px solid var(--agreement-border);
+  border-radius: 16px;
+  background: var(--agreement-paper);
+  color: var(--agreement-ink);
+  font-size: 13.5px;
+  line-height: 1.6;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(109, 93, 251, 0.48) transparent;
+}
+
+.agreement-body:focus-visible {
+  outline: 2px solid var(--agreement-accent);
+  outline-offset: 2px;
+}
+
+.agreement-body section + section {
+  margin-top: 14px;
+}
+
+.agreement-body h5 {
+  margin: 0 0 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--agreement-ink);
+}
+
+.agreement-body p {
+  margin: 0;
+}
+
+.agreement-body ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.agreement-body li + li {
+  margin-top: 4px;
+}
+
+.agreement-accept.ant-checkbox-wrapper {
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--agreement-soft);
+  color: var(--agreement-ink);
+  font-weight: 500;
+}
+
+.agreement-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+@media (max-width: 575px) {
+  .agreement-actions .ant-btn {
+    width: 100%;
+  }
+}
+
+/* ---------- /consent page (existing users signing the current agreements) ---------- */
+
+.consent-page {
+  display: grid;
+  place-items: start center;
+  min-height: 100vh;
+  padding: 40px 16px;
+  background: #f4f3fa;
+}
+
+html[data-theme='dark'] .consent-page {
+  background: #12141c;
+}
+
+.consent-card.ant-card {
+  width: 100%;
+  max-width: 760px;
+  border-radius: 24px;
+}
+
+.consent-card.ant-card .ant-card-body {
+  display: grid;
+  gap: 20px;
+  padding: 28px;
+}
+
+.consent-intro h3.ant-typography {
+  margin: 0 0 6px;
+}
+
+.consent-signature {
+  display: grid;
+  gap: 14px;
+}
+
+.consent-canvas {
+  overflow: hidden;
+  border: 1px dashed rgba(109, 93, 251, 0.45);
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.consent-canvas canvas {
+  display: block;
+  max-width: 100%;
+}
+
+@media (max-width: 575px) {
+  .consent-card.ant-card .ant-card-body {
+    padding: 20px 16px;
+  }
+}

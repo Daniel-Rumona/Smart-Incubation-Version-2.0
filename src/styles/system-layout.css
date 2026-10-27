@@ -591,7 +591,7 @@ html:not([data-theme='dark']) .app-account-row .ant-segmented-thumb {
    PROJECT SELECT
    ========================================================= */
 
-/* The dropdown and the single-programme tag share one look: an icon, a small "Programme" label and the name,
+/* The dropdown and the single-programme tag share one look: an icon and the name,
    so switching from one programme to several doesn't change the bar. */
 .app-project-select {
     width: 210px;
@@ -629,20 +629,8 @@ html:not([data-theme='dark']) .app-account-row .ant-segmented-thumb {
     font-size: 14px;
 }
 
-.app-scope-label {
-    display: grid;
-    min-width: 0;
-    line-height: 1.15;
-    text-align: left;
-}
-
-.app-scope-kicker {
-    color: var(--ant-color-text-secondary);
-    font-size: 11px;
-    font-weight: 500;
-}
-
-.app-scope-name {
+.app-scope-name,
+.app-project-select .ant-select-content {
     overflow: hidden;
 
     color: var(--ant-color-text);
@@ -678,9 +666,8 @@ html[data-theme='dark'] .app-scope-icon { background: rgba(139, 92, 246, 0.24); 
 .has-no-mode-switch .app-project-select { width: 280px; }
 .has-no-mode-switch .app-project-tag { max-width: 280px; }
 
-/* Phones and tablets have less height and width: the name alone, beside the icon. */
+/* Phones and tablets have less height. */
 @media (max-width: 991px) {
-    .app-scope-kicker { display: none; }
     .app-project-select.ant-select,
     .app-project-tag { height: 36px; }
     .app-scope-icon { width: 24px; height: 24px; font-size: 12px; }
