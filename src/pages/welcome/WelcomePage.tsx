@@ -71,6 +71,11 @@ type PasswordValues = {
     confirmPassword: string
 }
 
+/** Roles only staff can give; people with them never choose a role in the welcome flow. */
+const ASSIGNED_ONLY_ROLES: string[] = ['systemadmin', 'admin', 'projectadmin', 'projectmanager', 'operations', 'funder']
+/** Roles that never sign documents (read-only funders, reception). */
+const NO_SIGNATURE_ROLES: string[] = ['funder', 'admin']
+
 type WelcomeStepKey =
     | 'intro'
     | 'role'
@@ -280,8 +285,13 @@ export const WelcomePage = () => {
     }
 
     const effectiveRole = selectedRole ?? user.role
+    // Someone else gave this account its role: a role only staff can assign, or an account created for the person
+    // (those must change the password they were invited with). Their role is set, so they never pick one here.
+    const roleAssigned = ASSIGNED_ONLY_ROLES.includes(user.role) || user.mustChangePassword === true
     const firstName = (user.displayName || user.name || '').trim().split(/\s+/)[0]
     const hasSignature = Boolean(signatureComplete || user.signatureURL || signatureURL)
+    // Funders and reception admins never sign documents, so they skip the signature step.
+    const needsSignature = !hasSignature && !NO_SIGNATURE_ROLES.includes(effectiveRole)
     const languageItems = Object.entries(LANGUAGES).map(([value, label]) => ({
         key: value,
         label,
@@ -307,20 +317,20 @@ export const WelcomePage = () => {
     const afterSetup = () => (alreadyDecidedWhatsapp ? 'complete' as const : 'whatsapp' as const)
 
     // Directors cannot pick a role; they set up their company (name and code, logo, locked settings) instead.
-    const directorNext = () => (directorConfigured ? (!hasSignature ? 'signature' as const : afterSetup()) : 'directorCompany' as const)
+    const directorNext = () => (directorConfigured ? (needsSignature ? 'signature' as const : afterSetup()) : 'directorCompany' as const)
 
     const resolveStepAfterRole = (role: string) => {
         if (user.mustChangePassword === true && !passwordComplete) return 'password' as const
         if (role === 'director') return directorNext()
         if (role === 'consultant') return 'consultantLocation' as const
-        if (!hasSignature) return 'signature' as const
+        if (needsSignature) return 'signature' as const
         return afterSetup()
     }
 
     const resolveStepAfterPassword = () => {
         if (effectiveRole === 'director') return directorNext()
         if (effectiveRole === 'consultant') return 'consultantLocation' as const
-        if (!hasSignature) return 'signature' as const
+        if (needsSignature) return 'signature' as const
         return afterSetup()
     }
 
@@ -469,7 +479,7 @@ export const WelcomePage = () => {
             await completeDirectorSetup({ ...settings, companyName: directorCompanyName.trim(), companyCode: directorCompanyCode, logoUrl: directorLogoUrl || undefined })
             setDirectorConfigured(true)
             message.success(t('Company settings saved and locked.'))
-            goTo(!hasSignature ? 'signature' : afterSetup())
+            goTo(needsSignature ? 'signature' : afterSetup())
         } catch (error) {
             const reason = error instanceof Error ? error.message : t('Your company setup could not be saved.')
             message.error(reason)
@@ -638,7 +648,7 @@ export const WelcomePage = () => {
 
                     {activeStep === 'intro' && messageComplete && (
                         <div className="welcome-reveal welcome-intro-action">
-                            <Button type="primary" size="large" icon={<ArrowRightOutlined />} onClick={() => goTo(effectiveRole === 'director' || (cameFromProgramLink && effectiveRole === 'incubatee') ? resolveStepAfterRole(effectiveRole) : 'role')}>
+                            <Button type="primary" size="large" icon={<ArrowRightOutlined />} onClick={() => goTo(effectiveRole === 'director' || roleAssigned || (cameFromProgramLink && effectiveRole === 'incubatee') ? resolveStepAfterRole(effectiveRole) : 'role')}>
                                 {t('Let’s get started')}
                             </Button>
                         </div>
@@ -1288,7 +1298,7 @@ export const WelcomePage = () => {
                                 <button type="button" onClick={() => beginReviewEdit('consultantExpertise')}><span className="welcome-edit-icon"><EditOutlined /></span><Text type="secondary">{t('Expertise')}</Text><strong>{consultantSetup.specialties.join(', ') || t('Not selected')}</strong></button>
                                 <button type="button" onClick={() => beginReviewEdit('consultantExperience')}><span className="welcome-edit-icon"><EditOutlined /></span><Text type="secondary">{t('Experience')}</Text><strong>{consultantSetup.experienceYears >= 10 ? t('10+ years') : consultantSetup.experienceYears >= 6 ? t('6–9 years') : consultantSetup.experienceYears >= 3 ? t('3–5 years') : t('0–2 years')}</strong></button>
                             </div>
-                            <Button type="primary" size="large" block icon={<ArrowRightOutlined />} onClick={() => { setEditingFromReview(false); goTo(!hasSignature ? 'signature' : afterSetup()) }}>{t('Looks good')}</Button>
+                            <Button type="primary" size="large" block icon={<ArrowRightOutlined />} onClick={() => { setEditingFromReview(false); goTo(needsSignature ? 'signature' : afterSetup()) }}>{t('Looks good')}</Button>
                         </div>
                     )}
 
