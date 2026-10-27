@@ -72,6 +72,9 @@ import SmeMetricsPage from '@/pages/operations/SmeMetricsPage'
 import { ParticipantOnboardingPage } from '@/pages/operations/ParticipantOnboardingPage'
 import { StaffPage } from '@/pages/shared/StaffPage'
 import { ReceptionHomePage } from '@/pages/reception/ReceptionHomePage'
+import { FunderDashboardPage } from '@/pages/funder/FunderDashboardPage'
+import { FunderCalendarPage } from '@/pages/funder/FunderCalendarPage'
+import { FunderAnalyticsPage } from '@/pages/funder/FunderAnalyticsPage'
 import { DiagnosticPlansPage } from '@/pages/operations/DiagnosticPlansPage'
 import RiskRegisterPage from '@/pages/operations/RiskRegisterPage'
 import SmeControlTowerPage from '@/pages/operations/SmeControlTowerPage'
@@ -172,6 +175,7 @@ const interventionWorkspaceRoles = [
 ]
 const consultantRoles = [USER_ROLES.CONSULTANT]
 const receptionRoles = [USER_ROLES.ADMIN]
+const funderRoles = [USER_ROLES.FUNDER]
 const placeholder = <ComingSoonPage />
 
 export const appRoutes: AppRoute[] = [
@@ -445,6 +449,12 @@ export const appRoutes: AppRoute[] = [
     // One KPIs page for every role that works with company programme KPIs; editing is limited to operations and directors inside the page (and in firestore.rules).
     // Platform admins use System KPIs (/admin/kpis) instead, so they are left out here.
     { path: '/kpis', labelKey: 'nav.kpis', icon: <AimOutlined />, element: <KpisPage />, allowedRoles: [USER_ROLES.DIRECTOR, USER_ROLES.PROJECT_MANAGER, USER_ROLES.OPERATIONS, USER_ROLES.PROJECT_ADMIN, USER_ROLES.CONSULTANT], audiences: ['operations', 'platform'], hideFromMarketplaceConsultants: true, showInNav: true },
+    // Funders: read-only results for the programmes linked to their account (Portfolio and Sectors are the director pages).
+    { path: '/funder', labelKey: 'nav.dashboard', icon: <DashboardOutlined />, element: <FunderDashboardPage />, allowedRoles: funderRoles, requiredPermission: 'view_dashboard', audiences: ['platform'], showInNav: true },
+    { path: '/funder/portfolio', labelKey: 'nav.portfolio', icon: <TeamOutlined />, element: <DirectorPortfolioPage />, allowedRoles: funderRoles, requiredPermission: 'view_reports', audiences: ['platform'], showInNav: true },
+    { path: '/funder/sectors', labelKey: 'nav.sectorPerformance', icon: <PieChartOutlined />, element: <DirectorSectorsPage />, allowedRoles: funderRoles, requiredPermission: 'view_reports', audiences: ['platform'], showInNav: true },
+    { path: '/funder/calendar', labelKey: 'nav.calendar', icon: <CalendarOutlined />, element: <FunderCalendarPage />, allowedRoles: funderRoles, requiredPermission: 'view_reports', audiences: ['platform'], showInNav: true },
+    { path: '/funder/analytics', labelKey: 'nav.analytics', icon: <BarChartOutlined />, element: <FunderAnalyticsPage />, allowedRoles: funderRoles, requiredPermission: 'view_reports', audiences: ['platform'], showInNav: true },
     { path: '/director', labelKey: 'nav.dashboard', icon: <DashboardOutlined />, element: <DirectorDashboardPage />, allowedRoles: directorRoles, requiredPermission: 'view_dashboard', audiences: ['platform'], showInNav: true },
     { path: '/director/programs', labelKey: 'nav.programPerformance', icon: <ProjectOutlined />, element: <DirectorProgramsPage />, allowedRoles: directorRoles, requiredPermission: 'view_reports', audiences: ['platform'], showInNav: true },
     { path: '/director/portfolio', labelKey: 'nav.portfolio', icon: <FundProjectionScreenOutlined />, element: <DirectorPortfolioPage />, allowedRoles: directorRoles, requiredPermission: 'view_reports', audiences: ['platform'], showInNav: true },

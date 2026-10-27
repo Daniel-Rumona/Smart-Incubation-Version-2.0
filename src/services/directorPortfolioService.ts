@@ -1,5 +1,5 @@
 import dayjs from 'dayjs'
-import { collection, getDocs, limit, orderBy, query, where } from 'firebase/firestore'
+import { collection, getDocs, limit, orderBy, query, where, type QueryConstraint } from 'firebase/firestore'
 import { getFirebaseDb } from '@/config/firebase'
 import type { FullIdentity } from '@/types/identity'
 import type { DirectorPortfolioSme, DirectorRisk, DirectorStage, SectorRollup } from '@/types/director'
@@ -105,6 +105,23 @@ export const requiredCount = (application: AnyDoc) => {
   return Array.isArray(required) ? required.length : 0
 }
 
+/** A funder's linked programmes; empty for everyone else, and for a funder linked to all of the company's. */
+export const funderProgramIds = (user: FullIdentity) =>
+  user.role === 'funder' ? [...new Set((user.assignedProgramIds || []).map((id) => String(id).trim()).filter(Boolean))] : []
+
+/**
+ * A company query, narrowed to a funder's programmes when they have linked ones. firestore.rules only lets a funder
+ * list those programmes' records, so the query has to say so for Firestore to allow it ('in' takes 30 values at a time).
+ */
+export const getScopedDocs = async (user: FullIdentity, collectionName: string, constraints: QueryConstraint[]) => {
+  const db = getFirebaseDb()
+  const ids = funderProgramIds(user)
+  if (!ids.length) return (await getDocs(query(collection(db, collectionName), ...constraints))).docs
+  const chunks = Array.from({ length: Math.ceil(ids.length / 30) }, (_, index) => ids.slice(index * 30, index * 30 + 30))
+  const snapshots = await Promise.all(chunks.map((chunk) => getDocs(query(collection(db, collectionName), ...constraints, where('programId', 'in', chunk)))))
+  return snapshots.flatMap((snapshot) => snapshot.docs)
+}
+
 const getParticipantIdFromApplication = (id: string, data: AnyDoc) =>
   String(pick(data.participantId, data.participantID, data.smeId, data.smeID, id) || id)
 
@@ -138,15 +155,15 @@ export const listDirectorPortfolio = async (user: FullIdentity, activeProgramId?
   const db = getFirebaseDb()
   const companyConstraint = where('companyCode', '==', companyCode)
 
-  const [applicationsSnap, participantsSnap, programsSnap, assignmentsSnap] = await Promise.all([
-    getDocs(query(collection(db, 'applications'), companyConstraint, where('applicationStatus', '==', 'accepted'))),
-    getDocs(query(collection(db, 'participants'), companyConstraint)),
+  const [applicationDocs, participantDocs, programsSnap, assignmentDocs] = await Promise.all([
+    getScopedDocs(user, 'applications', [companyConstraint, where('applicationStatus', '==', 'accepted')]),
+    getScopedDocs(user, 'participants', [companyConstraint]),
     getDocs(query(collection(db, 'programs'), companyConstraint)),
-    getDocs(query(collection(db, 'assignedInterventions'), companyConstraint)),
+    getScopedDocs(user, 'assignedInterventions', [companyConstraint]),
   ])
 
   const accepted = new Map<string, { acceptedAt?: string | null; programId?: string; programName?: string; required: number }>()
-  applicationsSnap.docs.forEach(record => {
+  applicationDocs.forEach(record => {
     const data = record.data() as AnyDoc
     const participantId = getParticipantIdFromApplication(record.id, data)
     const programId = String(data.programId || '').trim()
@@ -164,13 +181,13 @@ export const listDirectorPortfolio = async (user: FullIdentity, activeProgramId?
     return [record.id, String(data.name || data.programName || data.title || record.id)]
   }))
 
-  const participants: Array<{ id: string } & AnyDoc> = participantsSnap.docs
+  const participants: Array<{ id: string } & AnyDoc> = participantDocs
     .filter(record => accepted.has(record.id))
     .filter(record => { const d = record.data() as AnyDoc; return !d.discontinuedAt && String(d.status || '').toLowerCase() !== 'discontinued' })
     .map(record => ({ id: record.id, ...(record.data() as AnyDoc) }))
 
   const assignmentsByParticipant = new Map<string, AnyDoc[]>()
-  assignmentsSnap.docs.forEach(record => {
+  assignmentDocs.forEach(record => {
     const data = record.data() as AnyDoc
     const participantId = String(pick(data.participantId, data.smeId, data.smmeId) || '')
     if (!participantId) return

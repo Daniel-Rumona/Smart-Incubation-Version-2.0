@@ -42,8 +42,8 @@ export const listOperationsStaff = async (user: FullIdentity) => {
   return snapshot.docs.flatMap((record) => {
     const data = record.data()
     // Operations users are listed for visibility only: the staff Cloud Functions don't let managers change them.
-    // Directors only see the reception admins they manage.
-    if (user.role === 'director' ? data.role !== 'admin' : !['consultant', 'projectadmin', 'operations', 'admin'].includes(data.role)) return []
+    // Directors only see the reception admins and funders they manage.
+    if (user.role === 'director' ? !['admin', 'funder'].includes(data.role) : !['consultant', 'projectadmin', 'operations', 'admin', 'funder'].includes(data.role)) return []
     // deleteUserAccount keeps the profile as a tombstone with status 'deleted'; its sign-in no longer exists.
     if (data.status === 'deleted') return []
     return [{
@@ -57,6 +57,7 @@ export const listOperationsStaff = async (user: FullIdentity) => {
       phone: data.phone || '',
       phoneIsWhatsApp: data.phoneIsWhatsApp === true,
       phoneProvider: data.phoneProvider || '',
+      assignedProgramIds: Array.isArray(data.assignedProgramIds) ? data.assignedProgramIds.filter((id: unknown): id is string => typeof id === 'string') : [],
     } satisfies ManagedUser]
   })
 }

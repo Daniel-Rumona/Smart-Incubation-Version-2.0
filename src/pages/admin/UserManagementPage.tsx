@@ -1,6 +1,8 @@
 import { Alert, App, AutoComplete, Avatar, Button, Card, Col, Form, Input, List, Modal, Popconfirm, Row, Select, Space, Switch, Tag, Typography, type TableProps } from 'antd'
 import { AppstoreOutlined, BankOutlined, CheckCircleOutlined, DeleteOutlined, EditOutlined, IdcardOutlined, MailOutlined, PhoneOutlined, ReloadOutlined, SafetyCertificateOutlined, SaveOutlined, SearchOutlined, StopOutlined, TeamOutlined, UserAddOutlined, UserDeleteOutlined, WhatsAppOutlined } from '@ant-design/icons'
 import { useEffect, useMemo, useState } from 'react'
+import { collection, getDocs, query, where } from 'firebase/firestore'
+import { getFirebaseDb } from '@/config/firebase'
 import { AdminFormSectionHead } from '@/components/admin/AdminFormSectionHead'
 import { AdminKpiTile, AdminRoleTag, AdminShareRing } from '@/components/admin/AdminKpiTile'
 import DashboardPage from '@/components/shared/DashboardPage'
@@ -19,6 +21,9 @@ import { useLanguage } from '@/providers/LanguageProvider'
 import '@/styles/user-management.css'
 
 type UserForm = Omit<ManagedUser, 'id' | 'status'> & { active: boolean }
+/** Roles whose work is tied to programmes (same list as Manage team). */
+const PROGRAMME_SCOPED_ROLES: UserRole[] = [USER_ROLES.PROJECT_ADMIN, USER_ROLES.CONSULTANT, USER_ROLES.FUNDER]
+
 const initialsOf = (name: string, email: string) =>
     (name || email || '').split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('')
 
@@ -49,13 +54,38 @@ export const UserManagementPage = () => {
     const { activeCompanyCode, isAllCompanies } = useActiveCompanyCode()
     const [form] = Form.useForm<UserForm>()
     const selectedRole = Form.useWatch('role', form)
+    const [modalOpen, setModalOpen] = useState(false)
+    const watchedCompany = String(Form.useWatch('companyCode', form) || '').trim()
+    // Programmes the account is linked to (project admins, consultants, funders): the chosen company's, empty = all.
+    const usesProgrammes = !!selectedRole && PROGRAMME_SCOPED_ROLES.includes(selectedRole)
+    const [programmeOptions, setProgrammeOptions] = useState<Array<{ value: string, label: string }>>([])
+    const [programmesFor, setProgrammesFor] = useState('')
+    useEffect(() => {
+        if (!modalOpen || !usesProgrammes || !watchedCompany) return
+        // Waits for typing in the company code to settle before looking its programmes up.
+        const timeout = window.setTimeout(() => {
+            void getDocs(query(collection(getFirebaseDb(), 'programs'), where('companyCode', '==', watchedCompany)))
+                .then((snapshot) => {
+                    const options = snapshot.docs
+                        .map((row) => ({ value: row.id, label: String(row.data().name || row.data().programName || row.id) }))
+                        .sort((left, right) => left.label.localeCompare(right.label))
+                    setProgrammeOptions(options)
+                    setProgrammesFor(watchedCompany)
+                    // Another company's programmes can't stay linked once the company changes.
+                    const valid = new Set(options.map((option) => option.value))
+                    const current = (form.getFieldValue('assignedProgramIds') || []) as string[]
+                    if (current.some((id) => !valid.has(id))) form.setFieldValue('assignedProgramIds', current.filter((id) => valid.has(id)))
+                })
+                .catch(() => setProgrammeOptions([]))
+        }, 300)
+        return () => window.clearTimeout(timeout)
+    }, [form, modalOpen, usesProgrammes, watchedCompany])
     const watchedPermissions = Form.useWatch('permissions', form)
     const enabledFeatures = FEATURE_PERMISSION_OPTIONS.filter((option) => watchedPermissions?.includes(option.value)).length
     const [users, setUsers] = useState<ManagedUser[]>([])
     const [loading, setLoading] = useState(false)
     const [search, setSearch] = useState('')
     const [editing, setEditing] = useState<ManagedUser>()
-    const [modalOpen, setModalOpen] = useState(false)
     const [cleanupOpen, setCleanupOpen] = useState(false)
     const [scanningOrphans, setScanningOrphans] = useState(false)
     const [cleaningOrphans, setCleaningOrphans] = useState(false)
@@ -97,7 +127,7 @@ export const UserManagementPage = () => {
 
     const openModal = (record?: ManagedUser) => {
         setEditing(record)
-        form.setFieldsValue(record ? { ...record, permissions: record.permissions || getRolePermissions(record.role), active: record.status === 'active' } : { active: true, role: USER_ROLES.OPERATIONS, permissions: getRolePermissions(USER_ROLES.OPERATIONS) })
+        form.setFieldsValue(record ? { ...record, permissions: record.permissions || getRolePermissions(record.role), active: record.status === 'active' } : { active: true, role: USER_ROLES.OPERATIONS, permissions: getRolePermissions(USER_ROLES.OPERATIONS), assignedProgramIds: [] })
         setModalOpen(true)
     }
     const save = async (values: UserForm) => {
@@ -220,6 +250,24 @@ export const UserManagementPage = () => {
                             <Col xs={24} md={12}><Form.Item name="role" label={t('Role')} rules={[{ required: true }]}><Select size="large" options={roleOptions} onChange={(role: UserRole) => form.setFieldValue('permissions', getRolePermissions(role))} /></Form.Item></Col>
                             <Col xs={24} md={12}><Form.Item name="companyCode" label={t('Company code')}><AutoComplete size="large" options={companyOptions} placeholder={t('Select or enter a company code')} allowClear /></Form.Item></Col>
                         </Row>
+                        {usesProgrammes && (
+                            <Form.Item
+                                name="assignedProgramIds"
+                                label={selectedRole === USER_ROLES.FUNDER ? t('Programmes they fund') : t('Programmes')}
+                                extra={watchedCompany ? t('Leave empty for all programmes.') : t('Choose a company first to pick its programmes.')}
+                            >
+                                <Select
+                                    size="large"
+                                    mode="multiple"
+                                    allowClear
+                                    disabled={!watchedCompany}
+                                    placeholder={t('All programmes')}
+                                    options={programmesFor === watchedCompany ? programmeOptions : []}
+                                    optionFilterProp="label"
+                                    notFoundContent={t('This company has no programmes yet.')}
+                                />
+                            </Form.Item>
+                        )}
                         <label className="admin-form-modal-toggle">
                             <span>
                                 <strong>{t('Account active')}</strong>

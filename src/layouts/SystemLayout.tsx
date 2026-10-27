@@ -17,8 +17,10 @@ import {
     MenuOutlined,
     MoonOutlined,
     RobotOutlined,
+    ApartmentOutlined,
     AppstoreOutlined,
     ArrowLeftOutlined,
+    FolderOpenOutlined,
     ArrowRightOutlined,
     IdcardOutlined,
     SunOutlined,
@@ -75,6 +77,7 @@ const workspaceDashboardPath = (user?: { role?: UserRole, isApplicant?: boolean,
     if (user?.role === 'projectadmin') return '/projectadmin'
     if (user?.role === 'director') return '/director'
     if (user?.role === 'admin') return '/reception'
+    if (user?.role === 'funder') return '/funder'
     if (user?.role === 'operations' || user?.role === 'projectmanager') return '/operations'
     return '/dashboard'
 }
@@ -182,6 +185,7 @@ const QUICK_LINK_PATHS: Partial<Record<UserRole, string[]>> = {
     [USER_ROLES.PROJECT_MANAGER]: ['/shared/applications', '/operations/risk-register', '/operations/reports'],
     [USER_ROLES.OPERATIONS]: ['/shared/applications', '/operations/risk-register', '/operations/reports'],
     [USER_ROLES.DIRECTOR]: ['/director/portfolio', '/director/programs', '/director/reports'],
+    [USER_ROLES.FUNDER]: ['/funder/portfolio', '/funder/sectors', '/funder/analytics'],
     [USER_ROLES.ADMIN]: ['/shared/applications', '/shared/interventions/appointments', '/shared/participants'],
     [USER_ROLES.SYSTEM_ADMIN]: ['/admin/users', '/admin/usage', '/admin/agent-registry'],
 }
@@ -197,6 +201,7 @@ const ROLE_LABELS: Partial<Record<UserRole, string>> = {
     [USER_ROLES.DIRECTOR]: 'Director',
     [USER_ROLES.ADMIN]: 'Admin',
     [USER_ROLES.SYSTEM_ADMIN]: 'System Admin',
+    [USER_ROLES.FUNDER]: 'Funder',
 }
 
 const flattenRoutes = (routes: AppRoute[]): AppRoute[] =>
@@ -536,15 +541,26 @@ export const SystemLayout = () => {
     // Phones: the bottom bar only holds Menu now, and only in Workspace.
     const hasPhoneBottomBar = isMobile && !isTablet && !pageChrome.hideChrome && shellMode === 'workspace'
 
+    // The scope reads as what it is ("Programme", "Company") above its name, so a cut-off name still makes sense.
+    const scopeLabel = (kicker: string, name: React.ReactNode) => (
+        <span className="app-scope-label">
+            <span className="app-scope-kicker">{kicker}</span>
+            <span className="app-scope-name">{name}</span>
+        </span>
+    )
+
     const companySelector = (
         <Select
             value={activeCompanyCode}
             onChange={setActiveCompanyCode}
             id="guide-scope-selector"
             className="app-project-select app-company-select"
+            popupMatchSelectWidth={false}
             showSearch
             optionFilterProp="label"
-            options={[{ code: ALL_COMPANIES, name: 'All companies' }, ...companies].map((company) => ({
+            prefix={<ApartmentOutlined className="app-scope-icon" />}
+            labelRender={({ label }) => scopeLabel(t('Company'), label)}
+            options={[{ code: ALL_COMPANIES, name: t('All companies') }, ...companies].map((company) => ({
                 value: company.code,
                 label: company.name,
             }))}
@@ -553,7 +569,7 @@ export const SystemLayout = () => {
 
     // A single programme has nothing to choose between, so show it as a plain tag instead of a dropdown with "All programmes".
     const singleProgramTag = programs.length === 1
-        ? <Tag className="app-project-tag" title={programs[0].name}>{programs[0].name}</Tag>
+        ? <Tag className="app-project-tag" title={programs[0].name} icon={<FolderOpenOutlined className="app-scope-icon" />}>{scopeLabel(t('Programme'), programs[0].name)}</Tag>
         : null
 
     const projectSelector = showCompanySelector ? companySelector : isSmeWorkspace ? null : singleProgramTag ?? (
@@ -562,6 +578,9 @@ export const SystemLayout = () => {
             onChange={setActiveProgramId}
             id="guide-scope-selector"
             className="app-project-select"
+            popupMatchSelectWidth={false}
+            prefix={<FolderOpenOutlined className="app-scope-icon" />}
+            labelRender={({ label }) => scopeLabel(t('Programme'), label)}
             options={[{ id: ALL_PROGRAMS, name: t('shell.allPrograms') }, ...programs].map((project) => ({
                 value: project.id,
                 label: project.name,

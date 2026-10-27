@@ -88,6 +88,7 @@ export const listManagedUsers = async (user: FullIdentity) => {
       alternativePhone: data.alternativePhone || '',
       phoneIsWhatsApp: data.phoneIsWhatsApp === true,
       alternativePhoneIsWhatsApp: data.alternativePhoneIsWhatsApp === true,
+      assignedProgramIds: Array.isArray(data.assignedProgramIds) ? data.assignedProgramIds.filter((id: unknown): id is string => typeof id === 'string') : [],
     } satisfies ManagedUser
   })
 }

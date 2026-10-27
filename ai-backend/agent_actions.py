@@ -43,6 +43,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
     "operations": _ALL,
     "consultant": {"track_interventions"},
     "director": set(),
+    "funder": set(),
     "incubatee": set(),
 }
 

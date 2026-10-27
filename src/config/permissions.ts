@@ -29,6 +29,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, IdentityPermission[]> = {
   // opens Appointments). What reception may change on each page is limited in the page and in firestore.rules.
   [USER_ROLES.ADMIN]: ['view_dashboard', 'view_applications', 'view_participants', 'track_interventions'],
   [USER_ROLES.DIRECTOR]: ['view_dashboard', 'view_reports', 'view_applications'],
+  // Funders read processed programme results only; firestore.rules keeps them to their linked programmes.
+  [USER_ROLES.FUNDER]: ['view_dashboard', 'view_reports'],
   [USER_ROLES.PROJECT_ADMIN]: ['view_dashboard', 'view_reports', 'manage_programs', 'manage_interventions', 'assign_interventions', 'track_interventions', 'view_diagnostic_plans', 'manage_diagnostic_plans', 'view_applications', 'manage_applications', 'view_compliance', 'manage_compliance', 'view_participants', 'view_staff', 'manage_staff'],
   [USER_ROLES.PROJECT_MANAGER]: ['view_dashboard', 'view_reports', 'manage_programs', 'manage_interventions', 'assign_interventions', 'track_interventions', 'view_diagnostic_plans', 'manage_diagnostic_plans', 'view_applications', 'view_participants'],
   [USER_ROLES.OPERATIONS]: ['view_dashboard', 'view_reports', 'manage_programs', 'manage_interventions', 'assign_interventions', 'track_interventions', 'view_diagnostic_plans', 'manage_diagnostic_plans', 'view_applications', 'manage_applications', 'view_compliance', 'manage_compliance', 'view_participants', 'view_staff', 'manage_staff'],

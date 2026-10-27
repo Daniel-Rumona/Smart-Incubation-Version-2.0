@@ -2,6 +2,7 @@
 export const zuNavigation: Record<string, string> = {
   "Review and manage {label} for this workspace.": "Buyekeza futhi uphathe {label} kule ndawo yokusebenza.",
   "SME": "I-SME",
+  "All companies": "Zonke izinkampani",
   "Consultant": "Umeluleki",
   "Project Admin": "Umphathi Wephrojekthi",
   "Project Manager": "Umphathi Wephrojekthi",

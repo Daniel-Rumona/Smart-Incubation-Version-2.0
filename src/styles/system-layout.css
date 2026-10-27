@@ -591,51 +591,99 @@ html:not([data-theme='dark']) .app-account-row .ant-segmented-thumb {
    PROJECT SELECT
    ========================================================= */
 
+/* The dropdown and the single-programme tag share one look: an icon, a small "Programme" label and the name,
+   so switching from one programme to several doesn't change the bar. */
 .app-project-select {
-    width: 156px;
+    width: 210px;
 }
 
-.app-project-select .ant-select-selector {
-    height: 38px !important;
-
-    border-radius: 999px !important;
-
-    border-color: rgba(109, 93, 251, 0.16) !important;
-
-    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04) !important;
-}
-
-.app-project-select .ant-select-selection-item {
-    font-weight: 600;
-}
-
+.app-project-select.ant-select,
 .app-project-tag {
-    display: inline-flex;
-    align-items: center;
+    height: 40px;
 
-    max-width: 180px;
-    height: 38px;
-    margin: 0;
-    padding: 0 14px;
-
-    overflow: hidden;
-
-    border: 1px solid rgba(109, 93, 251, 0.22);
+    border: 1px solid rgba(109, 93, 251, 0.2);
     border-radius: 999px;
 
-    background: rgba(109, 93, 251, 0.08);
+    background: rgba(109, 93, 251, 0.06);
 
+    transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.app-project-select.ant-select { padding-inline: 6px 12px; }
+.app-project-select.ant-select:hover,
+.app-project-select.ant-select-focused { border-color: rgba(109, 93, 251, 0.5); background: rgba(109, 93, 251, 0.09); }
+
+.app-project-select .ant-select-prefix { margin-inline-end: 8px; }
+
+.app-scope-icon {
+    display: inline-grid !important;
+    place-items: center;
+    flex: none;
+
+    width: 28px;
+    height: 28px;
+
+    border-radius: 50%;
+    background: rgba(109, 93, 251, 0.14);
     color: #5b4bd9;
+    font-size: 14px;
+}
 
+.app-scope-label {
+    display: grid;
+    min-width: 0;
+    line-height: 1.15;
+    text-align: left;
+}
+
+.app-scope-kicker {
+    color: var(--ant-color-text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.app-scope-name {
+    overflow: hidden;
+
+    color: var(--ant-color-text);
+    font-size: 13px;
     font-weight: 600;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
+.app-project-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+
+    max-width: 210px;
+    margin: 0;
+    padding: 0 14px 0 6px;
+
+    overflow: hidden;
+}
+
+.app-project-tag > .app-scope-icon + span { min-width: 0; margin: 0; }
+
+html[data-theme='dark'] .app-project-select.ant-select,
 html[data-theme='dark'] .app-project-tag {
-    border-color: rgba(139, 92, 246, 0.4);
-    background: rgba(139, 92, 246, 0.16);
-    color: #c4b5fd;
+    border-color: rgba(139, 92, 246, 0.32);
+    background: rgba(139, 92, 246, 0.12);
+}
+
+html[data-theme='dark'] .app-scope-icon { background: rgba(139, 92, 246, 0.24); color: #c4b5fd; }
+
+/* Without the mode switch there's room to spare, so long programme names show in full more often. */
+.has-no-mode-switch .app-project-select { width: 280px; }
+.has-no-mode-switch .app-project-tag { max-width: 280px; }
+
+/* Phones and tablets have less height and width: the name alone, beside the icon. */
+@media (max-width: 991px) {
+    .app-scope-kicker { display: none; }
+    .app-project-select.ant-select,
+    .app-project-tag { height: 36px; }
+    .app-scope-icon { width: 24px; height: 24px; font-size: 12px; }
 }
 
 /* =========================================================
@@ -1135,11 +1183,11 @@ html[data-theme='dark'] .app-search-hint {
 @media (min-width: 992px) and (max-width: 1500px) {
     .app-topbar-pill { gap: 8px; }
     .app-mode-switch .ant-segmented-item { min-width: 0; }
-    .app-project-tag { max-width: 130px; }
+    .app-project-tag { max-width: 180px; }
 }
 
 @media (min-width: 992px) and (max-width: 1280px) {
-    .app-project-tag { max-width: 100px; }
+    .app-project-tag { max-width: 160px; }
 }
 
 @media (max-width: 1200px) {
@@ -1149,7 +1197,7 @@ html[data-theme='dark'] .app-search-hint {
     }
 
     .app-project-select {
-        width: 140px;
+        width: 170px;
     }
 }
 
@@ -1716,3 +1764,7 @@ html[data-theme='dark'] .app-topbar-actions.is-mobile-pills .app-icon-btn.app-ic
         max-width: 100%;
     }
 }
+
+/* When the bar runs out of room, the programme gives up some width before the shortcut labels go. */
+.app-topbar-pill[data-fit~='links'] .app-project-select { width: 180px; }
+.app-topbar-pill[data-fit~='links'] .app-project-tag { max-width: 180px; }

@@ -105,6 +105,8 @@ type DeleteUserPayload = {
 
 type UpdateUserPayload = {
   uid?: string
+  /** Programmes the person is linked to; empty = all the company's. Not sent = unchanged. */
+  assignedProgramIds?: string[]
   email?: string
   name?: string
   role?: string
@@ -688,10 +690,22 @@ async function requireAccountManager(request: Request, options: { allowDirector?
 
 /** Which account roles each company manager may create, edit or remove (platform admins may manage any). */
 const MANAGEABLE_ROLES: Record<string, string[]> = {
-  projectadmin: ['consultant', 'projectadmin', 'admin'],
+  projectadmin: ['consultant', 'projectadmin', 'admin', 'funder'],
   operations: ['consultant', 'projectadmin'],
-  // Directors only add their company's reception admins.
-  director: ['admin'],
+  // Directors only add their company's reception admins and funders.
+  director: ['admin', 'funder'],
+}
+
+/**
+ * The programme ids a person is linked to, kept only if they are that company's programmes. Empty means all of the
+ * company's programmes, so an unknown id is dropped rather than widening or breaking the link.
+ */
+const companyProgramIds = async (db: FirebaseFirestore.Firestore, companyCode: unknown, ids: unknown): Promise<string[]> => {
+  const wanted = Array.isArray(ids) ? [...new Set(ids.map((id) => String(id || '').trim()).filter(Boolean))] : []
+  const code = String(companyCode || '').trim()
+  if (!wanted.length || !code) return []
+  const snapshots = await Promise.all(wanted.map((id) => db.collection('programs').doc(id).get()))
+  return snapshots.filter((snapshot) => snapshot.exists && String(snapshot.data()?.companyCode || '').trim() === code).map((snapshot) => snapshot.id)
 }
 /** Creates/refreshes a company record without ever overwriting a display name someone has already set. */
 const ensureCompanyRecord = async (
@@ -733,8 +747,8 @@ const sanitizeManagedPermissions = (
   targetRole?: unknown,
 ) => {
   if (!Array.isArray(permissions)) return undefined
-  // Company reception (`admin`) always runs on its role's defaults; only a platform admin may customise it.
-  if (!manager.isPlatformAdmin && String(targetRole || '').trim().toLowerCase() === 'admin') return undefined
+  // Company reception (`admin`) and funders always run on their role's defaults; only a platform admin may customise them.
+  if (!manager.isPlatformAdmin && ['admin', 'funder'].includes(String(targetRole || '').trim().toLowerCase())) return undefined
   return manager.isPlatformAdmin
     ? permissions.filter((permission): permission is string => typeof permission === 'string')
     : permissions.filter((permission): permission is string => typeof permission === 'string' && projectStaffPermissions.includes(permission))
@@ -1500,6 +1514,7 @@ export const createPlatformUser = onRequest({ region }, (request, response) => {
 
       const payload = request.body as PlatformUserPayload
       const permissions = sanitizeManagedPermissions(admin, payload.permissions, payload.role)
+      const programIds = await companyProgramIds(getFirestore(), payload.companyCode, payload.assignedProgramIds)
       if (admin.role !== 'systemadmin' && payload.role === 'systemadmin') {
         jsonResponse(response, 403, { ok: false, error: 'permission_denied' })
         return
@@ -1546,7 +1561,7 @@ export const createPlatformUser = onRequest({ region }, (request, response) => {
         jobTitle: payload.jobTitle || null,
         assignedBranch: payload.assignedBranch || null,
         branchId: payload.assignedBranch || null,
-        assignedProgramIds: payload.assignedProgramIds || [],
+        assignedProgramIds: programIds,
         assignedPrograms: payload.assignedPrograms || [],
         phone: String(payload.phone || '').trim() || null,
         alternativePhone: String(payload.alternativePhone || '').trim() || null,
@@ -2030,6 +2045,9 @@ export const updatePlatformUser = onRequest({ region }, (request, response) => {
         alternativePhoneIsWhatsApp: payload.alternativePhoneIsWhatsApp === true,
         phoneProvider: String(payload.phoneProvider || '').trim() || null,
         whatsappPhoneNumbers: whatsappNumbersFromPayload(payload),
+        ...(Array.isArray(payload.assignedProgramIds)
+          ? { assignedProgramIds: await companyProgramIds(getFirestore(), payload.companyCode || profile.data()?.companyCode, payload.assignedProgramIds) }
+          : {}),
         updatedAt: FieldValue.serverTimestamp(),
       }
 

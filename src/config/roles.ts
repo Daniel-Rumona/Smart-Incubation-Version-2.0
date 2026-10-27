@@ -7,6 +7,8 @@ export const USER_ROLES = {
   OPERATIONS: 'operations',
   CONSULTANT: 'consultant',
   INCUBATEE: 'incubatee',
+  /** Read-only view of the programmes they fund (users.assignedProgramIds; empty = all the company's). */
+  FUNDER: 'funder',
 } as const
 
 export type UserRole = (typeof USER_ROLES)[keyof typeof USER_ROLES]
@@ -24,4 +26,5 @@ export const USER_ROLE_LABELS: Record<UserRole, string> = {
   operations: 'Operations',
   consultant: 'Consultant',
   incubatee: 'SME',
+  funder: 'Funder',
 }

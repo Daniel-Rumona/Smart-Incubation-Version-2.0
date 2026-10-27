@@ -12,6 +12,7 @@ import { FilterBar } from '@/components/shared/FilterBar'
 import { FeaturePermissionsField } from '@/components/shared/FeaturePermissionsField'
 import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
 import { USER_ROLES, type UserRole } from '@/config/roles'
+import { listWorkspacePrograms } from '@/services/workspaceProgramsService'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { useLanguage } from '@/providers/LanguageProvider'
 import { createOperationsStaff, deleteOperationsStaff, listOperationsStaff, updateOperationsStaff, type StaffValues } from '@/services/operationsStaffService'
@@ -72,7 +73,13 @@ const formChanged = (current: Partial<StaffForm>, initial?: StaffForm) => {
     || Boolean(current.phoneIsWhatsApp) !== Boolean(initial.phoneIsWhatsApp)
     || Boolean(current.active) !== Boolean(initial.active)
     || !samePermissions(current.permissions, initial.permissions)
+    || [...(current.assignedProgramIds || [])].sort().join('|') !== [...(initial.assignedProgramIds || [])].sort().join('|')
 }
+
+/** Roles whose work is tied to particular programmes; empty means all of the company's programmes. */
+const PROGRAMME_SCOPED_ROLES: UserRole[] = [USER_ROLES.PROJECT_ADMIN, USER_ROLES.CONSULTANT, USER_ROLES.FUNDER]
+/** Roles that always run on their defaults, so they have no Access step. */
+const FIXED_ACCESS_ROLES: UserRole[] = [USER_ROLES.ADMIN, USER_ROLES.FUNDER]
 
 const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 // Monday first, matching WeekHoursEditor.
@@ -115,8 +122,19 @@ export const StaffPage = () => {
       { value: USER_ROLES.CONSULTANT, label: t('operations.staff.consultant') },
       { value: USER_ROLES.PROJECT_ADMIN, label: t('operations.staff.projectAdmin') },
     ]),
-    ...(isDirector || user?.role === USER_ROLES.PROJECT_ADMIN ? [{ value: USER_ROLES.ADMIN, label: t('Admin (reception)') }] : []),
+    ...(isDirector || user?.role === USER_ROLES.PROJECT_ADMIN ? [
+      { value: USER_ROLES.ADMIN, label: t('Admin (reception)') },
+      { value: USER_ROLES.FUNDER, label: t('Funder') },
+    ] : []),
   ], [isDirector, t, user?.role])
+  const [programmeOptions, setProgrammeOptions] = useState<Array<{ value: string, label: string }>>([])
+  useEffect(() => {
+    if (!user?.companyCode) return
+    // The company's programmes; assigning is by the whole company's list, not the manager's own assignment.
+    void listWorkspacePrograms({ ...user, assignedProgramIds: [] })
+      .then((rows) => setProgrammeOptions(rows.map((row) => ({ value: row.id, label: String(row.name) }))))
+      .catch(() => setProgrammeOptions([]))
+  }, [user])
   const defaultRole = roleOptions[0]?.value || USER_ROLES.CONSULTANT
   const roleLabel = (value: UserRole) => value === USER_ROLES.OPERATIONS ? t('Operations') : roleOptions.find((option) => option.value === value)?.label || value
   const roleColor = (value: UserRole) => value === USER_ROLES.OPERATIONS ? 'blue' : 'purple'
@@ -277,8 +295,8 @@ export const StaffPage = () => {
   const openModal = (record?: ManagedUser) => {
     setEditing(record)
     setFormValues(record
-      ? { name: record.name, email: record.email, role: record.role, phone: record.phone || '', phoneIsWhatsApp: record.phoneIsWhatsApp === true, phoneProvider: record.phoneProvider || undefined, permissions: record.permissions || getRolePermissions(record.role), active: record.status === 'active' }
-      : { name: '', email: '', role: defaultRole, phone: '', phoneIsWhatsApp: false, phoneProvider: undefined, permissions: getRolePermissions(defaultRole), active: true })
+      ? { name: record.name, email: record.email, role: record.role, phone: record.phone || '', phoneIsWhatsApp: record.phoneIsWhatsApp === true, phoneProvider: record.phoneProvider || undefined, permissions: record.permissions || getRolePermissions(record.role), active: record.status === 'active', assignedProgramIds: record.assignedProgramIds || [] }
+      : { name: '', email: '', role: defaultRole, phone: '', phoneIsWhatsApp: false, phoneProvider: undefined, permissions: getRolePermissions(defaultRole), active: true, assignedProgramIds: [] })
     setWorkDraft(undefined)
     setSection('details')
     setModalOpen(true)
@@ -286,8 +304,8 @@ export const StaffPage = () => {
 
   // Editing jumps between sections; adding walks through them in order, so nothing is skipped by accident.
   const showWork = role === USER_ROLES.CONSULTANT
-  // Reception admins always get exactly the reception access, so there is no Access step for them.
-  const sections: Section[] = ['details', ...(role === USER_ROLES.ADMIN ? [] : ['access' as const]), ...(showWork ? ['work' as const] : [])]
+  // Reception admins and funders always get exactly their role's access, so there is no Access step for them.
+  const sections: Section[] = ['details', ...(role && FIXED_ACCESS_ROLES.includes(role) ? [] : ['access' as const]), ...(showWork ? ['work' as const] : [])]
   const visibleSection: Section = sections.includes(section) ? section : 'details'
   const stepIndex = sections.indexOf(visibleSection)
   const isLastStep = stepIndex === sections.length - 1
@@ -589,6 +607,15 @@ export const StaffPage = () => {
               <Col xs={24} md={12}><Form.Item name="name" label={t('common.name')} rules={[{ required: true }]}><Input /></Form.Item></Col>
               <Col xs={24} md={12}><Form.Item name="email" label={t('common.email')} rules={[{ required: true }, { type: 'email' }]} tooltip={editing ? t("The sign-in email can't be changed here.") : undefined}><Input disabled={Boolean(editing)} /></Form.Item></Col>
             </Row>
+            {role && PROGRAMME_SCOPED_ROLES.includes(role) && (
+              <Form.Item
+                name="assignedProgramIds"
+                label={role === USER_ROLES.FUNDER ? t('Programmes they fund') : t('Programmes')}
+                extra={t('Leave empty for all programmes.')}
+              >
+                <Select mode="multiple" allowClear placeholder={t('All programmes')} options={programmeOptions} optionFilterProp="label" />
+              </Form.Item>
+            )}
             <Row gutter={12}>
               <Col xs={24} md={12}>
                 <Form.Item name="phone" label={t('Phone number')} extra={phoneCountry ? `${t('Country')}: ${phoneCountry}` : undefined} rules={[{ required: true, message: t('Phone number is required.') }, { pattern: PHONE_PATTERN, message: t('Enter a valid phone number, including the country code.') }]}>

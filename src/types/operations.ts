@@ -44,4 +44,6 @@ export type ManagedUser = {
   phoneIsWhatsApp?: boolean
   alternativePhoneIsWhatsApp?: boolean
   phoneProvider?: string
+  /** Programmes this person works on (project admins, consultants) or funds (funders). Empty = all the company's. */
+  assignedProgramIds?: string[]
 }
