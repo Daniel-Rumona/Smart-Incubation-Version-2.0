@@ -907,13 +907,6 @@ html[data-theme='dark'] .agent-registry-detail-footer {
     opacity: 0.72;
 }
 
-.agent-card-top {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-width: 0;
-}
-
 .agent-card-title {
     display: flex;
     flex: 1;
@@ -1007,16 +1000,6 @@ html[data-theme='dark'] .agent-card-status.is-inactive { color: #fbbf24; }
     color: var(--admin-accent);
 }
 
-.agent-card-foot {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    margin-top: auto;
-    padding-top: 12px;
-    border-top: 1px solid var(--admin-card-border);
-}
-
 .agent-card-rating {
     display: inline-flex;
     align-items: baseline;
@@ -1032,6 +1015,74 @@ html[data-theme='dark'] .agent-card-status.is-inactive { color: #fbbf24; }
 .agent-card-rating small {
     font-size: 12px;
     color: var(--admin-muted);
+}
+
+/* ---------- Agent rows: one full-width row per agent ---------- */
+
+.agent-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.agent-card.agent-row.ant-card {
+    height: auto;
+}
+
+.agent-card.agent-row.ant-card .ant-card-body {
+    display: grid;
+    grid-template-columns: minmax(200px, 260px) minmax(0, 1fr) 130px 96px auto;
+    grid-template-areas: "main body rating status actions";
+    align-items: center;
+    gap: 10px 20px;
+    padding: 14px 18px;
+}
+
+.agent-row-main {
+    grid-area: main;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.agent-row-body {
+    grid-area: body;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.agent-row-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 14px;
+}
+
+.agent-row-rating { grid-area: rating; }
+.agent-row-status { grid-area: status; justify-self: start; }
+.agent-row-actions { grid-area: actions; justify-self: end; }
+
+@media (max-width: 1199px) {
+    .agent-card.agent-row.ant-card .ant-card-body {
+        grid-template-columns: minmax(0, 1fr) auto auto auto;
+        grid-template-areas:
+            "main rating status actions"
+            "body body body body";
+    }
+}
+
+@media (max-width: 640px) {
+    .agent-card.agent-row.ant-card .ant-card-body {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+            "main status"
+            "body body"
+            "rating actions";
+        padding: 14px;
+    }
 }
 
 /* ---------- Ratings summary (AgentRatingsSummary) ---------- */

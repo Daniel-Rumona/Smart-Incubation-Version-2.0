@@ -584,51 +584,51 @@ const AgentRegistryPage = () => {
                             </Empty>
                         </Card>
                     ) : (
-                        <Row gutter={[16, 16]}>
+                        <div className="agent-list">
                             {filteredAgents.map((agent) => {
                                 const rating = ratingFor(agent.id)
                                 const assignable = agent.status === 'active' && agent.supportsAssignment
                                 const implementation = getAgentImplementation(agent.implementationKey)
                                 return (
-                                    <Col key={agent.id} xs={24} md={12} xl={8}>
-                                        <Card className={`admin-card agent-card is-${agent.status}`} bordered={false}>
-                                            <div className="agent-card-top">
-                                                <span className="admin-kpi-icon"><RobotOutlined /></span>
-                                                <div className="agent-card-title">
-                                                    <strong>{agent.name}</strong>
-                                                    <span>{implementation?.label ?? agent.provider} · {agent.executionMode === 'external_api' ? t('External API') : t('Platform')}</span>
+                                    <Card key={agent.id} className={`admin-card agent-card agent-row is-${agent.status}`} bordered={false}>
+                                        <div className="agent-row-main">
+                                            <span className="admin-kpi-icon"><RobotOutlined /></span>
+                                            <div className="agent-card-title">
+                                                <strong>{agent.name}</strong>
+                                                <span>{implementation?.label ?? agent.provider} · {agent.executionMode === 'external_api' ? t('External API') : t('Platform')}</span>
+                                            </div>
+                                        </div>
+                                        <div className="agent-row-body">
+                                            <Typography.Paragraph className="agent-card-description" ellipsis={{ rows: 1, tooltip: agent.description }}>{agent.description}</Typography.Paragraph>
+                                            <div className="agent-row-meta">
+                                                {agent.capabilities.length > 0 && (
+                                                    <div className="agent-card-capabilities">
+                                                        {agent.capabilities.slice(0, 3).map((capability) => <span key={capability}>{capability}</span>)}
+                                                        {agent.capabilities.length > 3 && <span className="is-more">+{agent.capabilities.length - 3}</span>}
+                                                    </div>
+                                                )}
+                                                <div className="agent-card-traits">
+                                                    <span className={assignable ? 'is-on' : ''}><SafetyCertificateOutlined /> {assignable ? t('Assignable') : t('Not assignable')}</span>
+                                                    {agent.supportsDocuments && <span className="is-on"><FileWordOutlined /> {t('Documents')}</span>}
+                                                    {agent.supportsVoice && <span className="is-on"><SoundOutlined /> {t('Voice')}</span>}
+                                                    {agent.billable && <span className="is-on"><DollarOutlined /> {t('Billable')}</span>}
                                                 </div>
-                                                <span className={`agent-card-status is-${agent.status}`}><i />{formatStatus(agent.status)}</span>
                                             </div>
-                                            <Typography.Paragraph className="agent-card-description" ellipsis={{ rows: 2, tooltip: agent.description }}>{agent.description}</Typography.Paragraph>
-                                            {agent.capabilities.length > 0 && (
-                                                <div className="agent-card-capabilities">
-                                                    {agent.capabilities.slice(0, 3).map((capability) => <span key={capability}>{capability}</span>)}
-                                                    {agent.capabilities.length > 3 && <span className="is-more">+{agent.capabilities.length - 3}</span>}
-                                                </div>
-                                            )}
-                                            <div className="agent-card-traits">
-                                                <span className={assignable ? 'is-on' : ''}><SafetyCertificateOutlined /> {assignable ? t('Assignable') : t('Not assignable')}</span>
-                                                {agent.supportsDocuments && <span className="is-on"><FileWordOutlined /> {t('Documents')}</span>}
-                                                {agent.supportsVoice && <span className="is-on"><SoundOutlined /> {t('Voice')}</span>}
-                                                {agent.billable && <span className="is-on"><DollarOutlined /> {t('Billable')}</span>}
-                                            </div>
-                                            <div className="agent-card-foot">
-                                                <span className="agent-card-rating">
-                                                    {rating
-                                                        ? <><StarFilled /> <b>{rating.average.toFixed(1)}</b> <small>{t('{count} ratings', undefined, { count: rating.count })}</small></>
-                                                        : <small>{t('No ratings yet')}</small>}
-                                                </span>
-                                                <Space size={6}>
-                                                    <Button size="small" shape="round" icon={<EditOutlined />} onClick={() => openEdit(agent)}>{t('Edit')}</Button>
-                                                    <Button size="small" shape="round" danger icon={<InboxOutlined />} disabled={agent.status === 'archived'} onClick={() => confirmArchive(agent)} aria-label={t('Archive agent')} />
-                                                </Space>
-                                            </div>
-                                        </Card>
-                                    </Col>
+                                        </div>
+                                        <span className="agent-card-rating agent-row-rating">
+                                            {rating
+                                                ? <><StarFilled /> <b>{rating.average.toFixed(1)}</b> <small>{t('{count} ratings', undefined, { count: rating.count })}</small></>
+                                                : <small>{t('No ratings yet')}</small>}
+                                        </span>
+                                        <span className={`agent-card-status agent-row-status is-${agent.status}`}><i />{formatStatus(agent.status)}</span>
+                                        <Space size={6} className="agent-row-actions">
+                                            <Button size="small" shape="round" icon={<EditOutlined />} onClick={() => openEdit(agent)}>{t('Edit')}</Button>
+                                            <Button size="small" shape="round" danger icon={<InboxOutlined />} disabled={agent.status === 'archived'} onClick={() => confirmArchive(agent)} aria-label={t('Archive agent')} />
+                                        </Space>
+                                    </Card>
                                 )
                             })}
-                        </Row>
+                        </div>
                     )}
                 </>
             )}
