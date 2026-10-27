@@ -1,165 +1,383 @@
-/* Company plans: editable plan cards, then the companies on each plan (admin overview look). */
+/* Compact plan overview + contained editors. Uses Ant Design/theme tokens for both modes. */
+.company-plans-page {
+    min-width: 0;
+}
 
-/* ---------- Plan cards ---------- */
+.company-plans-section-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.company-plans-section-heading .ant-typography {
+    margin: 0;
+}
+
+.company-plans-section-heading .ant-typography-secondary {
+    display: block;
+    margin-top: 3px;
+    font-size: 12px;
+}
+
+.company-plans-tier-grid {
+    margin-bottom: 20px;
+}
 
 .company-plan-card.ant-card {
-  transition: border-color .18s ease, box-shadow .18s ease;
+    height: 100%;
+    border: 1px solid var(--ant-color-border-secondary, var(--admin-card-border, #e5e7eb));
+    background: var(--ant-color-bg-container, var(--admin-card-bg, #fff));
+    border-radius: 18px;
+    transition: border-color .2s, transform .2s;
+}
+
+.company-plan-card.ant-card:hover {
+    border-color: var(--ant-color-primary-border, #b9b1ff);
+    transform: translateY(-2px);
+}
+
+.company-plan-card .ant-card-body {
+    display: flex;
+    flex-direction: column;
+    min-height: 185px;
+    padding: 18px;
 }
 
 .company-plan-card.is-premium.ant-card {
-  background: linear-gradient(160deg, rgba(109, 93, 251, .12), rgba(109, 93, 251, .02) 60%), var(--admin-card-bg);
-}
-
-.company-plan-card.is-changed.ant-card {
-  border-color: var(--admin-accent);
-  box-shadow: 0 0 0 3px var(--admin-accent-soft);
+    background: linear-gradient(145deg, var(--ant-color-primary-bg, var(--admin-accent-soft, rgba(109, 93, 251, .09))), var(--ant-color-bg-container, var(--admin-card-bg, #fff)) 65%);
 }
 
 .company-plan-head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
 }
 
-.company-plan-head > div {
-  flex: 1;
-  min-width: 0;
+.company-plan-icon,
+.company-plan-modal-icon {
+    display: inline-flex;
+    flex: none;
+    width: 42px;
+    height: 42px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 14px;
+    font-size: 19px;
+    color: var(--ant-color-primary, var(--admin-accent, #6d5dfb));
+    background: var(--ant-color-primary-bg, var(--admin-accent-soft, rgba(109, 93, 251, .09)));
 }
 
-.company-plan-head h3 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--admin-ink);
+.company-plan-card.is-standard .company-plan-icon {
+    color: var(--ant-color-info, #3b82f6);
+    background: var(--ant-color-info-bg, rgba(59, 130, 246, .09));
 }
 
-.company-plan-head span:not(.admin-kpi-icon):not(.company-plan-changed) {
-  font-size: 12px;
-  color: var(--admin-muted);
+.company-plan-card.is-premium .company-plan-icon {
+    color: var(--ant-color-primary, var(--admin-accent, #6d5dfb));
+    background: var(--ant-color-primary-bg, var(--admin-accent-soft, rgba(109, 93, 251, .09)));
 }
 
-.company-plan-changed {
-  flex: none;
-  padding: 2px 10px;
-  border-radius: 999px;
-  background: var(--admin-accent-soft);
-  color: var(--admin-accent);
-  font-size: 11.5px;
-  font-weight: 600;
+.company-plan-heading-copy {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
 }
 
-.company-plan-features {
-  display: grid;
-  gap: 10px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.company-plan-heading-copy .ant-typography:first-child {
+    font-size: 16px;
 }
 
-.company-plan-features li {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
-  border: 1px solid var(--admin-card-border);
-  border-radius: 16px;
-  background: var(--admin-track);
-  transition: background .18s ease, border-color .18s ease;
+.company-plan-heading-copy .ant-typography-secondary {
+    font-size: 12px;
 }
 
-.company-plan-features li.is-on {
-  border-color: rgba(109, 93, 251, .35);
-  background: var(--admin-accent-soft);
+.company-plan-feature-counter {
+    display: flex;
+    align-items: baseline;
+    white-space: nowrap;
+    color: var(--ant-color-text-tertiary, var(--admin-muted, #64748b));
+    font-size: 12px;
 }
 
-.company-plan-features li > div {
-  flex: 1;
-  min-width: 0;
+.company-plan-feature-counter strong {
+    color: var(--ant-color-text, var(--admin-ink, #111827));
+    font-size: 23px;
+    line-height: 1;
 }
 
-.company-plan-features strong {
-  display: block;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--admin-ink);
+.company-plan-feature-preview {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 19px 0 16px;
+    min-height: 26px;
 }
 
-.company-plan-features small {
-  display: -webkit-box;
-  margin-top: 2px;
-  overflow: hidden;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--admin-muted);
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
+.company-plan-feature-preview .ant-tag {
+    margin: 0;
+    border-radius: 999px;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.company-plan-summary {
-  margin: 14px 0 0;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--admin-muted);
+.company-plan-manage-btn.ant-btn {
+    margin-top: auto;
+    height: 37px;
+    border-radius: 11px;
+    font-weight: 600;
+}
+
+.company-plans-companies.ant-card {
+    border-radius: 18px;
+    border: 1px solid var(--ant-color-border-secondary, var(--admin-card-border, #e5e7eb));
+}
+
+.company-plans-companies>.ant-card-body {
+    padding: 20px;
+}
+
+.company-plans-company-heading {
+    margin-bottom: 17px;
+}
+
+.company-plans-company-heading .ant-tag {
+    margin: 0;
+    border-radius: 999px;
+}
+
+.company-plans-companies .filter-bar {
+    margin-bottom: 14px;
+}
+
+.company-plans-filter {
+    width: 180px;
+}
+
+.company-plans-tier-tag {
+    margin: 0;
+    padding: 3px 10px;
+    border-radius: 999px;
+}
+
+.company-plans-companies .ant-table-cell {
+    vertical-align: middle;
+}
+
+.company-plans-companies .ant-table-thead>tr>th {
+    font-size: 12px;
+}
+
+.company-plans-companies .ant-btn {
+    border-radius: 999px;
+}
+
+.company-plans-modal .ant-modal-content {
+    border-radius: 20px;
+    padding: 22px;
+}
+
+.company-plans-modal .ant-modal-title {
+    font-size: 17px;
+}
+
+.company-plans-modal .ant-modal-footer .ant-btn {
+    border-radius: 999px;
+    min-width: 105px;
+}
+
+.company-plans-modal-description {
+    margin: 18px 0 12px;
+    font-size: 13px;
+}
+
+.company-plans-modal-feature-list {
+    display: grid;
+    gap: 8px;
+    max-height: min(56vh, 470px);
+    overflow-y: auto;
+    padding: 2px 3px 2px 0;
+}
+
+.company-plans-modal-feature {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 14px;
+    border: 1px solid var(--ant-color-border-secondary, var(--admin-card-border, #e5e7eb));
+    border-radius: 13px;
+    background: var(--ant-color-fill-quaternary, var(--admin-track, rgba(128, 128, 128, .04)));
+}
+
+.company-plans-modal-feature.is-on {
+    border-color: var(--ant-color-primary-border, #b9b1ff);
+    background: var(--ant-color-primary-bg, var(--admin-accent-soft, rgba(109, 93, 251, .09)));
+}
+
+.company-plans-modal-feature>div {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.company-plans-modal-feature .ant-typography {
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.company-plans-modal-feature .ant-typography-secondary {
+    font-size: 12px;
+}
+
+.company-plans-modal-feature .ant-switch {
+    flex: none;
+}
+
+.company-plans-modal-count {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding-top: 12px;
+    font-size: 12px;
 }
 
 .company-plans-removals {
-  margin: 8px 0 0;
-  padding-left: 18px;
+    padding-left: 20px;
+    margin: 10px 0 0;
 }
 
-/* ---------- Companies ---------- */
-
-.company-plans-companies .filter-bar {
-  margin-bottom: 12px;
+.company-plans-removals li {
+    margin-bottom: 5px;
 }
 
-.company-plans-none {
-  font-size: 12px;
-  color: var(--admin-muted);
+.company-plans-company-editor {
+    padding-top: 20px;
+    display: grid;
+    gap: 22px;
 }
 
-/* ---------- Save / undo under the plan cards ---------- */
-
-.company-plans-actions {
-  display: flex;
-  gap: 10px;
-  margin: 16px 0 20px;
+.company-plans-field {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 
-.company-plans-actions .ant-btn {
-  height: 46px;
-  font-weight: 600;
+.company-plans-field>.ant-typography-secondary {
+    font-size: 12px;
 }
 
-.company-plans-actions .ant-btn-primary {
-  flex: 1;
+.company-plans-addon-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 14px;
+    border: 1px solid var(--ant-color-border-secondary, var(--admin-card-border, #e5e7eb));
+    border-radius: 13px;
 }
 
-/* Explicit colours so the label reads in both themes: white on the accent when there is something to save,
-   accent on a soft tint when there isn't (antd's disabled grey is near-invisible on these cards). */
-.company-plans-actions .ant-btn-primary:not(:disabled) {
-  background: var(--admin-accent);
-  border-color: var(--admin-accent);
-  color: #fff;
+.company-plans-addon-list .ant-checkbox-wrapper {
+    margin: 0;
+    align-items: flex-start;
 }
 
-.company-plans-actions .ant-btn-primary:not(:disabled):hover {
-  background: #5b4be8;
-  border-color: #5b4be8;
-  color: #fff;
+.company-plans-mobile-list {
+    display: grid;
+    gap: 8px;
 }
 
-.company-plans-actions .ant-btn-primary:disabled {
-  background: var(--admin-accent-soft);
-  border-color: transparent;
-  color: var(--admin-accent);
-  opacity: .7;
+.company-plans-mobile-company {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: space-between;
+    padding: 13px;
+    border: 1px solid var(--ant-color-border-secondary, var(--admin-card-border, #e5e7eb));
+    border-radius: 13px;
 }
 
-.company-plans-actions .ant-btn-default {
-  flex: none;
-  background: var(--admin-card-bg);
-  border-color: var(--admin-card-border);
-  color: var(--admin-ink);
+.company-plans-mobile-company .ant-btn {
+    flex: none;
+    min-width: 44px;
+    min-height: 44px;
+}
+
+.company-plans-mobile-details {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.company-plans-mobile-details .ant-typography {
+    overflow-wrap: anywhere;
+}
+
+.company-plans-mobile-details .ant-typography-secondary {
+    font-size: 12px;
+}
+
+@media (max-width: 767px) {
+    .company-plans-tier-grid {
+        margin-bottom: 14px;
+    }
+
+    .company-plan-card .ant-card-body {
+        min-height: 165px;
+        padding: 15px;
+    }
+
+    .company-plans-companies>.ant-card-body {
+        padding: 14px;
+    }
+
+    .company-plans-company-heading {
+        align-items: flex-start;
+    }
+
+    .company-plans-filter {
+        width: 100%;
+    }
+
+    .company-plans-modal {
+        width: calc(100vw - 20px) !important;
+        max-width: none;
+        margin: 10px auto;
+        padding-bottom: 0;
+    }
+
+    .company-plans-modal .ant-modal-content {
+        padding: 18px 14px;
+        border-radius: 18px;
+    }
+
+    .company-plans-modal-feature-list {
+        max-height: 53dvh;
+    }
+
+    .company-plans-modal-feature {
+        padding: 12px 10px;
+    }
+
+    .company-plans-addon-list {
+        grid-template-columns: 1fr;
+    }
+
+    .company-plans-modal .ant-modal-footer {
+        display: flex;
+        gap: 8px;
+    }
+
+    .company-plans-modal .ant-modal-footer .ant-btn {
+        flex: 1;
+        margin: 0;
+    }
 }

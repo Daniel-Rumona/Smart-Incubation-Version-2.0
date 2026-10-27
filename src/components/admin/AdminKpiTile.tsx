@@ -8,12 +8,14 @@ import '@/styles/admin-dashboard.css'
 export type AdminKpiTrend = { amount: string; direction: 'up' | 'down' | 'flat'; tone: 'good' | 'bad' | 'neutral'; text: string }
 
 /** A figure in a soft rounded card: icon disc, large number, optional change badge and a small chart on the right. */
-export function AdminKpiTile({ icon, label, value, trend, loading, visual, compact }: {
+export function AdminKpiTile({ icon, label, value, trend, note, loading, visual, compact }: {
   icon: ReactNode
   label: string
   /** Numbers get thousands separators; text (a duration, a page name) is shown as is. */
   value: ReactNode
   trend?: AdminKpiTrend
+  /** A short line under the figure that says what it measures. */
+  note?: ReactNode
   loading?: boolean
   /** Small chart beside the figure, e.g. monthly bars or a share ring. */
   visual?: ReactNode
@@ -36,6 +38,7 @@ export function AdminKpiTile({ icon, label, value, trend, loading, visual, compa
                 </span>
               )}
             </div>
+            {note && <span className="admin-kpi-note">{note}</span>}
           </div>
           {visual}
         </div>

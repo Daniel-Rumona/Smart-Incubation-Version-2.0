@@ -1,0 +1,28 @@
+{
+  "tag": "admin-to-systemadmin-2026-10-26T20-35-16-989Z",
+  "documents": [
+    {
+      "collection": "users",
+      "id": "0Prp2zfldoghxTxq63PilqTu3Yv1",
+      "before": {
+        "role": {
+          "existed": true,
+          "value": "admin"
+        },
+        "roleMigratedFrom": {
+          "existed": false,
+          "value": null
+        },
+        "roleMigratedAt": {
+          "existed": false,
+          "value": null
+        },
+        "roleMigrationTag": {
+          "existed": false,
+          "value": null
+        }
+      }
+    }
+  ],
+  "claims": []
+}

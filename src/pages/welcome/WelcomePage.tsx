@@ -298,7 +298,26 @@ export const WelcomePage = () => {
         return () => { cancelled = true }
     }, [user])
 
-    if (loading) return <PageSkeleton variant="detail" label={t('welcome.loading')} />
+    // The agreements are signed with the saved signature, so whichever route reaches them, an account
+    // without one is sent to the signature step first. Saving it moves on to the agreements again.
+    const agreementStepWithoutSignature = (activeStep === 'conduct' || activeStep === 'consent')
+        && !(signatureComplete || user?.signatureURL || signatureURL)
+    useEffect(() => {
+        if (!agreementStepWithoutSignature) return
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setActiveStep('signature')
+    }, [agreementStepWithoutSignature])
+
+    // Welcome has no app shell around it, so the skeleton sits in the same centred card the steps appear in.
+    if (loading) {
+        return (
+            <main className="welcome-page">
+                <Card className="welcome-shell" bordered={false}>
+                    <PageSkeleton variant="detail" label={t('welcome.loading')} />
+                </Card>
+            </main>
+        )
+    }
     if (!user) return <Navigate to="/auth" replace />
     if (!user.emailVerified) return <Navigate to="/email-verification" replace />
     if (user.firstLoginComplete) {
@@ -340,16 +359,16 @@ export const WelcomePage = () => {
     const afterAgreements = () => (alreadyDecidedWhatsapp ? 'complete' as const : 'whatsapp' as const)
     const afterSetup = () => (agreementsToSign.includes('code-of-conduct') ? 'conduct' as const : agreementsToSign.includes('company-consent') ? 'consent' as const : afterAgreements())
 
+    // AgreementForm writes the signature onto its line while this saves, then calls advancePastAgreement.
     const signPendingAgreement = async (key: CompanyAgreementKey) => {
-        try {
-            await signAgreement({ ...user, role: effectiveRole }, key, { signatureURL: signatureURL || user.signatureURL || '', companyName: organisationName })
-            const remaining = agreementsToSign.filter((item) => item !== key)
-            setPendingAgreements(remaining)
-            message.success(t('Signed.'))
-            goTo(remaining.includes('company-consent') ? 'consent' : afterAgreements())
-        } catch (error) {
-            message.error(error instanceof Error ? error.message : t('The agreement could not be saved.'))
-        }
+        const savedSignature = signatureURL || user.signatureURL || ''
+        if (!savedSignature) throw new Error(t('Add your signature first.'))
+        await signAgreement({ ...user, role: effectiveRole }, key, { signatureURL: savedSignature, companyName: organisationName })
+    }
+    const advancePastAgreement = (key: CompanyAgreementKey) => {
+        const remaining = agreementsToSign.filter((item) => item !== key)
+        setPendingAgreements(remaining)
+        goTo(remaining.includes('company-consent') ? 'consent' : afterAgreements())
     }
 
     // Directors cannot pick a role; they set up their company (name and code, logo, locked settings) instead.
@@ -370,27 +389,47 @@ export const WelcomePage = () => {
         return afterSetup()
     }
 
+    // Thuso's lead-ins depend on how the person got here: an account sent straight to its signature or an
+    // agreement has nothing behind it to call "done", and only the agreements actually pending are named.
+    const previousStep = history[history.length - 1]
+    const cameFromSetup = previousStep !== undefined && previousStep !== 'intro'
+    const signsConduct = agreementsToSign.includes('code-of-conduct')
+    const signsConsent = agreementsToSign.includes('company-consent')
+    // Each variant is its own whole sentence in the catalogue, so translations never stitch half-sentences together.
+    const signatureUse = signsConduct && signsConsent
+        ? t('You’ll sign the Code of Conduct and the consent form with it next, and we’ll use it when you acknowledge plans and documents.')
+        : signsConduct
+            ? t('You’ll sign the Code of Conduct with it next, and we’ll use it when you acknowledge plans and documents.')
+            : signsConsent
+                ? t('You’ll sign the consent form with it next, and we’ll use it when you acknowledge plans and documents.')
+                : t('We’ll use it when you acknowledge plans and documents.')
+    const consentBody = t('This explains what information we collect about you, why, and who it may be shared with, as POPIA requires. Read it, tick to accept, and your signature is added.')
+    const conductBody = t('It sets out how participation, funding and support work. Tick to accept, and your signature is added.')
+
     const conversationText: Record<WelcomeStepKey, string> = {
-        intro: `Hi${firstName ? ` ${firstName}` : ''}, I’m Thuso. Welcome to Smart Incubation. I’ll guide you through setting up your workspace one thing at a time. Nothing complicated. Ready to get started?`,
-        role: 'Great. First, tell me what best describes how you’ll use Smart Incubation so I can set the right workspace up for you.',
-        password:
-            'Perfect. Now that we’ve got that out of the way, let’s secure your account. Create a password that only you know, then we’ll move on.',
-        signature:
-            'Good, that part is done. Next, let’s add your signature. You can type it, draw it, or upload one, and we’ll use it when you acknowledge plans and documents.',
-        directorCompany: 'Let’s set up your organisation first. Tell me your company’s name and choose a short, unique company code. It keeps your people, programmes and reports properly separated from other organisations.',
-        directorLogo: 'Now add your company logo. It will appear on reports, dashboards and the documents we generate for you.',
-        directorSettings: 'Last part for your company: how it operates. These choices shape onboarding and how interventions are assigned. Once you lock them they can’t be changed directly, so take a moment to review.',
-        conduct: 'Before you start, please read the programme Code of Conduct. It sets out how participation, funding and support work. Tick to accept, and your signature is added.',
-        consent: 'Next, your consent. This explains what information we collect about you, why, and who it may be shared with, as POPIA requires. Read it, tick to accept, and your signature is added.',
-        whatsapp: 'One more thing. I can send important updates, like deadlines, follow-up reminders and appointment notices, to your WhatsApp. It’s your choice, and you can stop any time by replying STOP.',
-        consultantLocation: editingFromReview ? 'Let’s revisit your location details. Update anything that needs changing, then save this section.' : 'Let’s make your profile useful from day one. Where are you based, and what area should clients recognise as your home base?',
-        consultantReach: editingFromReview ? 'You’re editing your reach settings. Adjust the travel radius or currency, then update this section.' : 'Great. How far are you comfortable travelling for in-person work, and which currency should we use for your daily rate?',
-        consultantExpertise: editingFromReview ? 'Let’s refine your expertise. Add or remove the areas that best represent your work, then update this section.' : 'What kind of help do you enjoy giving most? Pick every area that reflects your experience.',
-        consultantExperience: editingFromReview ? 'Updating your experience? Choose the range that best reflects your professional journey.' : 'That’s a strong foundation. How many years have you spent building this expertise?',
-        consultantAbout: editingFromReview ? 'You can polish your headline or introduction here, then update your profile.' : 'One last profile detail: give clients a short headline and a little context about how you help businesses.',
-        consultantReview: editingFromReview ? 'Your update is reflected below. Review the details once more, then continue when everything looks right.' : 'Here’s a quick look at your consultant profile. Check the details, then we’ll finish your setup.',
-        complete:
-            'That’s everything I needed. Your setup is complete and your workspace is ready. Let’s take you in.',
+        intro: `${firstName ? t('Hi {name}, I’m Thuso.', undefined, { name: firstName }) : t('Hi, I’m Thuso.')} ${t('Welcome to Smart Incubation. I’ll guide you through setting up your workspace one thing at a time. Nothing complicated. Ready to get started?')}`,
+        role: t('Great. First, tell me what best describes how you’ll use Smart Incubation so I can set the right workspace up for you.'),
+        password: previousStep === 'role'
+            ? t('Perfect. Now that we’ve got that out of the way, let’s secure your account. Create a password that only you know, then we’ll move on.')
+            : t('First, let’s secure your account. Create a password that only you know, then we’ll move on.'),
+        signature: `${cameFromSetup ? t('Good, that part is done. Next, let’s add your signature.') : t('Let’s start with your signature.')} ${t('You can type it, draw it, or upload one.')} ${signatureUse}`,
+        directorCompany: t('Let’s set up your organisation first. Tell me your company’s name and choose a short, unique company code. It keeps your people, programmes and reports properly separated from other organisations.'),
+        directorLogo: t('Now add your company logo. It will appear on reports, dashboards and the documents we generate for you.'),
+        directorSettings: t('Last part for your company: how it operates. These choices shape onboarding and how interventions are assigned. Once you lock them they can’t be changed directly, so take a moment to review.'),
+        conduct: `${previousStep === 'signature' ? t('Thanks, your signature is saved. Now please read the programme Code of Conduct.') : t('Before you start, please read the programme Code of Conduct.')} ${conductBody}`,
+        consent: `${previousStep === 'conduct'
+            ? t('Next, your consent.')
+            : previousStep === 'signature'
+                ? t('Thanks, your signature is saved. Now your consent.')
+                : t('Before you start, we need your consent.')} ${consentBody}`,
+        whatsapp: `${cameFromSetup ? t('One more thing.') : t('Just one thing before you start.')} ${t('I can send important updates, like deadlines, follow-up reminders and appointment notices, to your WhatsApp. It’s your choice, and you can stop any time by replying STOP.')}`,
+        consultantLocation: editingFromReview ? t('Let’s revisit your location details. Update anything that needs changing, then save this section.') : t('Let’s make your profile useful from day one. Where are you based, and what area should clients recognise as your home base?'),
+        consultantReach: editingFromReview ? t('You’re editing your reach settings. Adjust the travel radius or currency, then update this section.') : t('Great. How far are you comfortable travelling for in-person work, and which currency should we use for your daily rate?'),
+        consultantExpertise: editingFromReview ? t('Let’s refine your expertise. Add or remove the areas that best represent your work, then update this section.') : t('What kind of help do you enjoy giving most? Pick every area that reflects your experience.'),
+        consultantExperience: editingFromReview ? t('Updating your experience? Choose the range that best reflects your professional journey.') : t('That’s a strong foundation. How many years have you spent building this expertise?'),
+        consultantAbout: editingFromReview ? t('You can polish your headline or introduction here, then update your profile.') : t('One last profile detail: give clients a short headline and a little context about how you help businesses.'),
+        consultantReview: editingFromReview ? t('Your update is reflected below. Review the details once more, then continue when everything looks right.') : t('Here’s a quick look at your consultant profile. Check the details, then we’ll finish your setup.'),
+        complete: t('That’s everything I needed. Your setup is complete and your workspace is ready. Let’s take you in.'),
     }
 
     const saveRole = async () => {
@@ -1183,6 +1222,7 @@ export const WelcomePage = () => {
                                 companyCode={agreementScope({ ...user, role: effectiveRole })}
                                 progress={requiredAgreements(effectiveRole).length > 1 ? t('{index} of {total}', undefined, { index: activeStep === 'conduct' ? 1 : 2, total: 2 }) : undefined}
                                 onSign={() => signPendingAgreement(activeStep === 'conduct' ? 'code-of-conduct' : 'company-consent')}
+                                onSigned={() => advancePastAgreement(activeStep === 'conduct' ? 'code-of-conduct' : 'company-consent')}
                             />
                         </div>
                     )}

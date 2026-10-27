@@ -462,6 +462,7 @@ export const zuIncubatee: Record<string, string> = {
   "Sign": "Sayina",
   "Signing...": "Iyasayina...",
   "Sign here": "Sayina lapha",
+  "Add your signature first.": "Qala ngokwengeza isiginesha yakho.",
   "Sign and confirm": "Sayina uqinisekise",
   "Sign your diagnostic plan": "Sayina uhlelo lwakho lokuhlola",
   "Sign your growth plan": "Sayina uhlelo lwakho lokukhula",

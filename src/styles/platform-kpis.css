@@ -1,210 +1,725 @@
-/* =========================================================
-   System KPIs (PlatformKpisPage): the admin overview look
-   (admin-dashboard.css) with one card per KPI, grouped by category.
-   ========================================================= */
+/* System KPI management workspace — Ant Design theme-aware */
+.platform-kpis-page {
+    --pk-border: var(--ant-color-border-secondary, #e5e7eb);
+    --pk-bg: var(--ant-color-bg-container, #fff);
+    --pk-muted: var(--ant-color-text-secondary, #64748b);
+    --pk-accent: var(--ant-color-primary, #6d5dfb);
+    min-width: 0;
+}
 
 .platform-kpis-page .filter-bar {
-  margin: 16px 0;
+    margin: 14px 0 16px;
 }
 
-.platform-kpis-page .filter-bar-controls > .ant-segmented,
-.platform-kpis-page .filter-bar-controls > .ant-btn {
-  flex: 0 0 auto;
+.platform-kpis-page .filter-bar-controls {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: 10px;
+    flex-wrap: wrap;
 }
 
-.platform-kpis-group + .platform-kpis-group {
-  margin-top: 24px;
+.platform-kpis-page .filter-bar-controls>.platform-kpis-filter-search {
+    flex: 1 1 200px;
+    min-width: 160px;
 }
 
-.platform-kpis-group-head {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  margin-bottom: 12px;
+.platform-kpis-page .filter-bar-controls>.ant-segmented {
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
-.platform-kpis-group-head h2 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--admin-ink);
+.platform-kpis-page .filter-bar-controls>.ant-segmented .ant-segmented-group {
+    width: 100%;
 }
 
-.platform-kpis-group-head span {
-  font-size: 12px;
-  color: var(--admin-muted);
+.platform-kpis-page .filter-bar-controls>.ant-segmented .ant-segmented-item {
+    flex: 1 1 0;
+    text-align: center;
 }
 
-/* ---------- KPI card ---------- */
-
-.platform-kpi-card.ant-card .ant-card-body {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
+.platform-kpis-page .filter-bar-controls>.ant-btn {
+    flex: 1 1 auto;
 }
 
-.platform-kpi-top {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
+.platform-kpis-page .filter-bar-primary,
+.platform-kpis-page .filter-bar-panel {
+    min-width: 0;
+    width: 100%;
 }
 
-.platform-kpi-top .ant-dropdown-trigger {
-  margin-left: auto;
-  color: var(--admin-muted);
+.platform-kpis-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.platform-kpis-metric {
+    border: 1px solid var(--pk-border);
+    background: var(--pk-bg);
+    border-radius: 16px;
+    min-width: 0;
+    min-height: 68px;
+    padding: 11px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.platform-kpis-metric>.anticon {
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    display: grid;
+    place-items: center;
+    font-size: 17px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--pk-accent) 10%, transparent);
+    color: var(--pk-accent);
+}
+
+.platform-kpis-metric>span {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.platform-kpis-metric strong {
+    font-size: 20px;
+    line-height: 1.1;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--ant-color-text, #1f2937);
+}
+
+.platform-kpis-metric small {
+    font-size: 11.5px;
+    color: var(--pk-muted);
+}
+
+.platform-kpis-workspace {
+    display: grid;
+    grid-template-columns: minmax(260px, 32%) minmax(0, 1fr);
+    gap: 16px;
+    align-items: stretch;
+    min-height: 510px;
+    height: min(650px, calc(100dvh - 295px));
+}
+
+.platform-kpis-list-panel,
+.platform-kpis-detail-panel {
+    background: var(--pk-bg);
+    border: 1px solid var(--pk-border);
+    border-radius: 19px;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.platform-kpis-list-panel {
+    display: flex;
+    flex-direction: column;
+    padding: 14px 10px 10px;
+}
+
+.platform-kpis-panel-heading {
+    padding: 3px 8px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid var(--pk-border);
+}
+
+.platform-kpis-panel-heading h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 650;
+}
+
+.platform-kpis-panel-heading span {
+    font-size: 12px;
+    color: var(--pk-muted);
+}
+
+.platform-kpis-list-scroll {
+    overflow-y: auto;
+    min-height: 0;
+    flex: 1;
+    padding-top: 10px;
+}
+
+.platform-kpis-list-group {
+    margin-bottom: 12px;
+}
+
+.platform-kpis-list-group-title {
+    display: flex;
+    justify-content: space-between;
+    padding: 7px 10px;
+    font-size: 11px;
+    letter-spacing: .035em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--pk-muted);
+}
+
+.platform-kpis-list-item {
+    color: var(--ant-color-text);
+    background: transparent;
+    border: 1px solid transparent;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 66px;
+    border-radius: 13px;
+    padding: 10px;
+    cursor: pointer;
+    text-align: left;
+}
+
+.platform-kpis-list-item:hover {
+    background: var(--ant-color-fill-tertiary, rgba(109, 93, 251, .05));
+}
+
+.platform-kpis-list-item.is-selected {
+    background: color-mix(in srgb, var(--pk-accent) 8%, var(--pk-bg));
+    border-color: color-mix(in srgb, var(--pk-accent) 35%, transparent);
+}
+
+.platform-kpis-list-icon {
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+    display: grid;
+    place-items: center;
+    border-radius: 11px;
+    background: color-mix(in srgb, var(--pk-accent) 10%, transparent);
+    color: var(--pk-accent);
+}
+
+.platform-kpis-list-copy {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.platform-kpis-list-copy strong {
+    font-size: 12.5px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.platform-kpis-list-copy small {
+    font-size: 11px;
+    color: var(--pk-muted);
+}
+
+.platform-kpis-list-number {
+    font-size: 12px;
+    font-weight: 650;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.platform-kpis-detail-panel {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.platform-kpis-detail-scroll {
+    overflow-y: auto;
+    min-height: 0;
+    padding: 22px;
+}
+
+.platform-kpis-detail-header h2 {
+    margin: 10px 0 6px;
+    font-size: 22px;
+    color: var(--ant-color-text);
+}
+
+.platform-kpis-detail-header p {
+    font-size: 13px;
+    line-height: 1.65;
+    margin: 0;
+    color: var(--pk-muted);
+}
+
+.platform-kpis-detail-badges {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
 .platform-kpi-kind,
 .platform-kpi-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 10px;
-  border-radius: 999px;
-  font-size: 11.5px;
-  font-weight: 600;
-  white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border-radius: 99px;
+    font-size: 11px;
+    font-weight: 600;
 }
 
 .platform-kpi-kind {
-  background: var(--admin-accent-soft);
-  color: var(--admin-accent);
+    background: color-mix(in srgb, var(--pk-accent) 10%, transparent);
+    color: var(--pk-accent);
 }
 
 .platform-kpi-kind.is-manual {
-  background: var(--admin-track);
-  color: var(--admin-muted);
+    background: var(--ant-color-fill-tertiary, #f5f5f5);
+    color: var(--pk-muted);
 }
 
 .platform-kpi-status i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: currentColor;
+    width: 7px;
+    height: 7px;
+    border-radius: 100%;
+    background: currentColor;
 }
 
-.platform-kpi-status.is-met { color: #15803d; background: rgba(21, 128, 61, .1); }
-.platform-kpi-status.is-on_track { color: var(--admin-accent); background: var(--admin-accent-soft); }
-.platform-kpi-status.is-behind { color: #dc2626; background: rgba(220, 38, 38, .1); }
+.platform-kpi-status.is-met {
+    color: #15803d;
+    background: rgba(21, 128, 61, .1);
+}
+
+.platform-kpi-status.is-on_track {
+    color: var(--pk-accent);
+    background: color-mix(in srgb, var(--pk-accent) 10%, transparent);
+}
+
+.platform-kpi-status.is-behind {
+    color: #dc2626;
+    background: rgba(220, 38, 38, .1);
+}
+
 .platform-kpi-status.is-no_target,
-.platform-kpi-status.is-no_data { color: #64748b; background: rgba(100, 116, 139, .12); }
-
-html[data-theme='dark'] .platform-kpi-status.is-met { color: #4ade80; }
-html[data-theme='dark'] .platform-kpi-status.is-behind { color: #f87171; }
-html[data-theme='dark'] .platform-kpi-status.is-no_target,
-html[data-theme='dark'] .platform-kpi-status.is-no_data { color: #94a3b8; }
-
-.platform-kpi-name {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--admin-ink);
+.platform-kpi-status.is-no_data {
+    color: var(--pk-muted);
+    background: var(--ant-color-fill-tertiary, #f5f5f5);
 }
 
-.platform-kpi-description {
-  display: -webkit-box;
-  margin: 4px 0 0;
-  overflow: hidden;
-  font-size: 12.5px;
-  line-height: 1.45;
-  color: var(--admin-muted);
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+.platform-kpis-detail-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 22px;
 }
 
-.platform-kpi-figure {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: auto;
-  padding-top: 16px;
+.platform-kpis-detail-stat {
+    min-width: 0;
+    border: 1px solid var(--pk-border);
+    border-radius: 14px;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
 }
 
-.platform-kpi-figure > div:first-child {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
+.platform-kpis-detail-stat-primary {
+    background: color-mix(in srgb, var(--pk-accent) 5%, var(--pk-bg));
 }
 
-.platform-kpi-figure strong {
-  font-size: 32px;
-  font-weight: 600;
-  line-height: 1.05;
-  letter-spacing: -0.02em;
-  color: var(--admin-ink);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+.platform-kpis-detail-stat>span,
+.platform-kpis-detail-stat small {
+    color: var(--pk-muted);
+    font-size: 11px;
 }
 
-.platform-kpi-figure > div:first-child span {
-  margin-top: 4px;
-  font-size: 12px;
-  color: var(--admin-muted);
+.platform-kpis-detail-stat strong {
+    font-size: 17px;
+    overflow-wrap: anywhere;
+    font-variant-numeric: tabular-nums;
+}
+
+.platform-kpis-detail-stat-primary strong {
+    font-size: 25px;
+}
+
+.platform-kpis-detail-section {
+    margin-top: 22px;
+}
+
+.platform-kpis-detail-section h3 {
+    margin: 0 0 11px;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.platform-kpis-detail-section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.platform-kpis-detail-section-head span {
+    font-size: 12px;
+    color: var(--pk-muted);
+}
+
+.platform-kpis-detail-section .admin-mini-bars {
+    max-width: 100%;
 }
 
 .platform-kpi-progress {
-  height: 8px;
-  margin: 14px 0 12px;
-  border-radius: 999px;
-  background: var(--admin-track);
-  overflow: hidden;
+    height: 8px;
+    border-radius: 99px;
+    background: var(--ant-color-fill-tertiary, #f0f0f0);
+    overflow: hidden;
 }
 
-.platform-kpi-progress span {
-  display: block;
-  height: 100%;
-  border-radius: 999px;
-  background: var(--admin-accent);
-  transition: width .5s cubic-bezier(.22, 1, .36, 1);
+.platform-kpi-progress>span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--pk-accent);
+    transition: width .3s ease;
 }
 
-.platform-kpi-progress.is-met span { background: #16a34a; }
-.platform-kpi-progress.is-behind span { background: #dc2626; }
-.platform-kpi-progress.is-no_target span,
-.platform-kpi-progress.is-no_data span { background: #94a3b8; }
-
-.platform-kpi-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  min-height: 24px;
-  font-size: 12px;
-  color: var(--admin-muted);
+.platform-kpi-progress.is-met>span {
+    background: #16a34a;
 }
 
-.platform-kpi-foot > span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.platform-kpi-progress.is-behind>span {
+    background: #dc2626;
 }
 
-/* ---------- Empty state ---------- */
+.platform-kpi-progress.is-no_target>span,
+.platform-kpi-progress.is-no_data>span {
+    background: #94a3b8;
+}
+
+.platform-kpis-detail-source {
+    margin: 20px 0;
+    color: var(--pk-muted);
+    font-size: 12px;
+}
+
+.platform-kpis-detail-footer {
+    border-top: 1px solid var(--pk-border);
+    padding: 14px 18px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    background: var(--pk-bg);
+}
+
+.platform-kpis-detail-footer .ant-btn {
+    width: 100%;
+    min-height: 42px;
+}
+
+.platform-kpis-no-selection {
+    grid-row: 1/-1;
+    display: grid;
+    place-items: center;
+    min-height: 320px;
+}
 
 .platform-kpis-empty.ant-card .ant-card-body {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  padding: 40px 24px;
-  text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 40px 24px;
+    text-align: center;
 }
 
 .platform-kpis-empty h3 {
-  margin: 6px 0 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--admin-ink);
+    margin: 6px 0 0;
+    font-size: 18px;
+    font-weight: 650;
 }
 
 .platform-kpis-empty p {
-  max-width: 560px;
-  margin: 0 0 8px;
-  font-size: 13px;
-  line-height: 1.55;
-  color: var(--admin-muted);
+    max-width: 560px;
+    margin: 0 0 8px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--pk-muted);
 }
 
+@media(max-width:1150px) {
+    .platform-kpis-detail-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media(max-width:900px) {
+    .platform-kpis-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .platform-kpis-workspace {
+        grid-template-columns: minmax(0, 1fr);
+        height: auto;
+    }
+
+    .platform-kpis-list-panel {
+        max-height: 350px;
+        min-height: 200px;
+    }
+
+    .platform-kpis-detail-panel {
+        min-height: 480px;
+    }
+
+    .platform-kpis-detail-scroll {
+        overflow: visible;
+    }
+}
+
+@media(max-width:640px) {
+    .platform-kpis-metrics {
+        gap: 8px;
+    }
+
+    .platform-kpis-metric {
+        min-height: 60px;
+        padding: 9px 10px;
+        gap: 9px;
+    }
+
+    .platform-kpis-metric>.anticon {
+        width: 32px;
+        height: 32px;
+        flex-basis: 32px;
+    }
+
+    .platform-kpis-metric strong {
+        font-size: 18px;
+    }
+
+    .platform-kpis-metric small {
+        font-size: 10.5px;
+    }
+
+    .platform-kpis-workspace {
+        gap: 12px;
+    }
+
+    .platform-kpis-detail-scroll {
+        padding: 16px 14px;
+    }
+
+    .platform-kpis-detail-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .platform-kpis-detail-stat {
+        padding: 11px;
+    }
+
+    .platform-kpis-detail-footer {
+        padding: 10px;
+    }
+
+    .platform-kpis-page .filter-bar-mobile-actions .ant-btn {
+        flex: 1;
+    }
+}
+
+@media(max-width:420px) {
+    .platform-kpis-detail-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .platform-kpis-detail-footer {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* Expanded recent-performance chart: full-width and legible on every screen. */
+.platform-kpis-performance-section {
+    width: 100%;
+}
+
+.platform-kpis-performance-chart {
+    width: 100%;
+    min-height: 230px;
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    align-items: end;
+    gap: clamp(8px, 2vw, 22px);
+    padding: 18px 14px 12px;
+    background: var(--ant-color-fill-quaternary, rgba(100, 116, 139, .04));
+    border: 1px solid var(--pk-border);
+    border-radius: 16px;
+}
+
+.platform-kpis-performance-column {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    height: 205px;
+}
+
+.platform-kpis-performance-value {
+    text-align: center;
+    min-height: 22px;
+    font-size: 12px;
+    font-weight: 650;
+    color: var(--ant-color-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.platform-kpis-performance-track {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: flex-end;
+    border-bottom: 1px solid var(--pk-border);
+}
+
+.platform-kpis-performance-bar {
+    width: 100%;
+    border-radius: 8px 8px 0 0;
+    background: var(--pk-accent);
+    min-height: 0;
+    transition: height .3s ease;
+}
+
+.platform-kpis-performance-column:last-child .platform-kpis-performance-bar {
+    background: var(--ant-color-primary-hover, var(--pk-accent));
+}
+
+.platform-kpis-performance-label {
+    min-height: 26px;
+    padding-top: 8px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--pk-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@media(max-width:640px) {
+    .platform-kpis-performance-chart {
+        padding: 12px 7px 8px;
+        gap: 6px;
+        min-height: 180px;
+    }
+
+    .platform-kpis-performance-column {
+        height: 168px;
+    }
+
+    .platform-kpis-performance-value {
+        font-size: 10px;
+    }
+
+    .platform-kpis-performance-label {
+        font-size: 10px;
+    }
+}
+
+
+/* Sort/status filtering and accessible performance indication in the left panel. */
+.platform-kpis-list-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 12px 8px 7px;
+}
+
+.platform-kpis-list-controls .ant-select {
+    min-width: 0;
+    width: 100%;
+}
+
+.platform-kpis-list-item {
+    border-left: 3px solid transparent;
+}
+
+.platform-kpis-list-item.is-met {
+    border-left-color: #16a34a;
+}
+
+.platform-kpis-list-item.is-on_track {
+    border-left-color: #2563eb;
+}
+
+.platform-kpis-list-item.is-behind {
+    border-left-color: #dc2626;
+}
+
+.platform-kpis-list-item.is-no_target,
+.platform-kpis-list-item.is-no_data {
+    border-left-color: #94a3b8;
+}
+
+.platform-kpis-list-status {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    display: inline-block;
+    flex: 0 0 7px;
+    margin-right: 5px;
+    background: #94a3b8;
+}
+
+.platform-kpis-list-status.is-met {
+    background: #16a34a;
+}
+
+.platform-kpis-list-status.is-on_track {
+    background: #2563eb;
+}
+
+.platform-kpis-list-status.is-behind {
+    background: #dc2626;
+}
+
+.platform-kpis-list-copy small {
+    display: flex;
+    align-items: center;
+}
+
+.platform-kpis-list-values {
+    display: flex;
+    align-items: flex-end;
+    flex-direction: column;
+    gap: 5px;
+    flex: 0 0 auto;
+}
+
+.platform-kpis-list-variance {
+    font-size: 10px;
+    color: var(--pk-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.platform-kpis-list-variance.is-positive {
+    color: #15803d;
+}
+
+.platform-kpis-list-variance.is-negative {
+    color: #dc2626;
+}
+
+html[data-theme='dark'] .platform-kpis-list-variance.is-positive {
+    color: #4ade80;
+}
+
+html[data-theme='dark'] .platform-kpis-list-variance.is-negative {
+    color: #f87171;
+}
+
+@media(max-width:420px) {
+    .platform-kpis-list-controls {
+        grid-template-columns: 1fr;
+    }
+}

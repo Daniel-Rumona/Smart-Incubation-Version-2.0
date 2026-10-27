@@ -1,4 +1,4 @@
-import { Alert, App, Button, Card, Col, Dropdown, Empty, Form, Input, InputNumber, Radio, Row, Segmented, Select, Skeleton } from 'antd'
+import { Alert, App, Button, Card, Col, Empty, Form, Input, InputNumber, Radio, Row, Segmented, Select, Skeleton } from 'antd'
 import {
     AimOutlined,
     AppstoreOutlined,
@@ -6,17 +6,14 @@ import {
     EditOutlined,
     FieldTimeOutlined,
     InboxOutlined,
-    MoreOutlined,
     PlusOutlined,
     SaveOutlined,
-    SettingOutlined,
     ThunderboltOutlined,
     WarningOutlined,
 } from '@ant-design/icons'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import dayjs from 'dayjs'
 import { AdminFormSectionHead } from '@/components/admin/AdminFormSectionHead'
-import { AdminKpiTile, AdminMiniBars, AdminShareRing } from '@/components/admin/AdminKpiTile'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
 import ResponsiveModal from '@/components/shared/ResponsiveModal'
@@ -79,6 +76,18 @@ const progressOf = (kpi: PlatformKpi, value: number | null) => {
     return Math.max(4, Math.min(100, (kpi.target / value) * 100))
 }
 
+type KpiSort = 'az' | 'ahead' | 'behind' | 'on_track'
+type KpiListStatus = 'all' | PlatformKpiStatus
+
+/** Positive means ahead of target; negative means behind. Respect lower-is-better KPIs. */
+const targetVariance = (row: Row): number | null => {
+    const { target, direction } = row.kpi
+    const actual = row.actual.value
+    if (target === null || actual === null || !Number.isFinite(target) || !Number.isFinite(actual)) return null
+    const denominator = Math.max(Math.abs(target), 1)
+    return ((direction === 'higher' ? actual - target : target - actual) / denominator) * 100
+}
+
 type FormValues = PlatformKpiDraft
 
 export const PlatformKpisPage = () => {
@@ -90,6 +99,10 @@ export const PlatformKpisPage = () => {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string>()
     const [category, setCategory] = useState<'all' | PlatformKpiCategory>('all')
+    const [search, setSearch] = useState('')
+    const [listSort, setListSort] = useState<KpiSort>('az')
+    const [listStatus, setListStatus] = useState<KpiListStatus>('all')
+    const [selectedId, setSelectedId] = useState<string | null>(null)
     const [offset, setOffset] = useState<0 | -1>(0)
     const [editing, setEditing] = useState<PlatformKpi | 'new'>()
     const [entering, setEntering] = useState<Row>()
@@ -134,7 +147,34 @@ export const PlatformKpisPage = () => {
         })
         return { kpi, period, actual, status: platformKpiStatus(kpi, actual, period), history }
     }), [active, offset, scopedData])
-    const visible = rows.filter((row) => category === 'all' || row.kpi.category === category)
+    const visible = rows.filter((row) => {
+        const matchesCategory = category === 'all' || row.kpi.category === category
+        const q = search.trim().toLowerCase()
+        return matchesCategory && (!q || [row.kpi.name, row.kpi.description, row.kpi.kind, row.kpi.category].some((value) => String(value ?? '').toLowerCase().includes(q)))
+    })
+    const listRows = useMemo(() => {
+        const matched = visible.filter((row) => listStatus === 'all' || row.status === listStatus)
+        return [...matched].sort((a, b) => {
+            if (listSort === 'az') return a.kpi.name.localeCompare(b.kpi.name)
+            if (listSort === 'on_track') {
+                const priority = (status: PlatformKpiStatus) => status === 'on_track' ? 0 : status === 'met' ? 1 : 2
+                const difference = priority(a.status) - priority(b.status)
+                if (difference) return difference
+            } else {
+                const av = targetVariance(a)
+                const bv = targetVariance(b)
+                // Unmeasured/no-target KPIs always sort last.
+                if (av === null && bv !== null) return 1
+                if (av !== null && bv === null) return -1
+                if (av !== null && bv !== null && av !== bv) {
+                    return listSort === 'ahead' ? bv - av : av - bv
+                }
+            }
+            return a.kpi.name.localeCompare(b.kpi.name)
+        })
+    }, [visible, listSort, listStatus])
+    const selected = listRows.find((row) => row.kpi.id === selectedId) ?? listRows[0]
+    const selectRow = (id: string) => setSelectedId(id)
     const counts = {
         good: rows.filter((row) => row.status === 'met' || row.status === 'on_track').length,
         behind: rows.filter((row) => row.status === 'behind').length,
@@ -146,6 +186,7 @@ export const PlatformKpisPage = () => {
         pageName: 'System KPIs',
         purpose: 'Track how the platform itself is used and built: adoption, engagement, reliability, AI quality and engineering health against targets.',
         metrics: { tracked: rows.length, onTrackOrMet: counts.good, behind: counts.behind, awaitingEntry: counts.waiting },
+        currentFilters: { category, search, period: offset, listSort, listStatus },
     })
 
     const openEditor = (kpi?: PlatformKpi) => {
@@ -216,65 +257,29 @@ export const PlatformKpisPage = () => {
         entryForm.setFieldsValue({ value: row.actual.value ?? undefined, note: row.actual.manual?.note })
     }
 
-    const periodLabel = offset === 0 ? t('This period') : t('Last period')
     const metricOptions = PLATFORM_METRICS.map((metric) => ({ value: metric.key, label: t(metric.name) }))
 
-    const card = (row: Row) => {
-        const { kpi, actual, status, history, period } = row
-        const target = kpi.target === null ? t('No target') : `${t('Target')} ${kpi.direction === 'higher' ? '≥' : '≤'} ${formatValue(kpi.target, kpi.unit)}`
-        return (
-            <Col key={kpi.id} xs={24} md={12} xl={8}>
-                <Card className="admin-card platform-kpi-card" bordered={false}>
-                    <div className="platform-kpi-top">
-                        <span className={`platform-kpi-kind is-${kpi.kind}`}>{kpi.kind === 'auto' ? <ThunderboltOutlined /> : <EditOutlined />}{kpi.kind === 'auto' ? t('Automatic') : t('Manual')}</span>
-                        <span className={`platform-kpi-status is-${status}`}><i />{t(STATUS_LABELS[status])}</span>
-                        <Dropdown trigger={['click']} menu={{
-                            items: [
-                                ...(kpi.kind === 'manual' ? [{ key: 'enter', icon: <FieldTimeOutlined />, label: t('Enter value') }] : []),
-                                { key: 'edit', icon: <SettingOutlined />, label: t('Edit KPI') },
-                                { key: 'archive', icon: <InboxOutlined />, label: t('Archive'), danger: true },
-                            ],
-                            onClick: ({ key }) => key === 'enter' ? startEntry(row) : key === 'edit' ? openEditor(kpi) : archive(kpi),
-                        }}>
-                            <Button type="text" shape="circle" size="small" icon={<MoreOutlined />} aria-label={t('KPI actions')} />
-                        </Dropdown>
-                    </div>
-                    <h3 className="platform-kpi-name">{kpi.name}</h3>
-                    {kpi.description && <p className="platform-kpi-description" title={kpi.description}>{kpi.description}</p>}
-                    <div className="platform-kpi-figure">
-                        <div>
-                            <strong>{formatValue(actual.value, kpi.unit)}</strong>
-                            <span>{target}</span>
-                        </div>
-                        <AdminMiniBars bars={history.map((item) => ({ key: item.period.key, label: item.period.shortLabel.slice(0, 3), value: item.value ?? 0 }))} />
-                    </div>
-                    <div className={`platform-kpi-progress is-${status}`} aria-hidden="true"><span style={{ width: `${progressOf(kpi, actual.value)}%` }} /></div>
-                    <div className="platform-kpi-foot">
-                        <span>{actual.manual
-                            ? t('Entered by {name}, {date}', undefined, { name: actual.manual.byName || t('an admin'), date: dayjs(actual.manual.at).format('D MMM') })
-                            : actual.detail || period.label}</span>
-                        {kpi.kind === 'manual' && <Button size="small" shape="round" type={actual.value === null ? 'primary' : 'default'} onClick={() => startEntry(row)}>{actual.value === null ? t('Enter value') : t('Update')}</Button>}
-                    </div>
-                </Card>
-            </Col>
-        )
-    }
-
-    const grouped = PLATFORM_KPI_CATEGORIES.map((group) => ({ ...group, rows: visible.filter((row) => row.kpi.category === group.key) })).filter((group) => group.rows.length)
+    const selectedCategory = selected ? PLATFORM_KPI_CATEGORIES.find((item) => item.key === selected.kpi.category) : undefined
+    const selectedTarget = selected ? selected.kpi.target === null
+        ? t('No target')
+        : `${t('Target')} ${selected.kpi.direction === 'higher' ? '≥' : '≤'} ${formatValue(selected.kpi.target, selected.kpi.unit)}`
+        : ''
 
     return (
         <DashboardPage className="platform-kpis-page admin-overview">
             {error && <Alert type="error" showIcon message={error} style={{ marginBottom: 16 }} />}
-            {companyCode && <Alert type="info" showIcon message={t('Automatic figures are for {company} only. Manual figures and targets are platform-wide.', undefined, { company: companyCode })} style={{ marginBottom: 16 }} />}
-            <Row gutter={[16, 16]}>
-                <Col xs={24} sm={12} xl={6}><AdminKpiTile loading={loading} icon={<AimOutlined />} label={t('KPIs tracked')} value={rows.length} /></Col>
-                <Col xs={24} sm={12} xl={6}><AdminKpiTile loading={loading} icon={<CheckCircleOutlined />} label={t('Met or on track')} value={counts.good} visual={<AdminShareRing value={counts.good} total={rows.length} />} /></Col>
-                <Col xs={24} sm={12} xl={6}><AdminKpiTile loading={loading} icon={<WarningOutlined />} label={t('Behind target')} value={counts.behind} visual={<AdminShareRing value={counts.behind} total={rows.length} muted />} /></Col>
-                <Col xs={24} sm={12} xl={6}><AdminKpiTile loading={loading} icon={<FieldTimeOutlined />} label={t('Waiting for a value')} value={counts.waiting} /></Col>
-            </Row>
+            <div className="platform-kpis-metrics">
+                <div className="platform-kpis-metric"><AimOutlined /><span><strong>{rows.length}</strong><small>{t('KPIs tracked')}</small></span></div>
+                <div className="platform-kpis-metric"><CheckCircleOutlined /><span><strong>{counts.good}</strong><small>{t('Met or on track')}</small></span></div>
+                <div className="platform-kpis-metric"><WarningOutlined /><span><strong>{counts.behind}</strong><small>{t('Behind target')}</small></span></div>
+                <div className="platform-kpis-metric"><FieldTimeOutlined /><span><strong>{counts.waiting}</strong><small>{t('Waiting for a value')}</small></span></div>
+            </div>
 
             <FilterBar
-                primary={<Segmented value={category} onChange={(value) => setCategory(value as typeof category)} options={[{ value: 'all', label: t('All') }, ...PLATFORM_KPI_CATEGORIES.map((item) => ({ value: item.key, label: t(item.label) }))]} />}
+                primary={<>
+                    <Input.Search allowClear value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('Search KPIs')} className="platform-kpis-filter-search" />
+                    <Segmented value={category} onChange={(value) => setCategory(value as typeof category)} options={[{ value: 'all', label: t('All') }, ...PLATFORM_KPI_CATEGORIES.map((item) => ({ value: item.key, label: t(item.label) }))]} />
+                </>}
                 actions={<>
                     <Segmented value={offset} onChange={(value) => setOffset(value as 0 | -1)} options={[{ value: 0, label: t('This period') }, { value: -1, label: t('Last period') }]} />
                     {missingRecommended > 0 && active.length > 0 && <Button icon={<AppstoreOutlined />} loading={seeding} onClick={() => void seed()}>{t('Add recommended ({count})', undefined, { count: missingRecommended })}</Button>}
@@ -283,7 +288,7 @@ export const PlatformKpisPage = () => {
             />
 
             {loading ? (
-                <Row gutter={[16, 16]}>{[0, 1, 2].map((index) => <Col key={index} xs={24} md={12} xl={8}><Card className="admin-card" bordered={false}><Skeleton active /></Card></Col>)}</Row>
+                <div className="platform-kpis-workspace"><Card><Skeleton active /></Card><Card><Skeleton active /></Card></div>
             ) : !active.length ? (
                 <Card className="admin-card platform-kpis-empty" bordered={false}>
                     <span className="admin-kpi-icon"><AimOutlined /></span>
@@ -292,17 +297,109 @@ export const PlatformKpisPage = () => {
                     <Button type="primary" shape="round" size="large" icon={<AppstoreOutlined />} loading={seeding} onClick={() => void seed()}>{t('Add {count} recommended KPIs', undefined, { count: RECOMMENDED_PLATFORM_KPIS.length })}</Button>
                     <Button type="link" onClick={() => openEditor()}>{t('Or add your own')}</Button>
                 </Card>
-            ) : !grouped.length ? (
-                <Card className="admin-card" bordered={false}><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('No KPIs in this category.')} /></Card>
-            ) : grouped.map((group) => (
-                <section key={group.key} className="platform-kpis-group">
-                    <div className="platform-kpis-group-head">
-                        <h2>{t(group.label)}</h2>
-                        <span>{t('{count} KPIs · {period}', undefined, { count: group.rows.length, period: periodLabel })}</span>
-                    </div>
-                    <Row gutter={[16, 16]}>{group.rows.map(card)}</Row>
-                </section>
-            ))}
+            ) : (
+                <div className="platform-kpis-workspace">
+                    <section className="platform-kpis-list-panel">
+                        <header className="platform-kpis-panel-heading">
+                            <h2>{t('System KPIs')}</h2>
+                            <span>{listRows.length} {t('of')} {rows.length}</span>
+                        </header>
+                        <div className="platform-kpis-list-controls">
+                            <Select
+                                aria-label={t('Sort KPIs')}
+                                value={listSort}
+                                onChange={setListSort}
+                                options={[
+                                    { value: 'az', label: t('A–Z') },
+                                    { value: 'ahead', label: t('Most ahead') },
+                                    { value: 'behind', label: t('Most behind') },
+                                    { value: 'on_track', label: t('On track first') },
+                                ]}
+                            />
+                            <Select
+                                aria-label={t('Filter KPI status')}
+                                value={listStatus}
+                                onChange={setListStatus}
+                                options={[
+                                    { value: 'all', label: t('All statuses') },
+                                    ...Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label: t(label) })),
+                                ]}
+                            />
+                        </div>
+                        <div className="platform-kpis-list-scroll">
+                            {!listRows.length ? (
+                                <Empty description={t('No KPIs match these filters.')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                            ) : listRows.map((row) => {
+                                const variance = targetVariance(row)
+                                return <button
+                                    key={row.kpi.id}
+                                    type="button"
+                                    onClick={() => selectRow(row.kpi.id)}
+                                    className={`platform-kpis-list-item is-${row.status} ${selected?.kpi.id === row.kpi.id ? 'is-selected' : ''}`}
+                                    aria-pressed={selected?.kpi.id === row.kpi.id}
+                                >
+                                    <span className="platform-kpis-list-icon">{row.kpi.kind === 'auto' ? <ThunderboltOutlined /> : <EditOutlined />}</span>
+                                    <span className="platform-kpis-list-copy">
+                                        <strong>{row.kpi.name}</strong>
+                                        <small><span className={`platform-kpis-list-status is-${row.status}`} />{t(STATUS_LABELS[row.status])} · {row.kpi.kind === 'auto' ? t('Automatic') : t('Manual')}</small>
+                                    </span>
+                                    <span className="platform-kpis-list-values">
+                                        <span className="platform-kpis-list-number">{formatValue(row.actual.value, row.kpi.unit)}</span>
+                                        {variance !== null && <small className={`platform-kpis-list-variance ${variance < 0 ? 'is-negative' : 'is-positive'}`}>{variance > 0 ? '+' : ''}{variance.toFixed(1)}%</small>}
+                                    </span>
+                                </button>
+                            })}
+                        </div>
+                    </section>
+
+                    <section className="platform-kpis-detail-panel">
+                        {selected ? <>
+                            <div className="platform-kpis-detail-scroll">
+                                <header className="platform-kpis-detail-header">
+                                    <div>
+                                        <div className="platform-kpis-detail-badges">
+                                            <span className={`platform-kpi-kind is-${selected.kpi.kind}`}>{selected.kpi.kind === 'auto' ? <ThunderboltOutlined /> : <EditOutlined />}{selected.kpi.kind === 'auto' ? t('Automatic') : t('Manual')}</span>
+                                            <span className={`platform-kpi-status is-${selected.status}`}><i />{t(STATUS_LABELS[selected.status])}</span>
+                                        </div>
+                                        <h2>{selected.kpi.name}</h2>
+                                        {selected.kpi.description && <p>{selected.kpi.description}</p>}
+                                    </div>
+                                </header>
+                                <div className="platform-kpis-detail-stats">
+                                    <div className="platform-kpis-detail-stat platform-kpis-detail-stat-primary"><span>{t('Actual')} · {selected.period.label}</span><strong>{formatValue(selected.actual.value, selected.kpi.unit)}</strong><small>{selectedTarget}</small></div>
+                                    <div className="platform-kpis-detail-stat"><span>{t('Category')}</span><strong>{selectedCategory ? t(selectedCategory.label) : selected.kpi.category}</strong><small>{t('Source')}: {selected.kpi.kind === 'auto' ? t('Automatic') : t('Manual')}</small></div>
+                                    <div className="platform-kpis-detail-stat"><span>{t('Measured every')}</span><strong>{selected.kpi.cadence === 'month' ? t('Month') : t('Quarter')}</strong><small>{t('Good is')}: {selected.kpi.direction === 'higher' ? t('Higher') : t('Lower')}</small></div>
+                                </div>
+                                <div className="platform-kpis-detail-section"><div className="platform-kpis-detail-section-head"><h3>{t('Target progress')}</h3><span>{selected.kpi.target === null ? t('No target') : `${Math.round(progressOf(selected.kpi, selected.actual.value))}%`}</span></div><div className={`platform-kpi-progress is-${selected.status}`}><span style={{ width: `${progressOf(selected.kpi, selected.actual.value)}%` }} /></div></div>
+                                <div className="platform-kpis-detail-section platform-kpis-performance-section">
+                                    <h3>{t('Recent performance')}</h3>
+                                    <div className="platform-kpis-performance-chart" role="img" aria-label={t('Recent performance')}>
+                                        {selected.history.map((item) => {
+                                            const maximum = Math.max(1, ...selected.history.map((point) => Math.max(0, point.value ?? 0)))
+                                            const height = item.value === null ? 0 : Math.max(item.value > 0 ? 4 : 0, Math.min(100, (Math.max(0, item.value) / maximum) * 100))
+                                            return (
+                                                <div className="platform-kpis-performance-column" key={item.period.key}>
+                                                    <span className="platform-kpis-performance-value">{formatValue(item.value, selected.kpi.unit)}</span>
+                                                    <div className="platform-kpis-performance-track">
+                                                        <div className="platform-kpis-performance-bar" style={{ height: `${height}%` }} />
+                                                    </div>
+                                                    <span className="platform-kpis-performance-label">{item.period.shortLabel}</span>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                                <p className="platform-kpis-detail-source">{selected.actual.manual ? t('Entered by {name}, {date}', undefined, { name: selected.actual.manual.byName || t('an admin'), date: dayjs(selected.actual.manual.at).format('D MMM') }) : selected.actual.detail || selected.period.label}</p>
+                                {selected.kpi.kind === 'manual' && <Button icon={<FieldTimeOutlined />} block onClick={() => startEntry(selected)} type={selected.actual.value === null ? 'primary' : 'default'}>{selected.actual.value === null ? t('Enter value') : t('Update value')}</Button>}
+                            </div>
+                            <footer className="platform-kpis-detail-footer">
+                                <Button block icon={<EditOutlined />} onClick={() => openEditor(selected.kpi)}>{t('Edit KPI')}</Button>
+                                <Button block danger icon={<InboxOutlined />} onClick={() => archive(selected.kpi)}>{t('Archive')}</Button>
+                            </footer>
+                        </> : <div className="platform-kpis-no-selection"><Empty description={t('Select a KPI to view its details.')} /></div>}
+                    </section>
+                </div>
+            )}
 
             <ResponsiveModal
                 open={!!editing}

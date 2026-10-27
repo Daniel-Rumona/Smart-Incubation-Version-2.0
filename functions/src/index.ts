@@ -10,6 +10,7 @@ import { runInterventionDeadlineDigest, type DigestDeps } from './deadlineDigest
 import { runFollowUpReminders } from './followUps.js'
 import { acceptPlan, MarketplaceError, notifyChange, nudgeUnanswered, type MarketplaceDeps } from './marketplace.js'
 import { AvailableWorkError, claimAvailableWork, listAvailableWork } from './availableWork.js'
+import { FunderComplianceError, funderComplianceSummary } from './funderCompliance.js'
 import { runSmeCheckbackAsks } from './smeCheckbacks.js'
 import { DirectorSetupError, completeDirectorSetup } from './directorSetup.js'
 import { JoinError, buildConfirmedSetPlan, enrolInDirectProgram, forcedProgramInterventions, getProgramLinkInfo, joinProgram, type JoinInput } from './programJoin.js'
@@ -3382,6 +3383,21 @@ export const claimFacilitatorWork = onCall({ region }, async (request) => {
     })
   } catch (error) {
     if (error instanceof AvailableWorkError) throw new HttpsError(error.code, error.message)
+    throw error
+  }
+})
+
+// ---------------------------------------------------------------------------
+// Funder compliance summary (see funderCompliance.ts): counts only, never the documents
+// ---------------------------------------------------------------------------
+
+export const getFunderComplianceSummary = onCall({ region }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in to see compliance.')
+  const data = (request.data || {}) as { programId?: unknown }
+  try {
+    return await funderComplianceSummary(getFirestore(), request.auth.uid, data.programId ? String(data.programId) : null)
+  } catch (error) {
+    if (error instanceof FunderComplianceError) throw new HttpsError(error.code, error.message)
     throw error
   }
 })

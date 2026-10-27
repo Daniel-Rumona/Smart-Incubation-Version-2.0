@@ -207,4 +207,5 @@ export const zuDirector: Record<string, string> = {
   "{growing} of {count} growing": "{growing} kwangu-{count} ayakhula",
   "{start} to {end}": "{start} kuya ku-{end}",
   "No KPI targets set for this programme yet. Set them on the KPIs page.": "Azikho izinhloso zama-KPI ezimiselwe lolu hlelo okwamanje. Zimise ekhasini lama-KPI.",
+  "{count} behind": "{count} basemuva",
 }

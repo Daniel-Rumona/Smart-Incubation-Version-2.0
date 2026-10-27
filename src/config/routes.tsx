@@ -148,7 +148,8 @@ export const publicRoutes: PublicRoute[] = [
 ]
 
 const allRoles = Object.values(USER_ROLES)
-const dashboardRoles = allRoles.filter(role => role !== USER_ROLES.DIRECTOR)
+// Directors and funders have their own home (/director, /funder), so the generic dashboard isn't theirs.
+const dashboardRoles = allRoles.filter(role => role !== USER_ROLES.DIRECTOR && role !== USER_ROLES.FUNDER)
 const operationsRoles = [
     USER_ROLES.SYSTEM_ADMIN,
     USER_ROLES.DIRECTOR,

@@ -4,6 +4,182 @@
   margin-top: 16px;
 }
 
+/* Short lists end with their content instead of stretching to the tallest card in the row. */
+.funder-fit-card.admin-card.ant-card {
+  height: auto;
+}
+
+/* "62%" stays on one line; the change badge wraps under it on narrow cards instead. */
+.funder-page .admin-kpi-value,
+.funder-page .admin-kpi-trend {
+  white-space: nowrap;
+}
+
+/* Slim cards: "62%" and "+12%" are figures, so they match "30" rather than the smaller text style. */
+.funder-page .admin-kpi.is-compact .admin-kpi-value.is-text {
+  display: inline;
+  overflow: visible;
+  font-size: 24px;
+  text-overflow: clip;
+}
+
+.funder-page .admin-kpi.is-compact .admin-kpi-note {
+  margin-top: 6px;
+}
+
+/* Phones show the two cards that answer "is the money working?" (Delivery, Revenue growth); the rest is a tap away. */
+@media (max-width: 575px) {
+  .funder-kpi-extra {
+    display: none;
+  }
+}
+
+.funder-row-top {
+  align-items: flex-start;
+}
+
+.funder-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.funder-chip {
+  display: inline-flex;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--admin-card-border);
+  background: var(--admin-card-bg);
+  color: var(--admin-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.funder-footnote {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--admin-muted);
+}
+
+/* ---------- Recent activity ---------- */
+
+.funder-feed {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.funder-feed li {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 0;
+  border-top: 1px solid var(--admin-card-border);
+  font-size: 13px;
+}
+
+.funder-feed li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.funder-feed li.is-behind {
+  margin: 4px 0;
+  padding: 11px 12px;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(220, 38, 38, .07);
+}
+
+.funder-feed li.is-behind + li {
+  border-top: 0;
+}
+
+.funder-feed time {
+  color: var(--admin-muted);
+  font-size: 12px;
+}
+
+.funder-feed strong {
+  display: block;
+  color: var(--admin-ink);
+}
+
+.funder-feed div span {
+  display: block;
+  color: var(--admin-muted);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 575px) {
+  .funder-feed li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .funder-feed time {
+    grid-column: 1 / -1;
+    order: 3;
+  }
+}
+
+/* ---------- Analytics ---------- */
+
+.funder-accent {
+  color: var(--admin-accent);
+}
+
+.funder-gauge {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(170px, 0.9fr);
+  align-items: center;
+  gap: 16px;
+}
+
+.funder-legend {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  color: var(--admin-ink);
+}
+
+.funder-legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 8px;
+  border-radius: 3px;
+}
+
+.funder-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.funder-chips span {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(220, 38, 38, .08);
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+html[data-theme='dark'] .funder-chips span { color: #f87171; background: rgba(248, 113, 113, .12); }
+
+@media (max-width: 575px) {
+  .funder-gauge {
+    grid-template-columns: 1fr;
+  }
+}
+
 .funder-muted {
   color: var(--admin-muted);
   font-size: 12.5px;

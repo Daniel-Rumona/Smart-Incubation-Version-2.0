@@ -633,11 +633,20 @@ export const SystemLayout = () => {
         />
     )
 
-    // The bar never wraps, and labels run longer in some languages. When it overflows, labels give way in
-    // steps (other shortcuts, then the other mode, then the current shortcut) so the bell and account
-    // button stay on screen.
+    // The bar never wraps, and labels run longer in some languages. When it overflows, things give way in
+    // steps so the bell and account button stay on screen. The page names go last, because they are how people
+    // find their way: first the mode switch drops its labels, then the programme narrows and then shows only its
+    // icon (its name stays as a tooltip), and only then do the other shortcuts, and finally the current one, lose
+    // their labels.
     const topbarRef = useRef<HTMLElement>(null)
-    useFitSteps(topbarRef, ['links', 'links modes', 'links modes all'])
+    useFitSteps(topbarRef, [
+        'modes',
+        'modes modesall',
+        'modes modesall narrow',
+        'modes modesall narrow scope',
+        'modes modesall narrow scope links',
+        'modes modesall narrow scope links all',
+    ])
 
     const handleLogout = async () => {
         try {

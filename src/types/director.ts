@@ -23,6 +23,10 @@ export type DirectorPortfolioSme = {
     upcoming: number
   }
   trend: Array<{ key: string; month: string; revenue: number; employees: number }>
+  /** When the SME was accepted (YYYY-MM-DD). */
+  joinedAt?: string
+  /** First and latest reported revenue and headcount, as Impact analysis uses them; null with fewer than two figures. */
+  growth?: { revenue: { start: number; latest: number } | null; jobs: { start: number; latest: number } | null }
   metrics: {
     revenue: number
     customers: number

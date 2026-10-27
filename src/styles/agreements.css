@@ -172,3 +172,14 @@ html[data-theme='dark'] .consent-page {
     padding: 20px 16px;
   }
 }
+
+/* ---------- Signature line: the saved signature writes itself here on signing ---------- */
+
+.agreement-signature .sign-document-line {
+  height: 84px;
+}
+
+/* Keeps the button in place before "Signed" appears beside it. */
+.agreement-signed-status {
+  min-height: 22px;
+}

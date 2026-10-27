@@ -4,6 +4,7 @@ import { getFirebaseDb } from '@/config/firebase'
 import type { FullIdentity } from '@/types/identity'
 import type { DirectorPortfolioSme, DirectorRisk, DirectorStage, SectorRollup } from '@/types/director'
 import { matchesActiveProgram } from '@/services/workspaceProgramsService'
+import { metricHistory, type PerformanceSourceRow } from '@/services/smePerformanceMetrics'
 
 type AnyDoc = Record<string, unknown>
 
@@ -212,6 +213,12 @@ export const listDirectorPortfolio = async (user: FullIdentity, activeProgramId?
     const derivedGrowth = recent.length >= 2 ? deriveGrowthRate(recent[recent.length - 1].value, recent[0].value) : 0
     const growthRate = toNumber(perf.growthRate, participant.growthRate, participant.revenueGrowthRate) || derivedGrowth
 
+    // Since joining, as Impact analysis measures it: first and latest reported figure, when there are two.
+    const sinceJoining = (metric: 'revenue' | 'headcount') => {
+      const entries = metricHistory(participant as PerformanceSourceRow, metric)
+      return entries.length > 1 ? { start: entries[0].value, latest: entries[entries.length - 1].value } : null
+    }
+
     const completedCount = assignments.filter(isAssignmentCompleted).length
     const derivedProgress = assignments.length
       ? Math.round(assignments.reduce((sum, row) => sum + (isAssignmentCompleted(row) ? 100 : Math.min(toNumber(row.progress), 100)), 0) / assignments.length)
@@ -268,6 +275,8 @@ export const listDirectorPortfolio = async (user: FullIdentity, activeProgramId?
         upcoming,
       },
       trend,
+      joinedAt: acceptedInfo?.acceptedAt || undefined,
+      growth: { revenue: sinceJoining('revenue'), jobs: sinceJoining('headcount') },
       metrics: {
         revenue: revenueNow,
         customers: toNumber(participant.customers, participant.customerCount, participant.clients, participant.clientCount),

@@ -45,7 +45,16 @@ export const ConsentPage = () => {
     return () => { cancelled = true }
   }, [user])
 
-  if (loading || (user && pending === null)) return <PageSkeleton variant="detail" label={t('Loading')} />
+  // No app shell here either: the skeleton waits inside the same centred card the agreement appears in.
+  if (loading || (user && pending === null)) {
+    return (
+      <main className="consent-page">
+        <Card className="consent-card" bordered={false}>
+          <PageSkeleton variant="detail" label={t('Loading')} />
+        </Card>
+      </main>
+    )
+  }
   if (!user) return <Navigate to="/auth" replace />
   if (!user.firstLoginComplete) return <Navigate to="/welcome" replace />
 
@@ -74,18 +83,16 @@ export const ConsentPage = () => {
     }
   }
 
+  // AgreementForm writes the signature onto its line while this saves, then calls advance.
   const sign = async (key: CompanyAgreementKey) => {
-    try {
-      await signAgreement(user, key, { signatureURL: user.signatureURL || '', companyName: organisationName })
-      const next = remaining.filter((item) => item !== key)
-      setPending(next)
-      message.success(t('Signed.'))
-      if (!next.length) {
-        markAgreementsChecked(user.uid)
-        navigate(home, { replace: true })
-      }
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : t('The agreement could not be saved.'))
+    await signAgreement(user, key, { signatureURL: user.signatureURL || '', companyName: organisationName })
+  }
+  const advance = (key: CompanyAgreementKey) => {
+    const next = remaining.filter((item) => item !== key)
+    setPending(next)
+    if (!next.length) {
+      markAgreementsChecked(user.uid)
+      navigate(home, { replace: true })
     }
   }
 
@@ -127,6 +134,7 @@ export const ConsentPage = () => {
             companyCode={agreementScope(user)}
             progress={total > 1 ? t('{index} of {total}', undefined, { index: total - remaining.length + 1, total }) : undefined}
             onSign={() => sign(current)}
+            onSigned={() => advance(current)}
           />
         )}
       </Card>

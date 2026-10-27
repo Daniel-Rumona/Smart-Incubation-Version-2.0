@@ -20,12 +20,13 @@ import { FilterBar } from '@/components/shared/FilterBar'
 import { ThemedHighcharts } from '@/components/shared/ThemedHighcharts'
 import { CHART_COLORS, CHART_PALETTE } from '@/config/chartPalette'
 import dayjs from 'dayjs'
-import { collection, getDocs, query, where } from 'firebase/firestore'
-import { getFirebaseDb } from '@/config/firebase'
+import { where } from 'firebase/firestore'
 import type Highcharts from 'highcharts'
 import { useActiveProgramId } from '@/hooks/useActiveProgramId'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
-import { buildSectorRollups, listDirectorPortfolio } from '@/services/directorPortfolioService'
+import { USER_ROLES } from '@/config/roles'
+import { buildSectorRollups, getScopedDocs, listDirectorPortfolio } from '@/services/directorPortfolioService'
+import { isBehind } from '@/services/funderService'
 import { useRegisterAgentPageContext } from '@/shared/hooks/useRegisterAgentPageContext'
 import type { DirectorPortfolioSme } from '@/types/director'
 import '@/styles/dashboard.css'
@@ -130,6 +131,8 @@ export const DirectorSectorsPage = () => {
   const { t } = useLanguage()
   const { message } = App.useApp()
   const { user } = useFullIdentity()
+  // Funders see the sector picture, not a named list of struggling SMEs: the watchlist is the incubator's to act on.
+  const isFunder = user?.role === USER_ROLES.FUNDER
   const { activeProgramId } = useActiveProgramId()
   const [rows, setRows] = useState<DirectorPortfolioSme[]>([])
   const [loading, setLoading] = useState(false)
@@ -152,9 +155,10 @@ export const DirectorSectorsPage = () => {
       setLoading(true)
       try {
         const data = await listDirectorPortfolio(user, activeProgramId)
-        const assignmentDocs = await getDocs(query(collection(getFirebaseDb(), 'assignedInterventions'), where('companyCode', '==', user.companyCode)))
-          .then(snapshot => snapshot.docs.map(row => row.data()))
-          .catch(() => [])
+        // Scoped to a funder's programmes, which firestore.rules requires of a funder's list queries.
+        const assignmentDocs = await getScopedDocs(user, 'assignedInterventions', [where('companyCode', '==', user.companyCode)])
+          .then(docs => docs.map(row => row.data()))
+          .catch((error) => { console.error(error); return [] })
         if (mounted) {
           setRows(data)
           setCompletions(assignmentDocs.flatMap(item => {
@@ -285,7 +289,7 @@ export const DirectorSectorsPage = () => {
       />
 
       <Row gutter={[16, 16]}>
-        <Col xs={24} xl={14}>
+        <Col xs={24} xl={isFunder ? 24 : 14}>
           <Card
             loading={loading}
             className="dashboard-section-card motion-card"
@@ -306,8 +310,16 @@ export const DirectorSectorsPage = () => {
                       <Text strong>{row.sector}</Text>
                       <Space size={6}>
                         <Text type="secondary" style={{ fontSize: 12 }}>{row.companies} {t('SME')}{row.companies === 1 ? '' : 's'} · {row.avgProgress}{t('% progress')}</Text>
-                        {row.highRisk > 0 && <Tag color="red" bordered={false} style={{ margin: 0 }}>{row.highRisk} {t('high')}</Tag>}
-                        {row.mediumRisk > 0 && <Tag color="orange" bordered={false} style={{ margin: 0 }}>{row.mediumRisk} {t('medium')}</Tag>}
+                        {isFunder ? (() => {
+                          // The funder dashboard's rule for "behind" (isBehind), so both pages count the same SMEs.
+                          const behind = row.smes.filter(isBehind).length
+                          return behind > 0 && <Tag color="red" bordered={false} style={{ margin: 0 }}>{t('{count} behind', undefined, { count: behind })}</Tag>
+                        })() : (
+                          <>
+                            {row.highRisk > 0 && <Tag color="red" bordered={false} style={{ margin: 0 }}>{row.highRisk} {t('high')}</Tag>}
+                            {row.mediumRisk > 0 && <Tag color="orange" bordered={false} style={{ margin: 0 }}>{row.mediumRisk} {t('medium')}</Tag>}
+                          </>
+                        )}
                       </Space>
                     </div>
                     <Progress
@@ -321,7 +333,7 @@ export const DirectorSectorsPage = () => {
             )}
           </Card>
         </Col>
-        <Col xs={24} xl={10}>
+        {!isFunder && <Col xs={24} xl={10}>
           <Card loading={loading} className="dashboard-section-card motion-card" title={<Space><WarningOutlined /> {t('Risk Watchlist')}</Space>} extra={<Text type="secondary">{t('Click an SME to see why')}</Text>} style={{ height: '100%' }}>
             {watchlist.length ? (
               <div style={{ maxHeight: 420, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, paddingRight: 4 }}>
@@ -343,7 +355,7 @@ export const DirectorSectorsPage = () => {
               </div>
             ) : <Empty description={t('No high or medium risk SMEs found.')} />}
           </Card>
-        </Col>
+        </Col>}
         <Col span={24}>
           <Card
             loading={loading}

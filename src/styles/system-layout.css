@@ -1674,15 +1674,24 @@ html[data-theme='dark'] .app-topbar-actions.is-mobile-pills .app-icon-btn.app-ic
 
 /* =========================================================
    TOPBAR FIT
-   Set by SystemLayout when the bar would overflow (longer labels in some languages). Labels give way in
-   steps and stay available as tooltips: other shortcuts, then the other mode, then the current shortcut.
+   Set by SystemLayout when the bar would overflow (tablets, longer labels in some languages). Things give way
+   in steps and stay available as tooltips; page names go last: the other mode's label, then the current
+   mode's, then the programme narrows and then shows only its icon, then the other shortcuts, then the
+   current shortcut.
    ========================================================= */
 
 .app-topbar-pill[data-fit~='links'] .app-quicklinks-switch .ant-segmented-item:not(.ant-segmented-item-selected) .app-topbar-text,
 .app-topbar-pill[data-fit~='modes'] .app-mode-switch .ant-segmented-item:not(.ant-segmented-item-selected) .app-topbar-text,
+.app-topbar-pill[data-fit~='modesall'] .app-mode-switch .app-topbar-text,
 .app-topbar-pill[data-fit~='all'] .app-quicklinks-switch .app-topbar-text {
     display: none;
 }
+
+/* The programme as an icon only: its name is in the tag's title / the dropdown. */
+.app-topbar-pill[data-fit~='scope'] .app-project-tag { max-width: 42px; padding: 0 0 0 6px; }
+.app-topbar-pill[data-fit~='scope'] .app-project-tag .app-scope-name { display: none; }
+.app-topbar-pill[data-fit~='scope'] .app-project-select { width: 72px; }
+.app-topbar-pill[data-fit~='scope'] .app-project-select .ant-select-selection-item { opacity: 0; }
 
 .app-topbar-pill[data-fit~='modes'] .app-mode-switch .ant-segmented-item { min-width: 0; }
 
@@ -1753,5 +1762,5 @@ html[data-theme='dark'] .app-topbar-actions.is-mobile-pills .app-icon-btn.app-ic
 }
 
 /* When the bar runs out of room, the programme gives up some width before the shortcut labels go. */
-.app-topbar-pill[data-fit~='links'] .app-project-select { width: 180px; }
-.app-topbar-pill[data-fit~='links'] .app-project-tag { max-width: 180px; }
+.app-topbar-pill[data-fit~='narrow'] .app-project-select { width: 160px; }
+.app-topbar-pill[data-fit~='narrow'] .app-project-tag { max-width: 160px; }

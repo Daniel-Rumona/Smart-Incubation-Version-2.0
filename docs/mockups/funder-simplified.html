@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Funder dashboard simplified</title>
+<style>
+  :root {
+    --accent: #6d5dfb; --accent-2: #4f7df3; --accent-soft: rgba(109,93,251,.12);
+    --bg: #f5f6fb; --surface: #ffffff; --surface-2: #eef0f8; --ink: #172033; --muted: #5b6478; --line: rgba(109,93,251,.14);
+    --ok: #059669; --ok-bg: rgba(5,150,105,.1); --amber: #d97706; --amber-bg: rgba(217,119,6,.12); --off: #dc2626; --off-bg: rgba(220,38,38,.08);
+    --slate: #94a3b8; --note: #b45309; --note-bg: rgba(217,119,6,.1);
+    --ease: cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  [data-theme="dark"] {
+    --bg: #0f1117; --surface: #1b1e2a; --surface-2: #232737; --ink: #eef0f6; --muted: #a1a9bd; --line: rgba(139,92,246,.24); --accent-soft: rgba(109,93,251,.22);
+    --ok: #34d399; --ok-bg: rgba(52,211,153,.12); --off: #f87171; --off-bg: rgba(248,113,113,.1); --amber-bg: rgba(251,191,36,.12);
+    --slate: #64748b; --note: #fbbf24; --note-bg: rgba(251,191,36,.12);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
+  button { font: inherit; color: inherit; }
+
+  .controls { position: sticky; top: 0; z-index: 9; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; padding: 12px; background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+  .seg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); }
+  .seg button { border: 0; background: none; color: var(--muted); font-weight: 650; font-size: 13px; padding: 7px 14px; border-radius: 999px; cursor: pointer; }
+  .seg button.on { color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+  .small-seg button { padding: 4px 11px; font-size: 12px; }
+  .stage { display: flex; justify-content: center; padding: 24px 16px 48px; }
+  .frame { width: 1140px; max-width: 100%; border: 1px solid var(--line); border-radius: 22px; background: var(--bg); padding: 20px; container-type: inline-size; transition: width .35s var(--ease); }
+  .stage.phone .frame { width: 375px; border-radius: 36px; padding: 14px; }
+  .view { display: none; } .view.on { display: block; }
+  .chg { display: none; margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; font-size: 12.5px; line-height: 1.4; color: var(--note); background: var(--note-bg); border: 1px dashed color-mix(in srgb, var(--note) 50%, transparent); }
+  .show-notes .chg { display: block; }
+
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  .hero { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px; margin-bottom: 16px; }
+  .hero p { margin: 0; color: var(--muted); }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--surface); border: 1px solid var(--line); color: var(--muted); }
+
+  .grid { display: grid; gap: 14px; margin-bottom: 14px; align-items: start; }
+  .g4 { grid-template-columns: repeat(4, 1fr); align-items: stretch; } .g-14-10 { grid-template-columns: 14fr 10fr; } .g-15-9 { grid-template-columns: 15fr 9fr; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 18px; min-width: 0; }
+  .card h3 { font-size: 15px; margin: 0; }
+  .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 14px; }
+  .head span { display: block; color: var(--muted); font-size: 12px; }
+  .muted { color: var(--muted); } .small { font-size: 12.5px; }
+  .link { color: var(--accent); font-weight: 600; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
+  .tag { display: inline-flex; padding: 1px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; background: var(--surface-2); color: var(--muted); white-space: nowrap; }
+  .tag.ok { color: var(--ok); background: var(--ok-bg); } .tag.warn { color: var(--amber); background: var(--amber-bg); } .tag.off { color: var(--off); background: var(--off-bg); } .tag.ac { color: var(--accent); background: var(--accent-soft); }
+
+  .kpi { display: grid; gap: 8px; }
+  .kpi small { color: var(--muted); font-size: 13px; font-weight: 600; }
+  .kpi .row { display: flex; align-items: center; gap: 12px; }
+  .kpi i { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-style: normal; background: var(--accent-soft); color: var(--accent); }
+  .kpi b { font-size: 28px; line-height: 1.1; }
+  .kpi em { font-style: normal; font-size: 12px; color: var(--muted); }
+  .delta { font-weight: 700; font-size: 12px; }
+  .delta.up { color: var(--ok); } .delta.down { color: var(--off); }
+  .minibars { display: flex; gap: 4px; align-items: flex-end; height: 44px; margin-left: auto; }
+  .minibars span { width: 9px; border-radius: 4px; background: var(--surface-2); height: 100%; position: relative; overflow: hidden; }
+  .minibars span b { position: absolute; left: 0; right: 0; bottom: 0; background: var(--accent); border-radius: 4px; }
+
+  /* charts drawn with plain boxes */
+  .chart { display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 8px; align-items: end; height: 200px; padding: 0 2px; border-bottom: 1px solid var(--line); }
+  .chart div { position: relative; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; }
+  .chart div span { border-radius: 6px 6px 0 0; background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 55%, transparent)); }
+  .chart div.open span { background: repeating-linear-gradient(135deg, var(--accent-soft) 0 6px, transparent 6px 12px); border: 1px dashed var(--accent); border-bottom: 0; }
+  .chart div.plan span.p { position: absolute; left: 0; right: 0; bottom: 0; background: color-mix(in srgb, var(--accent) 22%, transparent); border-radius: 6px 6px 0 0; }
+  .chart div.plan span.c { position: relative; margin: 0 22%; }
+  .axis { display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 8px; margin-top: 6px; font-size: 11px; color: var(--muted); text-align: center; }
+  .line { position: relative; height: 200px; border-bottom: 1px solid var(--line); }
+  .line svg { width: 100%; height: 100%; display: block; }
+  .legend { display: flex; gap: 14px; justify-content: flex-end; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+
+  .feed { display: grid; margin: 0; padding: 0; list-style: none; }
+  .feed li { display: grid; grid-template-columns: 92px 1fr auto; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); font-size: 13px; }
+  .feed li:first-child { border-top: 0; padding-top: 0; }
+  .feed time { color: var(--muted); font-size: 12px; }
+  .feed strong { display: block; }
+  .feed .group { background: var(--off-bg); border-radius: 12px; padding: 10px 12px; border: 0; margin: 4px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 9px 8px; border-top: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; border-top: 0; }
+
+  .bars { display: grid; gap: 13px; margin: 0; padding: 0; list-style: none; }
+  .bars li { display: grid; grid-template-columns: minmax(90px, 130px) 1fr 44px; gap: 10px; align-items: center; font-size: 13px; }
+  .bars .track { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+  .bars .track b { display: block; height: 100%; border-radius: 999px; background: var(--accent); }
+  .bars strong { text-align: right; font-variant-numeric: tabular-nums; }
+
+  @container (max-width: 760px) {
+    .g4 { grid-template-columns: 1fr 1fr; } .g-14-10, .g-15-9 { grid-template-columns: 1fr; }
+    .kpi b { font-size: 22px; } .minibars { display: none; }
+    .feed li { grid-template-columns: 1fr auto; } .feed time { grid-column: 1 / -1; order: 3; }
+    .cur-table { display: none; } .cur-cards { display: grid !important; }
+  }
+  .cur-cards { display: none; gap: 8px; }
+  .cur-cards div { padding: 10px 12px; border-radius: 12px; background: var(--surface-2); display: grid; gap: 3px; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="controls">
+  <div class="seg" id="page"><button data-p="current">Current</button><button class="on" data-p="simple">Simplified</button></div>
+  <div class="seg" id="view"><button class="on" data-v="desktop">Desktop</button><button data-v="phone">Phone</button></div>
+  <div class="seg" id="theme"><button class="on" data-t="light">Light</button><button data-t="dark">Dark</button></div>
+  <div class="seg" id="notes"><button class="on" data-n="on">Show changes</button><button data-n="off">Hide changes</button></div>
+</div>
+
+<div class="stage show-notes" id="stage">
+  <div class="frame">
+
+    <!-- ================= CURRENT ================= -->
+    <section class="view" id="current">
+      <div class="hero"><div><h1>Welcome back, Funder!</h1><p>What your funding is achieving across Women in Agri Accelerator 2026.</p></div></div>
+      <div class="chg">Today's funder dashboard, redrawn with the figures it shows for Women in Agri Accelerator 2026 on 27 Oct 2026.</div>
+
+      <div class="grid g4">
+        <div class="card kpi"><small>SMEs supported</small><div class="row"><i>👥</i><b>30</b></div></div>
+        <div class="card kpi"><small>Average progress</small><div class="row"><i>◎</i><b>68%</b></div></div>
+        <div class="card kpi"><small>Portfolio revenue</small><div class="row"><i>R</i><b>R 5M</b><div class="minibars"><span><b style="height:96%"></b></span><span><b style="height:98%"></b></span><span><b style="height:97%"></b></span><span><b style="height:99%"></b></span><span><b style="height:100%"></b></span><span><b style="height:8%"></b></span></div></div></div>
+        <div class="card kpi"><small>Jobs supported</small><div class="row"><i>↗</i><b>242</b><div class="minibars"><span><b style="height:95%"></b></span><span><b style="height:96%"></b></span><span><b style="height:98%"></b></span><span><b style="height:99%"></b></span><span><b style="height:100%"></b></span><span><b style="height:9%"></b></span></div></div></div>
+      </div>
+      <div class="chg">"Average progress" is a progress score nobody else uses, so a funder can't tell what 68% means. "Portfolio revenue" has no period or comparison. The small bars repeat the chart below, and October's half-reported month looks like a collapse.</div>
+
+      <div class="grid g-14-10">
+        <div class="card">
+          <div class="head"><div><h3>Revenue and jobs</h3><span>Portfolio totals from monthly SME reporting, last 12 months</span></div></div>
+          <div class="legend"><span><i style="background:var(--accent)"></i>Revenue</span><span><i style="background:#4338ca"></i>Jobs</span></div>
+          <div class="line"><svg viewBox="0 0 120 50" preserveAspectRatio="none"><path d="M0,50 L10,50 L20,10 L30,10 L40,9.5 L50,9.5 L60,9 L70,9 L80,8.5 L90,8 L100,7 L110,50" fill="rgba(109,93,251,.18)" stroke="var(--accent)" stroke-width=".8" vector-effect="non-scaling-stroke"/><path d="M0,50 L10,50 L20,12 L30,12 L40,11.5 L50,11 L60,11 L70,10.5 L80,10 L90,10 L100,9.5 L110,50" fill="none" stroke="#4338ca" stroke-dasharray="3 2" stroke-width=".8" vector-effect="non-scaling-stroke"/></svg></div>
+          <div class="axis" style="--n:12"><span>Nov</span><span>Dec</span><span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span><span>Jul</span><span>Aug</span><span>Sep</span><span>Oct</span></div>
+        </div>
+        <div class="card">
+          <div class="head"><div><h3>Support delivered</h3><span>Interventions completed against plan</span></div></div>
+          <div class="legend"><span><i style="background:color-mix(in srgb, var(--accent) 30%, transparent)"></i>Planned</span><span><i style="background:var(--accent)"></i>Completed</span></div>
+          <div class="chart" style="--n:6">
+            <div class="plan"><span class="p" style="height:30%"></span><span class="c" style="height:28%"></span></div>
+            <div class="plan"><span class="p" style="height:32%"></span><span class="c" style="height:30%"></span></div>
+            <div class="plan"><span class="p" style="height:55%"></span><span class="c" style="height:42%"></span></div>
+            <div class="plan"><span class="p" style="height:72%"></span><span class="c" style="height:44%"></span></div>
+            <div class="plan"><span class="p" style="height:48%"></span><span class="c" style="height:8%"></span></div>
+            <div class="plan"><span class="p" style="height:45%"></span><span class="c" style="height:0"></span></div>
+          </div>
+          <div class="axis" style="--n:6"><span>May</span><span>Jun</span><span>Jul</span><span>Aug</span><span>Sep</span><span>Oct</span></div>
+        </div>
+      </div>
+      <div class="chg">Two units on one chart (rand and headcount), drawn a second time from the cards. "Support delivered" counts planned vs completed by month, so its numbers don't match Reports or the director dashboard.</div>
+
+      <div class="grid g-15-9">
+        <div class="card">
+          <div class="head"><div><h3>Recent activity</h3><span>Milestones across your programmes, newest first</span></div></div>
+          <table class="cur-table">
+            <tr><th>When</th><th>SME</th><th>What happened</th><th>Programme</th></tr>
+            <tr><td class="muted">a month ago</td><td><b>Vula Vineyards</b></td><td><span class="tag off">At risk</span> 1 interventions overdue</td><td class="muted">Women in Agri…</td></tr>
+            <tr><td class="muted">a month ago</td><td><b>Lekgotla Greens</b></td><td><span class="tag off">At risk</span> 3 interventions overdue</td><td class="muted">Women in Agri…</td></tr>
+            <tr><td class="muted">a month ago</td><td><b>Dumisani Beekeeping</b></td><td><span class="tag off">At risk</span> 2 interventions overdue</td><td class="muted">Women in Agri…</td></tr>
+            <tr><td class="muted">a month ago</td><td><b>Zamokuhle Aquaponics</b></td><td><span class="tag off">At risk</span> 3 interventions overdue</td><td class="muted">Women in Agri…</td></tr>
+            <tr><td class="muted">a month ago</td><td><b>Letsatsi Agri Energy</b></td><td><span class="tag off">At risk</span> 3 interventions overdue</td><td class="muted">Women in Agri…</td></tr>
+          </table>
+          <div class="cur-cards">
+            <div><span class="tag off" style="justify-self:start">At risk</span><b>Vula Vineyards</b><span>1 interventions overdue</span><small class="muted">a month ago · Women in Agri Accelerator 2026</small></div>
+            <div><span class="tag off" style="justify-self:start">At risk</span><b>Lekgotla Greens</b><span>3 interventions overdue</span><small class="muted">a month ago · Women in Agri Accelerator 2026</small></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="head"><div><h3>Top sectors</h3><span>Average SME progress by sector</span></div><span class="link">View more ›</span></div>
+          <ul class="bars">
+            <li><span>Manufacturing</span><span class="track"><b style="width:73%"></b></span><strong>73%</strong></li>
+            <li><span>Renewable Energy</span><span class="track"><b style="width:71%"></b></span><strong>71%</strong></li>
+            <li><span>Health &amp; Wellness</span><span class="track"><b style="width:67%"></b></span><strong>67%</strong></li>
+            <li><span>Retail &amp; Trade</span><span class="track"><b style="width:67%"></b></span><strong>67%</strong></li>
+            <li><span>Agro-processing</span><span class="track"><b style="width:58%"></b></span><strong>58%</strong></li>
+          </ul>
+        </div>
+      </div>
+      <div class="chg">Every activity row is "At risk", dated when the SME <i>joined</i> rather than when it fell behind, so completions and meetings never show. "1 interventions" is a typo. Top sectors re-slices the same vague progress score.</div>
+    </section>
+
+    <!-- ================= SIMPLIFIED ================= -->
+    <section class="view on" id="simple">
+      <div class="hero">
+        <div><h1>Welcome back, Funder!</h1><p>What your funding is achieving across Women in Agri Accelerator 2026.</p></div>
+        <span class="chip">Figures to 30 Sep 2026 · October reporting is open (9 of 30 in)</span>
+      </div>
+      <div class="chg">Same welcome. A chip says which month the figures run to, so the half-reported month can't be mistaken for a drop. <i>Sample figures from here on, where the live page doesn't show them yet.</i></div>
+
+      <div class="grid g4">
+        <div class="card kpi"><small>SMEs supported</small><div class="row"><i>👥</i><b>30</b></div><em><span class="delta up">+3</span> joined this quarter</em></div>
+        <div class="card kpi"><small>Delivery</small><div class="row"><i>✓</i><b>61%</b></div><em>of required support done · <span class="delta up">▲ 6 pts</span> on last quarter</em></div>
+        <div class="card kpi"><small>Revenue growth</small><div class="row"><i>R</i><b>+19%</b></div><em>since joining · 18 of 26 reporting SMEs growing</em></div>
+        <div class="card kpi"><small>Jobs</small><div class="row"><i>↗</i><b>+37</b></div><em>net since joining · 242 jobs now</em></div>
+      </div>
+      <div class="chg"><b>Four cards that each answer "is the money working?"</b> Delivery uses the same rule as Reports and the director dashboard (completed ÷ required). Revenue growth and jobs are Impact analysis's figures (since joining), so a funder sees the same numbers the incubator sees. The small bars go: the chart below carries the trend.</div>
+
+      <div class="grid g-14-10">
+        <div class="card">
+          <div class="head"><div><h3 id="trend-title">Portfolio revenue</h3><span>Monthly total from SME reporting</span></div><div class="seg small-seg" id="metric"><button class="on" data-m="revenue">Revenue</button><button data-m="jobs">Jobs</button></div></div>
+          <div class="chart" style="--n:12" id="trend">
+            <div><span style="height:4%"></span></div><div><span style="height:6%"></span></div><div><span style="height:78%"></span></div><div><span style="height:80%"></span></div><div><span style="height:81%"></span></div><div><span style="height:83%"></span></div>
+            <div><span style="height:84%"></span></div><div><span style="height:86%"></span></div><div><span style="height:88%"></span></div><div><span style="height:90%"></span></div><div><span style="height:93%"></span></div>
+            <div class="open" title="9 of 30 SMEs have reported October"><span style="height:93%"></span></div>
+          </div>
+          <div class="axis" style="--n:12"><span>Nov</span><span>Dec</span><span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span><span>Jul</span><span>Aug</span><span>Sep</span><span>Oct*</span></div>
+          <div class="muted small" style="margin-top:8px">* October is still being reported (9 of 30 SMEs), shown as last month's level, hatched.</div>
+        </div>
+        <div class="card">
+          <div class="head"><div><h3>Sectors</h3><span>Required support done, by sector</span></div><span class="link">View more ›</span></div>
+          <ul class="bars">
+            <li><span>Manufacturing</span><span class="track"><b style="width:72%"></b></span><strong>72%</strong></li>
+            <li><span>Renewable Energy</span><span class="track"><b style="width:66%"></b></span><strong>66%</strong></li>
+            <li><span>Retail &amp; Trade</span><span class="track"><b style="width:61%"></b></span><strong>61%</strong></li>
+            <li><span>Health &amp; Wellness</span><span class="track"><b style="width:57%"></b></span><strong>57%</strong></li>
+            <li><span>Agro-processing</span><span class="track"><b style="width:49%"></b></span><strong>49%</strong></li>
+          </ul>
+        </div>
+      </div>
+      <div class="chg"><b>One chart, one unit at a time.</b> A Revenue / Jobs switch keeps the jobs trend without putting rand and headcount on two axes. "Support delivered" goes too: the Delivery card and the sectors list say it with the shared rule, and the monthly view stays on Analytics. Sectors now rank by delivery instead of the progress score, and the card fits its content.</div>
+
+      <div class="card">
+        <div class="head"><div><h3>Recent activity</h3><span>What happened across your programmes, newest first</span></div></div>
+        <ul class="feed">
+          <li><time>24 Oct 2026</time><div><strong>Lekgotla Greens</strong><span class="muted">Completed Financial record keeping</span></div><span class="tag ok">Completed</span></li>
+          <li><time>22 Oct 2026</time><div><strong>Vula Vineyards</strong><span class="muted">Mentoring session: export readiness</span></div><span class="tag ac">Meeting held</span></li>
+          <li class="group"><time>Since 1 Oct</time><div><strong>5 SMEs fell behind</strong><span class="muted">Vula Vineyards, Lekgotla Greens, Dumisani Beekeeping and 2 more · 12 interventions overdue</span></div><span class="tag off">Behind</span></li>
+          <li><time>17 Oct 2026</time><div><strong>Zamokuhle Aquaponics</strong><span class="muted">Completed Market access plan</span></div><span class="tag ok">Completed</span></li>
+          <li><time>9 Oct 2026</time><div><strong>Naledi Fresh Produce</strong><span class="muted">Joined Women in Agri Accelerator 2026</span></div><span class="tag ok">Joined</span></li>
+          <li><time>3 Oct 2026</time><div><strong>Letsatsi Agri Energy</strong><span class="muted">Completed Solar installation compliance</span></div><span class="tag ok">Completed</span></li>
+        </ul>
+      </div>
+      <div class="chg"><b>One feed with real dates.</b> Falling behind is dated when the first intervention went overdue, and those SMEs collapse into one line so they don't push out completions, joins and meetings. Exact dates replace "a month ago". The table becomes a list, so phones get the same rows without a separate card layout.</div>
+    </section>
+  </div>
+</div>
+
+<script>
+  const seg = (id, fn) => document.getElementById(id).addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return
+    document.querySelectorAll('#' + id + ' button').forEach(x => x.classList.toggle('on', x === b))
+    fn(b.dataset)
+  })
+  const stage = document.getElementById('stage')
+  seg('page', d => document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === d.p)))
+  seg('view', d => stage.classList.toggle('phone', d.v === 'phone'))
+  seg('theme', d => document.documentElement.dataset.theme = d.t)
+  seg('notes', d => stage.classList.toggle('show-notes', d.n === 'on'))
+  const TREND = {
+    revenue: { title: 'Portfolio revenue', values: [4, 6, 78, 80, 81, 83, 84, 86, 88, 90, 93] },
+    jobs: { title: 'Jobs', values: [3, 5, 82, 84, 85, 86, 88, 90, 92, 95, 100] },
+  }
+  seg('metric', d => {
+    const trend = TREND[d.m]
+    document.getElementById('trend-title').textContent = trend.title
+    const last = trend.values[trend.values.length - 1]
+    document.getElementById('trend').innerHTML = trend.values.map(v => `<div><span style="height:${v}%"></span></div>`).join('') + `<div class="open"><span style="height:${last}%"></span></div>`
+  })
+</script>
+</body>
+</html>
