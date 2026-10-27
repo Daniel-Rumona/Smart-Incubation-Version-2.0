@@ -1,0 +1,145 @@
+/* Marketplace requests: the conversation and the consultant's plan, shared by the SME and consultant views. */
+
+.marketplace-thread { display: grid; gap: 10px; }
+.marketplace-message { display: grid; gap: 3px; max-width: 85%; justify-self: start; }
+.marketplace-message.is-mine { justify-self: end; text-align: right; }
+.marketplace-message-meta { font-size: 11.5px; }
+.marketplace-message-text { padding: 9px 12px; border-radius: 14px 14px 14px 4px; background: var(--ant-color-fill-quaternary); white-space: pre-wrap; overflow-wrap: anywhere; text-align: left; line-height: 1.45; }
+.marketplace-message.is-mine .marketplace-message-text { border-radius: 14px 14px 4px 14px; background: rgba(109, 93, 251, .12); }
+.marketplace-message.is-operations .marketplace-message-text { background: rgba(202, 138, 4, .12); }
+html[data-theme='dark'] .marketplace-message.is-mine .marketplace-message-text { background: rgba(165, 155, 255, .16); }
+.marketplace-composer { display: flex; align-items: flex-end; gap: 8px; padding-top: 6px; }
+
+.marketplace-plan { display: grid; gap: 2px; }
+.marketplace-plan-summary { margin-bottom: 6px; }
+.marketplace-plan-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid rgba(100, 116, 139, .14); }
+.marketplace-plan-row.is-total { border-top-width: 2px; }
+.marketplace-plan-text { display: grid; min-width: 0; gap: 1px; }
+.marketplace-plan-text .ant-typography-secondary { font-size: 12.5px; }
+.marketplace-plan-price { flex: none; font-variant-numeric: tabular-nums; }
+.marketplace-plan-note { margin-top: 6px; font-size: 12px; }
+
+.marketplace-request-list { display: grid; gap: 10px; }
+.marketplace-request-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid rgba(100, 116, 139, .16); border-radius: 14px; cursor: pointer; transition: border-color 160ms ease, background-color 160ms ease; }
+.marketplace-request-row:hover { border-color: rgba(109, 93, 251, .45); }
+.marketplace-request-row.is-waiting { border-color: rgba(109, 93, 251, .5); background: rgba(109, 93, 251, .05); }
+.marketplace-request-main { display: grid; flex: 1; min-width: 0; gap: 2px; }
+.marketplace-request-main .ant-typography-secondary { font-size: 12.5px; }
+.marketplace-request-quote { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.marketplace-request-tag { flex: none; margin: 0; }
+
+.marketplace-facts { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; }
+.marketplace-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.marketplace-section-title { display: block; margin: 4px 0 8px; font-weight: 600; }
+
+.marketplace-plan-builder .marketplace-builder-row { display: grid; grid-template-columns: minmax(0, 2.4fr) 90px 130px 150px 130px 32px; gap: 8px; align-items: start; }
+.marketplace-plan-builder .ant-form-item { margin-bottom: 8px; }
+.marketplace-builder-head { font-size: 12px; color: var(--ant-color-text-secondary); }
+.marketplace-builder-total { display: flex; justify-content: space-between; padding: 10px 0; border-top: 2px solid rgba(100, 116, 139, .14); font-weight: 600; font-variant-numeric: tabular-nums; }
+@media (max-width: 767px) {
+    .marketplace-plan-builder .marketplace-builder-row { grid-template-columns: 1fr 1fr; padding: 10px 0; border-top: 1px solid rgba(100, 116, 139, .14); }
+    .marketplace-plan-builder .marketplace-builder-row > :first-child { grid-column: 1 / -1; }
+    .marketplace-builder-head { display: none !important; }
+    .marketplace-message { max-width: 100%; }
+}
+
+/* =========================================================
+   FIND SUPPORT
+   A ranked shortlist (cards, with how well each matches the SME's steps), then everyone as slim rows that line up
+   for comparing: who, what they do, price and place, and the action.
+   ========================================================= */
+
+.fs-helper-body { display: grid; gap: 12px; }
+.fs-quote { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--ant-color-fill-quaternary); }
+.fs-quote-text { flex: 1; min-width: 0; line-height: 1.45; }
+.fs-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.fs-chip {
+    padding: 4px 11px; border: 1px solid rgba(100, 116, 139, .3); border-radius: 999px;
+    background: transparent; color: inherit; font: inherit; font-size: 12.5px; cursor: pointer;
+    transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+.fs-chip:hover { border-color: rgba(109, 93, 251, .55); }
+.fs-chip:focus-visible { outline: 2px solid #6d5dfb; outline-offset: 1px; }
+.fs-chip.is-on { border-color: #6d5dfb; background: rgba(109, 93, 251, .12); color: #5b4fd6; font-weight: 600; }
+html[data-theme='dark'] .fs-chip.is-on { color: #b7afff; }
+
+.fs-suggestions { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.fs-suggestion { display: grid; align-content: start; gap: 8px; padding: 14px; border: 1px solid rgba(100, 116, 139, .18); border-radius: 14px; }
+.fs-suggestion.is-top { border: 2px solid #6d5dfb; }
+.fs-who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.fs-who-text { display: grid; min-width: 0; justify-items: start; gap: 2px; }
+.fs-kind { font-size: 11px; padding: 0 7px; border-radius: 999px; border: 1px solid rgba(100, 116, 139, .25); color: var(--ant-color-text-secondary); line-height: 18px; }
+.fs-why, .fs-facts { font-size: 12.5px; line-height: 1.4; }
+.fs-action, .fs-status { justify-self: start; margin: 0; }
+.fs-note { font-size: 12px; }
+
+.fs-avatar.ant-avatar { flex: none; background: rgba(109, 93, 251, .14); color: #5b4fd6; font-weight: 600; }
+.fs-avatar.is-agent.ant-avatar { background: rgba(109, 93, 251, .1); }
+html[data-theme='dark'] .fs-avatar.ant-avatar { color: #b7afff; }
+
+/* Match strength: one hue, more of it for a stronger match, with the words beside it. */
+.fs-meter { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; }
+.fs-meter-bars { display: inline-flex; gap: 3px; }
+.fs-meter-bars i { width: 16px; height: 6px; border-radius: 3px; background: rgba(100, 116, 139, .22); }
+.fs-meter-bars i.is-filled { background: #6d5dfb; }
+.fs-meter.is-possible .fs-meter-bars i.is-filled { background: rgba(109, 93, 251, .55); }
+.fs-meter.is-compact { gap: 6px; font-size: 11.5px; font-weight: 500; color: var(--ant-color-text-secondary); }
+.fs-meter.is-compact .fs-meter-bars i { width: 10px; height: 5px; }
+html[data-theme='dark'] .fs-meter-bars i.is-filled { background: #8b7dff; }
+
+.fs-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.fs-search.ant-input-affix-wrapper { width: 280px; }
+
+/* Each person or agent is its own slim bordered card, so a row reads as one offer. */
+.fs-list { display: grid; gap: 8px; }
+.fs-row {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) minmax(140px, 220px) auto;
+    align-items: center;
+    gap: 14px;
+    min-height: 68px;
+    padding: 12px 14px;
+    border: 1px solid rgba(100, 116, 139, .18);
+    border-radius: 12px;
+    transition: border-color 160ms ease;
+}
+.fs-row:hover { border-color: rgba(109, 93, 251, .45); }
+.fs-row-main { display: grid; min-width: 0; gap: 3px; }
+.fs-row-name { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-width: 0; }
+.fs-row-sub { font-size: 12.5px; }
+.fs-row-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.fs-tag { font-size: 11.5px; padding: 1px 8px; border-radius: 999px; background: var(--ant-color-fill-quaternary); color: var(--ant-color-text-secondary); }
+.fs-tag.is-more { background: transparent; }
+.fs-row-facts { font-size: 12.5px; line-height: 1.4; }
+.fs-row .fs-status { white-space: nowrap; }
+
+@media (max-width: 767px) {
+    .fs-search.ant-input-affix-wrapper { width: 100%; }
+    .fs-row { grid-template-columns: 40px minmax(0, 1fr); row-gap: 8px; }
+    .fs-row-facts { grid-column: 2; }
+    .fs-row > .ant-btn, .fs-row > .fs-status { grid-column: 2; justify-self: start; }
+}
+
+/* "Use this plan": each step with who'll help, grouped into one request per helper, then what was sent. */
+.fs-plan { display: grid; gap: 12px; }
+.fs-plan-step { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 12px 0; border-top: 1px solid rgba(100, 116, 139, .14); }
+.fs-plan-step:first-of-type { border-top: 0; }
+.fs-plan-step.is-removed { opacity: .55; }
+.fs-plan-num { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: rgba(109, 93, 251, .12); color: #5b4fd6; font-size: 12px; font-weight: 600; }
+html[data-theme='dark'] .fs-plan-num { color: #b7afff; }
+.fs-plan-step-main { display: grid; gap: 6px; min-width: 0; }
+.fs-plan-pick.ant-select { width: 100%; }
+.fs-plan-option { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.fs-plan-option-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fs-plan-option-kind { flex: none; font-size: 11.5px; color: var(--ant-color-text-secondary); }
+.fs-plan-option .fs-meter { margin-left: auto; }
+.fs-plan-summary { display: grid; gap: 6px; padding: 10px 12px; border-radius: 12px; background: var(--ant-color-fill-quaternary); }
+.fs-plan-summary-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; font-size: 13px; }
+.fs-plan-summary-row .ant-typography-secondary { font-size: 12.5px; }
+.fs-plan-footer { display: flex; gap: 8px; }
+.fs-plan-footer .fs-plan-send { flex: 1; }
+.fs-inline-link.ant-btn { height: auto; padding: 0; }
+.fs-plan-sent { display: grid; gap: 10px; }
+.fs-plan-sent-title { font-size: 16px; }
+.fs-plan-sent-title .anticon { color: #15803d; }
+.fs-plan-sent-row { grid-template-columns: 40px minmax(0, 1fr) auto; }

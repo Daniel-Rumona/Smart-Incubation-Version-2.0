@@ -154,9 +154,9 @@ html[data-theme='dark'] :where(.ant-segmented) .ant-segmented-item:not(.ant-segm
 
 html[data-theme='dark'] :where(.ant-segmented) .ant-segmented-item-selected,
 html[data-theme='dark'] :where(.ant-segmented) .ant-segmented-thumb {
-  background: linear-gradient(135deg, #7667ea, #6554d9) !important;
+  background: #6d5dfb !important;
   color: #ffffff !important;
-  box-shadow: 0 5px 15px rgba(91, 75, 217, 0.38);
+  box-shadow: 0 5px 15px rgba(109, 93, 251, 0.38);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -201,12 +201,11 @@ a {
   color: inherit;
 }
 
-/* Keep modal actions predictable: one action fills the row, while multiple
-   actions share it equally. This also covers custom footers rendered in the
-   modal body. */
+/* Keep Ant Design modal-footer actions predictable: one action fills the row,
+   while multiple actions share it equally. Body action rows use .modal-actions
+   so normal content layouts inside a dialog remain untouched. */
 .ant-modal .ant-modal-footer,
-.ant-modal .ant-modal-footer .ant-space:has(> .ant-space-item > .ant-btn),
-.ant-modal .ant-modal-body .ant-space:has(> .ant-space-item > .ant-btn) {
+.ant-modal .ant-modal-footer .ant-space:has(> .ant-space-item > .ant-btn) {
   display: flex;
   width: 100%;
   gap: 8px;
@@ -224,13 +223,13 @@ a {
 /* Ant Design Space wraps each child in .ant-space-item, so the wrappers also
    need to grow before their buttons can occupy the full action row. */
 .ant-modal .ant-modal-footer .ant-space:has(> .ant-space-item > .ant-btn) > .ant-space-item,
-.ant-modal .ant-modal-body .ant-space:has(> .ant-space-item > .ant-btn) > .ant-space-item {
+.modal-actions > * {
   flex: 1 1 0;
   min-width: 0;
 }
 
 .ant-modal .ant-modal-footer .ant-space-item > .ant-btn,
-.ant-modal .ant-modal-body .ant-space-item > .ant-btn {
+.modal-actions .ant-btn {
   width: 100%;
 }
 
@@ -332,4 +331,18 @@ html[data-theme='dark'] .public-result-page {
     align-items: stretch;
     flex-direction: column;
   }
+}
+
+/* Dialog actions: no Cancel/Close button (the × closes); whatever actions remain share the full row.
+   Used by <ModalActions> (custom footers and form action rows) and singleActionFooter() (antd's own footer). */
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.modal-actions > .ant-btn,
+.modal-actions > * {
+  flex: 1 1 0;
+  min-width: 0;
 }

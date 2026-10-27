@@ -18,6 +18,7 @@ import { zuOperations } from './zu/operations'
 import { zuPrompts } from './zu/prompts'
 import { zuReports } from './zu/reports'
 import { zuKpis } from './zu/kpis'
+import { zuMarketplace } from './zu/marketplace'
 import { zuConsultant } from './zu/consultant'
 
 /** isiZulu translations keyed by the English source text passed to t(). Per-area files keep review manageable. */
@@ -39,6 +40,7 @@ export const zuCatalog: Record<string, string> = {
   ...zuPrompts,
   ...zuReports,
   ...zuKpis,
+  ...zuMarketplace,
   ...zuConsultant,
   ...zuNotifications,
   ...zuCompliance,

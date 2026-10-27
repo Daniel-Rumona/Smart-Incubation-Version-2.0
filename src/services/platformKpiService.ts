@@ -18,7 +18,7 @@ dayjs.extend(quarterOfYear)
 const COLLECTION = 'platformKpis'
 
 const assertAdmin = (user: FullIdentity) => {
-    if (!['systemadmin', 'admin'].includes(user.role)) throw new Error('forbidden')
+    if (user.role !== 'systemadmin') throw new Error('forbidden')
 }
 
 const toDate = (value: unknown): Date | null => {

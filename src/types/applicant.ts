@@ -86,6 +86,8 @@ export type ApplicantProgram = {
   eligibilityCriteria?: Record<string, unknown>
   companyCode?: string
   openToExternalSmes?: boolean
+  /** 'direct' = no application: SMEs join as soon as their profile is complete. */
+  intakeMode?: string
 }
 
 export type ApplicantApplication = {

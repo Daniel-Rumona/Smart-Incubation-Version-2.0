@@ -1,709 +1,275 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
-import { isDiscontinuedRecord } from '@/services/discontinuedSmes'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { App, Card, Col, Progress, Row, Tag, Typography, type TableProps } from 'antd'
 import {
-    Card,
-    Col,
-    Progress,
-    Row,
-    Space,
-    Tag,
-    Typography,
-    message,
-    Empty,
-    Button,
-    Modal,
-    List
-} from 'antd'
-import dayjs, { Dayjs } from 'dayjs'
-
-import { db } from '@/firebase'
-import {
-    collection,
-    doc,
-    getDoc,
-    onSnapshot,
-    query,
-    where,
-    Timestamp
-} from 'firebase/firestore'
-import { useFullIdentity } from '@/hooks/useFullIdentity'
-import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
-import DashboardPage from '@/components/shared/DashboardPage'
-import { UpcomingWeekCard, type InterventionDueItem } from '@/pages/dashboards/operations/UpcomingWeekCard'
-import { useNavigate } from 'react-router-dom'
-import {
-    ShopOutlined,
-    SolutionOutlined,
+    AimOutlined,
+    ArrowRightOutlined,
     CheckCircleOutlined,
-    FileProtectOutlined,
-    WarningOutlined,
     ClockCircleOutlined,
     ExclamationCircleOutlined,
-    ArrowRightOutlined
+    RiseOutlined,
+    TeamOutlined,
+    UserDeleteOutlined,
+    WarningOutlined,
 } from '@ant-design/icons'
+import { useNavigate } from 'react-router-dom'
+import { KpiStatusList } from '@/components/director/KpiStatusList'
+import { OverdueUpdatesModal } from '@/components/director/OverdueUpdatesModal'
+import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
+import DashboardPage from '@/components/shared/DashboardPage'
+import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
+import { useActiveProgramId } from '@/hooks/useActiveProgramId'
+import { useFullIdentity } from '@/hooks/useFullIdentity'
+import { useLanguage } from '@/providers/LanguageProvider'
+import { loadDirectorBriefing, type AttentionItem, type DirectorBriefing, type DirectorProgrammeRow, type KpiTally } from '@/services/directorDashboardService'
 import '@/styles/director.css'
-import { useLanguage, tr } from '@/providers/LanguageProvider'
 
-const { Text } = Typography
+const signed = (value: number) => `${value > 0 ? '+' : value < 0 ? '−' : ''}${Math.abs(value)}`
 
-type AssignmentModel = 'ops_assign_consultant' | 'consultant_self_assign'
-type SmeDivisionModel =
-    | 'system_equal_random'
-    | 'ops_assign_smes_to_consultants'
-    | 'consultants_register_their_smes'
-
-type SystemSettingsDoc = {
-    companyCode: string
-    companyName?: string
-    hasDepartments: boolean
-    hasBranches: boolean
-    assignmentModel: AssignmentModel
-    smeDivisionModel?: SmeDivisionModel
-    branchScopedManagement?: boolean
-    locked: true
-    createdAt: Timestamp
-    createdByUid: string
-    createdByEmail?: string
+const ATTENTION_ICONS: Record<AttentionItem['key'], React.ReactNode> = {
+    overdue: <ClockCircleOutlined />,
+    kpis_behind: <AimOutlined />,
+    low_completion: <ExclamationCircleOutlined />,
+    unresponsive: <UserDeleteOutlined />,
+    high_risk: <WarningOutlined />,
 }
 
-type InterventionMeta = {
-    id: string
-    areaOfSupport?: string
-    department?: string
-    companyCode?: string
-    [k: string]: any
-}
+const completionColor =(rate: number) => (rate >= 75 ? '#16a34a' : rate >= 40 ? '#f59e0b' : '#ef4444')
 
-type RequiredInterventionRef = {
-    interventionId?: string
-    id?: string
-    areaOfSupport?: string
-    department?: string
-    [k: string]: any
-}
-
-type AnyAssignedIntervention = {
-    id: string
-    companyCode?: string
-    interventionId?: string
-
-    // sometimes stored directly; we override using interventions map
-    department?: string
-    areaOfSupport?: string
-
-    // SME identity (varies across your docs)
-    enterpriseName?: string
-    beneficiaryName?: string
-    participantName?: string
-    smmEName?: string
-    smeName?: string
-    companyName?: string
-    participantId?: string
-    smeId?: string
-    email?: string
-
-    dueDate?: any
-    createdAt?: any
-
-    assigneeStatus?: string
-    participantStatus?: string
-    assigneeCompletionStatus?: string
-    participantCompletionStatus?: string
-
-    [k: string]: any
-}
-
-type BottleneckKey =
-    | 'pending_consultant'
-    | 'pending_sme_acceptance'
-    | 'pending'
-    | 'awaiting_sme_completion'
-
-const norm = (v?: any) => String(v ?? '').trim().toLowerCase()
-
-const tsToDayjs = (v: any): Dayjs | null => {
-    if (!v) return null
-    if (typeof v?.toDate === 'function') return dayjs(v.toDate())
-    if (typeof v === 'string') {
-        const d = dayjs(v)
-        return d.isValid() ? d : null
-    }
-    if (v instanceof Date) return dayjs(v)
-    return null
-}
-
-const getSmeLabel = (x: AnyAssignedIntervention) =>
-    x.businessName ||
-    x.enterpriseName ||
-    x.beneficiaryName ||
-    x.participantName ||
-    x.smmEName ||
-    x.smeName ||
-    x.companyName ||
-    x.participantId ||
-    x.smeId ||
-    x.email ||
-    '—'
-
-const classifyBottleneck = (x: AnyAssignedIntervention): BottleneckKey => {
-    const consultantAccepted = norm(x.assigneeStatus) === 'accepted'
-    const smeAccepted = norm(x.participantStatus) === 'accepted'
-
-    const consultantCompleted = norm(x.assigneeCompletionStatus) === 'done'
-    const smeCompleted = norm(x.participantCompletionStatus) === 'confirmed'
-
-    if (consultantCompleted && smeCompleted) return 'pending' // not used here, completion handled separately
-    if (!consultantAccepted) return 'pending_consultant'
-    if (consultantAccepted && !smeAccepted) return 'pending_sme_acceptance'
-    if (consultantCompleted && !smeCompleted) return 'awaiting_sme_completion'
-    return 'pending'
-}
-
-const prettyBottleneck = (k: BottleneckKey) => {
-    switch (k) {
-        case 'pending_consultant':
-            return 'Pending Consultant'
-        case 'pending_sme_acceptance':
-            return 'Pending SME Acceptance'
-        case 'awaiting_sme_completion':
-            return 'Awaiting SME Completion'
-        case 'pending':
-            return 'Pending'
-    }
-}
-
-const percent = (num: number, den: number) => (den <= 0 ? 0 : Math.round((num / den) * 100))
-
+/**
+ * The director's briefing for the active programme (or all of them): growth, KPIs and delivery up top, one row per
+ * programme, and the few things that need attention, each linking to the page that explains it.
+ */
 const DirectorDashboard: React.FC = () => {
     const { t } = useLanguage()
     const navigate = useNavigate()
+    const { message } = App.useApp()
+    const { user, loading: identityLoading } = useFullIdentity()
+    const { activeProgramId, isAllPrograms } = useActiveProgramId()
+    const [data, setData] = useState<DirectorBriefing | null>(null)
+    const [loading, setLoading] = useState(true)
+    const [overdueOpen, setOverdueOpen] = useState(false)
+    const programmeNames = useMemo(() => new Map((data?.programmes || []).map((row) => [row.id, row.name])), [data])
 
-    const { user } = useFullIdentity()
-    const companyCode = String((user as any)?.companyCode || '').trim()
+    const load = useCallback(async () => {
+        if (identityLoading || !user) return
+        setLoading(true)
+        try {
+            setData(await loadDirectorBriefing(user, { activeProgramId, isAllPrograms }))
+        } catch (error) {
+            console.error('[DIRECTOR] Failed to load the dashboard:', error)
+            message.error(t('The dashboard could not be loaded.'))
+            setData(null)
+        } finally {
+            setLoading(false)
+        }
+    }, [activeProgramId, identityLoading, isAllPrograms, message, t, user])
 
-    const [systemSettings, setSystemSettings] = useState<SystemSettingsDoc | null>(null)
-
-    // The dashboard always reports on the current month.
-    const [range] = useState<[Dayjs, Dayjs]>(() => [dayjs().startOf('month'), dayjs().endOf('month')])
-
-    // Counts
-    const [smesCount, setSmesCount] = useState(0)
-    const [compliance, setCompliance] = useState({ total: 0, attention: 0 })
-    const [dueItems, setDueItems] = useState<InterventionDueItem[]>([])
-
-    // Intervention meta map
-    const [interventionMetaById, setInterventionMetaById] = useState<Record<string, InterventionMeta>>({})
-
-    // Accepted SME filters
-    const [acceptedParticipantIds, setAcceptedParticipantIds] = useState<Set<string>>(new Set())
-    const [acceptedEmails, setAcceptedEmails] = useState<Set<string>>(new Set())
-
-    // Required vs Completed per scope
-    const [requiredByScope, setRequiredByScope] = useState<Record<string, number>>({})
-    const [completedByScope, setCompletedByScope] = useState<Record<string, number>>({})
-
-    // Risk signals (instead of overdue table)
-    const [riskCounts, setRiskCounts] = useState({
-        overdue: 0,
-        upcoming7: 0,
-        upcoming14: 0,
-        unresponsiveSMEs: 0
-    })
-
-    const [riskLists, setRiskLists] = useState<{
-        overdue: any[]
-        upcoming: any[]
-        unresponsive: any[]
-    }>({ overdue: [], upcoming: [], unresponsive: [] })
-
-    const [riskModal, setRiskModal] = useState<{ open: boolean; title: string; items: any[] }>({
-        open: false,
-        title: '',
-        items: []
-    })
-
-    // ----------- Load system settings -----------
     useEffect(() => {
-        if (!companyCode) return
-        getDoc(doc(db, 'companies', companyCode))
-            .then(snap => setSystemSettings(snap.exists() ? (snap.data() as SystemSettingsDoc) : null))
-            .catch(e => message.error(e?.message || t('Failed to load system settings')))
-    }, [companyCode])
+        const timeout = window.setTimeout(() => void load(), 0)
+        return () => window.clearTimeout(timeout)
+    }, [load])
 
-    const modeHasDepartments = !!systemSettings?.hasDepartments
-    const scopeOf = (interventionId?: string, fallback?: { areaOfSupport?: string; department?: string }) => {
-        const iid = String(interventionId || '').trim()
-        const meta = iid ? interventionMetaById[iid] : undefined
-        return modeHasDepartments
-            ? String(meta?.department || fallback?.department || 'Unassigned Department')
-            : String(meta?.areaOfSupport || fallback?.areaOfSupport || 'Unassigned Area')
+    const pageLoading = identityLoading || loading
+
+    const kpiText = (tally: KpiTally) => tally.withTarget
+        ? t('{onTrack} of {count} on track', undefined, { onTrack: tally.onTrack, count: tally.withTarget })
+        : t('No targets set')
+
+    const attentionText = (item: AttentionItem) => {
+        const one = item.count === 1
+        switch (item.key) {
+            case 'overdue':
+                return [
+                    one ? t('1 intervention is overdue.') : t('{count} interventions are overdue.', undefined, { count: item.count }),
+                    item.programme ? t('{programme} has the most.', undefined, { programme: item.programme }) : '',
+                ].filter(Boolean).join(' ')
+            case 'kpis_behind':
+                return one
+                    ? t('1 KPI is behind target: {names}.', undefined, { names: (item.names || []).join(', ') })
+                    : t('{count} KPIs are behind target, including {names}.', undefined, { count: item.count, names: (item.names || []).join(', ') })
+            case 'low_completion':
+                return t('{programme} has completed only {count}% of its required support.', undefined, { programme: item.programme || '', count: item.count })
+            case 'unresponsive':
+                return one
+                    ? t('1 SME hasn’t accepted its support after 7 days or more.')
+                    : t('{count} SMEs haven’t accepted their support after 7 days or more.', undefined, { count: item.count })
+            case 'high_risk':
+                return one ? t('1 SME is flagged high risk.') : t('{count} SMEs are flagged high risk.', undefined, { count: item.count })
+        }
     }
 
-    const inRange = (d: Dayjs | null) => {
-        if (!d) return true
-        const [from, to] = range
-        const start = from.startOf('day')
-        const end = to.endOf('day')
-        return (d.isAfter(start) || d.isSame(start)) && (d.isBefore(end) || d.isSame(end))
-    }
+    const programmeName = (row: DirectorProgrammeRow) => (row.id === 'unassigned' ? t('No programme') : row.name)
 
-    // ----------- Interventions meta -----------
-    useEffect(() => {
-        if (!companyCode) return
-
-        const unsub = onSnapshot(
-            query(collection(db, 'interventions'), where('companyCode', '==', companyCode)),
-            snap => {
-                const map: Record<string, InterventionMeta> = {}
-                snap.forEach(d => {
-                    map[d.id] = { id: d.id, ...(d.data() as any) }
-                })
-                setInterventionMetaById(map)
-            },
-            err => message.error(err?.message || t('Failed to load interventions'))
+    const completionCell = (row: DirectorProgrammeRow) => row.completion === null
+        ? <Typography.Text type="secondary">{t('Nothing required yet')}</Typography.Text>
+        : (
+            <div className="director-completion">
+                <Progress percent={row.completion} size="small" strokeColor={completionColor(row.completion)} showInfo={false} />
+                <Typography.Text type="secondary">{t('{completed} of {required}', undefined, { completed: row.completed, required: row.required })}</Typography.Text>
+            </div>
         )
+    const kpiCell = (row: DirectorProgrammeRow) => row.kpis.withTarget
+        ? <Tag bordered={false} color={row.kpis.behind ? 'orange' : 'green'}>{kpiText(row.kpis)}</Tag>
+        : <Typography.Text type="secondary">—</Typography.Text>
+    const growthCell = (row: DirectorProgrammeRow) => row.revenueGrowth === null
+        ? <Typography.Text type="secondary">—</Typography.Text>
+        : <Tag bordered={false} color={row.revenueGrowth > 0 ? 'green' : row.revenueGrowth < 0 ? 'red' : undefined}>{signed(row.revenueGrowth)}%</Tag>
+    const flagsCell = (row: DirectorProgrammeRow) => (
+        <span className="director-flags">
+            {row.overdue > 0 && <Tag bordered={false} color="red">{t('{count} overdue', undefined, { count: row.overdue })}</Tag>}
+            {row.highRisk > 0 && <Tag bordered={false} color="orange">{t('{count} high risk', undefined, { count: row.highRisk })}</Tag>}
+            {!row.overdue && !row.highRisk && <Typography.Text type="secondary">—</Typography.Text>}
+        </span>
+    )
 
-        return () => unsub()
-    }, [companyCode])
+    const columns: TableProps<DirectorProgrammeRow>['columns'] = [
+        { title: t('Programme'), key: 'name', render: (_, row) => <Typography.Text strong>{programmeName(row)}</Typography.Text> },
+        { title: t('SMEs'), dataIndex: 'smes', width: 80, align: 'center' },
+        { title: t('Completion'), key: 'completion', width: 200, render: (_, row) => completionCell(row) },
+        { title: t('KPIs'), key: 'kpis', width: 150, render: (_, row) => kpiCell(row) },
+        { title: t('Revenue growth'), key: 'growth', width: 130, align: 'center', render: (_, row) => growthCell(row) },
+        { title: t('Flags'), key: 'flags', render: (_, row) => flagsCell(row) },
+    ]
 
-    // ----------- Accepted apps (SMEs set + total required from accepted) -----------
-    useEffect(() => {
-        if (!companyCode) return
-
-        const unsub = onSnapshot(
-            query(
-                collection(db, 'applications'),
-                where('companyCode', '==', companyCode),
-                where('applicationStatus', '==', 'accepted')
-            ),
-            snap => {
-                // 1) SME count = accepted applications
-                setSmesCount(snap.size)
-
-                // 2) Accepted SME identity sets (to filter assignedInterventions)
-                const pidSet = new Set<string>()
-                const emailSet = new Set<string>()
-
-                snap.forEach(d => {
-                    const app: any = d.data()
-
-                    if (app?.participantId) pidSet.add(String(app.participantId))
-                    if (app?.email) emailSet.add(String(app.email).trim().toLowerCase())
-                })
-
-                setAcceptedParticipantIds(pidSet)
-                setAcceptedEmails(emailSet)
-            },
-            err => message.error(err?.message || t('Failed to read accepted applications'))
-        )
-
-        return () => unsub()
-    }, [companyCode])
-
-
-
-
-    // ----------- Compliance (share of documents not needing attention) -----------
-    useEffect(() => {
-        if (!companyCode) return
-        const attentionStatuses = ['missing', 'pending', 'rejected', 'invalid', 'expired', 'queried']
-        const unsub = onSnapshot(
-            query(collection(db, 'complianceDocuments'), where('companyCode', '==', companyCode)),
-            snap => {
-                let attention = 0
-                snap.forEach(d => {
-                    const data: any = d.data()
-                    if (attentionStatuses.includes(norm(data.verificationStatus || data.currentStatus || data.status || 'pending'))) attention++
-                })
-                setCompliance({ total: snap.size, attention })
-            },
-            err => message.error(err?.message || t('Failed to load compliance documents'))
-        )
-        return () => unsub()
-    }, [companyCode])
-
-    // ----------- REQUIRED BY SCOPE (ONLY accepted apps, and in range) -----------
-    useEffect(() => {
-        if (!companyCode) return
-
-        const unsub = onSnapshot(
-            query(
-                collection(db, 'applications'),
-                where('companyCode', '==', companyCode),
-                where('applicationStatus', '==', 'accepted')
-            ),
-            snap => {
-                const req: Record<string, number> = {}
-
-                snap.forEach(d => {
-                    const app: any = d.data()
-                    // const appDate = getDocDate(app, 'createdAtOrAccepted')
-                    // if (!inRange(appDate)) return
-
-                    const required: RequiredInterventionRef[] =
-                        app?.interventions?.required || app?.interventionsRequired || app?.requiredInterventions || []
-
-                    if (!Array.isArray(required)) return
-
-                    required.forEach(r => {
-                        const iid = String(r?.interventionId || r?.id || '').trim()
-                        const scope = scopeOf(iid, { areaOfSupport: r?.areaOfSupport, department: r?.department })
-                        req[scope] = (req[scope] || 0) + 1
-                    })
-                })
-
-                setRequiredByScope(req)
-            },
-            err => message.error(err?.message || t('Failed to load required interventions'))
-        )
-
-        return () => unsub()
-    }, [companyCode, interventionMetaById, modeHasDepartments, range])
-
-    // ----------- COMPLETED + BOTTLENECKS + RISKS (accepted SMEs only) -----------
-    useEffect(() => {
-        if (!companyCode) return
-
-        const qAssigned = query(collection(db, 'assignedInterventions'), where('companyCode', '==', companyCode))
-
-        const unsub = onSnapshot(
-            qAssigned,
-            snap => {
-                const completed: Record<string, number> = {}
-                const dueList: InterventionDueItem[] = []
-
-                // Risk derivations
-                const now = dayjs()
-                const overdue: any[] = []
-                const upcoming: any[] = []
-                const unresponsive: any[] = []
-
-                let overdueCount = 0
-                let upcoming7 = 0
-                let upcoming14 = 0
-                let unresponsiveCount = 0
-
-                snap.forEach(d => {
-                    if (isDiscontinuedRecord(d.data() as { participantDiscontinuedAt?: unknown })) return
-                    const ai = { id: d.id, ...(d.data() as any) } as AnyAssignedIntervention
-
-                    // Filter to accepted SMEs (strict)
-                    const pid = ai.participantId ? String(ai.participantId) : ''
-                    const em = ai.email ? String(ai.email).toLowerCase() : ''
-                    const isAcceptedSme = (pid && acceptedParticipantIds.has(pid)) || (em && acceptedEmails.has(em))
-                    if (!isAcceptedSme) return
-
-                    const iid = String(ai.interventionId || '').trim()
-                    const scope = scopeOf(iid, { areaOfSupport: ai.areaOfSupport, department: ai.department })
-                    const meta = iid ? interventionMetaById[iid] : undefined
-
-                    const consultantAccepted = norm(ai.assigneeStatus) === 'accepted'
-                    const smeAccepted = norm(ai.participantStatus) === 'accepted'
-                    const consultantCompleted = norm(ai.assigneeCompletionStatus) === 'done'
-                    const smeCompleted = norm(ai.participantCompletionStatus) === 'confirmed'
-                    const isCompleted = consultantCompleted && smeCompleted
-
-                    // Efficiency compares against ALL required interventions, so completions are all-time too
-                    if (isCompleted) completed[scope] = (completed[scope] || 0) + 1
-
-                    // Month filter: use createdAt (best), otherwise dueDate
-                    const aiDate = tsToDayjs(ai.createdAt) || tsToDayjs(ai.dueDate) || null
-                    if (!inRange(aiDate)) return
-
-                    // Risk signals
-                    const due = tsToDayjs(ai.dueDate)
-                    const created = tsToDayjs(ai.createdAt)
-
-                    // Overdue
-                    if (due && due.isBefore(now, 'day') && !isCompleted) {
-                        overdueCount++
-                        overdue.push({
-                            id: ai.id,
-                            sme: getSmeLabel(ai),
-                            scope,
-                            area: String(meta?.areaOfSupport || ai.areaOfSupport || '—'),
-                            dept: String(meta?.department || ai.department || '—'),
-                            dueDate: due.format('YYYY-MM-DD'),
-                            reason: prettyBottleneck(classifyBottleneck(ai))
-                        })
-                    }
-
-                    if (due && !isCompleted) {
-                        dueList.push({
-                            id: ai.id,
-                            title: String(ai.interventionTitle || meta?.title || meta?.name || 'Intervention'),
-                            participantName: getSmeLabel(ai),
-                            owner: String(ai.assigneeName || ai.consultantName || 'Unassigned'),
-                            dueDate: due
-                        })
-                    }
-
-                    // Upcoming deadlines (7 / 14 days)
-                    if (due && !isCompleted) {
-                        const diffDays = due.startOf('day').diff(now.startOf('day'), 'day')
-                        if (diffDays >= 0 && diffDays <= 7) upcoming7++
-                        if (diffDays >= 0 && diffDays <= 14) upcoming14++
-                        if (diffDays >= 0 && diffDays <= 14) {
-                            upcoming.push({
-                                id: ai.id,
-                                sme: getSmeLabel(ai),
-                                scope,
-                                dueDate: due.format('YYYY-MM-DD'),
-                                reason: prettyBottleneck(classifyBottleneck(ai))
-                            })
-                        }
-                    }
-
-                    // Unresponsive SMEs = consultant accepted but SME not accepted after 7 days
-                    if (consultantAccepted && !smeAccepted) {
-                        const ageDays = created ? now.diff(created, 'day') : 0
-                        if (ageDays >= 7) {
-                            unresponsiveCount++
-                            unresponsive.push({
-                                id: ai.id,
-                                sme: getSmeLabel(ai),
-                                scope,
-                                ageDays,
-                                dueDate: due ? due.format('YYYY-MM-DD') : '—'
-                            })
-                        }
-                    }
-                })
-
-                overdue.sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)))
-                upcoming.sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)))
-                unresponsive.sort((a, b) => (b.ageDays || 0) - (a.ageDays || 0))
-
-                setCompletedByScope(completed)
-                setDueItems(dueList)
-                setRiskCounts({
-                    overdue: overdueCount,
-                    upcoming7,
-                    upcoming14,
-                    unresponsiveSMEs: unresponsiveCount
-                })
-                setRiskLists({
-                    overdue: overdue.slice(0, 20),
-                    upcoming: upcoming.slice(0, 20),
-                    unresponsive: unresponsive.slice(0, 20)
-                })
-            },
-            err => message.error(err?.message || t('Failed to load assigned interventions'))
-        )
-
-        return () => unsub()
-    }, [companyCode, acceptedParticipantIds, acceptedEmails, interventionMetaById, modeHasDepartments, range])
-
-    // ----------- Totals -----------
-    const totals = useMemo(() => {
-        const totalRequiredInRange = Object.values(requiredByScope).reduce((a, b) => a + (b || 0), 0)
-        const totalCompletedInRange = Object.values(completedByScope).reduce((a, b) => a + (b || 0), 0)
-        const completionRateInRange = percent(totalCompletedInRange, totalRequiredInRange)
-        return { totalRequiredInRange, totalCompletedInRange, completionRateInRange }
-    }, [requiredByScope, completedByScope])
-
-    // ----------- Area / department efficiency (completed vs required) -----------
-    const efficiencyRows = useMemo(() => {
-        return Object.keys({ ...requiredByScope, ...completedByScope })
-            .map(name => {
-                const required = requiredByScope[name] || 0
-                const completed = completedByScope[name] || 0
-                return { name, required, completed, rate: Math.min(percent(completed, required), 100) }
-            })
-            .filter(row => row.required > 0)
-            .sort((a, b) => b.required - a.required || b.rate - a.rate)
-    }, [requiredByScope, completedByScope])
-
-    const rateColor = (rate: number) => (rate >= 75 ? '#16a34a' : rate >= 40 ? '#f59e0b' : '#ef4444')
-
-    const openRiskModal = (title: string, items: any[]) => setRiskModal({ open: true, title, items })
+    // Programmes with SMEs or overdue work; brand-new empty ones are left to Programme performance.
+    const activeProgrammes = (data?.programmes || []).filter((row) => row.smes > 0 || row.overdue > 0)
+    const showProgrammes = pageLoading || activeProgrammes.length > 1
 
     return (
         <DashboardPage className="director-dashboard-page">
-            <div className="director-dashboard-inner">
-                {/* Metrics */}
-                <Row gutter={[12, 12]} className="dashboard-metrics-row director-dashboard-metrics">
-                    <Col xs={12} md={6}>
-                        <DashboardMetricCard icon={<ShopOutlined />} iconClassName="is-participants" label={t('SMEs')} value={smesCount} hint={t('Accepted SMEs')} />
-                    </Col>
-
-                    <Col xs={12} md={6}>
-                        <DashboardMetricCard icon={<SolutionOutlined />} iconClassName="is-delivery" label={t('Required Interventions')} mobileTitle={tr('Required')} value={totals.totalRequiredInRange} hint={t('All accepted SMEs')} />
-                    </Col>
-
-                    <Col xs={12} md={6}>
-                        <DashboardMetricCard icon={<CheckCircleOutlined />} iconClassName="is-users" label={t('Completion')} value={`${totals.completionRateInRange}%`} hint={`${totals.totalCompletedInRange} of ${totals.totalRequiredInRange} completed`} />
-                    </Col>
-
-                    <Col xs={12} md={6}>
-                        <DashboardMetricCard icon={<FileProtectOutlined />} iconClassName="is-attention" label={t('Compliance')} value={`${percent(compliance.total - compliance.attention, compliance.total)}%`} hint={`${compliance.attention} of ${compliance.total} need attention`} />
-                    </Col>
-                </Row>
-
-                {/* Risk Assessment (replaces overdue table) */}
-                <Row gutter={[12, 12]} style={{ marginTop: 12 }}>
-                    <Col xs={24} lg={10}>
-                        <Card style={{ borderRadius: 16, height: '100%' }}>
-                            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-                                <div>
-                                    <Text strong style={{ fontSize: 16 }}>{t('Risk Assessment')}</Text>
-                                    <div style={{ marginTop: 4 }}>
-                                        <Text type='secondary'>{t('Fast signals: overdue, unresponsive SMEs, upcoming deadlines.')}</Text>
-                                    </div>
-                                </div>
-                                <Button
-                                    type='default'
-                                    icon={<ArrowRightOutlined />}
-                                    onClick={() => navigate('/director')}
-                                >
-                                    {t('View')}
-                                </Button>
-                            </div>
-
-                            <Row gutter={[10, 10]} style={{ marginTop: 14 }}>
-                                <Col span={12}>
-                                    <div style={{ padding: 12, borderRadius: 12, background: 'rgba(255,77,79,0.08)', border: '1px solid rgba(255,77,79,0.18)' }}>
-                                        <Space align="start">
-                                            <WarningOutlined style={{ color: '#ff4d4f', marginTop: 2 }} />
-                                            <div>
-                                                <Text strong>{t('Overdue')}</Text>
-                                                <div style={{ fontSize: 22, fontWeight: 700 }}>{riskCounts.overdue}</div>
-                                                <Button
-                                                    size='small'
-                                                    type='link'
-                                                    style={{ padding: 0 }}
-                                                    onClick={() => openRiskModal('Overdue Interventions', riskLists.overdue)}
-                                                >
-                                                    {t('View list')}
-                                                </Button>
-                                            </div>
-                                        </Space>
-                                    </div>
-                                </Col>
-
-                                <Col span={12}>
-                                    <div style={{ padding: 12, borderRadius: 12, background: 'rgba(250,173,20,0.10)', border: '1px solid rgba(250,173,20,0.22)' }}>
-                                        <Space align="start">
-                                            <ExclamationCircleOutlined style={{ color: '#faad14', marginTop: 2 }} />
-                                            <div>
-                                                <Text strong>{t('Unresponsive SMEs')}</Text>
-                                                <div style={{ fontSize: 22, fontWeight: 700 }}>{riskCounts.unresponsiveSMEs}</div>
-                                                <Button
-                                                    size='small'
-                                                    type='link'
-                                                    style={{ padding: 0 }}
-                                                    onClick={() => openRiskModal('Unresponsive SMEs (≥7 days pending acceptance)', riskLists.unresponsive)}
-                                                >
-                                                    {t('View list')}
-                                                </Button>
-                                            </div>
-                                        </Space>
-                                    </div>
-                                </Col>
-
-                                <Col span={12}>
-                                    <div style={{ padding: 12, borderRadius: 12, background: 'rgba(24,144,255,0.08)', border: '1px solid rgba(24,144,255,0.18)' }}>
-                                        <Space align="start">
-                                            <ClockCircleOutlined style={{ color: '#1677ff', marginTop: 2 }} />
-                                            <div>
-                                                <Text strong>{t('Due in 7 days')}</Text>
-                                                <div style={{ fontSize: 22, fontWeight: 700 }}>{riskCounts.upcoming7}</div>
-                                                <Button
-                                                    size='small'
-                                                    type='link'
-                                                    style={{ padding: 0 }}
-                                                    onClick={() => openRiskModal('Upcoming Deadlines (≤14 days)', riskLists.upcoming)}
-                                                >
-                                                    {t('View list')}
-                                                </Button>
-                                            </div>
-                                        </Space>
-                                    </div>
-                                </Col>
-
-                                <Col span={12}>
-                                    <div style={{ padding: 12, borderRadius: 12, background: 'rgba(82,196,26,0.10)', border: '1px solid rgba(82,196,26,0.18)' }}>
-                                        <Space align="start">
-                                            <ClockCircleOutlined style={{ color: '#52c41a', marginTop: 2 }} />
-                                            <div>
-                                                <Text strong>{t('Due in 14 days')}</Text>
-                                                <div style={{ fontSize: 22, fontWeight: 700 }}>{riskCounts.upcoming14}</div>
-                                                <div style={{ marginTop: 2 }}>
-                                                    <Text type='secondary' style={{ fontSize: 12 }}>{t('Includes 7-day count')}</Text>
-                                                </div>
-                                            </div>
-                                        </Space>
-                                    </div>
-                                </Col>
-                            </Row>
-                        </Card>
-                    </Col>
-
-                    <Col xs={24} lg={14}>
-                        <Card
-                            style={{ borderRadius: 16, height: '100%' }}
-                            title={modeHasDepartments ? t('Department Efficiency') : t('Area Efficiency')}
-                            extra={<Text type='secondary'>{t('Completed vs required')}</Text>}
-                        >
-                            {efficiencyRows.length ? (
-                                <div style={{ maxHeight: 330, overflowY: 'auto', paddingRight: 6 }}>
-                                    <Space direction='vertical' size={14} style={{ width: '100%' }}>
-                                        {efficiencyRows.map(row => (
-                                            <div key={row.name}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 2 }}>
-                                                    <Text ellipsis style={{ maxWidth: '70%' }}>{row.name}</Text>
-                                                    <Text type='secondary' style={{ fontSize: 12 }}>{row.completed}/{row.required}</Text>
-                                                </div>
-                                                <Progress
-                                                    percent={row.rate}
-                                                    strokeColor={rateColor(row.rate)}
-                                                    format={value => <span style={{ fontWeight: 600 }}>{value}%</span>}
-                                                />
-                                            </div>
-                                        ))}
-                                    </Space>
-                                </div>
-                            ) : (
-                                <Empty description={t('No required interventions found yet')} />
-                            )}
-                        </Card>
-                    </Col>
-                </Row>
-
-                <Row gutter={[12, 12]} style={{ marginTop: 12 }}>
-                    <Col xs={24}>
-                        <UpcomingWeekCard interventionDueItems={dueItems} />
-                    </Col>
-                </Row>
-
-                <Modal
-                    open={riskModal.open}
-                    title={riskModal.title}
-                    onCancel={() => setRiskModal(s => ({ ...s, open: false }))}
-                    footer={null}
-                >
-                    <List
-                        dataSource={riskModal.items}
-                        locale={{ emptyText: t('Nothing to show 🎉') }}
-                        renderItem={(item: any) => (
-                            <List.Item>
-                                <List.Item.Meta
-                                    title={<Text strong>{item.sme || item.name || '—'}</Text>}
-                                    description={
-                                        <Space wrap>
-                                            {item.scope && <Tag>{item.scope}</Tag>}
-                                            {item.dueDate && <Tag color="blue">{t('Due:')} {item.dueDate}</Tag>}
-                                            {typeof item.ageDays === 'number' && <Tag color="orange">{item.ageDays} {t('days')}</Tag>}
-                                            {item.reason && <Tag color="volcano">{item.reason}</Tag>}
-                                        </Space>
-                                    }
-                                />
-                            </List.Item>
-                        )}
+            <Row gutter={[12, 12]} className="dashboard-metrics-row director-dashboard-metrics">
+                <Col xs={12} lg={6}>
+                    <DashboardMetricCard
+                        loading={pageLoading}
+                        icon={<RiseOutlined />}
+                        iconClassName="is-participants"
+                        label={t('Revenue growth')}
+                        value={data?.revenueGrowth !== null && data?.revenueGrowth !== undefined ? `${signed(data.revenueGrowth)}%` : '—'}
+                        hint={data?.smesWithRevenue
+                            ? t('{growing} of {count} SMEs growing since joining', undefined, { growing: data.growingSmes, count: data.smesWithRevenue })
+                            : t('No revenue history yet')}
                     />
-                </Modal>
-            </div>
+                </Col>
+                <Col xs={12} lg={6}>
+                    <DashboardMetricCard
+                        loading={pageLoading}
+                        icon={<TeamOutlined />}
+                        iconClassName="is-users"
+                        label={t('Jobs created')}
+                        value={data?.smesWithJobs ? signed(data.netJobs) : '—'}
+                        hint={data?.smesWithJobs ? t('Net change across {count} SMEs', undefined, { count: data.smesWithJobs }) : t('No headcount history yet')}
+                    />
+                </Col>
+                <Col xs={12} lg={6}>
+                    <DashboardMetricCard
+                        loading={pageLoading}
+                        icon={<AimOutlined />}
+                        iconClassName="is-attention"
+                        label={t('KPIs on track')}
+                        value={data?.kpis.withTarget ? `${data.kpis.onTrack} / ${data.kpis.withTarget}` : '—'}
+                        hint={data
+                            ? data.kpis.withTarget
+                                ? t('{count} behind target', undefined, { count: data.kpis.behind })
+                                : t('No targets set')
+                            : undefined}
+                    />
+                </Col>
+                <Col xs={12} lg={6}>
+                    <DashboardMetricCard
+                        loading={pageLoading}
+                        icon={<CheckCircleOutlined />}
+                        iconClassName="is-delivery"
+                        label={t('Completion')}
+                        value={data?.completion !== null && data?.completion !== undefined ? `${data.completion}%` : '—'}
+                        hint={data?.required
+                            ? t('{completed} of {required} required interventions', undefined, { completed: data.completed, required: data.required })
+                            : t('Nothing required yet')}
+                    />
+                </Col>
+            </Row>
+
+            <Row gutter={[16, 16]}>
+                <Col xs={24} xl={9}>
+                    <Card loading={pageLoading} className="dashboard-section-card motion-card director-attention-card" title={t('Needs your attention')}>
+                        {data && (data.attention.length ? (
+                            <ul className="director-attention">
+                                {data.attention.map((item) => (
+                                    <li key={`${item.key}-${item.programme || ''}`}>
+                                        <button type="button" onClick={() => (item.key === 'overdue' ? setOverdueOpen(true) : navigate(item.path))}>
+                                            <span className={`director-attention-icon is-${item.key}`}>{ATTENTION_ICONS[item.key]}</span>
+                                            <span className="director-attention-text">{attentionText(item)}</span>
+                                            <ArrowRightOutlined className="director-attention-go" />
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <div className="director-all-clear">
+                                <CheckCircleOutlined />
+                                <div>
+                                    <Typography.Text strong>{t('Nothing needs your attention right now.')}</Typography.Text>
+                                    <Typography.Text type="secondary">{t('Nothing is overdue, behind target or flagged high risk.')}</Typography.Text>
+                                </div>
+                            </div>
+                        ))}
+                    </Card>
+                </Col>
+                {showProgrammes && (
+                    <Col xs={24} xl={15}>
+                        <Card
+                            className="dashboard-section-card motion-card"
+                            title={t('Programmes at a glance')}
+                            extra={<Typography.Link onClick={() => navigate('/director/programs')}>{t('Programme performance')} <ArrowRightOutlined /></Typography.Link>}
+                        >
+                            <ResponsiveDataView<DirectorProgrammeRow>
+                                rowKey="id"
+                                rows={activeProgrammes}
+                                columns={columns}
+                                loading={pageLoading}
+                                emptyText={t('No programmes with SMEs yet.')}
+                                onRowClick={() => navigate('/director/programs')}
+                                rowClassName={() => 'director-programme-row'}
+                                renderCard={(row) => (
+                                    <div className="director-programme-card">
+                                        <span className="director-programme-head">
+                                            <Typography.Text strong>{programmeName(row)}</Typography.Text>
+                                            {growthCell(row)}
+                                        </span>
+                                        {completionCell(row)}
+                                        <span className="director-flags">
+                                            <Typography.Text type="secondary">{t('{count} SMEs', undefined, { count: row.smes })}</Typography.Text>
+                                            {kpiCell(row)}
+                                            {flagsCell(row)}
+                                        </span>
+                                    </div>
+                                )}
+                            />
+                        </Card>
+                    </Col>
+                )}
+                {/* One programme in view: its KPIs take the place of the programmes table. */}
+                {!showProgrammes && (
+                    <Col xs={24} xl={15}>
+                        <Card
+                            className="dashboard-section-card motion-card"
+                            title={t('KPI status')}
+                            extra={<Typography.Link onClick={() => navigate('/kpis')}>{t('KPIs')} <ArrowRightOutlined /></Typography.Link>}
+                        >
+                            {data && <KpiStatusList items={data.kpiItems} emptyText={t('No KPI targets set for this programme yet. Set them on the KPIs page.')} />}
+                        </Card>
+                    </Col>
+                )}
+            </Row>
+
+            {user && (
+                <OverdueUpdatesModal
+                    open={overdueOpen}
+                    onClose={() => setOverdueOpen(false)}
+                    user={user}
+                    activeProgramId={activeProgramId}
+                    programmeNames={programmeNames}
+                />
+            )}
         </DashboardPage>
     )
 }

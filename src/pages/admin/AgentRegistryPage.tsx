@@ -51,6 +51,7 @@ import type {
 } from '@/types/agentOrchestration'
 import '@/styles/agent-registry.css'
 import { useLanguage, tr } from '@/providers/LanguageProvider'
+import { ModalActions } from '@/components/shared/ModalActions'
 
 const { TextArea } = Input
 
@@ -501,17 +502,11 @@ const AgentRegistryPage = () => {
             </Col>
           </Row>
 
-          <div className="agent-registry-modal-footer">
-            <Button
-              onClick={() => setOpen(false)}
-              disabled={saving}
-            >
-              {t('Cancel')}
-            </Button>
+          <ModalActions>
             <Button type="primary" htmlType="submit" loading={saving}>
               {editing ? t('Save changes') : t('Register agent')}
             </Button>
-          </div>
+          </ModalActions>
         </Form>
       </Modal>
     </DashboardPage>

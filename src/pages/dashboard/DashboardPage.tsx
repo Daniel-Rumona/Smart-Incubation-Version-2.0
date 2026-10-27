@@ -15,7 +15,7 @@ export const DashboardPage = () => {
         purpose: 'Workspace overview and starting point for role-aware platform activity.',
     })
 
-    if (user?.role === 'systemadmin' || user?.role === 'admin') return <SystemAdminDashboardPage />
+    if (user?.role === 'systemadmin') return <SystemAdminDashboardPage />
 
     return (
         <DashboardPageShell>

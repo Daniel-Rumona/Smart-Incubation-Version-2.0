@@ -200,7 +200,8 @@ function ConsultantMarketplaceProfileForm() {
     // The rules live in consultantProfileChecks (shared with the dashboard); this adds where each one is filled in.
     const checkPlace: Record<ConsultantProfileCheckKey, { label: string, section: Section, field: string }> = {
         headline: { label: t('Headline and bio'), section: 'Professional', field: 'consultant-field-headline' },
-        expertise: { label: t('Expertise and services'), section: 'Professional', field: 'consultant-field-expertise' },
+        expertise: { label: t('Areas of expertise'), section: 'Professional', field: 'consultant-field-expertise' },
+        service: { label: t('Service and daily rate'), section: 'Professional', field: 'consultant-services-rates' },
         location: { label: t('Location and rate currency'), section: 'Location', field: 'consultant-field-country' },
         phone: { label: t('Primary phone'), section: 'Contact', field: 'consultant-field-phone' },
         availability: { label: t('Weekly availability'), section: 'Availability', field: 'consultant-week' },
@@ -341,7 +342,7 @@ function ConsultantMarketplaceProfileForm() {
                         </div>
 
                         {activeSection === 'Professional' && (
-                            <div className="consultant-inline-services">
+                            <div className="consultant-inline-services" id="consultant-services-rates">
                                 <div className="consultant-inline-services-head">
                                     <div><Typography.Title level={4}>{t('Services & rates')}</Typography.Title><Typography.Paragraph type="secondary">{t('Add services using the expertise areas above.')}</Typography.Paragraph></div>
                                     <Button icon={<PlusOutlined />} disabled={!profile.specialties.length} onClick={addService}>{t('Add service')}</Button>
@@ -538,7 +539,7 @@ function ConsultantMarketplaceProfileForm() {
                 </Card>
             </div>
 
-            <ResponsiveModal open={previewOpen} onClose={() => setPreviewOpen(false)} title={t('How SMEs see your profile')} width={420} centered>
+            <ResponsiveModal open={previewOpen} onClose={() => setPreviewOpen(false)} title={t('How SMEs see your profile')} width={520} centered className="consultant-profile-preview-modal">
                 <Typography.Paragraph type="secondary">
                     {saved?.status === 'published'
                         ? t('This is your card in the consultant marketplace, including any changes you haven’t saved yet.')

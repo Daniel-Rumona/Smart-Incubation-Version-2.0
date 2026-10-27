@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Company settings redesign</title>
+<style>
+  :root {
+    --accent: #6d5dfb; --accent-2: #4f7df3;
+    --bg: #f5f6fb; --surface: #ffffff; --surface-2: #eef0f8; --ink: #172033; --muted: #5b6478; --line: rgba(109,93,251,.14);
+    --ok: #15803d; --ok-bg: rgba(21,128,61,.1); --warn: #b45309; --warn-bg: rgba(217,119,6,.12); --off: #dc2626; --off-bg: rgba(220,38,38,.08);
+    --note: #b45309; --note-bg: rgba(217,119,6,.1);
+    --ease: cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  [data-theme="dark"] {
+    --bg: #0f1117; --surface: #1b1e2a; --surface-2: #232737; --ink: #eef0f6; --muted: #a1a9bd; --line: rgba(139,92,246,.24);
+    --ok: #4ade80; --ok-bg: rgba(74,222,128,.12); --warn: #fbbf24; --warn-bg: rgba(251,191,36,.12); --off: #f87171; --off-bg: rgba(248,113,113,.1);
+    --note: #fbbf24; --note-bg: rgba(251,191,36,.12);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
+  button { font: inherit; color: inherit; }
+
+  .controls { position: sticky; top: 0; z-index: 9; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; padding: 12px; background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+  .seg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); }
+  .seg button { border: 0; background: none; color: var(--muted); font-weight: 650; font-size: 13px; padding: 7px 14px; border-radius: 999px; cursor: pointer; }
+  .seg button.on { color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+  .stage { display: flex; justify-content: center; padding: 24px 16px 48px; }
+  .frame { width: 1120px; max-width: 100%; border: 1px solid var(--line); border-radius: 22px; background: var(--bg); padding: 20px; container-type: inline-size; transition: width .35s var(--ease); }
+  .stage.phone .frame { width: 375px; border-radius: 36px; padding: 14px; }
+  .view { display: none; } .view.on { display: block; }
+  .chg { display: none; margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; font-size: 12.5px; line-height: 1.4; color: var(--note); background: var(--note-bg); border: 1px dashed color-mix(in srgb, var(--note) 50%, transparent); }
+  .show-notes .chg { display: block; }
+
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; min-width: 0; }
+  .card + .card { margin-top: 14px; }
+  .card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: -2px 0 12px; }
+  .card-head h3 { margin: 0; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+  .muted { color: var(--muted); } .small { font-size: 12.5px; }
+  .tag { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; background: var(--surface-2); color: var(--muted); }
+  .tag.ok { color: var(--ok); background: var(--ok-bg); } .tag.warn { color: var(--warn); background: var(--warn-bg); } .tag.purple { color: var(--accent); background: rgba(109,93,251,.1); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 34px; padding: 0 14px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; cursor: pointer; }
+  .btn.primary { color: #fff; border: 0; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+  .btn.block { width: 100%; height: 40px; }
+  .link { border: 0; background: none; padding: 2px 6px; border-radius: 6px; color: var(--accent); font-weight: 600; cursor: pointer; }
+
+  /* current */
+  .segbar { display: flex; padding: 3px; border-radius: 10px; background: var(--surface-2); margin-bottom: 14px; }
+  .segbar span { flex: 1; text-align: center; padding: 7px; border-radius: 8px; font-weight: 600; font-size: 13px; color: var(--muted); }
+  .segbar span.on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .desc { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .desc td { border: 1px solid var(--line); padding: 9px 12px; }
+  .desc td:first-child { width: 42%; background: var(--surface-2); color: var(--muted); }
+  .grid-cur { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; }
+  .alert { padding: 9px 12px; border-radius: 10px; background: rgba(79,125,243,.1); font-size: 13px; margin-bottom: 10px; }
+
+  /* redesign */
+  .layout { display: grid; grid-template-columns: 330px 1fr; gap: 16px; align-items: start; }
+  .identity { text-align: center; position: sticky; top: 70px; }
+  .logo-target { position: relative; width: 96px; height: 96px; margin: 4px auto 0; border-radius: 22px; display: grid; place-items: center; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; font-size: 30px; font-weight: 800; cursor: pointer; }
+  .logo-target .cam { position: absolute; right: -6px; bottom: -6px; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--surface); color: var(--ink); border: 1px solid var(--line); font-size: 14px; }
+  .identity h2 { margin: 14px 0 6px; font-size: 20px; }
+  .identity .tags { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+  .checklist { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); text-align: left; }
+  .checklist strong { font-size: 13px; }
+  .checklist ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 2px; }
+  .checklist li { display: flex; align-items: center; gap: 8px; min-height: 28px; font-size: 12.5px; }
+  .checklist li > span.lbl { flex: 1; }
+  .checklist li small { color: var(--muted); }
+  .ring { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid #94a3b8; flex: none; }
+  .is-missing .ring { border-color: var(--off); }
+  .tick { color: var(--ok); width: 12px; flex: none; font-size: 13px; line-height: 1; }
+  .is-done .lbl { color: var(--muted); }
+  .identity .foot { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; font-size: 12.5px; }
+
+  .setup-group + .setup-group { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .setup-group > span { display: block; margin-bottom: 8px; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+  .rows { display: grid; gap: 8px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); }
+  .row .k { font-size: 13px; } .row .k small { display: block; color: var(--muted); font-size: 12px; }
+  .row .v { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; font-weight: 600; font-size: 13px; text-align: right; }
+  .lockline { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: rgba(79,125,243,.08); font-size: 13px; margin-bottom: 14px; }
+
+  .matrix { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .matrix th { text-align: center; font-weight: 600; color: var(--muted); font-size: 12px; padding: 0 8px 8px; }
+  .matrix th:first-child { text-align: left; padding-left: 0; }
+  .matrix td { padding: 10px 8px; border-top: 1px solid var(--line); text-align: center; }
+  .matrix td:first-child { text-align: left; padding-left: 0; }
+  .matrix td:first-child small { display: block; color: var(--muted); font-size: 12px; }
+  .cb { display: inline-block; width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid var(--line); vertical-align: middle; }
+  .cb.on { background: var(--accent); border-color: var(--accent); position: relative; }
+  .cb.on::after { content: '✓'; position: absolute; inset: 0; color: #fff; font-size: 12px; line-height: 16px; text-align: center; }
+
+  .req { display: grid; gap: 8px; }
+  .req-item { padding: 10px 12px; border-radius: 10px; background: var(--surface-2); display: grid; gap: 4px; font-size: 13px; }
+  .req-item .top { display: flex; justify-content: space-between; gap: 8px; }
+  .save-bar { margin-top: 14px; display: grid; gap: 6px; }
+  .unsaved { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--warn); }
+  .unsaved::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+  .modal-preview { margin-top: 16px; border: 2px dashed color-mix(in srgb, var(--note) 45%, transparent); border-radius: 16px; padding: 14px; display: none; }
+  .show-notes .modal-preview { display: block; }
+  .modal-preview > p { margin: 0 0 10px; color: var(--note); font-weight: 650; font-size: 12.5px; }
+  .modal { max-width: 520px; margin: 0 auto; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px; box-shadow: 0 20px 40px -24px rgba(0,0,0,.35); }
+  .modal h4 { margin: 0 0 12px; font-size: 16px; }
+  .field { margin-bottom: 12px; } .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .select, .textarea { width: 100%; border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; background: var(--surface); color: var(--ink); font-size: 13px; }
+  .textarea { min-height: 72px; color: var(--muted); }
+  .modal .acts { display: flex; justify-content: flex-end; gap: 8px; }
+
+  @container (max-width: 760px) {
+    .layout, .grid-cur { grid-template-columns: 1fr; }
+    .identity { position: static; }
+    .row { flex-direction: column; align-items: flex-start; }
+    .row .v { justify-content: flex-start; text-align: left; }
+  }
+</style>
+</head>
+<body>
+<div class="controls">
+  <div class="seg" id="page"><button data-p="current">Current</button><button class="on" data-p="redesign">Redesign</button></div>
+  <div class="seg" id="view"><button class="on" data-v="desktop">Desktop</button><button data-v="phone">Phone</button></div>
+  <div class="seg" id="theme"><button class="on" data-t="light">Light</button><button data-t="dark">Dark</button></div>
+  <div class="seg" id="notes"><button class="on" data-n="on">Show changes</button><button data-n="off">Hide changes</button></div>
+</div>
+
+<div class="stage show-notes" id="stage">
+  <div class="frame">
+
+    <!-- ============ CURRENT ============ -->
+    <section class="view" id="current">
+      <div class="chg">Today's page with your company's data (Quantilytix, QTX). It has three tabs; this is the Company Setup tab.</div>
+      <div class="segbar"><span>Account</span><span class="on">Company Setup</span><span>Change Requests</span></div>
+      <div class="grid-cur">
+        <div class="card">
+          <div class="card-head"><h3>Company Setup</h3></div>
+          <table class="desc">
+            <tr><td>Company Name</td><td>Quantilytix</td></tr>
+            <tr><td>Company Code</td><td>QTX</td></tr>
+            <tr><td>Consultant Label</td><td>Consultants</td></tr>
+            <tr><td>Departments</td><td>No</td></tr>
+            <tr><td>Branches / Offices</td><td>No</td></tr>
+            <tr><td>Branch-scoped Management</td><td>No</td></tr>
+            <tr><td>Intervention Assignment</td><td>Not configured</td></tr>
+            <tr><td>Intervention Delivery Roles</td><td><span class="tag">Consultants</span> <span class="tag">Project Admins</span> <span class="tag">Operations</span></td></tr>
+            <tr><td>SME Division</td><td>Not configured</td></tr>
+            <tr><td>Owner</td><td>Not recorded</td></tr>
+            <tr><td>Status</td><td><span class="tag ok">EDITABLE</span></td></tr>
+          </table>
+        </div>
+        <div>
+          <div class="card"><div class="card-head"><h3>Actions</h3></div><div class="alert">Company setup changes are reviewed by the platform admin.</div><button class="btn primary block">✉ Request Change</button></div>
+          <div class="card"><div class="card-head"><h3>Company logo</h3></div><p class="muted small" style="margin:0 0 10px">No logo has been uploaded yet.</p><button class="btn">⇪ Upload logo</button></div>
+          <div class="card"><div class="card-head"><h3>Delegate control</h3></div>
+            <p class="muted small" style="margin:0 0 10px">Choose who may manage each area. Everyone in your company can always see them.</p>
+            <b class="small">Departments and offices</b><p class="muted small" style="margin:2px 0 6px">Add and edit the departments and offices of your company.</p>
+            <div class="small"><span class="cb"></span> Project admins &nbsp; <span class="cb"></span> Operations</div><br>
+            <b class="small">Company logo</b><p class="muted small" style="margin:2px 0 6px">Upload or replace the company logo shown across the workspace.</p>
+            <div class="small"><span class="cb"></span> Project admins &nbsp; <span class="cb"></span> Operations</div><br>
+            <button class="btn primary">Save delegation</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ REDESIGN ============ -->
+    <section class="view on" id="redesign">
+      <div class="chg"><b>One page, no tabs.</b> The Account tab is gone: it repeated My profile, so the identity card links to it. Change requests move into a card on this page. The layout matches the approved profile design: identity card with a checklist on the left, sections on the right, and a full-width save bar.</div>
+      <div class="layout">
+        <aside class="card identity">
+          <div class="logo-target" title="Upload logo">Q<span class="cam">📷</span></div>
+          <h2>Quantilytix</h2>
+          <div class="tags"><span class="tag purple">QTX</span><span class="tag">2 programmes</span></div>
+          <p class="muted small" style="margin:8px 0 0">Director: Smart Incubation</p>
+
+          <div class="checklist">
+            <strong>Setup 2 of 5 done</strong>
+            <ul>
+              <li class="is-missing"><span class="ring"></span><span class="lbl">Company logo</span><button class="link">Upload</button></li>
+              <li class="is-missing"><span class="ring"></span><span class="lbl">Who assigns interventions</span><button class="link">Request</button></li>
+              <li class="is-missing"><span class="ring"></span><span class="lbl">How SMEs are divided</span><button class="link">Request</button></li>
+              <li class="is-done"><span class="tick">✓</span><span class="lbl">Who delivers interventions</span></li>
+              <li class="is-done"><span class="tick">✓</span><span class="lbl">Company structure</span></li>
+            </ul>
+          </div>
+          <div class="foot"><span class="muted">Your own details</span><button class="link">My profile →</button></div>
+          <div class="chg" style="margin:12px 0 0;text-align:left"><b>The logo is the identity image</b>, uploaded by clicking it like a profile photo. The checklist shows what's missing and links straight to the fix.</div>
+        </aside>
+
+        <div>
+          <div class="card">
+            <div class="card-head"><h3>⚙ How your company works</h3><button class="btn">✉ Request a change</button></div>
+            <div class="lockline">🔒 <span>Set when your company was created. <b>Changes go through the platform admin</b>, who replies in Change requests below.</span></div>
+            <div class="chg">Plain-language labels instead of database values. "Not configured" becomes an amber <b>Not set</b> with its own Request link. "Consultants" becomes <b>facilitators</b>. The confusing "Status: EDITABLE" (while nothing here could be edited) is replaced by the lock line above.</div>
+
+            <div class="setup-group">
+              <span>Delivery</span>
+              <div class="rows">
+                <div class="row"><div class="k">Who assigns interventions<small>Operations assigns them, or facilitators pick their own</small></div><div class="v"><span class="tag warn">Not set</span><button class="link">Request</button></div></div>
+                <div class="row"><div class="k">Who delivers interventions</div><div class="v"><span class="tag">Facilitators</span><span class="tag">Project admins</span><span class="tag">Operations</span></div></div>
+                <div class="row"><div class="k">How SMEs are divided among facilitators</div><div class="v"><span class="tag warn">Not set</span><button class="link">Request</button></div></div>
+                <div class="row"><div class="k">What you call facilitators</div><div class="v">Consultants</div></div>
+              </div>
+            </div>
+            <div class="setup-group">
+              <span>Structure</span>
+              <div class="rows">
+                <div class="row"><div class="k">Departments</div><div class="v">No</div></div>
+                <div class="row"><div class="k">Branches or offices</div><div class="v">No</div></div>
+                <div class="row"><div class="k">Managers see only their own branch</div><div class="v">No</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h3>👥 Who can manage what</h3><span class="muted small">Everyone in your company can always see these</span></div>
+            <table class="matrix">
+              <tr><th></th><th>Project admins</th><th>Operations</th></tr>
+              <tr><td>Departments and offices<small>Add and edit your company's structure</small></td><td><span class="cb on"></span></td><td><span class="cb"></span></td></tr>
+              <tr><td>Company logo<small>Upload or replace the logo shown across the workspace</small></td><td><span class="cb on"></span></td><td><span class="cb on"></span></td></tr>
+            </table>
+            <div class="chg" style="margin:12px 0 0">A compact grid instead of two stacked checkbox groups. Its Save button moves to the shared save bar below.</div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h3>✉ Change requests</h3><span class="tag warn">1 waiting</span></div>
+            <div class="req">
+              <div class="req-item"><div class="top"><b>Turn on departments</b><span class="tag warn">Waiting</span></div><span class="muted small">Sent 24 Oct 2026 · Awaiting the platform admin</span></div>
+              <div class="req-item"><div class="top"><b>Let operations assign SMEs to facilitators</b><span class="tag ok">Approved</span></div><span class="muted small">Sent 2 Oct 2026 · "Done, live from today."</span></div>
+            </div>
+            <div class="chg" style="margin:12px 0 0">Was a separate tab with a four-column table. Now it shows the latest requests with their answers, and "Show all" when there are more than three. Sample requests shown; your account has none yet.</div>
+          </div>
+
+          <div class="save-bar">
+            <span class="unsaved">Unsaved changes</span>
+            <button class="btn primary block">💾 Save changes</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-preview">
+        <p>Clicking "Request" on a row (or "Request a change") opens this centred modal, already set to that setting</p>
+        <div class="modal">
+          <h4>Request a setup change</h4>
+          <div class="field"><label>Setting</label><div class="select">Who assigns interventions ▾</div></div>
+          <div class="field"><label>What you'd like</label><div class="select">Operations assigns facilitators ▾</div></div>
+          <div class="field"><label>Anything else the admin should know (optional)</label><div class="textarea">Example: we now have two regional offices…</div></div>
+          <p class="muted small" style="margin:0 0 12px">The platform admin reviews it and replies in Change requests.</p>
+          <div class="acts"><button class="btn">Cancel</button><button class="btn primary">Send request</button></div>
+        </div>
+        <div class="chg" style="margin:12px 0 0">Today's request is one free-text box and always shows the delivery-role checkboxes. This version picks the setting and the option you want, so the admin knows exactly what to change. It also <b>no longer shows a personal email address</b>: today's modal says requests go to daniel@quantilytix.co.za.</div>
+      </div>
+
+      <div class="chg" style="margin-top:14px"><b>Other roles</b> (project admins, operations, facilitators) see the same page read-only: no Request buttons, no permissions grid and no save bar, plus a note that the director manages it. Today they see an Account tab and a disabled Request button.</div>
+    </section>
+  </div>
+</div>
+
+<script>
+  const seg = (id, fn) => document.getElementById(id).addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return
+    document.querySelectorAll('#' + id + ' button').forEach(x => x.classList.toggle('on', x === b))
+    fn(b.dataset)
+  })
+  const stage = document.getElementById('stage')
+  seg('page', d => document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === d.p)))
+  seg('view', d => stage.classList.toggle('phone', d.v === 'phone'))
+  seg('theme', d => document.documentElement.dataset.theme = d.t)
+  seg('notes', d => stage.classList.toggle('show-notes', d.n === 'on'))
+</script>
+</body>
+</html>

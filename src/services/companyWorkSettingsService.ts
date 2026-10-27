@@ -8,18 +8,19 @@ import { PLATFORM_OWNER_CODE } from '@/services/companiesService'
  * How a company's consultants work, set by its project admins and operations (never by the consultant):
  *  - operating hours for the whole company;
  *  - whether company consultants must accept new work before it starts (off unless the company turns it on);
- *  - per consultant, their areas of support (picked from the company's own) and, if they keep different
+ *  - per consultant, their areas of support (picked from the company's own, or all of them) and, if they keep different
  *    hours, their own week. A consultant without their own hours works the company's.
  * One document per company: companyWorkSettings/{companyCode}.
  */
 
 export type WorkWindow = { dayOfWeek: number; startTime: string; endTime: string }
-export type ConsultantWork = { areasOfSupport?: string[]; hours?: WorkWindow[] | null }
+// allAreas: operations chose "All areas". Without it, a consultant with no areas picks up no work (Available work).
+export type ConsultantWork = { areasOfSupport?: string[]; allAreas?: boolean; hours?: WorkWindow[] | null }
 export type CompanyWorkSettings = { companyCode: string; operatingHours: WorkWindow[]; consultants: Record<string, ConsultantWork>; requireConsultantAcceptance: boolean }
 
 const empty = (companyCode: string): CompanyWorkSettings => ({ companyCode, operatingHours: [], consultants: {}, requireConsultantAcceptance: false })
 
-export const canManageWorkSettings = (role?: string) => ['projectadmin', 'projectmanager', 'operations', 'admin', 'systemadmin'].includes(String(role || ''))
+export const canManageWorkSettings = (role?: string) => ['projectadmin', 'projectmanager', 'operations', 'systemadmin'].includes(String(role || ''))
 
 export const getCompanyWorkSettings = async (companyCode: string): Promise<CompanyWorkSettings> => {
     if (!companyCode) return empty(companyCode)
@@ -47,7 +48,7 @@ const write = async (user: FullIdentity, fields: Record<string, unknown>) => {
 export const saveOperatingHours = (user: FullIdentity, operatingHours: WorkWindow[]) => write(user, { operatingHours })
 
 /** hours: null means "works the company's operating hours". */
-export const saveConsultantWork = (user: FullIdentity, consultantUid: string, work: { areasOfSupport: string[]; hours: WorkWindow[] | null }) =>
+export const saveConsultantWork = (user: FullIdentity, consultantUid: string, work: { areasOfSupport: string[]; allAreas: boolean; hours: WorkWindow[] | null }) =>
     write(user, { consultants: { [consultantUid]: work } })
 
 /** The company's areas of support: every distinct area on the interventions it has set up. */
@@ -66,6 +67,14 @@ export const hoursFor = (settings: CompanyWorkSettings | null, consultantUid?: s
 
 export const areasFor = (settings: CompanyWorkSettings | null, consultantUid?: string | null) =>
     (consultantUid && settings?.consultants[consultantUid]?.areasOfSupport) || []
+
+/** Operations chose "All areas" for this consultant. */
+export const coversAllAreas = (settings: CompanyWorkSettings | null, consultantUid?: string | null) =>
+    !!consultantUid && settings?.consultants[consultantUid]?.allAreas === true
+
+/** Whether a consultant covers an area: "All areas", or the area is one of theirs (case-insensitive). */
+export const coversArea = (settings: CompanyWorkSettings | null, consultantUid: string | null | undefined, area: string) =>
+    coversAllAreas(settings, consultantUid) || areasFor(settings, consultantUid).some((own) => own.toLowerCase() === area.trim().toLowerCase())
 
 const minutesOf = (date: Date) => date.getHours() * 60 + date.getMinutes()
 const toMinutes = (time: string) => {

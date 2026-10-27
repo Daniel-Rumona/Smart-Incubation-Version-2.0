@@ -186,7 +186,7 @@ export const UserProfilePage = () => {
   // consultants and project admins on Manage team; every other role is changed only by a platform administrator.
   const accessSource = ['consultant', 'projectadmin'].includes(user.role)
     ? t('Set on Manage team by your project admins and operations team. Ask them if you need more access.')
-    : ['admin', 'systemadmin'].includes(user.role)
+    : user.role === 'systemadmin'
       ? t('Your access comes with your role.')
       : t('Your access comes with your role. A platform administrator can change it.')
 

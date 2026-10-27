@@ -1,4 +1,4 @@
-import { App, Button, Col, Empty, Modal, Row, Skeleton } from 'antd'
+import { Alert, App, Button, Col, Empty, Modal, Row, Skeleton } from 'antd'
 import {
     AuditOutlined,
     CheckCircleOutlined,
@@ -28,6 +28,9 @@ import { IncubateeItemList, type DashboardItem } from './IncubateeItemList'
 import { describeDue } from './incubateeDashboardStatus'
 import { buildDemoIncubateeWorkspace, buildDemoOutstandingDocuments, type OutstandingDocument } from './incubateeDemoWorkspace'
 import { PLAN_READY_PATH, shouldShowPlanReady } from '@/utils/planReadyPrompt'
+import { FINISH_PROFILE_PATH, markFinishProfileShown, shouldShowFinishProfile } from '@/utils/profilePrompt'
+import { getApplicantProfileBundle } from '@/services/applicantService'
+import { profileCompletion, profileValuesFromBundle } from '@/utils/applicantProfileCompletion'
 
 type MetricKey = 'documents' | 'accept' | 'confirm' | 'forms'
 
@@ -45,6 +48,8 @@ export const IncubateeDashboardPage = () => {
     const [openMetric, setOpenMetric] = useState<MetricKey | null>(null)
     // Compliance documents are only a count on the workspace, so the list is fetched when it is asked for.
     const [documents, setDocuments] = useState<OutstandingDocument[]>()
+    // Required business details still missing (undefined while checking). Staff-added SMEs start with most of them empty.
+    const [profileMissing, setProfileMissing] = useState<number>()
 
     const load = async () => {
         if (isDemo) {
@@ -66,10 +71,26 @@ export const IncubateeDashboardPage = () => {
         return () => window.clearTimeout(timeout)
     }, [user, isDemo]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    // A freshly approved growth plan opens its own page once per sign-in until the SME confirms it.
     useEffect(() => {
-        if (!isDemo && shouldShowPlanReady(workspace, user?.uid)) navigate(PLAN_READY_PATH)
-    }, [isDemo, navigate, user?.uid, workspace])
+        if (isDemo || !user) return
+        let active = true
+        getApplicantProfileBundle(user.uid, user.email)
+            .then((bundle) => { if (active) setProfileMissing(profileCompletion(profileValuesFromBundle(bundle, user)).missing.length) })
+            .catch(() => { if (active) setProfileMissing(0) })
+        return () => { active = false }
+    }, [isDemo, user])
+
+    // Unfinished business details open the profile once per sign-in; that comes before the growth plan prompt.
+    useEffect(() => {
+        if (isDemo || profileMissing === undefined) return
+        if (shouldShowFinishProfile(profileMissing, user?.uid)) {
+            markFinishProfileShown(user?.uid)
+            navigate(FINISH_PROFILE_PATH)
+            return
+        }
+        // A freshly approved growth plan opens its own page once per sign-in until the SME confirms it.
+        if (shouldShowPlanReady(workspace, user?.uid)) navigate(PLAN_READY_PATH)
+    }, [isDemo, navigate, profileMissing, user?.uid, workspace])
 
     const openDocuments = () => {
         setOpenMetric('documents')
@@ -181,6 +202,18 @@ export const IncubateeDashboardPage = () => {
     const activeModal = openMetric ? metricModals[openMetric] : null
 
     return <DashboardPage className="incubatee-page dashboard-home-page">
+        {!isDemo && Boolean(profileMissing) && (
+            <Alert
+                className="incubatee-finish-profile"
+                type="warning"
+                showIcon
+                message={t('Finish your business details')}
+                description={profileMissing === 1
+                    ? t('1 detail is still missing. Your programme team uses your details to support you.')
+                    : t('{count} details are still missing. Your programme team uses your details to support you.', undefined, { count: profileMissing ?? 0 })}
+                action={<Button type="primary" size="small" onClick={() => navigate(FINISH_PROFILE_PATH)}>{t('Complete my details')}</Button>}
+            />
+        )}
         <MetricsGrid>
             <DashboardMetricCard
                 loading={loading}

@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reports simplified</title>
+<style>
+  :root {
+    --accent: #6d5dfb; --accent-2: #4f7df3;
+    --bg: #f5f6fb; --surface: #ffffff; --surface-2: #eef0f8; --ink: #172033; --muted: #5b6478; --line: rgba(109,93,251,.14);
+    --ok: #059669; --ok-bg: rgba(5,150,105,.1); --amber: #d97706; --amber-bg: rgba(217,119,6,.12); --off: #dc2626; --off-bg: rgba(220,38,38,.08);
+    --blue: #2563eb; --slate: #94a3b8; --violet: #8b5cf6; --pink: #db2777;
+    --note: #b45309; --note-bg: rgba(217,119,6,.1);
+    --ease: cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  [data-theme="dark"] {
+    --bg: #0f1117; --surface: #1b1e2a; --surface-2: #232737; --ink: #eef0f6; --muted: #a1a9bd; --line: rgba(139,92,246,.24);
+    --ok: #34d399; --ok-bg: rgba(52,211,153,.12); --off: #f87171; --off-bg: rgba(248,113,113,.1); --amber-bg: rgba(251,191,36,.12);
+    --slate: #64748b; --note: #fbbf24; --note-bg: rgba(251,191,36,.12);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
+  button { font: inherit; color: inherit; }
+
+  .controls { position: sticky; top: 0; z-index: 9; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; padding: 12px; background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+  .seg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); }
+  .seg button { border: 0; background: none; color: var(--muted); font-weight: 650; font-size: 13px; padding: 7px 14px; border-radius: 999px; cursor: pointer; }
+  .seg button.on { color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+  .stage { display: flex; justify-content: center; padding: 24px 16px 48px; }
+  .frame { width: 1140px; max-width: 100%; border: 1px solid var(--line); border-radius: 22px; background: var(--bg); padding: 20px; container-type: inline-size; transition: width .35s var(--ease); }
+  .stage.phone .frame { width: 375px; border-radius: 36px; padding: 14px; }
+  .view { display: none; } .view.on { display: block; }
+  .chg { display: none; margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; font-size: 12.5px; line-height: 1.4; color: var(--note); background: var(--note-bg); border: 1px dashed color-mix(in srgb, var(--note) 50%, transparent); }
+  .show-notes .chg { display: block; }
+
+  .grid { display: grid; gap: 14px; margin-bottom: 14px; }
+  .g4 { grid-template-columns: repeat(4, 1fr); } .g2 { grid-template-columns: 1fr 1fr; } .g-14-10 { grid-template-columns: 14fr 10fr; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; min-width: 0; }
+  .card h3 { font-size: 15px; margin: 0 0 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .card h3 small { font-weight: 500; color: var(--muted); font-size: 12px; }
+  .muted { color: var(--muted); } .small { font-size: 12.5px; }
+  .tag { display: inline-flex; padding: 1px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; background: var(--surface-2); color: var(--muted); }
+  .tag.ok { color: var(--ok); background: var(--ok-bg); } .tag.warn { color: var(--amber); background: var(--amber-bg); } .tag.off { color: var(--off); background: var(--off-bg); }
+  .btn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; cursor: pointer; font-size: 13px; }
+  .btn.primary { color: #fff; border: 0; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+  .link { color: var(--accent); font-weight: 600; font-size: 13px; cursor: pointer; }
+
+  .metric { display: flex; gap: 12px; align-items: flex-start; }
+  .metric i { flex: none; width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; font-style: normal; font-size: 16px; color: #fff; }
+  .metric small { display: block; color: var(--muted); font-size: 12.5px; }
+  .metric b { display: block; font-size: 24px; line-height: 1.15; }
+  .metric em { display: block; font-style: normal; color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+  /* current */
+  .filterbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; padding: 10px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); }
+  .tabs { display: flex; flex-wrap: wrap; padding: 3px; border-radius: 10px; background: var(--surface-2); }
+  .tabs span { padding: 6px 10px; border-radius: 8px; font-size: 12.5px; font-weight: 600; color: var(--muted); cursor: pointer; }
+  .tabs span.on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .fake-input { padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 12.5px; color: var(--muted); background: var(--surface); }
+  .spacer { flex: 1; }
+  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .tile { padding: 12px; border-radius: 12px; background: var(--surface-2); display: grid; gap: 2px; }
+  .tile strong { font-size: 22px; } .tile.watch strong { color: var(--amber); } .tile.risk strong { color: var(--off); } .tile.good strong { color: var(--ok); }
+  .brief { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); margin-bottom: 8px; font-size: 13px; }
+  .brief div { display: grid; }
+  .tab-panel { display: none; } .tab-panel.on { display: block; }
+  .placeholder { display: grid; gap: 8px; }
+  .ph { height: 120px; border-radius: 12px; background: repeating-linear-gradient(135deg, var(--surface-2), var(--surface-2) 10px, transparent 10px, transparent 20px); border: 1px dashed var(--line); display: grid; place-items: center; color: var(--muted); font-size: 12.5px; text-align: center; padding: 8px; }
+
+  /* simplified */
+  .report-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .report-head h1 { font-size: 20px; margin: 0; }
+  .headline { padding: 14px 16px; border-radius: 14px; background: linear-gradient(135deg, rgba(109,93,251,.1), rgba(79,125,243,.08)); border: 1px solid var(--line); margin-bottom: 14px; font-size: 15px; line-height: 1.5; }
+  .headline b { font-weight: 700; }
+  .section-title { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 22px 0 10px; }
+  .section-title h2 { font-size: 16px; margin: 0; } .section-title span { font-size: 12px; color: var(--muted); }
+  .bars { display: flex; align-items: flex-end; gap: 10px; height: 150px; padding-top: 10px; }
+  .bars .col { flex: 1; display: grid; gap: 4px; justify-items: center; }
+  .bars .stack { width: 100%; display: flex; flex-direction: column-reverse; border-radius: 6px; overflow: hidden; }
+  .bars .pair { display: flex; align-items: flex-end; gap: 3px; width: 100%; height: 120px; }
+  .bars .pair span { flex: 1; border-radius: 4px 4px 0 0; }
+  .bars label { font-size: 11px; color: var(--muted); }
+  .hbars { display: grid; gap: 8px; }
+  .hbar { display: grid; grid-template-columns: 110px 1fr 46px; gap: 10px; align-items: center; font-size: 12.5px; }
+  .hbar .track { height: 12px; border-radius: 6px; background: var(--surface-2); overflow: hidden; display: flex; }
+  .hbar .track span { height: 100%; }
+  .hbar b { text-align: right; font-weight: 650; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  .big { font-size: 34px; font-weight: 750; line-height: 1; }
+  .stat-row { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+  .split { display: grid; gap: 10px; }
+  .split .row { display: grid; grid-template-columns: 90px 1fr; gap: 10px; align-items: center; font-size: 12.5px; }
+  .split .track { display: flex; height: 16px; border-radius: 6px; overflow: hidden; }
+  .split .track span { display: grid; place-items: center; color: #fff; font-size: 10.5px; font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font-weight: 650; color: var(--muted); padding: 8px; border-bottom: 1px solid var(--line); }
+  td { padding: 9px 8px; border-bottom: 1px solid var(--line); }
+  tr:last-child td { border-bottom: 0; }
+  .owner-cards { display: none; gap: 8px; }
+  .owner-card { padding: 10px 12px; border-radius: 10px; background: var(--surface-2); display: grid; gap: 4px; font-size: 13px; }
+  .owner-card div { display: flex; justify-content: space-between; }
+  .linkline { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); font-size: 13px; margin-top: 10px; }
+
+  @container (max-width: 760px) {
+    .g4 { grid-template-columns: 1fr 1fr; } .g2, .g-14-10 { grid-template-columns: 1fr; }
+    .metric i { display: none; } .metric b { font-size: 20px; }
+    .hbar { grid-template-columns: 84px 1fr 40px; }
+    table { display: none; } .owner-cards { display: grid; }
+    .report-head .spacer { display: none; }
+    .report-head .btn { flex: 1; justify-content: center; }
+  }
+
+  /* analytics */
+  .an-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .an-head h1 { font-size: 20px; margin: 0; }
+  .an-compare { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+  .an-card { text-align: left; cursor: pointer; border: 1px solid var(--line); transition: border-color .2s; }
+  .an-card:hover { border-color: var(--accent); }
+  .delta { display: inline-block; margin-left: 4px; padding: 0 6px; border-radius: 6px; font-size: 11px; font-weight: 700; }
+  .delta.up { color: var(--ok); background: var(--ok-bg); } .delta.down { color: var(--off); background: var(--off-bg); }
+  .an-tabs { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--surface-2); margin-bottom: 14px; overflow-x: auto; }
+  .an-tabs button { flex: 1; border: 0; background: none; padding: 8px 12px; border-radius: 9px; font-weight: 650; font-size: 13px; color: var(--muted); cursor: pointer; white-space: nowrap; }
+  .an-tabs button.on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .an-panel-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .an-by { display: grid; gap: 4px; justify-items: end; }
+  .small-seg button { padding: 5px 10px; font-size: 12px; }
+  .an-label { font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .04em; }
+  .an-bar { width: 100%; border: 0; background: none; padding: 4px 6px; border-radius: 8px; cursor: pointer; text-align: left; }
+  .an-bar:hover, .an-bar.is-on { background: var(--surface-2); }
+  .an-bar.is-on span:first-child { font-weight: 700; }
+  .an-track { position: relative; }
+  .an-track i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--slate); opacity: .35; border-radius: 6px; }
+  .an-track span { position: relative; border-radius: 6px; }
+  .an-trend { height: 170px; }
+  .an-table-actions { display: inline-flex; align-items: center; gap: 10px; font-weight: 500; }
+  .an-cards-list { display: none; gap: 8px; }
+  @container (max-width: 760px) {
+    .an-head .spacer { display: none; } .an-head .btn { flex: 1; justify-content: center; }
+    .an-by { justify-items: start; }
+    .an-table-wrap { display: none; } .an-cards-list { display: grid; }
+  }
+</style>
+</head>
+<body>
+<div class="controls">
+  <div class="seg" id="page"><button data-p="current">Current</button><button class="on" data-p="simple">Simplified</button></div>
+  <div class="seg" id="view"><button class="on" data-v="desktop">Desktop</button><button data-v="phone">Phone</button></div>
+  <div class="seg" id="theme"><button class="on" data-t="light">Light</button><button data-t="dark">Dark</button></div>
+  <div class="seg" id="notes"><button class="on" data-n="on">Show changes</button><button data-n="off">Hide changes</button></div>
+</div>
+
+<div class="stage show-notes" id="stage">
+  <div class="frame">
+
+    <!-- ================= CURRENT ================= -->
+    <section class="view" id="current">
+      <div class="chg">Today's Reports page, redrawn with sample data (Q4 2026). It has 7 tabs, and the 4 cards only show on Overview. Click the tabs to see what each one holds.</div>
+      <div class="grid g4">
+        <div class="card metric"><i style="background:var(--blue)">✎</i><div><small>Submitted</small><b>22</b><em>64% accepted</em></div></div>
+        <div class="card metric"><i style="background:var(--ok)">👥</i><div><small>Participants</small><b>25</b><em>Accepted or active SMEs</em></div></div>
+        <div class="card metric"><i style="background:var(--violet)">✓</i><div><small>Completed</small><b>92</b><em>72% delivery rate</em></div></div>
+        <div class="card metric"><i style="background:var(--amber)">!</i><div><small>Attention</small><b>31</b><em>27 overdue, 4 compliance</em></div></div>
+      </div>
+      <div class="chg"><b>72% "delivery rate"</b> is completed ÷ <i>assigned</i>. The director dashboard and Programme performance say <b>61%</b> (completed ÷ <i>required</i>). <b>"Attention 31"</b> adds overdue interventions and compliance documents together.</div>
+      <div class="filterbar">
+        <div class="tabs" id="cur-tabs">
+          <span class="on" data-tab="overview">Overview</span><span data-tab="applications">Applications</span><span data-tab="interventions">Interventions</span><span data-tab="appointments">Appointments</span><span data-tab="workload">Workload</span><span data-tab="participants">Participants</span><span data-tab="performance">Performance</span>
+        </div>
+        <span class="fake-input">1 Oct 2026 → 31 Dec 2026</span>
+        <span class="spacer"></span>
+        <span class="btn">▶ Play report</span><span class="btn">⇩ Export</span>
+      </div>
+
+      <div class="tab-panel on" data-panel="overview">
+        <div class="grid g-14-10">
+          <div class="card"><h3>Period Health</h3>
+            <div class="tiles">
+              <div class="tile watch"><span class="muted small">Applications</span><strong>64%</strong><span class="small muted">14 of 22 accepted</span></div>
+              <div class="tile good"><span class="muted small">Delivery</span><strong>72%</strong><span class="small muted">92 of 128 completed</span></div>
+              <div class="tile good"><span class="muted small">Attendance</span><strong>82%</strong><span class="small muted">41 present, 9 absent</span></div>
+              <div class="tile risk"><span class="muted small">Compliance</span><strong>4</strong><span class="small muted">items need follow-up</span></div>
+            </div>
+          </div>
+          <div class="card"><h3>What Needs Attention</h3>
+            <div class="brief"><div><b>Demand gap</b><span class="muted small">Finance support is under-delivered</span></div><span class="btn">Open detail</span></div>
+            <div class="brief"><div><b>Overdue work</b><span class="muted small">27 assignments need intervention.</span></div><span class="btn">Open detail</span></div>
+            <div class="brief"><div><b>Attendance capture</b><span class="muted small">6 appointments still need attendance captured.</span></div><span class="btn">Open detail</span></div>
+          </div>
+        </div>
+        <div class="chg">"Period Health" repeats the 4 cards above with different figures. "What Needs Attention" is day-to-day work that also lives on Monitoring and the director dashboard.</div>
+      </div>
+      <div class="tab-panel" data-panel="applications"><div class="grid g-14-10"><div class="ph">Application Flow chart<br>(submitted vs accepted by month)</div><div class="ph">Intake Signals:<br>3 alert boxes (top demand, conversion, demand gap)</div></div></div>
+      <div class="tab-panel" data-panel="interventions"><div class="placeholder"><div class="grid g2" style="margin:0"><div class="ph">Intervention Health pie</div><div class="ph">Demand vs Delivery by Support Area<br>(cards, paged, click to drill in)</div></div><div class="ph">Intervention Status Over Time</div><div class="ph">Needs Attention table (overdue and stalled)<br>Also on Monitoring</div></div></div>
+      <div class="tab-panel" data-panel="appointments"><div class="placeholder"><div class="grid g2" style="margin:0"><div class="ph">Appointment Health chart</div><div class="ph">Attendance Rate gauge</div></div><div class="ph">Appointments Over Time</div></div></div>
+      <div class="tab-panel" data-panel="workload"><div class="grid g-14-10"><div class="ph">Delivery workload cards per facilitator / agent</div><div class="ph">Facilitator &amp; agent health cards<br>(same people again)</div></div></div>
+      <div class="tab-panel" data-panel="participants"><div class="placeholder"><div class="grid g2" style="margin:0"><div class="ph">Participants chart</div><div class="ph">Ownership chart</div><div class="ph">Gender chart</div><div class="ph">B-BBEE chart</div></div><div class="ph">Compliance Status list + alert</div></div></div>
+      <div class="tab-panel" data-panel="performance"><div class="placeholder"><div class="grid g2" style="margin:0"><div class="ph">Revenue card<br>(own calculation, not Impact's)</div><div class="ph">Employees card</div></div><div class="ph">Revenue &amp; Employees Trend</div></div></div>
+    </section>
+
+    <!-- ================= SIMPLIFIED (analytics) ================= -->
+    <section class="view on" id="simple">
+      <div class="an-head">
+        <h1>Reports</h1>
+        <span class="fake-input">This quarter · 1 Oct – 31 Dec 2026 ▾</span>
+        <label class="an-compare"><input type="checkbox" id="compare" checked> Compare to previous quarter</label>
+        <span class="spacer"></span>
+        <span class="btn">▶ Play report</span>
+        <span class="btn primary">⇩ Export report</span>
+      </div>
+      <div class="chg"><b>One frame on every tab:</b> period, <b>Compare to previous period</b>, and Play / Export to turn what you're looking at into a shareable report. Today the cards vanish after Overview, and there's no comparison.</div>
+
+      <div class="grid g4" id="an-cards">
+        <button class="card metric an-card" data-go="intake"><i style="background:var(--blue)">✎</i><div><small>Intake</small><b>14 / 22</b><em>accepted <span class="delta up">▲ 3</span></em></div></button>
+        <button class="card metric an-card" data-go="delivery"><i style="background:var(--violet)">✓</i><div><small>Delivery</small><b>61%</b><em>of required <span class="delta up">▲ 8 pts</span></em></div></button>
+        <button class="card metric an-card" data-go="appointments"><i style="background:var(--ok)">◷</i><div><small>Attendance</small><b>82%</b><em>41 of 50 held <span class="delta down">▼ 4 pts</span></em></div></button>
+        <button class="card metric an-card" data-go="growth"><i style="background:var(--pink)">↗</i><div><small>Growth</small><b>+19%</b><em>revenue · +13 jobs <span class="delta up">▲ 5 pts</span></em></div></button>
+      </div>
+      <div class="chg"><b>The cards stay on every tab</b>, show the change from the previous period, and open their tab when clicked. Delivery uses completed ÷ <i>required</i> and Growth uses Impact analysis's figures, so they match the dashboard. The "Attention" card that added unlike things is gone.</div>
+
+      <div class="an-tabs" id="an-tabs">
+        <button class="on" data-tab="intake">Intake</button><button data-tab="delivery">Delivery</button><button data-tab="appointments">Appointments</button><button data-tab="smes">SMEs</button><button data-tab="growth">Growth</button>
+      </div>
+      <div class="chg"><b>Five tabs, one per question</b>, instead of seven. Overview goes (the cards do its job), and Workload becomes "by facilitator" inside Delivery.</div>
+
+      <div class="card an-panel">
+        <div class="an-panel-head">
+          <div><h3 id="an-question" style="margin:0"></h3><span class="muted small" id="an-sub"></span></div>
+          <div class="an-by"><span class="muted small">Break down by</span><div class="seg small-seg" id="an-by"></div></div>
+        </div>
+        <div class="grid g-14-10" style="margin:14px 0 0">
+          <div><div class="an-label" id="an-break-label"></div><div class="hbars" id="an-break"></div><div class="legend" id="an-break-legend"></div></div>
+          <div><div class="an-label">Over the period</div><div class="bars an-trend" id="an-trend"></div><div class="legend" id="an-trend-legend"></div></div>
+        </div>
+        <div class="chg" style="margin-top:14px">One chart re-sliced by the dimension you pick, instead of several fixed charts. The faint bars are the previous period while Compare is on.</div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h3><span id="an-table-title"></span><span class="an-table-actions"><span class="muted small" id="an-table-filter"></span><span class="btn">⇩ CSV</span></span></h3>
+        <div class="an-table-wrap"><table id="an-table"></table></div>
+        <div class="an-cards-list" id="an-table-cards"></div>
+        <div class="linkline" id="an-followup"></div>
+      </div>
+      <div class="chg">The rows behind the chart. Click a bar to filter the table to it, then download it as CSV. Follow-up work (overdue, compliance) is one link to the page where it's handled, instead of a duplicated "Needs attention" list.</div>
+    </section>
+  </div>
+</div>
+
+<script>
+  const seg = (id, fn) => document.getElementById(id).addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return
+    document.querySelectorAll('#' + id + ' button').forEach(x => x.classList.toggle('on', x === b))
+    fn(b.dataset)
+  })
+  const stage = document.getElementById('stage')
+  seg('page', d => document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === d.p)))
+  seg('view', d => stage.classList.toggle('phone', d.v === 'phone'))
+  seg('theme', d => document.documentElement.dataset.theme = d.t)
+  seg('notes', d => stage.classList.toggle('show-notes', d.n === 'on'))
+  document.getElementById('cur-tabs').addEventListener('click', e => {
+    const tab = e.target.closest('[data-tab]'); if (!tab) return
+    document.querySelectorAll('#cur-tabs span').forEach(x => x.classList.toggle('on', x === tab))
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('on', p.dataset.panel === tab.dataset.tab))
+  })
+
+  // ---- Sample data (Q4 2026, previous = Q3) ----
+  const TABS = {
+    intake: {
+      question: 'Who is applying, and who gets in?', sub: '22 applications · 14 accepted',
+      unit: 'accepted of submitted', pct: false,
+      by: {
+        Programme: [['Test Engagement', 10, 15, 8], ['Township Tech', 4, 7, 3]],
+        'Requested area': [['Finance', 7, 10, 5], ['Marketing', 4, 6, 4], ['Compliance', 2, 4, 2], ['Digital', 1, 2, 0]],
+        Month: [['Oct', 4, 6, 4], ['Nov', 6, 10, 4], ['Dec', 4, 6, 3]],
+      },
+      trend: [['Oct', 6, 5], ['Nov', 10, 7], ['Dec', 6, 4]], trendLegend: ['Submitted', 'Previous quarter'],
+      tableTitle: 'Applications', cols: ['SME', 'Programme', 'Requested area', 'Status', 'Submitted'],
+      rows: [['Mpumalanga Citrus Co', 'Test Engagement', 'Finance', 'Accepted', '3 Oct'], ['Lekgotla Greens', 'Test Engagement', 'Marketing', 'Accepted', '12 Oct'], ['Kasi Code Labs', 'Township Tech', 'Digital', 'Declined', '2 Nov'], ['Vula Vineyards', 'Test Engagement', 'Finance', 'Accepted', '18 Nov'], ['Imvelo Compost', 'Test Engagement', 'Compliance', 'Pending', '4 Dec']],
+      followup: ['3 applications are waiting for a decision.', 'Open Applications →'],
+    },
+    delivery: {
+      question: 'Is the support getting done?', sub: '88 of 145 required interventions completed (61%)',
+      unit: '% of required completed', pct: true,
+      by: {
+        Area: [['Compliance', 82, 100, 75], ['Marketing', 66, 100, 58], ['Finance', 52, 100, 41], ['Digital', 31, 100, 28]],
+        'Facilitator / agent': [['Thandi Mokoena', 65, 100, 60], ['Sipho Dlamini', 68, 100, 55], ['Business Plan agent', 92, 100, 88]],
+        Programme: [['Test Engagement', 73, 100, 66], ['Township Tech', 16, 100, 12]],
+      },
+      trend: [['Oct', 22, 18], ['Nov', 31, 24], ['Dec', 35, 27]], trendLegend: ['Completed', 'Previous quarter'],
+      tableTitle: 'Interventions', cols: ['Intervention', 'SME', 'Owner', 'Area', 'Status'],
+      rows: [['Bookkeeping Systems Setup', 'Mpumalanga Citrus Co', 'Thandi Mokoena', 'Finance', 'Overdue'], ['Website & E-commerce Setup', 'Lekgotla Greens', 'Thandi Mokoena', 'Digital', 'In progress'], ['Business Plan Refresh', 'Ntombi Fresh Produce', 'Business Plan agent', 'Finance', 'Completed'], ['Market Access Facilitation', 'Vula Vineyards', 'Sipho Dlamini', 'Marketing', 'Overdue'], ['SOP Workshop', 'Imvelo Compost', 'Sipho Dlamini', 'Compliance', 'Completed']],
+      followup: ['27 interventions are overdue.', 'Open Monitoring →'],
+    },
+    appointments: {
+      question: 'Are sessions happening, and are SMEs attending?', sub: '50 sessions held · 82% attended',
+      unit: '% attended', pct: true,
+      by: {
+        'Facilitator': [['Thandi Mokoena', 84, 100, 88], ['Sipho Dlamini', 79, 100, 85]],
+        Type: [['In person', 88, 100, 90], ['Online', 80, 100, 84], ['Telephonic', 71, 100, 78]],
+        Month: [['Oct', 85, 100, 87], ['Nov', 81, 100, 86], ['Dec', 80, 100, 84]],
+      },
+      trend: [['Oct', 15, 14], ['Nov', 19, 17], ['Dec', 16, 15]], trendLegend: ['Sessions held', 'Previous quarter'],
+      tableTitle: 'Sessions', cols: ['Date', 'SME', 'Facilitator', 'Type', 'Attendance'],
+      rows: [['4 Oct', 'Lekgotla Greens', 'Thandi Mokoena', 'Online', 'Attended'], ['9 Oct', 'Vula Vineyards', 'Sipho Dlamini', 'In person', 'Absent'], ['21 Nov', 'Imvelo Compost', 'Sipho Dlamini', 'Telephonic', 'Attended'], ['2 Dec', 'Mpumalanga Citrus Co', 'Thandi Mokoena', 'In person', 'Not captured']],
+      followup: ['6 sessions still need attendance captured.', 'Open Appointments →'],
+    },
+    smes: {
+      question: 'Who do we support, and are they compliant?', sub: '25 SMEs in the programmes',
+      unit: 'SMEs', pct: false,
+      by: {
+        Ownership: [['Black-owned', 21, 25, 19], ['Other', 4, 25, 4]],
+        Gender: [['Women-led', 14, 25, 12], ['Men-led', 11, 25, 11]],
+        'B-BBEE level': [['Level 1–2', 17, 25, 15], ['Level 3–4', 6, 25, 6], ['Not rated', 2, 25, 2]],
+        Sector: [['Agriculture', 12, 25, 11], ['Technology', 6, 25, 5], ['Retail', 4, 25, 4], ['Services', 3, 25, 3]],
+      },
+      trend: [['Oct', 21, 18], ['Nov', 24, 20], ['Dec', 25, 21]], trendLegend: ['Active SMEs', 'Previous quarter'],
+      tableTitle: 'SMEs', cols: ['SME', 'Sector', 'Ownership', 'B-BBEE', 'Compliance'],
+      rows: [['Mpumalanga Citrus Co', 'Agriculture', 'Black-owned', 'Level 1', 'Valid'], ['Kasi Code Labs', 'Technology', 'Black-owned', 'Level 2', '1 expiring'], ['Vula Vineyards', 'Agriculture', 'Women-led', 'Level 3', 'Valid'], ['Imvelo Compost', 'Agriculture', 'Black-owned', 'Not rated', '1 missing']],
+      followup: ['4 compliance documents need follow-up.', 'Open Compliance →'],
+    },
+    growth: {
+      question: 'Are the SMEs growing?', sub: 'Same figures as Impact analysis · 14 of 20 SMEs growing',
+      unit: '% revenue growth since joining', pct: true,
+      by: {
+        Programme: [['Test Engagement', 29, 40, 22], ['Township Tech', -11, 40, -6]],
+        Sector: [['Agriculture', 24, 40, 18], ['Technology', 9, 40, 4], ['Retail', 14, 40, 11]],
+        'Support received': [['Finance', 27, 40, 20], ['Marketing', 18, 40, 15], ['None completed yet', 4, 40, 3]],
+      },
+      trend: [['Oct', 12, 9], ['Nov', 16, 11], ['Dec', 19, 14]], trendLegend: ['Revenue growth %', 'Previous quarter'],
+      tableTitle: 'SMEs by growth', cols: ['SME', 'Programme', 'Revenue', 'Change', 'Jobs'],
+      rows: [['Mpumalanga Citrus Co', 'Test Engagement', 'R 42k → R 61k', '+45%', '+3'], ['Lekgotla Greens', 'Test Engagement', 'R 120k → R 151k', '+26%', '+3'], ['Kasi Code Labs', 'Township Tech', 'R 55k → R 52k', '−5%', '−1']],
+      followup: ['Before-and-after support and outcomes by area are on Impact analysis.', 'Open Impact analysis →'],
+    },
+  }
+
+  const state = { tab: 'intake', by: 'Programme', filter: null }
+  const compare = () => document.getElementById('compare').checked
+  const el = id => document.getElementById(id)
+
+  function render() {
+    const tab = TABS[state.tab]
+    if (!tab.by[state.by]) state.by = Object.keys(tab.by)[0]
+    el('an-question').textContent = tab.question
+    el('an-sub').textContent = tab.sub
+    el('an-by').innerHTML = Object.keys(tab.by).map(k => `<button class="${k === state.by ? 'on' : ''}" data-by="${k}">${k}</button>`).join('')
+    el('an-break-label').textContent = `${state.by} · ${tab.unit}`
+    const rows = tab.by[state.by]
+    const max = Math.max(...rows.map(r => Math.max(Math.abs(r[1]), Math.abs(r[3] || 0), tab.pct ? 1 : r[2])))
+    el('an-break').innerHTML = rows.map(([name, value, of, prev]) => {
+      const width = Math.abs(value) / (tab.pct ? max : of) * 100
+      const prevWidth = Math.abs(prev) / (tab.pct ? max : of) * 100
+      const label = tab.pct ? `${value > 0 && state.tab === 'growth' ? '+' : ''}${value}%` : `${value}${state.tab === 'intake' ? ' / ' + of : ''}`
+      const color = value < 0 ? 'var(--off)' : 'var(--accent)'
+      return `<button class="hbar an-bar${state.filter === name ? ' is-on' : ''}" data-filter="${name}"><span>${name}</span><div class="track an-track">${compare() ? `<i style="width:${prevWidth}%"></i>` : ''}<span style="width:${width}%;background:${color}"></span></div><b>${label}</b></button>`
+    }).join('')
+    el('an-break-legend').innerHTML = `<span><i style="background:var(--accent)"></i>This quarter</span>${compare() ? '<span><i style="background:var(--slate);opacity:.45"></i>Previous quarter</span>' : ''}`
+    const tmax = Math.max(...tab.trend.map(t => Math.max(t[1], t[2])))
+    el('an-trend').innerHTML = tab.trend.map(([m, v, p]) => `<div class="col"><div class="pair">${compare() ? `<span style="height:${p / tmax * 100}%;background:var(--slate);opacity:.45"></span>` : ''}<span style="height:${v / tmax * 100}%;background:var(--accent)"></span></div><label>${m}</label></div>`).join('')
+    el('an-trend-legend').innerHTML = `<span><i style="background:var(--accent)"></i>${tab.trendLegend[0]}</span>${compare() ? `<span><i style="background:var(--slate);opacity:.45"></i>${tab.trendLegend[1]}</span>` : ''}`
+    const shown = state.filter ? tab.rows.filter(r => r.includes(state.filter)) : tab.rows
+    el('an-table-title').textContent = tab.tableTitle
+    el('an-table-filter').innerHTML = state.filter ? `Filtered: <b>${state.filter}</b> <span class="link" id="an-clear">clear</span>` : `${tab.rows.length} rows · click a bar to filter`
+    el('an-table').innerHTML = `<tr>${tab.cols.map(c => `<th>${c}</th>`).join('')}</tr>` + (shown.length ? shown.map(r => `<tr>${r.map((c, i) => `<td>${i === 0 ? `<b>${c}</b>` : statusTag(c)}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${tab.cols.length}" class="muted">No sample rows for ${state.filter}.</td></tr>`)
+    el('an-table-cards').innerHTML = shown.map(r => `<div class="owner-card"><b>${r[0]}</b>${r.slice(1).map((c, i) => `<div><span class="muted">${tab.cols[i + 1]}</span><span>${statusTag(c)}</span></div>`).join('')}</div>`).join('')
+    el('an-followup').innerHTML = `<span><b>${tab.followup[0]}</b></span><span class="link">${tab.followup[1]}</span>`
+    document.querySelectorAll('#an-tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === state.tab))
+  }
+  const statusTag = c => ({ Overdue: 'off', Declined: 'off', Absent: 'off', '1 missing': 'off', 'In progress': '', Pending: 'warn', 'Not captured': 'warn', '1 expiring': 'warn', Completed: 'ok', Accepted: 'ok', Attended: 'ok', Valid: 'ok' }[c] !== undefined ? `<span class="tag ${({ Overdue: 'off', Declined: 'off', Absent: 'off', '1 missing': 'off', Pending: 'warn', 'Not captured': 'warn', '1 expiring': 'warn', Completed: 'ok', Accepted: 'ok', Attended: 'ok', Valid: 'ok' })[c] || ''}">${c}</span>` : c)
+
+  el('an-tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; state.tab = b.dataset.tab; state.filter = null; render() })
+  el('an-cards').addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (!b) return; state.tab = b.dataset.go; state.filter = null; render() })
+  el('an-by').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; state.by = b.dataset.by; state.filter = null; render() })
+  el('an-break').addEventListener('click', e => { const b = e.target.closest('[data-filter]'); if (!b) return; state.filter = state.filter === b.dataset.filter ? null : b.dataset.filter; render() })
+  document.addEventListener('click', e => { if (e.target.id === 'an-clear') { state.filter = null; render() } })
+  el('compare').addEventListener('change', render)
+  render()
+</script>
+</body>
+</html>

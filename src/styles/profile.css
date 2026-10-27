@@ -9,7 +9,8 @@
 .profile-checklist strong { font-size: 13px; }
 .profile-checklist ul { display: grid; gap: 2px; margin: 4px 0 0; padding: 0; list-style: none; }
 .profile-checklist li { display: flex; align-items: center; gap: 8px; min-height: 26px; font-size: 12.5px; }
-.profile-checklist li > span:not(.profile-checklist-ring) { flex: 1; min-width: 0; }
+.profile-checklist li > span:not(.profile-checklist-ring):not(.anticon) { flex: 1; min-width: 0; }
+.profile-checklist li > .anticon { flex: none; width: 12px; }
 .profile-checklist li small { color: var(--ant-color-text-tertiary); }
 .profile-checklist li.is-done { color: var(--ant-color-text-secondary); }
 .profile-checklist li.is-done .anticon { color: #15803D; }

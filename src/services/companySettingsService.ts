@@ -65,7 +65,7 @@ export const submitSystemSettingsChangeRequest = async (
 }
 
 export const listSystemSettingsChangeRequests = async (user: FullIdentity) => {
-  if (!['systemadmin', 'admin'].includes(user.role)) throw new Error('forbidden')
+  if (user.role !== 'systemadmin') throw new Error('forbidden')
   const snapshot = await getDocs(query(
     collection(getFirebaseDb(), 'systemSettingsChangeRequests'),
     orderBy('requestedAt', 'desc'),

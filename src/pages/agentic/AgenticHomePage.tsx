@@ -56,6 +56,7 @@ import { TypingGreeting } from '@/components/agent/TypingGreeting'
 import { summariseConsultantWork } from '@/pages/consultant/consultantWorkSummary'
 import '@/styles/agentic-home.css'
 import { useLanguage, tr } from '@/providers/LanguageProvider'
+import { singleActionFooter } from '@/components/shared/modalFooter'
 
 /**
  * What a metric counts. Drill-downs, actions and the agent's context are keyed on this, never on the
@@ -188,7 +189,7 @@ const roleNames: Record<UserRole, string> = {
 
 const roleWorkspacePaths: Record<UserRole, string> = {
     systemadmin: '/dashboard',
-    admin: '/dashboard',
+    admin: '/reception',
     director: '/director',
     projectadmin: '/projectadmin',
     projectmanager: '/operations',
@@ -422,7 +423,7 @@ export const AgenticHomePage = () => {
                     return
                 }
 
-                if (['systemadmin', 'admin'].includes(user.role)) {
+                if (user.role === 'systemadmin') {
                     const summary = await getAdminDashboardSummary(user, ...thisAndLastWeek())
                     if (cancelled) return
                     setOverview({
@@ -681,7 +682,7 @@ export const AgenticHomePage = () => {
                 return
             }
 
-            if (['systemadmin', 'admin'].includes(user.role)) {
+            if (user.role === 'systemadmin') {
                 // Same week range as the card, so the list matches its count.
                 const summary = await getAdminDashboardSummary(user, ...thisAndLastWeek())
                 if (metric.key === 'errors') {
@@ -1233,7 +1234,7 @@ export const AgenticHomePage = () => {
                 open={Boolean(pendingComplianceUpload)}
                 title={t('Confirm document dates')}
                 okText={t('Save document')}
-                okButtonProps={{ disabled: pendingDatesInvalid }}
+                {...singleActionFooter({ disabled: pendingDatesInvalid })}
                 confirmLoading={complianceUploading}
                 onCancel={() => !complianceUploading && setPendingComplianceUpload(undefined)}
                 onOk={() => pendingComplianceUpload && void saveComplianceUpload(pendingComplianceUpload)}

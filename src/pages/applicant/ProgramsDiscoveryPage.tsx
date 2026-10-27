@@ -14,6 +14,8 @@ import { ProgramLinkJoin } from '@/components/applicant/ProgramLinkJoin'
 import '@/styles/applicant.css'
 
 type ProgramView = 'all' | 'suggested'
+/** No application: the SME joins as soon as their profile is complete. */
+const isDirect = (program?: ApplicantProgram) => program?.intakeMode === 'direct'
 const PAGE_SIZE = 5
 
 export const ProgramsDiscoveryPage = () => {
@@ -81,7 +83,9 @@ export const ProgramsDiscoveryPage = () => {
                 <Typography.Title level={4}>{isProgrammeSme ? t('Your programme') : t('Find a programme')}</Typography.Title>
                 <Typography.Text type="secondary">
                     {isProgrammeSme
-                        ? t('This is the programme you joined. Apply or follow your application here.')
+                        ? (programs.length && programs.every(isDirect)
+                            ? t('This is the programme you joined. There is no application: your profile is all it needs.')
+                            : t('This is the programme you joined. Apply or follow your application here.'))
                         : t('Programmes open to SMEs like yours. You can keep using the marketplace and Agentic while you apply.')}
                 </Typography.Text>
             </div>
@@ -111,7 +115,7 @@ export const ProgramsDiscoveryPage = () => {
                     <Row gutter={[14, 14]}>
                         {displayedPrograms.map((program) => {
                             const applied = appliedProgramIds.has(program.id)
-                            return <Col xs={24} md={12} xl={8} key={program.id}><Card className="applicant-card applicant-program-card motion-card" hoverable><Space orientation="vertical" size={10}><Space wrap><Tag color="purple">{program.type ?? t('applicant.programs.general')}</Tag>{program.cohortYear && <Tag>{program.cohortYear}</Tag>}</Space><Typography.Title level={4}>{program.name ?? t('applicant.programs.untitled')}</Typography.Title><Typography.Paragraph type="secondary" ellipsis={{ rows: 3 }}>{program.description ?? t('applicant.programs.noDetails')}</Typography.Paragraph><Button block type={applied ? 'default' : 'primary'} disabled={applied} onClick={() => setActiveProgram(program)}>{applied ? t('applicant.programs.applied') : t('applicant.programs.view')}</Button></Space></Card></Col>
+                            return <Col xs={24} md={12} xl={8} key={program.id}><Card className="applicant-card applicant-program-card motion-card" hoverable><Space orientation="vertical" size={10}><Space wrap><Tag color="purple">{program.type ? t(program.type) : t('applicant.programs.general')}</Tag>{isDirect(program) && <Tag color="green">{t('No application')}</Tag>}{program.cohortYear && <Tag>{program.cohortYear}</Tag>}</Space><Typography.Title level={4}>{program.name ?? t('applicant.programs.untitled')}</Typography.Title><Typography.Paragraph type="secondary" ellipsis={{ rows: 3 }}>{program.description ?? t('applicant.programs.noDetails')}</Typography.Paragraph><Button block type={applied ? 'default' : 'primary'} disabled={applied} onClick={() => setActiveProgram(program)}>{applied ? (isDirect(program) ? t('Joined') : t('applicant.programs.applied')) : t('applicant.programs.view')}</Button></Space></Card></Col>
                         })}
                     </Row>
                     {filteredPrograms.length > PAGE_SIZE && <Pagination className="applicant-pagination" current={page} pageSize={PAGE_SIZE} total={filteredPrograms.length} onChange={setPage} showSizeChanger={false} />}
@@ -128,11 +132,12 @@ export const ProgramsDiscoveryPage = () => {
                             activeProgram && navigate(
                                 profileComplete ? `/applicant/programs/${activeProgram.id}/apply` : '/applicant/profile'
                             )}>
-                        {profileComplete ? t('applicant.programs.start') : t('applicant.application.completeProfile')}
+                        {profileComplete ? (isDirect(activeProgram) ? t('Join programme') : t('applicant.programs.start')) : t('applicant.application.completeProfile')}
                     </Button>}>
                 <Typography.Paragraph>
                     {activeProgram?.description ?? t('applicant.programs.noDetails')}</Typography.Paragraph>
-                {!profileComplete && <Typography.Text type="warning">{t('applicant.application.profileRequired')}</Typography.Text>}
+                {isDirect(activeProgram) && <Typography.Paragraph type="secondary">{t('There is no application. You join as soon as your profile is complete.')}</Typography.Paragraph>}
+                {!profileComplete && <Typography.Text type="warning">{isDirect(activeProgram) ? t('Complete your profile to join this programme.') : t('applicant.application.profileRequired')}</Typography.Text>}
             </Modal>
         </DashboardPageShell>
     )

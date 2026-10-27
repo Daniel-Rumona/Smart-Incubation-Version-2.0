@@ -23,6 +23,7 @@ import type { AssignedInterventionLike, InterventionRow, ProgressUpdateForm, Sta
 import { formatStatus } from '@/utils/status'
 import { hasWorkStarted } from '@/utils/interventionStart'
 import { useLanguage, tr } from '@/providers/LanguageProvider'
+import { ModalActions } from '@/components/shared/ModalActions'
 
 type ViewFilter = 'active' | 'history' | 'followups'
 
@@ -612,7 +613,7 @@ export const AllocatedInterventions = () => {
                 open={followUpOpen}
                 title={t('Record follow-up')}
                 onCancel={() => setFollowUpOpen(false)}
-                footer={<Button type="primary" loading={saving} onClick={() => void saveFollowUp()}>{t('Save')}</Button>}
+                footer={<ModalActions><Button type="primary" loading={saving} onClick={() => void saveFollowUp()}>{t('Save')}</Button></ModalActions>}
                 destroyOnClose
             >
                 <Space direction="vertical" size={12} style={{ width: '100%' }}>

@@ -78,6 +78,8 @@ export type ProgramLinkInfo = {
   logoUrl: string
   open: boolean
   selfApplication: boolean
+  /** No application: SMEs fill in their profile and are accepted straight away. */
+  direct?: boolean
 }
 
 const callable = <Input, Output>(name: string) => httpsCallable<Input, Output>(getFunctions(firebaseApp, 'us-central1'), name)
@@ -93,7 +95,17 @@ export const getProgramLinkInfo = async (programId: string): Promise<ProgramLink
 
 export type JoinPath = 'program_link' | 'company_program' | 'open_program' | 'marketplace' | 'skip'
 export type JoinRequest = { path: JoinPath; programId?: string; companyCode?: string; consultingBudget?: number; wantsSpecificProgram?: boolean }
-export type JoinResult = { companyCode: string; companyName: string; programId: string; programName: string }
+export type JoinResult = { companyCode: string; companyName: string; programId: string; programName: string; direct?: boolean }
 
 export const joinProgramAsSme = async (request: JoinRequest): Promise<JoinResult> =>
   (await callable<JoinRequest, JoinResult & { ok: boolean }>('joinProgramAsSme')(request)).data
+
+/** Staff moved an application to another programme: give it that programme's confirmed set list, if it has one. */
+export const applyProgrammeGrowthPlan = async (applicationId: string): Promise<{ applied: boolean }> =>
+  (await callable<{ applicationId: string }, { ok: boolean; applied: boolean }>('applyProgrammeGrowthPlan')({ applicationId })).data
+
+export type DirectEnrolResult ={ applicationId: string; programId: string; programName: string; alreadyAccepted: boolean }
+
+/** No-application programmes: accepts the signed-in SME, whose profile must already be complete. */
+export const enrolInDirectProgramme = async (programId: string): Promise<DirectEnrolResult> =>
+  (await callable<{ programId: string }, DirectEnrolResult & { ok: boolean }>('enrolInDirectProgramme')({ programId })).data

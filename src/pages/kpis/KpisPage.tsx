@@ -17,6 +17,7 @@ import {
 } from '@ant-design/icons'
 import { collection, getDocs, query, where } from 'firebase/firestore'
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { db } from '@/firebase'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
@@ -33,6 +34,7 @@ import {
     createKpi,
     listKpis,
     loadKpiData,
+    myOverdueAssignmentIds,
     periodFor,
     setManualActual,
     statusFor,
@@ -52,9 +54,19 @@ const { Text } = Typography
 
 type Option = { id: string; name: string }
 type InterventionOption = { id: string; title: string; area: string }
-/** Where a KPI sits on the page: needing attention first, then met or on track, then no data or no target. */
-type KpiGroup = 'attention' | 'ok' | 'none'
-type StatusFilter = 'all' | KpiGroup
+/**
+ * Where a KPI sits on the page: needing attention first, then met or on track, then no data or no target.
+ * Consultants are grouped by their own figures; KPIs they have no share in (manual ones) go to 'company', folded away.
+ */
+type KpiGroup = 'attention' | 'ok' | 'none' | 'company'
+type StatusFilter = 'all' | Exclude<KpiGroup, 'company'>
+/** The status a KPI shows: the company's, or for a consultant their own ('share' = a count they add to, with no target of its own). */
+type ShownStatus = KpiStatus | 'share'
+
+/** Counts add up across people, so a consultant's count is a share of the company's; rates, days and ratings are their own. */
+const accumulates = (kpi: Kpi) => ['count', 'currency', 'number'].includes(kpi.unit)
+/** Figures that describe right now (overdue work), so they have no history and no period to compare. */
+const isRightNow = (kpi: Kpi) => kpi.kind === 'system' && !!KPI_CATALOGUE.find((item) => item.key === kpi.metric)?.current
 type Row = {
     kpi: Kpi
     period: KpiPeriod
@@ -63,6 +75,8 @@ type Row = {
     target: { value: number; source: 'programme' | 'company' } | null
     status: KpiStatus
     pace: number | null
+    /** What the KPI shows and is grouped by: the company status, or a consultant's own. */
+    shown: ShownStatus
     /** Behind badly enough to call off track: under 80% of where it should be, or a limit exceeded by over 25%. */
     offTrack: boolean
     group: KpiGroup
@@ -117,6 +131,7 @@ export const KpisPage = () => {
     const { t } = useLanguage()
     const { message, modal } = App.useApp()
     const { user } = useFullIdentity()
+    const navigate = useNavigate()
     const { activeProgramId, isAllPrograms } = useActiveProgramId()
     const { mode } = useThemeMode()
     const colors = STATUS_COLORS[mode === 'dark' ? 'dark' : 'light']
@@ -184,32 +199,62 @@ export const KpisPage = () => {
             const target = targetFor(kpi, programId)
             const { status, pace } = statusFor(kpi, actual, target?.value ?? null, period)
             // "Right now" metrics (overdue work) have no history to compare with.
-            const rightNow = kpi.kind === 'system' && !!KPI_CATALOGUE.find((item) => item.key === kpi.metric)?.current
+            const rightNow = isRightNow(kpi)
+            // Change and trend follow what the KPI shows: the company's figure, or a consultant's own.
+            const figureFor = (forPeriod: KpiPeriod) => showsOwnPart
+                ? computeContribution(kpi, data, forPeriod, user, programId) ?? { value: null }
+                : computeActual(kpi, data, forPeriod, user, programId)
+            const shownNow = showsOwnPart ? mine ?? { value: null } : actual
             const previousPeriod = periodFor(kpi.cadence, -1, asAtDate)
-            const previous = rightNow ? null : { period: previousPeriod, actual: computeActual(kpi, data, previousPeriod, user, programId) }
+            const previous = rightNow ? null : { period: previousPeriod, actual: figureFor(previousPeriod) }
             const trend = rightNow ? [] : Array.from({ length: TREND_PERIODS }, (_, index) => {
                 const back = index - (TREND_PERIODS - 1)
-                if (back === 0) return actual.value
+                if (back === 0) return shownNow.value
                 if (back === -1) return previous?.actual.value ?? null
-                return computeActual(kpi, data, periodFor(kpi.cadence, back, asAtDate), user, programId).value
+                return figureFor(periodFor(kpi.cadence, back, asAtDate)).value
             })
-            const offTrack = status === 'behind' && actual.value !== null && !!target && (kpi.direction === 'lower'
-                ? actual.value > target.value * 1.25
-                : actual.value < (pace ?? target.value) * 0.8)
-            const group: KpiGroup = status === 'behind' ? 'attention' : status === 'met' || status === 'on_track' ? 'ok' : 'none'
-            return { kpi, period, actual, mine, target, status, pace, offTrack, group, previous, trend }
+            const isOffTrack = (value: number | null, judged: KpiStatus, judgedPace: number | null) => judged === 'behind' && value !== null && !!target && (kpi.direction === 'lower'
+                ? value > target.value * 1.25
+                : value < (judgedPace ?? target.value) * 0.8)
+            const groupOf = (judged: ShownStatus): KpiGroup => judged === 'behind' ? 'attention' : judged === 'met' || judged === 'on_track' || judged === 'share' ? 'ok' : 'none'
+
+            if (!showsOwnPart) {
+                const offTrack = isOffTrack(actual.value, status, pace)
+                return { kpi, period, actual, mine, target, status, pace, shown: status, offTrack, group: groupOf(status), previous, trend }
+            }
+
+            // Consultants: judged on their own part. Manual KPIs have no share, so they fold away as company figures.
+            if (kpi.kind === 'manual') return { kpi, period, actual, mine, target, status, pace, shown: status, offTrack: false, group: 'company', previous: null, trend: [] }
+            if (!mine || mine.value === null) return { kpi, period, actual, mine, target, status, pace, shown: 'no_data', offTrack: false, group: 'none', previous, trend }
+            if (rightNow) {
+                // Their own overdue work: anything at all needs attention.
+                const shown: ShownStatus = mine.value > 0 ? 'behind' : 'met'
+                return { kpi, period, actual, mine, target, status, pace, shown, offTrack: mine.value > 2, group: groupOf(shown), previous, trend }
+            }
+            if (accumulates(kpi)) return { kpi, period, actual, mine, target, status, pace, shown: 'share', offTrack: false, group: 'ok', previous, trend }
+            const own = statusFor(kpi, mine, target?.value ?? null, period)
+            return { kpi, period, actual, mine, target, status, pace, shown: own.status, offTrack: isOffTrack(mine.value, own.status, own.pace), group: groupOf(own.status), previous, trend }
         })
         // Within a group, off track before behind; otherwise the order the KPIs were set up in.
         return built.sort((left, right) => Number(right.offTrack) - Number(left.offTrack))
     }, [asAtDate, data, kpis, programId, showsOwnPart, user])
 
-    const GROUPS: Array<{ key: KpiGroup; label: string }> = [
+    const GROUPS: Array<{ key: KpiGroup; label: string }> = showsOwnPart ? [
+        { key: 'attention', label: t('Needs your attention') },
+        { key: 'ok', label: t('Your part') },
+        { key: 'none', label: t('No data from you yet') },
+    ] : [
         { key: 'attention', label: t('Needs attention') },
         { key: 'ok', label: t('Met or on track') },
         { key: 'none', label: t('No data or target yet') },
     ]
-    const visibleRows = rows.filter((row) => statusFilter === 'all' || row.group === statusFilter)
+    // Company-only KPIs (no consultant share) sit in their own folded section, outside the filters and counts.
+    const companyRows = rows.filter((row) => row.group === 'company')
+    const [companyOpen, setCompanyOpen] = useState(false)
+    const visibleRows = rows.filter((row) => row.group !== 'company' && (statusFilter === 'all' || row.group === statusFilter))
     const groupCount = (group: KpiGroup) => rows.filter((row) => row.group === group).length
+    /** The figure a KPI leads with: the company's, or a consultant's own part. */
+    const shownValue = (row: Row) => showsOwnPart ? row.mine?.value ?? null : row.actual.value
 
     const programName = (id: string) => programs.find((program) => program.id === id)?.name || t('Programme')
     const scopeName = programId ? programName(programId) : t('All programmes')
@@ -234,14 +279,18 @@ export const KpisPage = () => {
     /** The label and colour a KPI shows: Behind splits into amber Behind and red Off track. */
     const stateOf = (row: Row) => row.offTrack
         ? { label: t('Off track'), icon: <WarningOutlined />, color: colors.off }
-        : statusLabels[row.status]
+        : row.shown === 'share'
+            ? { label: t('Your share'), icon: <UserOutlined />, color: colors.on_track }
+            : showsOwnPart && isRightNow(row.kpi)
+                ? (row.shown === 'behind' ? { label: t('Overdue'), icon: <WarningOutlined />, color: colors.behind } : { label: t('All on time'), icon: <CheckCircleOutlined />, color: colors.met })
+                : statusLabels[row.shown as KpiStatus]
 
-    // One sentence on how the KPIs stand, naming the off-track ones first so the reader knows where to look.
+    // One sentence on how the company's KPIs stand, naming the ones behind so the reader knows where to look.
     const verdict = (() => {
         if (!rows.length) return ''
-        const attention = rows.filter((row) => row.group === 'attention')
+        const attention = rows.filter((row) => row.status === 'behind')
         if (!attention.length) {
-            const missing = groupCount('none')
+            const missing = rows.filter((row) => row.status === 'no_data' || row.status === 'no_target').length
             return missing
                 ? t('Every KPI with data is met or on track; {count} have no data or target yet.', undefined, { count: missing })
                 : t('All {count} KPIs are met or on track.', undefined, { count: rows.length })
@@ -254,10 +303,29 @@ export const KpisPage = () => {
         })
     })()
 
+    // Consultants: one line on their own part, from the KPIs that have one, then how many need their attention.
+    const youSummary = (() => {
+        if (!showsOwnPart || !rows.length) return ''
+        const own = (metric: string) => rows.find((row) => row.kpi.kind === 'system' && row.kpi.metric === metric && row.mine?.value !== null && row.mine?.value !== undefined)?.mine?.value ?? null
+        const completed = own('interventions_completed')
+        const overdue = own('overdue_now')
+        const rating = own('average_rating')
+        const facts = [
+            completed !== null ? t('{count} completed', undefined, { count: completed }) : '',
+            overdue !== null ? (overdue > 0 ? t('{count} overdue', undefined, { count: overdue }) : t('nothing overdue')) : '',
+            rating !== null ? t('rated {rating} / 5', undefined, { rating: rating.toFixed(1) }) : '',
+        ].filter(Boolean)
+        const attention = groupCount('attention')
+        const lead = attention
+            ? t('{count} of your KPIs need your attention.', undefined, { count: attention })
+            : t('Your part is on track.')
+        return facts.length ? `${lead} ${t('Your part: {facts}.', undefined, { facts: facts.join(' · ') })}` : lead
+    })()
+
     /** The change against the previous period, e.g. "↑ 8 pts vs Q3 2026", coloured by whether it is good news. */
     const changeOf = (row: Row) => {
         const before = row.previous?.actual.value
-        const now = row.actual.value
+        const now = shownValue(row)
         if (before === null || before === undefined || now === null || !row.previous) return null
         const diff = Math.round((now - before) * 10) / 10
         const size = Math.abs(diff)
@@ -385,13 +453,36 @@ export const KpisPage = () => {
         { key: 'archive', icon: <DeleteOutlined />, label: t('Archive'), danger: true, onClick: () => archive(kpi) },
     ] : []
 
-    const targetText = (row: Row) => {
+    /** The company's figure against its target, e.g. "of 80% target" or "limit 3". */
+    const companyTargetText = (row: Row) => {
         const { kpi, target } = row
         if (!target) return t('no target set')
         return kpi.direction === 'higher'
             ? t('of {target} target', undefined, { target: formatValue(kpi.unit, target.value) })
             : t('limit {target}', undefined, { target: formatValue(kpi.unit, target.value) })
     }
+
+    /**
+     * What sits beside the main figure. Consultants: a count is their share of the company's total; a rate, days or
+     * rating is their own figure against the same target.
+     */
+    const targetText = (row: Row) => {
+        if (!showsOwnPart || row.group === 'company') return companyTargetText(row)
+        if (accumulates(row.kpi)) {
+            return row.actual.value !== null
+                ? t('of the company’s {total}', undefined, { total: formatValue(row.kpi.unit, row.actual.value) })
+                : t('your share')
+        }
+        return companyTargetText(row)
+    }
+
+    /** Consultants lead with their own figure, so the company's sits underneath as context. */
+    const companyContext = (row: Row) => showsOwnPart && row.group !== 'company' && (
+        <Text type="secondary" className="kpi-card-company">
+            {t('Company: {value}', undefined, { value: formatValue(row.kpi.unit, row.actual.value) })}
+            {!accumulates(row.kpi) || row.kpi.direction === 'lower' ? ` · ${companyTargetText(row)}` : ''}
+        </Text>
+    )
 
     /**
      * Progress to target. Higher-is-better fills towards the target, with a tick where a count should be by now.
@@ -419,6 +510,43 @@ export const KpisPage = () => {
         )
     }
 
+    /** The bar a KPI shows: the company's, or for a consultant their own figure (a rate) or their share (a count). */
+    const barFor = (row: Row, color: string) => {
+        if (!showsOwnPart || row.group === 'company') return progressBar(row, color)
+        const own = row.mine?.value
+        if (own === null || own === undefined || isRightNow(row.kpi)) return null
+        if (accumulates(row.kpi)) {
+            const total = row.actual.value
+            if (!total) return null
+            const share = Math.min(100, (own / total) * 100)
+            return (
+                <div className="kpi-progress" role="img" aria-label={t('{share}% of the company’s total', undefined, { share: Math.round(share) })}>
+                    <span className="kpi-progress-fill" style={{ width: `${share}%`, background: color }} />
+                </div>
+            )
+        }
+        return progressBar({ ...row, actual: row.mine as KpiActual, pace: null }, color)
+    }
+
+    /** Consultants: from a KPI straight to the work behind it. */
+    const linkFor = (kpi: Kpi) => {
+        if (!showsOwnPart || kpi.kind === 'manual') return null
+        if (kpi.kind === 'system' && kpi.metric === 'overdue_now') {
+            return { label: t('See my overdue work'), go: () => navigate('/consultant/interventions', { state: { needsYouIds: myOverdueAssignmentIds(data, user, programId) } }) }
+        }
+        if (kpi.kind === 'system' && kpi.metric === 'attendance_rate') return { label: t('Open my appointments'), go: () => navigate('/shared/interventions/appointments') }
+        return { label: t('Open my interventions'), go: () => navigate('/consultant/interventions') }
+    }
+
+    const workLink = (kpi: Kpi) => {
+        const link = linkFor(kpi)
+        return link && (
+            <Button type="link" size="small" className="kpi-work-link" onClick={link.go}>
+                {link.label} <RightOutlined />
+            </Button>
+        )
+    }
+
     const changeBadge = (row: Row) => {
         const change = changeOf(row)
         if (!change) return null
@@ -442,9 +570,10 @@ export const KpisPage = () => {
 
     const describe = (kpi: Kpi) => ruleText(kpi) || kpi.description || t(KPI_CATALOGUE.find((item) => item.key === kpi.metric)?.description || '')
     const cadenceLabel = (kpi: Kpi) => kpi.cadence === 'month' ? t('Monthly') : kpi.cadence === 'quarter' ? t('Quarterly') : t('Yearly')
+    const detailOf = (row: Row) => (showsOwnPart && row.group !== 'company' ? row.mine?.detail : row.actual.detail)
 
     const card = (row: Row) => {
-        const { kpi, actual, mine, target, period } = row
+        const { kpi, mine, actual, target, period } = row
         const state = stateOf(row)
         const menu = menuFor(kpi)
         return (
@@ -463,23 +592,26 @@ export const KpisPage = () => {
                 </div>
 
                 <div className="kpi-card-figure">
-                    <span className="kpi-card-value">{formatValue(kpi.unit, actual.value)}</span>
+                    {showsOwnPart && row.group !== 'company' && <span className="kpi-card-yours">{t('Yours')}</span>}
+                    <span className="kpi-card-value">{formatValue(kpi.unit, row.group === 'company' ? actual.value : shownValue(row))}</span>
                     <span className="kpi-card-target">
                         {targetText(row)}
                         {target?.source === 'programme' && <Tag bordered={false} className="kpi-card-source">{t('Programme target')}</Tag>}
                     </span>
                 </div>
 
-                {mine && <div className="kpi-card-mine"><UserOutlined /> {ownPartText(kpi, mine, actual)}</div>}
+                {companyContext(row)}
+                {!showsOwnPart && mine && <div className="kpi-card-mine"><UserOutlined /> {ownPartText(kpi, mine, actual)}</div>}
 
-                {progressBar(row, state.color)}
+                {barFor(row, state.color)}
 
                 <div className="kpi-card-foot">
                     {changeBadge(row)}
                     <TrendLine values={row.trend} color={state.color} />
-                    <Text type="secondary" className="kpi-card-meta">{[actual.detail, `${cadenceLabel(kpi)} · ${period.label}`].filter(Boolean).join(' · ')}</Text>
+                    <Text type="secondary" className="kpi-card-meta">{[detailOf(row), `${cadenceLabel(kpi)} · ${period.label}`].filter(Boolean).join(' · ')}</Text>
                 </div>
 
+                {workLink(kpi)}
                 {manualFooter(row)}
             </Card>
         )
@@ -496,19 +628,25 @@ export const KpisPage = () => {
                 <button type="button" className="kpi-row-main" aria-expanded={open} onClick={() => setOpenId(open ? null : kpi.id)}>
                     <span className="kpi-dot" aria-hidden="true" />
                     <span className="kpi-row-name">{kpi.name}</span>
-                    <span className="kpi-row-value">{formatValue(kpi.unit, actual.value)}<small>{targetText(row)}</small></span>
+                    <span className="kpi-row-value">
+                        {showsOwnPart && row.group !== 'company' && <em>{t('Yours')} </em>}
+                        {formatValue(kpi.unit, row.group === 'company' ? actual.value : shownValue(row))}
+                        <small>{targetText(row)}</small>
+                    </span>
                     <RightOutlined className="kpi-row-chevron" aria-hidden="true" />
                 </button>
                 <div className="kpi-row-more"><div>
                     <div className="kpi-row-inner">
-                        {row.mine && <div className="kpi-card-mine"><UserOutlined /> {ownPartText(kpi, row.mine, actual)}</div>}
-                        {progressBar(row, state.color)}
+                        {companyContext(row)}
+                        {!showsOwnPart && row.mine && <div className="kpi-card-mine"><UserOutlined /> {ownPartText(kpi, row.mine, actual)}</div>}
+                        {barFor(row, state.color)}
                         <div className="kpi-card-foot">
                             {changeBadge(row)}
                             <TrendLine values={row.trend} color={state.color} />
                             <span className="kpi-pill">{state.label}</span>
                         </div>
                         <Text type="secondary" className="kpi-card-meta">{[describe(kpi), `${cadenceLabel(kpi)} · ${period.label}`].filter(Boolean).join(' · ')}</Text>
+                        {workLink(kpi)}
                         {manualFooter(row)}
                         {menu.length > 0 && (
                             <div className="kpi-row-actions">
@@ -541,10 +679,10 @@ export const KpisPage = () => {
     }
 
     const statusChips: Array<{ key: StatusFilter; label: string; count: number; color?: string }> = [
-        { key: 'all', label: t('All KPIs'), count: rows.length },
-        { key: 'attention', label: t('Need attention'), count: groupCount('attention'), color: colors.off },
-        { key: 'ok', label: t('Met or on track'), count: groupCount('ok'), color: colors.met },
-        { key: 'none', label: t('No data or target'), count: groupCount('none'), color: colors.muted },
+        { key: 'all', label: showsOwnPart ? t('Your KPIs') : t('All KPIs'), count: rows.length - companyRows.length },
+        { key: 'attention', label: showsOwnPart ? t('Need your attention') : t('Need attention'), count: groupCount('attention'), color: colors.off },
+        { key: 'ok', label: showsOwnPart ? t('On track') : t('Met or on track'), count: groupCount('ok'), color: colors.met },
+        { key: 'none', label: showsOwnPart ? t('No data from you') : t('No data or target'), count: groupCount('none'), color: colors.muted },
     ]
 
     const groupedRows = GROUPS
@@ -566,7 +704,8 @@ export const KpisPage = () => {
                 }
                 actions={(
                     <>
-                        {!isMobile && rows.length > 0 && (
+                        {/* Comparing programmes is for operations and directors, not consultants. */}
+                        {!isMobile && !showsOwnPart && rows.length > 0 && (
                             <Segmented value={view} onChange={(value) => setView(value as 'cards' | 'programmes')} options={[{ value: 'cards', label: t('Cards') }, { value: 'programmes', label: t('Programmes') }]} />
                         )}
                         {editable && <Button type="primary" icon={<PlusOutlined />} onClick={() => openEditor('new')}>{t('New KPI')}</Button>}
@@ -591,9 +730,19 @@ export const KpisPage = () => {
                     {/* Status first: the verdict, then the counts, each of which filters the page. */}
                     <div className="kpis-summary">
                         <Card loading={loading} className="dashboard-section-card kpis-verdict">
-                            <Text type="secondary">{t('{scope} · as at {month}', undefined, { scope: scopeName, month: dayjs(`${asAt}-01`).format('MMM YYYY') })}</Text>
-                            <p>{verdict}</p>
-                            {showsOwnPart && <Text type="secondary" className="kpis-own-note">{t('These are your company’s figures. Your own part is shown on each KPI.')}</Text>}
+                            {showsOwnPart ? (
+                                <>
+                                    {/* Consultants: "You" first; the company verdict is the second line. */}
+                                    <Text type="secondary">{t('You · {scope} · as at {month}', undefined, { scope: scopeName, month: dayjs(`${asAt}-01`).format('MMM YYYY') })}</Text>
+                                    <p>{youSummary}</p>
+                                    <Text type="secondary" className="kpis-own-note">{t('Company: {verdict}', undefined, { verdict })}</Text>
+                                </>
+                            ) : (
+                                <>
+                                    <Text type="secondary">{t('{scope} · as at {month}', undefined, { scope: scopeName, month: dayjs(`${asAt}-01`).format('MMM YYYY') })}</Text>
+                                    <p>{verdict}</p>
+                                </>
+                            )}
                         </Card>
                         <div className="kpis-chips" role="group" aria-label={t('Filter by status')}>
                             {statusChips.map((chip) => (
@@ -658,6 +807,24 @@ export const KpisPage = () => {
                             )}
                         </section>
                     ))}
+
+                    {/* Consultants: KPIs with no share for them (entered by the company) fold away at the bottom. */}
+                    {showsOwnPart && companyRows.length > 0 && statusFilter === 'all' && view === 'cards' && (
+                        <section className="kpis-group kpis-company">
+                            <button type="button" className="kpis-company-toggle" aria-expanded={companyOpen} onClick={() => setCompanyOpen((value) => !value)}>
+                                <span>{t('Company figures')} <em>{companyRows.length}</em></span>
+                                <small>{t('Tracked by the programme team; you have no share in these.')}</small>
+                                <RightOutlined className="kpi-row-chevron" aria-hidden="true" />
+                            </button>
+                            {companyOpen && (isMobile ? (
+                                <div className="kpi-rows">{companyRows.map(compactRow)}</div>
+                            ) : (
+                                <Row gutter={[16, 16]}>
+                                    {companyRows.map((row) => <Col key={row.kpi.id} xs={24} md={12} xl={8}>{card(row)}</Col>)}
+                                </Row>
+                            ))}
+                        </section>
+                    )}
                 </>
             )}
 

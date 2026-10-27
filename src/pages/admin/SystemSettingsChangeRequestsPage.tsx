@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Alert, App, Button, Card, Descriptions, Empty, Form, Input, Modal, Segmented, Space, Tag, Typography } from 'antd'
-import { CheckOutlined, CloseOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons'
+import { CheckOutlined, CloseOutlined, HistoryOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons'
+import { ASSIGNMENT_OPTIONS, DELIVERY_ROLE_LABELS, DIVISION_OPTIONS, SETUP_SETTINGS } from '@/components/settings/setupSettings'
+import { listRecentSettingsChanges, type DirectSettingKey, type SettingsChange } from '@/services/companySettingsEditService'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
 import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
@@ -11,12 +13,23 @@ import { useRegisterAgentPageContext } from '@/shared/hooks/useRegisterAgentPage
 import type { ChangeRequestStatus, InterventionDeliveryRole, SystemSettingsChangeRequest } from '@/types/companySettings'
 import '@/styles/dashboard.css'
 import { useLanguage, tr } from '@/providers/LanguageProvider'
+import { singleActionFooter } from '@/components/shared/modalFooter'
 
 const { Text } = Typography
 
 const statusColor = (status: ChangeRequestStatus) => status === 'approved' ? 'green' : status === 'declined' ? 'red' : 'orange'
 const formatDate = (value?: Date) => value ? value.toLocaleString('en-ZA') : 'Not recorded'
 const roleLabel: Record<InterventionDeliveryRole, string> = { consultant: 'Consultants', projectadmin: 'Project Admins', operations: 'Operations' }
+
+// A logged setting value as people read it; labels are translated by the caller's t() where it shows them.
+const describeChangeValue = (field: DirectSettingKey, value: SettingsChange['from']) => {
+  if (value === null || value === undefined || value === '') return tr('Not set')
+  if (typeof value === 'boolean') return value ? tr('Yes') : tr('No')
+  if (Array.isArray(value)) return value.map((role) => tr(DELIVERY_ROLE_LABELS[role as InterventionDeliveryRole] || role)).join(', ')
+  if (field === 'assignmentModel') return tr(ASSIGNMENT_OPTIONS[value] || value)
+  if (field === 'smeDivisionModel') return tr(DIVISION_OPTIONS[value] || value)
+  return `“${value}”`
+}
 
 export const SystemSettingsChangeRequestsPage = () => {
   const { t } = useLanguage()
@@ -29,12 +42,18 @@ export const SystemSettingsChangeRequestsPage = () => {
   const [decision, setDecision] = useState<'approved' | 'declined'>('approved')
   const [submitting, setSubmitting] = useState(false)
   const [form] = Form.useForm<{ adminResponse: string }>()
+  const [directChanges, setDirectChanges] = useState<Array<SettingsChange & { companyName: string }>>([])
 
   const load = async () => {
     if (!user) return
     setLoading(true)
     try {
-      setRows(await listSystemSettingsChangeRequests(user))
+      const [requestRows, changeRows] = await Promise.all([
+        listSystemSettingsChangeRequests(user),
+        listRecentSettingsChanges().catch(() => []),
+      ])
+      setRows(requestRows)
+      setDirectChanges(changeRows)
     } catch (error) {
       console.error(error)
       message.error(t('Change requests could not be loaded.'))
@@ -160,13 +179,28 @@ export const SystemSettingsChangeRequestsPage = () => {
             />
           ) : <Empty description={t('No company setup change requests found.')} />}
         </Card>
+
+        {/* Settings directors changed themselves: no approval needed, listed so nothing changes unseen. */}
+        <Card className="dashboard-section-card motion-card" title={<Space><HistoryOutlined /> {t('Changed by directors')}</Space>}>
+          {directChanges.length ? (
+            <Space direction="vertical" size={8} style={{ width: '100%' }}>
+              {directChanges.map((change) => (
+                <div key={change.id} className="dashboard-mobile-record">
+                  <Text strong>{change.companyName}</Text>
+                  <div><Text>{t(SETUP_SETTINGS[change.field] || change.field)}: {describeChangeValue(change.field, change.from)} → {describeChangeValue(change.field, change.to)}</Text></div>
+                  <Text type="secondary">{[change.changedByName, change.changedAt?.format('D MMM YYYY, HH:mm')].filter(Boolean).join(' · ')}</Text>
+                </div>
+              ))}
+            </Space>
+          ) : <Empty description={t('No settings have been changed by directors yet.')} />}
+        </Card>
       </Space>
 
       <Modal
         open={!!selected}
         title={decision === 'approved' ? t('Accept Change Request') : t('Decline Change Request')}
         okText={decision === 'approved' ? t('Accept & Email') : t('Decline & Email')}
-        okButtonProps={{ danger: decision === 'declined' }}
+        {...singleActionFooter({ danger: decision === 'declined' })}
         confirmLoading={submitting}
         onOk={submitReview}
         onCancel={() => setSelected(null)}

@@ -81,8 +81,6 @@ export type PlayerSlide =
     image: string
     /** Describes the screenshot for screen readers. */
     alt: string
-    /** Zooms in on the part of the screenshot that makes the point: x and y in percent of its width and height. */
-    focus?: { x: number; y: number; scale: number }
     points?: Array<{ icon: ReactNode; text: string; tone: PlayerTone }>
   }
   | { kind: 'closing'; title: string; subtitle: string; icon: ReactNode; accent: string }
@@ -234,12 +232,7 @@ const SlideView = ({ slide, back, position }: { slide: PlayerSlide; back: boolea
         <div className={`rp-screen${slide.points?.length ? ' has-points' : ''}`}>
           <figure className="rp-screen-frame">
             <div className="rp-screen-bar" aria-hidden><i /><i /><i /></div>
-            <div
-              className="rp-screen-view"
-              style={slide.focus ? { '--rp-zoom': slide.focus.scale, '--rp-zoom-x': `${slide.focus.x}%`, '--rp-zoom-y': `${slide.focus.y}%` } as CSSProperties : undefined}
-            >
-              <img src={slide.image} alt={slide.alt} draggable={false} />
-            </div>
+            <div className="rp-screen-view"><img src={slide.image} alt={slide.alt} draggable={false} /></div>
           </figure>
           {!!slide.points?.length && (
             <div className="rp-points rp-screen-points">

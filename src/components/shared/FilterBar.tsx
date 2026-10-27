@@ -79,6 +79,10 @@ export const FilterBar = ({ title, primary, advanced, actions, compact = false, 
   const isMobile = !screens.md
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const inline = compact && !advanced
+  // Search filters as you type, so on desktop it always sits in the row, never behind "More filters".
+  const advancedControls = controlsOf(advanced)
+  const advancedSearch = isMobile ? null : advancedControls.find(isSearch) ?? null
+  const advancedRest = advancedControls.filter((control) => control !== advancedSearch)
   // Desktop keeps one row. When labels run long (some languages), optional detail goes first, then buttons
   // drop to their icons, then the unselected view labels, and only then does the row wrap.
   const rowRef = useRef<HTMLDivElement>(null)
@@ -144,16 +148,17 @@ export const FilterBar = ({ title, primary, advanced, actions, compact = false, 
     return (
       <div className={`filter-bar-primary${isMobile ? ' is-stacked' : ''}`}>
         <div className="filter-bar-controls" ref={rowRef}>
+          {advancedSearch}
           {primary}
           {actions}
-          {advanced && <Button icon={<SlidersOutlined />} onClick={() => setAdvancedOpen(true)}>{t('common.moreFilters')}</Button>}
+          {advancedRest.length > 0 && <Button icon={<SlidersOutlined />} onClick={() => setAdvancedOpen(true)}>{t('common.moreFilters')}</Button>}
         </div>
       </div>
     )
   }
 
-  const sheetContent = searchLayout ? sheetFilters : <>{isMobile && primary}{advanced}</>
-  const hasSheet = searchLayout ? sheetFilters.length > 0 : !inline
+  const sheetContent = searchLayout ? sheetFilters : <>{isMobile && primary}{isMobile ? advanced : advancedRest}</>
+  const hasSheet = searchLayout ? sheetFilters.length > 0 : !inline && (isMobile || advancedRest.length > 0)
 
   return (
     <>

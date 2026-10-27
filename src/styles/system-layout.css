@@ -300,9 +300,7 @@ html[data-theme='dark'] .workspace-navigation-card:hover, html[data-theme='dark'
    ========================================================= */
 
 .app-sidebar-menu .ant-menu-item-selected {
-    background: linear-gradient(135deg,
-            #6d5dfb 0%,
-            #8b5cf6 100%) !important;
+    background: #6d5dfb !important;
 
     color: #ffffff !important;
 
@@ -514,7 +512,7 @@ html:not([data-theme='dark']) .app-quicklinks-switch .ant-segmented-item-selecte
 html:not([data-theme='dark']) .app-quicklinks-switch .ant-segmented-thumb,
 html:not([data-theme='dark']) .app-account-row .ant-segmented-item-selected,
 html:not([data-theme='dark']) .app-account-row .ant-segmented-thumb {
-    background: linear-gradient(135deg, #6d5dfb, #4f7df3) !important;
+    background: #6d5dfb !important;
     color: #ffffff !important;
     box-shadow: 0 5px 14px rgba(91, 83, 226, 0.28);
 }
@@ -584,10 +582,7 @@ html:not([data-theme='dark']) .app-account-row .ant-segmented-thumb {
 
     border: none !important;
 
-    background: linear-gradient(135deg,
-            #6d5dfb 0%,
-            #8b5cf6 50%,
-            #3b82f6 100%) !important;
+    background: #6d5dfb !important;
 
     box-shadow: 0 10px 22px rgba(109, 93, 251, 0.28);
 }
@@ -877,7 +872,7 @@ html[data-theme='dark'] .app-project-tag {
 
     border-radius: 50%;
 
-    background: linear-gradient(135deg, #6d5dfb, #3b82f6);
+    background: #6d5dfb;
 
     color: #fff;
     font-size: 36px;
@@ -1518,7 +1513,7 @@ html[data-theme='dark'] .app-topbar-actions.is-mobile-pills .app-icon-btn.app-ic
     border: 0;
     border-radius: 999px;
     color: #fff;
-    background: linear-gradient(135deg, #6d5dfb, #4f7df3);
+    background: #6d5dfb;
     font-size: 13px;
     font-weight: 700;
     box-shadow: 0 6px 14px rgba(91, 83, 226, 0.25);
@@ -1531,7 +1526,7 @@ html[data-theme='dark'] .app-topbar-actions.is-mobile-pills .app-icon-btn.app-ic
 
 .app-goto-workspace.app-goto-workspace:hover {
     color: #fff !important;
-    background: linear-gradient(135deg, #6d5dfb, #4f7df3) !important;
+    background: #6d5dfb !important;
 }
 
 /* The Menu sheet's way back to Agentic: first, and tinted so it reads as a mode, not a page. */
@@ -1620,7 +1615,7 @@ html[data-theme='dark'] .app-topbar-actions.is-mobile-pills .app-icon-btn.app-ic
     .app-tab.is-active {
         padding: 0 16px 0 12px;
         color: #fff;
-        background: linear-gradient(135deg, #6d5dfb, #4f7df3);
+        background: #6d5dfb;
         box-shadow: 0 6px 14px rgba(91, 83, 226, 0.28);
     }
 
@@ -1655,6 +1650,13 @@ html[data-theme='dark'] .app-topbar-actions.is-mobile-pills .app-icon-btn.app-ic
 }
 
 .app-topbar-pill[data-fit~='modes'] .app-mode-switch .ant-segmented-item { min-width: 0; }
+
+/* Without Agentic there is no mode switch, so the shortcuts start at the left edge instead of being pushed
+   against Menu by an empty first column. Nothing shrinks, so the fit steps above still see the overflow. */
+.app-topbar-pill.has-no-mode-switch { display: flex; }
+.app-topbar-pill.has-no-mode-switch > * { flex-shrink: 0; }
+.app-topbar-pill.has-no-mode-switch > .app-topbar-left:empty { display: none; }
+.app-topbar-pill.has-no-mode-switch > .app-topbar-actions { margin-left: auto; }
 
 /* =========================================================
    PHONES: programme selector in the top bar

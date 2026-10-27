@@ -255,7 +255,7 @@ async function sendPayload(to: string, payload: Record<string, unknown>) {
     severity: 'high',
     status: 'unread',
     companyCode: context?.companyCode || null,
-    recipientRoles: ['systemadmin', 'admin'],
+    recipientRoles: ['systemadmin'],
     message: `A WhatsApp message failed after ${finalAttempt} send attempt${finalAttempt === 1 ? '' : 's'}.`,
     source: 'whatsapp',
     deliveryAlertId: alertRef.id,
@@ -263,6 +263,39 @@ async function sendPayload(to: string, payload: Record<string, unknown>) {
     readBy: {},
   }, { merge: true })
   await failureBatch.commit()
+  throw new Error(lastError)
+}
+
+async function markIncomingMessageRead(phoneNumberId: string, messageId: string) {
+  const token = String(process.env.WHATSAPP_ACCESS_TOKEN || '')
+  const senderId = String(phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID || '')
+  if (!token || !senderId || !messageId) throw new Error('WhatsApp read-receipt credentials are incomplete.')
+
+  const requestBody = JSON.stringify({
+    messaging_product: 'whatsapp',
+    status: 'read',
+    message_id: messageId,
+  })
+  let lastError = 'WhatsApp read receipt failed.'
+  for (let attempt = 1; attempt <= graphSendMaxAttempts; attempt += 1) {
+    try {
+      const response = await fetch(`https://graph.facebook.com/${graphVersion()}/${senderId}/messages`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: requestBody,
+        signal: AbortSignal.timeout(15000),
+      })
+      const responseText = await response.text()
+      if (response.ok) return
+      lastError = `WhatsApp read receipt failed (${response.status}): ${short(responseText, 1000)}`
+      const retryable = response.status === 429 || response.status >= 500
+      if (!retryable || attempt === graphSendMaxAttempts) break
+    } catch (error) {
+      lastError = short(error instanceof Error ? error.message : String(error), 1000)
+      if (attempt === graphSendMaxAttempts) break
+    }
+    await waitForRetry(attempt)
+  }
   throw new Error(lastError)
 }
 
@@ -465,7 +498,8 @@ const roleGroup = (identity: UserRecord) => {
   if (role === 'incubatee') return 'incubatee'
   if (role === 'consultant') return 'consultant'
   if (['operations', 'projectadmin', 'projectmanager'].includes(role)) return 'operations'
-  if (['admin', 'systemadmin'].includes(role)) return 'admin'
+  // The 'admin' group is platform admins only; the 'admin' role (company reception) falls through to general.
+  if (role === 'systemadmin') return 'admin'
   return 'general'
 }
 
@@ -887,9 +921,11 @@ type IncomingMessage = {
 
 type WhatsAppInboundEvent = {
   messageId?: string
+  phoneNumberId?: string
   from?: string
   input?: string
   status?: string
+  readReceiptStatus?: string
   attempts?: number
   leaseUntil?: Timestamp
   message?: IncomingMessage
@@ -2173,6 +2209,8 @@ export async function processWhatsAppInboundEvent(eventId: string) {
       from: String(event.from || ''),
       input: String(event.input || ''),
       messageId: String(event.messageId || eventId),
+      phoneNumberId: String(event.phoneNumberId || ''),
+      readReceiptSent: event.readReceiptStatus === 'sent',
     }
   })
 
@@ -2183,6 +2221,26 @@ export async function processWhatsAppInboundEvent(eventId: string) {
 
   try {
     if (!phone || !claim.input) throw new Error('The queued WhatsApp event has no processable sender or input.')
+    if (!claim.readReceiptSent) {
+      try {
+        await markIncomingMessageRead(claim.phoneNumberId, claim.messageId)
+        await eventRef.set({
+          readReceiptStatus: 'sent',
+          readReceiptSentAt: FieldValue.serverTimestamp(),
+          readReceiptError: FieldValue.delete(),
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true })
+      } catch (error) {
+        const readReceiptError = short(error instanceof Error ? error.message : String(error), 500)
+        console.warn('WhatsApp read receipt failed', { eventId, messageId: claim.messageId, error: readReceiptError })
+        await eventRef.set({
+          readReceiptStatus: 'failed',
+          readReceiptError,
+          readReceiptFailedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true })
+      }
+    }
     await outboundMessageContext.run({
       sourceEventId: eventId,
       sourceMessageId: claim.messageId,
@@ -2334,7 +2392,7 @@ export async function processWhatsAppMessageStatusEvent(eventId: string) {
           severity: 'high',
           status: 'unread',
           companyCode: companyCode || null,
-          recipientRoles: ['systemadmin', 'admin'],
+          recipientRoles: ['systemadmin'],
           message: 'WhatsApp accepted a message, but Meta later reported that delivery failed.',
           source: 'whatsapp',
           deliveryAlertId: alertRef.id,

@@ -26,6 +26,11 @@ export const ParticipantOnboardingPage = () => {
   const [step, setStep] = useState(0)
   const [saving, setSaving] = useState(false)
   const values = Form.useWatch([], form) || {}
+  // Reception registers walk-ins for review: no compliance documents, and the result is a pending application.
+  const isReception = user?.role === 'admin'
+  const stepKeys = isReception ? ['details', 'questions', 'review'] as const : ['details', 'questions', 'documents', 'review'] as const
+  const stepKey = stepKeys[step]
+  const lastStep = stepKeys.length - 1
 
   useEffect(() => {
     if (isAllPrograms) return
@@ -50,13 +55,13 @@ export const ParticipantOnboardingPage = () => {
   const missingDocuments = useMemo(() => (config?.documents || []).filter((document) => document.required && !documents[document.id]), [config?.documents, documents])
 
   const next = async () => {
-    if (step === 0) {
+    if (stepKey === 'details') {
       await form.validateFields(detailFields)
     }
-    if (step === 1 && config?.questions.length) {
+    if (stepKey === 'questions' && config?.questions.length) {
       await form.validateFields(config.questions.map((question) => ['onboardingAnswers', question.id]))
     }
-    if (step === 2 && missingDocuments.length) {
+    if (stepKey === 'documents' && missingDocuments.length) {
       message.error(t('operations.participants.documentsRequired'))
       return
     }
@@ -69,6 +74,11 @@ export const ParticipantOnboardingPage = () => {
       const formValues = await form.validateFields()
       setSaving(true)
       const participantId = await createOperationsParticipant({ ...formValues, programId: activeProgramId, programName: config.name })
+      if (isReception) {
+        message.success(t('Walk-in registered. Their application is waiting for review.'))
+        navigate('/shared/applications')
+        return
+      }
       await Promise.all(Object.entries(documents).map(async ([documentId, file]) => {
         const definition = config.documents.find((document) => document.id === documentId)
         if (!definition) return
@@ -87,7 +97,12 @@ export const ParticipantOnboardingPage = () => {
       message.success(t('operations.participants.created'))
       navigate('/shared/participants')
     } catch (error) {
-      message.error(error instanceof Error ? error.message : t('operations.participants.createError'))
+      const code = error instanceof Error ? error.message : ''
+      message.error(code === 'email_in_use'
+        ? t('That email already belongs to a staff account. Use the SME’s own email address.')
+        : code === 'already_registered'
+          ? t('This SME already has an application for this programme.')
+          : code || t('operations.participants.createError'))
     } finally {
       setSaving(false)
     }
@@ -96,16 +111,13 @@ export const ParticipantOnboardingPage = () => {
   if (isAllPrograms) return <DashboardPage><Alert type="warning" showIcon message={t('operations.participants.selectProgramme')} action={<Button onClick={() => navigate('/shared/participants')}>{t('common.back')}</Button>} /></DashboardPage>
 
   return <DashboardPage className="operations-participant-onboarding">
-    <Card title={t('operations.participants.add')} extra={<Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/shared/participants')}>{t('common.back')}</Button>}>
+    <Card title={isReception ? t('Register a walk-in SME') : t('operations.participants.add')} extra={<Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/shared/participants')}>{t('common.back')}</Button>}>
       <Alert type="info" showIcon message={`${t('operations.participants.programme')}: ${config?.name || activeProgramId}`} style={{ marginBottom: 16 }} />
-      <Steps current={step} responsive items={[
-        { title: t('operations.participants.details') },
-        { title: t('operations.participants.questions') },
-        { title: t('operations.compliance.documents') },
-        { title: t('common.review') },
-      ]} />
+      <Steps current={step} responsive items={stepKeys.map((key) => ({
+        title: key === 'details' ? t('operations.participants.details') : key === 'questions' ? t('operations.participants.questions') : key === 'documents' ? t('operations.compliance.documents') : t('common.review'),
+      }))} />
       <Form form={form} layout="vertical" className="operations-onboarding-form">
-        {step === 0 && <Row gutter={[14, 0]}>
+        {stepKey === 'details' && <Row gutter={[14, 0]}>
           <Col xs={24} md={12}><Form.Item name="participantName" label={t('common.name')} rules={[{ required: true }]}><Input /></Form.Item></Col>
           <Col xs={24} md={12}><Form.Item name="email" label={t('common.email')} rules={[{ required: true }, { type: 'email' }]}><Input /></Form.Item></Col>
           <Col xs={24} md={12}><Form.Item name="businessName" label={t('operations.participants.enterprise')} rules={[{ required: true }]}><Input /></Form.Item></Col>
@@ -115,10 +127,10 @@ export const ParticipantOnboardingPage = () => {
           <Col xs={24} md={12}><Form.Item name="province" label={t('common.province')}><Select showSearch options={provinces.map((value) => ({ value, label: value }))} /></Form.Item></Col>
           <Col xs={24} md={12}><Form.Item name="beeLevel" label={t('common.beeLevel')}><Input /></Form.Item></Col>
         </Row>}
-        {step === 1 && <Space orientation="vertical" className="operations-onboarding-section">
+        {stepKey === 'questions' && <Space orientation="vertical" className="operations-onboarding-section">
           {config?.questions.length ? config.questions.map(questionField) : <Alert type="info" showIcon message={t('applicant.application.noQuestions')} />}
         </Space>}
-        {step === 2 && <Space orientation="vertical" className="operations-onboarding-section">
+        {stepKey === 'documents' && <Space orientation="vertical" className="operations-onboarding-section">
           <Typography.Paragraph type="secondary">{t('operations.participants.documentsHint')}</Typography.Paragraph>
           {(config?.documents || []).map((document) => {
             const uploadProps: UploadProps = { beforeUpload: (file) => { setDocuments((current) => ({ ...current, [document.id]: file })); return false }, maxCount: 1, onRemove: () => { setDocuments((current) => { const nextDocuments = { ...current }; delete nextDocuments[document.id]; return nextDocuments }) } }
@@ -130,20 +142,20 @@ export const ParticipantOnboardingPage = () => {
             </Card>
           })}
         </Space>}
-        {step === 3 && <Space orientation="vertical" className="operations-onboarding-section">
-          <Alert type="success" showIcon icon={<FileDoneOutlined />} message={t('operations.participants.reviewHint')} />
+        {stepKey === 'review' && <Space orientation="vertical" className="operations-onboarding-section">
+          <Alert type="success" showIcon icon={<FileDoneOutlined />} message={isReception ? t('They get an email to set their password. Their application goes to operations as Pending.') : t('operations.participants.reviewHint')} />
           <Descriptions bordered size="small" column={{ xs: 1, md: 2 }} items={[
             { key: 'name', label: t('common.name'), children: values.participantName },
             { key: 'email', label: t('common.email'), children: values.email },
             { key: 'enterprise', label: t('operations.participants.enterprise'), children: values.businessName },
             { key: 'program', label: t('operations.participants.programme'), children: config?.name },
             { key: 'questions', label: t('operations.participants.questions'), children: Object.keys(values.onboardingAnswers || {}).length },
-            { key: 'documents', label: t('operations.compliance.documents'), children: Object.keys(documents).length },
+            ...(isReception ? [] : [{ key: 'documents', label: t('operations.compliance.documents'), children: Object.keys(documents).length }]),
           ]} />
         </Space>}
         <div className="operations-onboarding-footer">
           <Button icon={<ArrowLeftOutlined />} onClick={() => step ? setStep((current) => current - 1) : navigate('/shared/participants')}>{step ? t('common.back') : t('common.cancel')}</Button>
-          {step < 3 ? <Button type="primary" onClick={() => void next()}>{t('common.continue')}</Button> : <Button type="primary" icon={<UserAddOutlined />} loading={saving} onClick={() => void save()}>{t('operations.participants.create')}</Button>}
+          {step < lastStep ? <Button type="primary" onClick={() => void next()}>{t('common.continue')}</Button> : <Button type="primary" icon={<UserAddOutlined />} loading={saving} onClick={() => void save()}>{isReception ? t('Register walk-in') : t('operations.participants.create')}</Button>}
         </div>
       </Form>
     </Card>

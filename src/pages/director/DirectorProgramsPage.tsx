@@ -1,14 +1,15 @@
-import { useEffect, useMemo, useState } from 'react'
-import { App, Card, Col, Empty, Grid, Input, Pagination, Progress, Row, Segmented, Select, Space, Tag, Typography, theme } from 'antd'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { App, Card, Col, Empty, Input, Pagination, Progress, Row, Select, Space, Tag, Typography, theme } from 'antd'
 import {
+    AimOutlined,
     AppstoreOutlined,
     BarChartOutlined,
     CalendarOutlined,
     CheckCircleOutlined,
-    DollarOutlined,
-    ExclamationCircleOutlined,
     ProjectOutlined,
+    RiseOutlined,
     SearchOutlined,
+    DollarOutlined,
     TeamOutlined,
 } from '@ant-design/icons'
 import type Highcharts from 'highcharts'
@@ -20,24 +21,23 @@ import { ThemedHighcharts } from '@/components/shared/ThemedHighcharts'
 import { CHART_COLORS } from '@/config/chartPalette'
 import { useActiveProgramId } from '@/hooks/useActiveProgramId'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
-import { useLanguage, tr, tEnglish } from '@/providers/LanguageProvider'
-import { listDirectorProgramPerformance } from '@/services/directorProgramsService'
+import { useLanguage, tEnglish } from '@/providers/LanguageProvider'
+import { loadDirectorBriefing, type DirectorProgrammeRow, type KpiTally } from '@/services/directorDashboardService'
 import { useRegisterAgentPageContext } from '@/shared/hooks/useRegisterAgentPageContext'
-import type { DirectorProgramPerformance } from '@/types/director'
 import '@/styles/dashboard.css'
 import '@/styles/director.css'
 
-type SortKey = 'smes' | 'progress' | 'delivery' | 'revenue' | 'risk'
-type ChartView = 'delivery' | 'risk' | 'funnel'
+type SortKey = 'completion' | 'kpis' | 'growth' | 'smes' | 'risk'
 
 const PAGE_SIZE = 6
 
 const formatCurrency = (value: number) =>
     new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0, notation: Math.abs(value) >= 1000000 ? 'compact' : 'standard' }).format(value || 0)
 
-const percent = (numerator: number, denominator: number) => (denominator > 0 ? Math.round((numerator / denominator) * 100) : 0)
-
-const deliveryRate = (row: DirectorProgramPerformance) => percent(row.completedAssignments, row.assignments)
+const percent = (numerator: number, denominator: number) => (denominator > 0 ? Math.min(100, Math.round((numerator / denominator) * 100)) : null)
+const signed = (value: number) => `${value > 0 ? '+' : value < 0 ? '−' : ''}${Math.abs(value)}`
+const healthColor = (value: number) => (value >= 75 ? CHART_COLORS.success : value >= 40 ? CHART_COLORS.amber : CHART_COLORS.danger)
+const kpiRate = (tally: KpiTally) => percent(tally.onTrack, tally.withTarget)
 
 const statusColor = (status: string) => {
     const normalized = status.toLowerCase()
@@ -45,289 +45,232 @@ const statusColor = (status: string) => {
     if (normalized.includes('draft') || normalized.includes('pending')) return 'orange'
     return 'green'
 }
+// Stored statuses are lower-case English words ("active", "draft"); shown capitalised and translated.
+const statusLabel = (status: string) => status ? status.charAt(0).toUpperCase() + status.slice(1).toLowerCase() : 'Active'
 
-const healthColor = (value: number) => (value >= 75 ? CHART_COLORS.success : value >= 40 ? CHART_COLORS.amber : CHART_COLORS.danger)
-
-const RiskMixBar = ({ low, medium, high }: { low: number, medium: number, high: number }) => {
-    const { t } = useLanguage()
-    const total = low + medium + high
-    if (!total) return <Typography.Text type="secondary" style={{ fontSize: 12 }}>{t('No SME risk data')}</Typography.Text>
-    const segments = [
-        { key: 'low', value: low, color: CHART_COLORS.success },
-        { key: 'medium', value: medium, color: CHART_COLORS.amber },
-        { key: 'high', value: high, color: CHART_COLORS.danger },
-    ].filter((segment) => segment.value > 0)
-    return (
-        <div style={{ display: 'flex', height: 8, borderRadius: 999, overflow: 'hidden', gap: 2 }}>
-            {segments.map((segment) => (
-                <div key={segment.key} style={{ flex: segment.value, background: segment.color }} title={`${segment.key}: ${segment.value}`} />
-            ))}
-        </div>
-    )
-}
-
-const ProgramCard = ({ row, onClick }: { row: DirectorProgramPerformance, onClick: () => void }) => {
-    const { t } = useLanguage()
-    const { token } = theme.useToken()
-    const delivery = deliveryRate(row)
-    const accent = healthColor(row.avgProgress)
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            style={{
-                width: '100%',
-                height: '100%',
-                textAlign: 'left',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 14,
-                padding: 16,
-                borderRadius: 16,
-                border: `1px solid ${token.colorBorderSecondary}`,
-                borderTop: `3px solid ${accent}`,
-                background: token.colorBgContainer,
-                boxShadow: token.boxShadowTertiary,
-                cursor: 'pointer',
-            }}
-        >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <Progress type="circle" size={64} percent={row.avgProgress} strokeColor={accent} format={(value) => `${value}%`} />
-                <div style={{ minWidth: 0, flex: 1 }}>
-                    <Typography.Text strong ellipsis style={{ display: 'block', fontSize: 15 }}>{row.name}</Typography.Text>
-                    <Space size={6} wrap style={{ marginTop: 4 }}>
-                        <Tag color={statusColor(row.status)} style={{ margin: 0 }}>{row.status.toUpperCase()}</Tag>
-                        {row.startDate && <Typography.Text type="secondary" style={{ fontSize: 12 }}><CalendarOutlined /> {row.startDate}</Typography.Text>}
-                    </Space>
-                </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-                {[
-                    { label: t('SMEs'), value: row.smes.toLocaleString() },
-                    { label: t('Employees'), value: row.totalEmployees.toLocaleString() },
-                    { label: t('Revenue'), value: formatCurrency(row.totalRevenue) },
-                ].map((stat) => (
-                    <div key={stat.label} style={{ minWidth: 0, padding: '8px 10px', borderRadius: 10, background: token.colorFillQuaternary }}>
-                        <Typography.Text type="secondary" ellipsis style={{ fontSize: 11, display: 'block' }}>{stat.label}</Typography.Text>
-                        <Typography.Text strong ellipsis={{ tooltip: stat.value }} style={{ fontSize: 14, display: 'block' }}>{stat.value}</Typography.Text>
-                    </div>
-                ))}
-            </div>
-
-            <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 2 }}>
-                    <Typography.Text type="secondary">{t('Delivery (')}{row.completedAssignments}/{row.assignments})</Typography.Text>
-                    <Typography.Text strong>{delivery}%</Typography.Text>
-                </div>
-                <Progress percent={delivery} showInfo={false} size="small" strokeColor={healthColor(delivery)} />
-            </div>
-
-            <div>
-                <RiskMixBar low={row.lowRisk} medium={row.mediumRisk} high={row.highRisk} />
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>{row.highRisk} {t('high ·')} {row.mediumRisk} {t('medium ·')} {row.lowRisk} {t('low')}</Typography.Text>
-                    {row.overdueAssignments > 0 && <Tag color="orange" style={{ margin: 0 }}>{row.overdueAssignments} {t('overdue')}</Tag>}
-                </div>
-            </div>
-        </button>
-    )
-}
-
+/**
+ * Programme performance: one scorecard per programme (completion against required support, KPIs on track and revenue
+ * growth), using the director dashboard's figures so the two pages always agree. A programme opens its size, intake
+ * funnel and delivery & risk breakdown.
+ */
 export const DirectorProgramsPage = () => {
     const { message } = App.useApp()
     const { t } = useLanguage()
-    const { user } = useFullIdentity()
+    const { token } = theme.useToken()
+    const { user, loading: identityLoading } = useFullIdentity()
     const { activeProgramId, isAllPrograms } = useActiveProgramId()
-    const [rows, setRows] = useState<DirectorProgramPerformance[]>([])
-    const [loading, setLoading] = useState(false)
+    const [rows, setRows] = useState<DirectorProgrammeRow[]>([])
+    // KPI totals for the whole selection, as the dashboard counts them (company targets), not a sum of programmes.
+    const [kpiTotals, setKpiTotals] = useState<KpiTally | null>(null)
+    const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
-    const [status, setStatus] = useState('all')
-    const [sortKey, setSortKey] = useState<SortKey>('smes')
-    const [chartView, setChartView] = useState<ChartView>('delivery')
+    const [sortKey, setSortKey] = useState<SortKey>('completion')
     const [page, setPage] = useState(1)
     const [selectedId, setSelectedId] = useState<string>()
-    const isMobile = !Grid.useBreakpoint().md
+
+    const load = useCallback(async () => {
+        if (identityLoading || !user) return
+        setLoading(true)
+        try {
+            const briefing = await loadDirectorBriefing(user, { activeProgramId, isAllPrograms })
+            setRows(briefing.programmes)
+            setKpiTotals(briefing.kpis)
+        } catch (error) {
+            console.error('[DIRECTOR] Failed to load programme performance:', error)
+            message.error(t('Programme performance could not be loaded.'))
+            setRows([])
+            setKpiTotals(null)
+        } finally {
+            setLoading(false)
+        }
+    }, [activeProgramId, identityLoading, isAllPrograms, message, t, user])
 
     useEffect(() => {
-        let mounted = true
-        const load = async () => {
-            if (!user) return
-            setLoading(true)
-            try {
-                const data = await listDirectorProgramPerformance(user, activeProgramId)
-                if (mounted) setRows(data)
-            } catch (error) {
-                console.error(error)
-                message.error(t('director.programs.loadError', 'Program performance could not be loaded.'))
-                if (mounted) setRows([])
-            } finally {
-                if (mounted) setLoading(false)
-            }
-        }
-        void load()
-        return () => { mounted = false }
-    }, [activeProgramId, message, t, user])
+        const timeout = window.setTimeout(() => void load(), 0)
+        return () => window.clearTimeout(timeout)
+    }, [load])
+
+    const pageLoading = identityLoading || loading
 
     const filtered = useMemo(() => {
         const term = search.trim().toLowerCase()
-        const matches = rows.filter((row) => {
-            const matchText = !term || row.name.toLowerCase().includes(term) || row.status.toLowerCase().includes(term)
-            const matchStatus = status === 'all' || row.status.toLowerCase() === status
-            return matchText && matchStatus
-        })
-        const score: Record<SortKey, (row: DirectorProgramPerformance) => number> = {
+        const matches = rows.filter((row) => !term || row.name.toLowerCase().includes(term))
+        // Highest first; programmes without a figure sort last.
+        const score: Record<SortKey, (row: DirectorProgrammeRow) => number> = {
+            completion: (row) => row.completion ?? -1,
+            kpis: (row) => kpiRate(row.kpis) ?? -1,
+            growth: (row) => row.revenueGrowth ?? -Infinity,
             smes: (row) => row.smes,
-            progress: (row) => row.avgProgress,
-            delivery: (row) => deliveryRate(row),
-            revenue: (row) => row.totalRevenue,
             risk: (row) => row.highRisk,
         }
-        return [...matches].sort((left, right) => score[sortKey](right) - score[sortKey](left))
-    }, [rows, search, sortKey, status])
-
-    useEffect(() => { setPage(1) }, [search, status, sortKey])
+        return [...matches].sort((left, right) => score[sortKey](right) - score[sortKey](left) || left.name.localeCompare(right.name))
+    }, [rows, search, sortKey])
 
     const pagedRows = useMemo(() => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filtered, page])
 
     const metrics = useMemo(() => {
-        const smes = filtered.reduce((sum, row) => sum + row.smes, 0)
-        const assignments = filtered.reduce((sum, row) => sum + row.assignments, 0)
-        const completed = filtered.reduce((sum, row) => sum + row.completedAssignments, 0)
+        const required = filtered.reduce((sum, row) => sum + row.required, 0)
+        const completed = filtered.reduce((sum, row) => sum + row.completed, 0)
+        const start = filtered.reduce((sum, row) => sum + row.revenueStart, 0)
+        const latest = filtered.reduce((sum, row) => sum + row.revenueLatest, 0)
         return {
-            programs: filtered.length,
-            smes,
-            employees: filtered.reduce((sum, row) => sum + row.totalEmployees, 0),
-            revenue: filtered.reduce((sum, row) => sum + row.totalRevenue, 0),
-            avgProgress: smes ? Math.round(filtered.reduce((sum, row) => sum + row.avgProgress * row.smes, 0) / smes) : 0,
-            completionRate: percent(completed, assignments),
-            overdue: filtered.reduce((sum, row) => sum + row.overdueAssignments, 0),
+            programmes: filtered.length,
+            smes: filtered.reduce((sum, row) => sum + row.smes, 0),
+            required,
+            completed,
+            completion: percent(completed, required),
+            onTrack: kpiTotals?.onTrack || 0,
+            withTarget: kpiTotals?.withTarget || 0,
+            behind: kpiTotals?.behind || 0,
+            growth: start > 0 ? Math.round(((latest - start) / start) * 100) : null,
+            growing: filtered.reduce((sum, row) => sum + row.growingSmes, 0),
+            withRevenue: filtered.reduce((sum, row) => sum + row.smesWithRevenue, 0),
         }
-    }, [filtered])
+    }, [filtered, kpiTotals])
 
     useRegisterAgentPageContext({
         pageKey: 'director-programs',
-        pageName: tEnglish('director.programs.title', 'Program Performance'),
-        purpose: 'Shows director-level performance across the active program selection.',
-        currentFilters: { search, status, sortKey, activeProgramId },
+        pageName: tEnglish('Programme performance'),
+        purpose: 'Shows each programme\'s completion against required support, KPIs on track and revenue growth for the active programme selection.',
+        currentFilters: { search, sortKey, activeProgramId },
         metrics,
         dataSummary: { visiblePrograms: filtered.length, scope: isAllPrograms ? 'all programs' : 'selected program' },
     })
 
     const selected = useMemo(() => rows.find((row) => row.id === selectedId) || null, [rows, selectedId])
 
-    const baseChartOptions = useMemo<Highcharts.Options>(() => {
-        const categories = filtered.map((row) => row.name)
-        if (chartView === 'risk') {
-            return {
-                chart: { type: 'bar', height: Math.max(280, filtered.length * 46) },
-                title: { text: undefined },
-                xAxis: { categories },
-                yAxis: { min: 0, title: { text: tr('Share of SMEs') }, labels: { format: '{value}%' } },
-                tooltip: { shared: true },
-                plotOptions: { series: { stacking: 'percent', borderRadius: 3, dataLabels: { enabled: true, filter: { property: 'y', operator: '>', value: 0 } } } },
-                series: [
-                    { type: 'bar', name: tr('Low'), color: CHART_COLORS.success, data: filtered.map((row) => row.lowRisk) },
-                    { type: 'bar', name: tr('Medium'), color: CHART_COLORS.amber, data: filtered.map((row) => row.mediumRisk) },
-                    { type: 'bar', name: tr('High'), color: CHART_COLORS.danger, data: filtered.map((row) => row.highRisk) },
-                ],
-            }
-        }
-        if (chartView === 'funnel') {
-            return {
-                chart: { type: 'column', height: 320 },
-                title: { text: undefined },
-                xAxis: { categories },
-                yAxis: { min: 0, allowDecimals: false, title: { text: tr('Count') } },
-                tooltip: { shared: true },
-                plotOptions: { column: { borderRadius: 4, dataLabels: { enabled: true } } },
-                series: [
-                    { type: 'column', name: tr('Submitted'), color: CHART_COLORS.slate, data: filtered.map((row) => row.submitted) },
-                    { type: 'column', name: tr('Accepted'), color: CHART_COLORS.primary, data: filtered.map((row) => row.accepted) },
-                    { type: 'column', name: tr('Active SMEs'), color: CHART_COLORS.success, data: filtered.map((row) => row.smes) },
-                ],
-            }
-        }
-        return {
-            chart: { height: 320 },
-            title: { text: undefined },
-            xAxis: { categories },
-            yAxis: [
-                { min: 0, max: 100, title: { text: tr('Rate') }, labels: { format: '{value}%' } },
-                { min: 0, title: { text: tr('Revenue') }, opposite: true, labels: { formatter() { return formatCurrency(Number(this.value)) } } },
-            ],
-            tooltip: { shared: true },
-            plotOptions: { column: { borderRadius: 4 }, spline: { marker: { enabled: true } } },
-            series: [
-                { type: 'column', name: tr('Revenue'), yAxis: 1, color: CHART_COLORS.violet, opacity: 0.55, data: filtered.map((row) => row.totalRevenue), tooltip: { valuePrefix: 'R ' } },
-                { type: 'spline', name: tr('Avg progress'), yAxis: 0, color: CHART_COLORS.primary, data: filtered.map((row) => row.avgProgress), tooltip: { valueSuffix: '%' } },
-                { type: 'spline', name: tr('Delivery rate'), yAxis: 0, color: CHART_COLORS.success, data: filtered.map((row) => deliveryRate(row)), tooltip: { valueSuffix: '%' } },
-            ],
-        }
-    }, [chartView, filtered])
+    // One axis, 0–100%: completion and KPI attainment side by side for each programme.
+    const comparisonChart = useMemo<Highcharts.Options>(() => ({
+        chart: { type: 'bar', height: Math.max(220, filtered.length * 60 + 80) },
+        title: { text: undefined },
+        xAxis: { categories: filtered.map((row) => row.name) },
+        yAxis: { min: 0, max: 100, title: { text: undefined }, labels: { format: '{value}%' } },
+        tooltip: { shared: true, valueSuffix: '%' },
+        plotOptions: { bar: { borderRadius: 3, dataLabels: { enabled: true, format: '{y}%' } } },
+        series: [
+            { type: 'bar', name: t('Completion'), color: CHART_COLORS.primary, data: filtered.map((row) => row.completion) },
+            { type: 'bar', name: t('KPIs on track'), color: CHART_COLORS.success, data: filtered.map((row) => kpiRate(row.kpis)) },
+        ],
+    }), [filtered, t])
 
-    // Phones: no axis titles (the legend and tooltips say it), so the plot gets the width.
-    const chartOptions = useMemo<Highcharts.Options>(() => {
-        if (!isMobile) return baseChartOptions
-        const dropTitle = (axis: Highcharts.YAxisOptions) => ({ ...axis, title: { text: undefined } })
-        const yAxis = baseChartOptions.yAxis as Highcharts.YAxisOptions | Highcharts.YAxisOptions[] | undefined
-        return {
-            ...baseChartOptions,
-            chart: { ...baseChartOptions.chart, height: chartView === 'risk' ? baseChartOptions.chart?.height : 280, spacing: [8, 4, 8, 4] },
-            yAxis: Array.isArray(yAxis) ? yAxis.map(dropTitle) : yAxis && dropTitle(yAxis),
-            xAxis: { ...(baseChartOptions.xAxis as Highcharts.XAxisOptions), labels: { style: { fontSize: '11px', textOverflow: 'ellipsis' } } },
-            legend: { itemStyle: { fontSize: '11px' } },
-        }
-    }, [baseChartOptions, chartView, isMobile])
+    const programmeName = (row: DirectorProgrammeRow) => (row.id === 'unassigned' ? t('No programme') : row.name)
 
-    const chartViewSwitch = (
-        <Segmented<ChartView>
-            block={isMobile}
-            value={chartView}
-            onChange={setChartView}
-            options={isMobile ? [
-                { label: t('Delivery'), value: 'delivery' },
-                { label: t('Risk'), value: 'risk' },
-                { label: t('Intake'), value: 'funnel' },
-            ] : [
-                { label: t('Delivery & Revenue'), value: 'delivery', icon: <CheckCircleOutlined /> },
-                { label: t('Risk Mix'), value: 'risk', icon: <ExclamationCircleOutlined /> },
-                { label: t('Intake Funnel'), value: 'funnel', icon: <TeamOutlined /> },
-            ]}
-        />
-    )
+    const dates = (row: DirectorProgrammeRow) => (row.startDate || row.endDate)
+        ? t('{start} to {end}', undefined, { start: row.startDate || '—', end: row.endDate || t('ongoing') })
+        : null
 
-    const statusOptions = useMemo(
-        () => [{ value: 'all', label: t('common.all', 'All') }, ...Array.from(new Set(rows.map((row) => row.status.toLowerCase()))).map((value) => ({ value, label: value.toUpperCase() }))],
-        [rows, t],
+    const growthTag = (row: DirectorProgrammeRow) => row.revenueGrowth === null
+        ? <Typography.Text type="secondary">—</Typography.Text>
+        : <Tag bordered={false} color={row.revenueGrowth > 0 ? 'green' : row.revenueGrowth < 0 ? 'red' : undefined}>{signed(row.revenueGrowth)}%</Tag>
+
+    const renderCard = (row: DirectorProgrammeRow) => (
+        <button
+            type="button"
+            className="director-programme-scorecard"
+            onClick={() => setSelectedId(row.id)}
+            style={{ borderTopColor: row.completion === null ? token.colorBorderSecondary : healthColor(row.completion) }}
+        >
+            <span className="director-programme-scorecard-head">
+                <Typography.Text strong ellipsis>{programmeName(row)}</Typography.Text>
+                <Tag bordered={false} color={statusColor(row.status)}>{t(statusLabel(row.status))}</Tag>
+            </span>
+            <Typography.Text type="secondary" className="director-programme-scorecard-sub">
+                {t('{count} SMEs', undefined, { count: row.smes })}
+                {dates(row) && <> · <CalendarOutlined /> {dates(row)}</>}
+            </Typography.Text>
+
+            <div className="director-programme-scorecard-completion">
+                <span>
+                    <Typography.Text type="secondary">{t('Completion')}</Typography.Text>
+                    <Typography.Text strong>{row.completion === null ? '—' : `${row.completion}%`}</Typography.Text>
+                </span>
+                <Progress percent={row.completion ?? 0} showInfo={false} size="small" strokeColor={row.completion === null ? undefined : healthColor(row.completion)} />
+                <Typography.Text type="secondary">
+                    {row.required ? t('{completed} of {required} required', undefined, { completed: row.completed, required: row.required }) : t('Nothing required yet')}
+                </Typography.Text>
+            </div>
+
+            <div className="director-programme-scorecard-stats">
+                <div>
+                    <Typography.Text type="secondary">{t('KPIs')}</Typography.Text>
+                    {row.kpis.withTarget
+                        ? <Tag bordered={false} color={row.kpis.behind ? 'orange' : 'green'}>{t('{onTrack} of {count} on track', undefined, { onTrack: row.kpis.onTrack, count: row.kpis.withTarget })}</Tag>
+                        : <Typography.Text type="secondary">{t('No targets set')}</Typography.Text>}
+                </div>
+                <div>
+                    <Typography.Text type="secondary">{t('Revenue growth')}</Typography.Text>
+                    <span>
+                        {growthTag(row)}
+                        {row.smesWithRevenue > 0 && (
+                            <Typography.Text type="secondary" className="director-small">
+                                {t('{growing} of {count} growing', undefined, { growing: row.growingSmes, count: row.smesWithRevenue })}
+                            </Typography.Text>
+                        )}
+                    </span>
+                </div>
+            </div>
+
+            {(row.overdue > 0 || row.highRisk > 0) && (
+                <span className="director-flags">
+                    {row.overdue > 0 && <Tag bordered={false} color="red">{t('{count} overdue', undefined, { count: row.overdue })}</Tag>}
+                    {row.highRisk > 0 && <Tag bordered={false} color="orange">{t('{count} high risk', undefined, { count: row.highRisk })}</Tag>}
+                </span>
+            )}
+        </button>
     )
 
     return (
         <DashboardPage className="director-page director-programs-page">
             <Row gutter={[12, 12]} className="dashboard-metrics-row">
-                <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={loading} icon={<ProjectOutlined />} iconClassName="is-users" label={t('director.programs.programs', 'Programs')} value={metrics.programs} mobileProminence="strip" /></Col>
-                <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={loading} icon={<TeamOutlined />} iconClassName="is-participants" label={t('director.programs.smes', 'SMEs')} value={metrics.smes} hint={`${metrics.employees.toLocaleString()} employees`} /></Col>
-                <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={loading} icon={<DollarOutlined />} iconClassName="is-participants" label={t('Revenue')} value={formatCurrency(metrics.revenue)} /></Col>
-                <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={loading} icon={<CheckCircleOutlined />} iconClassName="is-delivery" label={t('Delivery rate')} mobileProminence="key" value={`${metrics.completionRate}%`} hint={`${metrics.avgProgress}% avg progress`} /></Col>
-                {(loading || metrics.overdue > 0) && (
-                    <Col xs={12} lg={{ flex: 1 }}><DashboardMetricCard loading={loading} icon={<ExclamationCircleOutlined />} iconClassName="is-attention" label={t('director.programs.overdue', 'Overdue')} value={metrics.overdue} /></Col>
-                )}
+                <Col xs={12} lg={6}>
+                    <DashboardMetricCard loading={pageLoading} icon={<ProjectOutlined />} iconClassName="is-users" label={t('Programmes')} value={metrics.programmes} hint={t('{count} SMEs', undefined, { count: metrics.smes })} />
+                </Col>
+                <Col xs={12} lg={6}>
+                    <DashboardMetricCard
+                        loading={pageLoading}
+                        icon={<CheckCircleOutlined />}
+                        iconClassName="is-delivery"
+                        label={t('Completion')}
+                        value={metrics.completion === null ? '—' : `${metrics.completion}%`}
+                        hint={metrics.required ? t('{completed} of {required} required interventions', undefined, { completed: metrics.completed, required: metrics.required }) : t('Nothing required yet')}
+                    />
+                </Col>
+                <Col xs={12} lg={6}>
+                    <DashboardMetricCard
+                        loading={pageLoading}
+                        icon={<AimOutlined />}
+                        iconClassName="is-attention"
+                        label={t('KPIs on track')}
+                        value={metrics.withTarget ? `${metrics.onTrack} / ${metrics.withTarget}` : '—'}
+                        hint={metrics.withTarget ? t('{count} behind target', undefined, { count: metrics.behind }) : t('No targets set')}
+                    />
+                </Col>
+                <Col xs={12} lg={6}>
+                    <DashboardMetricCard
+                        loading={pageLoading}
+                        icon={<RiseOutlined />}
+                        iconClassName="is-participants"
+                        label={t('Revenue growth')}
+                        value={metrics.growth === null ? '—' : `${signed(metrics.growth)}%`}
+                        hint={metrics.withRevenue ? t('{growing} of {count} SMEs growing since joining', undefined, { growing: metrics.growing, count: metrics.withRevenue }) : t('No revenue history yet')}
+                    />
+                </Col>
             </Row>
 
             <FilterBar
+                compact
                 primary={(
                     <>
-                        <Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('director.programs.search', 'Search programs')} allowClear />
-                        <Select value={status} onChange={setStatus} options={statusOptions} />
+                        <Input prefix={<SearchOutlined />} value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder={t('Search programmes')} allowClear />
                         <Select
                             value={sortKey}
-                            onChange={setSortKey}
+                            onChange={(value) => { setSortKey(value); setPage(1) }}
                             options={[
+                                { value: 'completion', label: t('Sort: completion') },
+                                { value: 'kpis', label: t('Sort: KPIs on track') },
+                                { value: 'growth', label: t('Sort: revenue growth') },
                                 { value: 'smes', label: t('Sort: SMEs') },
-                                { value: 'progress', label: t('Sort: Progress') },
-                                { value: 'delivery', label: t('Sort: Delivery rate') },
-                                { value: 'revenue', label: t('Sort: Revenue') },
-                                { value: 'risk', label: t('Sort: High risk') },
+                                { value: 'risk', label: t('Sort: high risk') },
                             ]}
                         />
                     </>
@@ -337,41 +280,36 @@ export const DirectorProgramsPage = () => {
             <Row gutter={[16, 16]}>
                 <Col span={24}>
                     <Card
-                        loading={loading}
+                        loading={pageLoading}
                         className="dashboard-section-card motion-card"
-                        title={<Space><AppstoreOutlined /> {t('Program Scorecards')}</Space>}
-                        extra={isMobile ? undefined : <Typography.Text type="secondary">{t('Click a program for its full breakdown')}</Typography.Text>}
+                        title={<Space><AppstoreOutlined /> {t('Programme scorecards')}</Space>}
+                        extra={<Typography.Text type="secondary" className="director-hide-mobile">{t('Click a programme for its full breakdown')}</Typography.Text>}
                     >
                         {filtered.length ? (
                             <>
                                 <Row gutter={[14, 14]}>
                                     {pagedRows.map((row) => (
                                         <Col xs={24} md={12} xl={8} key={row.id}>
-                                            <ProgramCard row={row} onClick={() => setSelectedId(row.id)} />
+                                            {renderCard(row)}
                                         </Col>
                                     ))}
                                 </Row>
                                 {filtered.length > PAGE_SIZE && (
-                                    <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
+                                    <div className="director-pagination">
                                         <Pagination current={page} pageSize={PAGE_SIZE} total={filtered.length} showSizeChanger={false} onChange={setPage} />
                                     </div>
                                 )}
                             </>
-                        ) : <Empty description={t('director.programs.empty', 'No programs match the current filters.')} />}
+                        ) : <Empty description={t('No programmes match your search.')} />}
                     </Card>
                 </Col>
-                <Col span={24}>
-                    <Card
-                        loading={loading}
-                        className="dashboard-section-card motion-card"
-                        title={<Space><BarChartOutlined /> {t('Comparison')}</Space>}
-                        // Phones: the switch moves under the title, full width, so the header doesn't overflow.
-                        extra={isMobile ? undefined : chartViewSwitch}
-                    >
-                        {isMobile && <div style={{ marginBottom: 12 }}>{chartViewSwitch}</div>}
-                        {filtered.length ? <ThemedHighcharts options={chartOptions} /> : <Empty description={t('director.programs.empty', 'No programs match the current filters.')} />}
-                    </Card>
-                </Col>
+                {filtered.length > 1 && (
+                    <Col span={24}>
+                        <Card loading={pageLoading} className="dashboard-section-card motion-card" title={<Space><BarChartOutlined /> {t('Completion and KPIs by programme')}</Space>}>
+                            <ThemedHighcharts options={comparisonChart} />
+                        </Card>
+                    </Col>
+                )}
             </Row>
 
             {/* Desktop modal, bottom sheet on phones. */}
@@ -381,10 +319,10 @@ export const DirectorProgramsPage = () => {
                 width={820}
                 title={selected ? (
                     <Space direction="vertical" size={2}>
-                        <Space><ProjectOutlined /> {selected.name}</Space>
+                        <Space><ProjectOutlined /> {programmeName(selected)}</Space>
                         <Space size={6}>
-                            <Tag color={statusColor(selected.status)} style={{ margin: 0 }}>{selected.status.toUpperCase()}</Tag>
-                            {(selected.startDate || selected.endDate) && <Typography.Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>{selected.startDate || '—'} {t('to')} {selected.endDate || 'ongoing'}</Typography.Text>}
+                            <Tag color={statusColor(selected.status)} style={{ margin: 0 }}>{t(statusLabel(selected.status))}</Tag>
+                            {dates(selected) && <Typography.Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>{dates(selected)}</Typography.Text>}
                         </Space>
                     </Space>
                 ) : ''}
@@ -411,7 +349,7 @@ export const DirectorProgramsPage = () => {
                                                 <Typography.Text>{step.label}</Typography.Text>
                                                 <Typography.Text strong>{step.value}</Typography.Text>
                                             </div>
-                                            <Progress percent={percent(step.value, Math.max(selected.submitted, selected.smes))} showInfo={false} size="small" strokeColor={step.color} />
+                                            <Progress percent={percent(step.value, Math.max(selected.submitted, selected.smes)) ?? 0} showInfo={false} size="small" strokeColor={step.color} />
                                         </div>
                                     ))}
                                 </Space>
@@ -420,11 +358,12 @@ export const DirectorProgramsPage = () => {
                                 <Typography.Text strong style={{ display: 'block', marginBottom: 12 }}>{t('Delivery & risk')}</Typography.Text>
                                 <Space direction="vertical" size={12} style={{ width: '100%' }}>
                                     {[
-                                        { label: `Completed (${selected.completedAssignments}/${selected.assignments})`, value: deliveryRate(selected), color: healthColor(deliveryRate(selected)) },
-                                        { label: `Overdue (${selected.overdueAssignments})`, value: percent(selected.overdueAssignments, selected.assignments), color: CHART_COLORS.danger },
-                                        { label: `High risk SMEs (${selected.highRisk})`, value: percent(selected.highRisk, selected.smes), color: CHART_COLORS.danger },
-                                        { label: `Medium risk SMEs (${selected.mediumRisk})`, value: percent(selected.mediumRisk, selected.smes), color: CHART_COLORS.amber },
-                                        { label: `Low risk SMEs (${selected.lowRisk})`, value: percent(selected.lowRisk, selected.smes), color: CHART_COLORS.success },
+                                        // Completed against required support, the same figure as the card and the dashboard.
+                                        { label: t('Completed ({completed}/{required})', undefined, { completed: selected.completed, required: selected.required }), value: selected.completion ?? 0, color: healthColor(selected.completion ?? 0) },
+                                        { label: t('Overdue ({count})', undefined, { count: selected.overdue }), value: percent(selected.overdue, selected.required) ?? 0, color: CHART_COLORS.danger },
+                                        { label: t('High risk SMEs ({count})', undefined, { count: selected.highRisk }), value: percent(selected.highRisk, selected.smes) ?? 0, color: CHART_COLORS.danger },
+                                        { label: t('Medium risk SMEs ({count})', undefined, { count: selected.mediumRisk }), value: percent(selected.mediumRisk, selected.smes) ?? 0, color: CHART_COLORS.amber },
+                                        { label: t('Low risk SMEs ({count})', undefined, { count: selected.lowRisk }), value: percent(selected.lowRisk, selected.smes) ?? 0, color: CHART_COLORS.success },
                                     ].map((step) => (
                                         <div key={step.label}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>

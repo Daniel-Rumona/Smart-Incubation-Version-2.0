@@ -87,6 +87,7 @@ export const IdentityProvider = ({ children }: PropsWithChildren) => {
           consultingBudget: typeof profile?.consultingBudget === 'number' ? profile.consultingBudget : undefined,
           smeOnboardingComplete: profile?.smeOnboardingComplete !== false,
           smeJourney: role === 'incubatee' ? resolveSmeJourney(profile, isApplicant) : undefined,
+          showProgrammes: profile?.smeShowProgrammes === true,
           pendingProgramId: role === 'incubatee' ? pendingProgramIdFrom(profile) : null,
         })
         setError(undefined)
@@ -110,22 +111,37 @@ export const IdentityProvider = ({ children }: PropsWithChildren) => {
       if (!data) return
       setUser((current) => {
         if (!current || current.uid !== uid) return current
-        const permissions = resolveIdentityPermissions(current.role, data.permissions)
+        // Welcome can change a self-registered user's provisional SME role to consultant.
+        // Keep the in-memory identity in sync immediately rather than waiting for a reload.
+        const role = isUserRole(data.role) ? data.role : current.role
+        const roleFields: Partial<FullIdentity> = role === current.role
+          ? {}
+          : { role, isApplicant: role === 'incubatee' ? current.isApplicant : false }
+        const effectiveRole = roleFields.role ?? current.role
+        const permissions = resolveIdentityPermissions(effectiveRole, data.permissions)
         const permissionsUnchanged = permissions.length === current.permissions.length && permissions.every((permission) => current.permissions.includes(permission))
 
         // Joining a programme (server-side) changes the SME's journey, company and programmes mid-session.
-        const smeFields: Partial<FullIdentity> = current.role === 'incubatee'
+        const smeFields: Partial<FullIdentity> = effectiveRole === 'incubatee'
           ? {
             smeJourney: resolveSmeJourney(data, current.isApplicant),
+            showProgrammes: data.smeShowProgrammes === true,
             pendingProgramId: pendingProgramIdFrom(data),
             companyCode: typeof data.companyCode === 'string' ? data.companyCode : current.companyCode,
             assignedProgramIds: Array.isArray(data.assignedProgramIds) ? data.assignedProgramIds.filter((id: unknown): id is string => typeof id === 'string') : current.assignedProgramIds,
             smeOnboardingComplete: data.smeOnboardingComplete !== false,
           }
           : {}
+        const verificationFields: Partial<FullIdentity> = {
+          emailVerified: current.emailVerified || data.emailVerified === true,
+        }
+        const roleUnchanged = Object.entries(roleFields).every(([key, value]) => value === current[key as keyof FullIdentity])
         const smeUnchanged = Object.entries(smeFields).every(([key, value]) => JSON.stringify(value) === JSON.stringify(current[key as keyof FullIdentity]))
+        const verificationUnchanged = verificationFields.emailVerified === current.emailVerified
 
-        return permissionsUnchanged && smeUnchanged ? current : { ...current, permissions, ...smeFields }
+        return permissionsUnchanged && roleUnchanged && smeUnchanged && verificationUnchanged
+          ? current
+          : { ...current, ...roleFields, permissions, ...smeFields, ...verificationFields }
       })
     }, () => undefined)
   }, [uid])

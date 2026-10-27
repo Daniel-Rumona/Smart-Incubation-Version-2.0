@@ -8,7 +8,13 @@ export type WorkspaceProgram = {
   name: string
   agentSupportMode?: AgentSupportMode
   openToExternalSmes?: boolean
+  /** 'Incubation' or 'Training' (older programmes may hold other types). */
+  type?: string
 }
+
+/** Training programmes only deliver a set list, so their SMEs get a smaller workspace. */
+export const isTrainingProgram = (program?: Pick<WorkspaceProgram, 'type'> | null) =>
+  String(program?.type || '').trim().toLowerCase() === 'training'
 
 export type AgentSupportMode = 'simultaneous' | 'post_diagnostic' | 'fully_agentic'
 
@@ -60,6 +66,7 @@ export const listWorkspacePrograms = async (user?: FullIdentity | null) => {
       id: row.id,
       name: data.name || row.id,
       agentSupportMode: normalizeAgentSupportMode(data),
+      type: typeof data.type === 'string' ? data.type : undefined,
     }]
   }).sort((left, right) => left.name.localeCompare(right.name))
 }

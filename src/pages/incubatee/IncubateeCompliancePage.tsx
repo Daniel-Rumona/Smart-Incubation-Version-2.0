@@ -30,6 +30,7 @@ import {
     type MyCompliance,
     type MyComplianceDocument,
 } from '@/services/incubateeComplianceService'
+import { ModalActions } from '@/components/shared/ModalActions'
 import '@/styles/incubatee.css'
 import '@/styles/incubatee-compliance.css'
 
@@ -404,12 +405,13 @@ export const DocumentHub = () => {
                 open={Boolean(active)}
                 title={active ? (active.url ? t('Update {name}', undefined, { name: t(active.name) }) : t('Upload {name}', undefined, { name: t(active.name) })) : null}
                 onClose={closeModal}
-                footer={[
-                    <Button key="cancel" onClick={closeModal} disabled={saving}>{t('Cancel')}</Button>,
-                    <Button key="save" type="primary" loading={saving} disabled={!canSave} onClick={() => void save()}>
-                        {file || !active?.url ? t('Upload') : t('Save dates')}
-                    </Button>,
-                ]}
+                footer={(
+                    <ModalActions>
+                        <Button type="primary" loading={saving} disabled={!canSave} onClick={() => void save()}>
+                            {file || !active?.url ? t('Upload') : t('Save dates')}
+                        </Button>
+                    </ModalActions>
+                )}
             >
                 {active && (
                     <div className="compliance-modal">

@@ -108,7 +108,6 @@ const PreviewSurveyBody = ({ open, title, description, fields, onClose }: Previe
             {questions.length === 0 ? (
                 <div className="survey-preview-empty">
                     <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('This survey has no questions yet')} />
-                    <Button onClick={onClose}>{t('Close')}</Button>
                 </div>
             ) : (
                 <SurveyQuestionFrame

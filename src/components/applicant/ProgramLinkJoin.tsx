@@ -33,7 +33,7 @@ export const ProgramLinkJoin = ({ compact = false }: { compact?: boolean }) => {
             setBusy(true)
             const found = await getProgramLinkInfo(programId)
             if (!found.selfApplication) setError(t('This organisation registers its own SMEs. Please contact the programme team.'))
-            else if (!found.open) setError(t('This programme is not accepting applications right now.'))
+            else if (!found.open) setError(t(found.direct ? 'This programme is not taking new SMEs right now.' : 'This programme is not accepting applications right now.'))
             else setInfo(found)
         } catch (cause) {
             setError(callableMessage(cause, t('That programme link could not be found.')))
@@ -73,7 +73,7 @@ export const ProgramLinkJoin = ({ compact = false }: { compact?: boolean }) => {
                     type="success"
                     showIcon
                     message={t('{programme}, offered by {company}', undefined, { programme: info.programName, company: info.companyName || '' })}
-                    action={<Button type="primary" size="small" loading={busy} onClick={() => void join()}>{t('Join and apply')}</Button>}
+                    action={<Button type="primary" size="small" loading={busy} onClick={() => void join()}>{t(info.direct ? 'Join' : 'Join and apply')}</Button>}
                 />
             )}
         </div>

@@ -336,3 +336,46 @@ html[data-theme='dark'] .business-profile-tag {
         transform: none;
     }
 }
+
+/* =========================================================
+   APPLICANT SETUP (first visit)
+   The same header and notices, then the steps as a list beside the form: each step saves as it goes, and
+   the list shows what's done and how much is left. Once the profile is complete the page shows the sections.
+   ========================================================= */
+
+.business-profile-notice.is-ai { border-color: var(--business-profile-border); border-width: 1px; }
+.business-profile-notice.is-ready { border-color: #15803D; }
+.business-profile-notice.is-ready .business-profile-notice-icon { color: #15803D; }
+html[data-theme='dark'] .business-profile-notice.is-ready { border-color: #34d399; }
+html[data-theme='dark'] .business-profile-notice.is-ready .business-profile-notice-icon { color: #34d399; }
+
+.applicant-setup.ant-card { border: 1px solid var(--business-profile-border); border-radius: 14px; animation: business-profile-fade-in 260ms var(--business-profile-ease) 80ms both; }
+.applicant-setup-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 24px; align-items: start; }
+.applicant-setup-steps { display: grid; gap: 2px; position: sticky; top: 12px; }
+.applicant-setup-step {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    padding: 9px 10px; border: 0; border-radius: 10px; background: transparent;
+    color: inherit; font: inherit; text-align: left; cursor: pointer;
+    transition: background-color 160ms ease, color 160ms ease;
+}
+.applicant-setup-step:hover { background: var(--ant-color-fill-quaternary); }
+.applicant-setup-step:focus-visible { outline: 2px solid var(--business-profile-accent); outline-offset: 1px; }
+.applicant-setup-step.is-current { background: rgba(109, 93, 251, 0.12); color: var(--business-profile-accent); font-weight: 600; }
+.applicant-setup-step.is-done { color: var(--business-profile-muted); }
+.applicant-setup-step.is-done .applicant-setup-step-icon { color: #15803D; }
+html[data-theme='dark'] .applicant-setup-step.is-done .applicant-setup-step-icon { color: #34d399; }
+.applicant-setup-step-icon { display: inline-flex; font-size: 16px; }
+.applicant-setup-step-label { flex: 1; min-width: 0; }
+.applicant-setup-step-left { flex: none; font-size: 11.5px; font-weight: 600; color: #b45309; }
+html[data-theme='dark'] .applicant-setup-step-left { color: #fbbf24; }
+
+.applicant-setup-form { min-width: 0; }
+.applicant-setup-step-head { display: grid; gap: 2px; margin-bottom: 16px; }
+.applicant-setup-step-title { font-size: 16px; }
+.applicant-setup-footer { display: flex; gap: 10px; margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--business-profile-border); }
+.applicant-setup-footer .applicant-setup-save { flex: 1; }
+
+@media (max-width: 767px) {
+    .applicant-setup-layout { grid-template-columns: 1fr; gap: 16px; }
+    .applicant-setup-footer { flex-direction: column-reverse; }
+}

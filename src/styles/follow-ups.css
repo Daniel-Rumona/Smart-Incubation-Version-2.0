@@ -1,0 +1,16 @@
+/* Follow-ups to chase (src/components/interventions/FollowUpsToChaseCard.tsx), on Interventions > Monitoring. */
+.follow-ups-figures { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.follow-ups-figures > div { display: grid; gap: 2px; padding: 12px 14px; border-radius: 12px; background: var(--ant-color-fill-quaternary); }
+.follow-ups-figures strong { font-size: 24px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.follow-ups-figures span { font-weight: 600; font-size: 13px; }
+.follow-ups-figures small { color: var(--ant-color-text-secondary); font-size: 12px; }
+.follow-ups-figures > div.is-risk strong { color: var(--ant-color-error); }
+
+/* Disputed outcomes: achieved per the facilitator, "No" per the SME. */
+.follow-ups-disputes { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin-top: 14px; }
+.follow-ups-disputes > div { display: grid; gap: 2px; padding: 12px 14px; border: 1px solid var(--ant-color-error-border); border-radius: 12px; background: var(--ant-color-error-bg); }
+.follow-ups-disputes-title { display: block; margin-top: 16px; }
+
+@media (max-width: 767px) {
+  .follow-ups-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

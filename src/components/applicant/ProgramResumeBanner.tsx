@@ -76,10 +76,12 @@ export const ProgramResumeBanner = () => {
             type="info"
             showIcon
             message={t('You started joining {programme}', undefined, { programme: info.programName })}
-            description={info.companyName ? t('Offered by {company}. Continue to apply, or carry on using the platform on your own.', undefined, { company: info.companyName }) : t('Continue to apply, or carry on using the platform on your own.')}
+            description={info.direct
+                ? (info.companyName ? t('Offered by {company}. There is no application: continue to join, or carry on using the platform on your own.', undefined, { company: info.companyName }) : t('There is no application: continue to join, or carry on using the platform on your own.'))
+                : (info.companyName ? t('Offered by {company}. Continue to apply, or carry on using the platform on your own.', undefined, { company: info.companyName }) : t('Continue to apply, or carry on using the platform on your own.'))}
             action={
                 <Space direction="vertical" size={4}>
-                    <Button type="primary" size="small" loading={busy} onClick={() => void resume()}>{t('Continue application')}</Button>
+                    <Button type="primary" size="small" loading={busy} onClick={() => void resume()}>{t(info.direct ? 'Continue joining' : 'Continue application')}</Button>
                     <Button size="small" onClick={notNow}>{t('Not now')}</Button>
                     <Button type="link" size="small" onClick={decline}>{t("Don't join")}</Button>
                 </Space>

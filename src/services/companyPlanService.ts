@@ -15,7 +15,7 @@ export const getCompanyPlan = async (companyCode: string): Promise<CompanyPlan> 
 
 /** Platform admins only (the Firestore rules enforce this too). Choosing `legacy` removes the plan record. */
 export const saveCompanyPlan = async (user: FullIdentity, companyCode: string, plan: CompanyPlan) => {
-  if (!['systemadmin', 'admin'].includes(user.role)) throw new Error('forbidden')
+  if (user.role !== 'systemadmin') throw new Error('forbidden')
   const ref = doc(getFirebaseDb(), 'companies', companyCode)
   if (plan.tier === 'legacy') {
     await updateDoc(ref, { subscription: deleteField(), updatedAt: serverTimestamp(), updatedByUid: user.uid })
@@ -39,7 +39,7 @@ export const getPlanFeatures = async (): Promise<PlanFeatures> => {
  * describes the whole set. Cloud Functions and the AI backend cache it for up to a minute.
  */
 export const savePlanFeatures = async (user: FullIdentity, planFeatures: PlanFeatures) => {
-  if (!['systemadmin', 'admin'].includes(user.role)) throw new Error('forbidden')
+  if (user.role !== 'systemadmin') throw new Error('forbidden')
   await setDoc(doc(getFirebaseDb(), 'systemSettings', 'plans'), {
     tiers: Object.fromEntries(PLAN_TIERS.map((tier) => [tier, { features: planFeatures[tier].filter(isFeatureKey) }])),
     updatedAt: serverTimestamp(),

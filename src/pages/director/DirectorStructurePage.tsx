@@ -15,6 +15,7 @@ import { listDirectorOrgUnits, saveDirectorOrgUnit } from '@/services/directorSt
 import { useRegisterAgentPageContext } from '@/shared/hooks/useRegisterAgentPageContext'
 import type { SystemSettingsRecord } from '@/types/companySettings'
 import type { DirectorOrgUnit, DirectorOrgUnitStatus, DirectorOrgUnitType } from '@/types/director'
+import { singleActionFooter } from '@/components/shared/modalFooter'
 import '@/styles/dashboard.css'
 import '@/styles/director.css'
 
@@ -231,6 +232,7 @@ export const DirectorStructurePage = () => {
         open={modalOpen}
         title={`${editing ? t('common.edit', 'Edit') : t('director.structure.add', 'Add')} ${unitLabel}`}
         okText={t('common.save', 'Save')}
+        {...singleActionFooter()}
         confirmLoading={saving}
         onOk={submit}
         onCancel={() => setModalOpen(false)}

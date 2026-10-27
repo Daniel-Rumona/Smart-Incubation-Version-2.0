@@ -14,7 +14,7 @@ export type WorkspaceCompany = {
 export const PLATFORM_OWNER_CODE = 'QTX'
 const PLATFORM_OWNER_NAME = 'Quantilytix'
 
-const ADMIN_ROLES = new Set(['systemadmin', 'admin'])
+const ADMIN_ROLES = new Set(['systemadmin'])
 
 export const isPlatformAdmin = (user?: FullIdentity | null) => Boolean(user && ADMIN_ROLES.has(user.role))
 
@@ -28,6 +28,13 @@ const rawCompanyCode = (user?: CompanyScoped | null) => String(user?.companyCode
  * owner (QTX), which is the workspace that monitors and funds them.
  */
 export const resolveSmeCompanyCode = (user?: CompanyScoped | null) => rawCompanyCode(user) || PLATFORM_OWNER_CODE
+
+/**
+ * The workspace someone's records live in, matching myCompany() in firestore.rules: their own company, or the
+ * platform owner (QTX) for independent SMEs and freelance consultants, who have none. Staff get no fallback.
+ */
+export const workspaceCompanyCode = (user?: CompanyScoped | null) =>
+  rawCompanyCode(user) || (user?.role === 'incubatee' || user?.role === 'consultant' ? PLATFORM_OWNER_CODE : '')
 
 /** An SME in the platform owner's fallback bucket: independent, not in a company's program pipeline. */
 export const isPlatformOwnerSme = (user?: CompanyScoped | null) =>

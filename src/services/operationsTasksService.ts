@@ -39,7 +39,7 @@ export type OperationsTaskInput = Omit<OperationsTask, 'id' | 'companyCode' | 'c
 
 const assertTaskAccess = (user: FullIdentity) => {
   if (!user.companyCode) throw new Error('missing-company')
-  if (!['systemadmin', 'admin', 'projectadmin', 'projectmanager', 'operations'].includes(user.role)) throw new Error('forbidden')
+  if (!['systemadmin', 'projectadmin', 'projectmanager', 'operations'].includes(user.role)) throw new Error('forbidden')
 }
 
 export const subscribeOperationsTasks = (user: FullIdentity, onChange: (tasks: OperationsTask[]) => void, onError: (error: Error) => void): Unsubscribe => {

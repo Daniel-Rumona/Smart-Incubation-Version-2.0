@@ -20,6 +20,7 @@ import { OUTCOME_TYPE_OPTIONS, cleanOutcomeDefinition, suggestOutcomeDefaults } 
 import { hasOutcomeCheckBack, suggestOutcomeCheckBacks, type OutcomeMigrationSuggestion } from '@/services/interventionOutcomeMigrationService'
 import { isAgentApiConfigured } from '@/config/agent'
 import { useLanguage, tr } from '@/providers/LanguageProvider'
+import { ModalActions } from '@/components/shared/ModalActions'
 
 type RecurrenceUnit = 'day' | 'week' | 'month' | 'year'
 type RecurrencePreset = 'weekly' | 'monthly' | 'quarterly' | 'yearly' | 'custom'
@@ -991,10 +992,9 @@ export const InterventionsSetupPage = () => {
                         }]}
                     />
 
-                    <Space style={{ justifyContent: 'flex-end', width: '100%' }}>
-                        <Button onClick={() => setModalOpen(false)}>{t('Cancel')}</Button>
+                    <ModalActions>
                         <Button type="primary" htmlType="submit" loading={loading}>{t('Save intervention')}</Button>
-                    </Space>
+                    </ModalActions>
                 </Form>
             </Modal>
 

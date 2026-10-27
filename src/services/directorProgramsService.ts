@@ -30,7 +30,8 @@ const toIsoDate = (value: unknown) => {
 const normalizeStatus = (value: unknown) => String(value || '').trim().toLowerCase()
 const isAccepted = (row: AnyDoc) => ['accepted', 'approved', 'onboarded', 'enrolled'].includes(normalizeStatus(row.applicationStatus || row.status))
 const isCompleted = (row: AnyDoc) => normalizeStatus(row.status) === 'completed' || normalizeStatus(row.completionStatus) === 'completed' || toNumber(row.progress) >= 100
-const isOverdue = (row: AnyDoc) => {
+// Shared with the director dashboard's overdue list so its count and items always match these figures.
+export const isOverdue = (row: AnyDoc) => {
   const due = toIsoDate(row.dueDate)
   return !!due && dayjs(due).isBefore(dayjs(), 'day') && !isCompleted(row)
 }
@@ -41,6 +42,8 @@ const programStatus = (row: AnyDoc) => String(row.status || (row.isActive ? 'act
 export const listDirectorProgramPerformance = async (
   user: FullIdentity,
   activeProgramId?: string,
+  // Callers that already loaded the portfolio (the director dashboard) pass it in to skip reading it twice.
+  loadedPortfolio?: DirectorPortfolioSme[],
 ): Promise<DirectorProgramPerformance[]> => {
   // Directors only ever see their own company; without a company code return nothing rather than everything.
   const companyCode = String(user.companyCode || '').trim()
@@ -53,7 +56,7 @@ export const listDirectorProgramPerformance = async (
     getDocs(query(collection(db, 'programs'), ...companyConstraint)),
     getDocs(query(collection(db, 'applications'), ...companyConstraint)),
     getDocs(query(collection(db, 'assignedInterventions'), ...companyConstraint)),
-    listDirectorPortfolio(user, activeProgramId),
+    loadedPortfolio || listDirectorPortfolio(user, activeProgramId),
   ])
 
   const scopedPrograms: ProgramDoc[] = programsSnap.docs

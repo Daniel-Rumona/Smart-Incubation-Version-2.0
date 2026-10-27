@@ -6,6 +6,7 @@ import ResponsiveModal from '@/components/shared/ResponsiveModal'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { useLanguage } from '@/providers/LanguageProvider'
 import { requestInterventionChange, type ChangeRequestType } from '@/services/interventionOverrideService'
+import { ModalActions } from '@/components/shared/ModalActions'
 
 const { Text } = Typography
 
@@ -70,7 +71,7 @@ export function ChangeRequestModal({ assignment, onClose, onSent }: Props) {
             title={t('Ask operations to extend or close')}
             width={520}
             centered
-            footer={<Space><Button onClick={close}>{t('Cancel')}</Button><Button type="primary" loading={saving} onClick={() => void send()}>{t('Send request')}</Button></Space>}
+            footer={<ModalActions><Button type="primary" loading={saving} onClick={() => void send()}>{t('Send request')}</Button></ModalActions>}
         >
             {assignment && (
                 <Space direction="vertical" size={14} style={{ width: '100%' }}>

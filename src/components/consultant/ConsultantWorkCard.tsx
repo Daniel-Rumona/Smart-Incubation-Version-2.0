@@ -1,7 +1,7 @@
 import { Card, Space, Tag, Typography } from 'antd'
 import { AimOutlined } from '@ant-design/icons'
 import { useLanguage } from '@/providers/LanguageProvider'
-import { areasFor, hoursFor, useCompanyWorkSettings } from '@/services/companyWorkSettingsService'
+import { areasFor, coversAllAreas, hoursFor, useCompanyWorkSettings } from '@/services/companyWorkSettingsService'
 import '@/styles/week-hours.css'
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -15,6 +15,7 @@ export const ConsultantWorkCard = ({ uid, companyCode }: { uid: string; companyC
     const { t } = useLanguage()
     const settings = useCompanyWorkSettings(companyCode)
     const areas = areasFor(settings, uid)
+    const allAreas = coversAllAreas(settings, uid)
     const { windows, source } = hoursFor(settings, uid)
 
     return (
@@ -22,9 +23,11 @@ export const ConsultantWorkCard = ({ uid, companyCode }: { uid: string; companyC
             <Space direction="vertical" size={16} style={{ width: '100%' }}>
                 <div>
                     <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>{t('Areas of support')}</Typography.Text>
-                    {areas.length
-                        ? <Space size={[6, 6]} wrap>{areas.map((area) => <Tag key={area}>{area}</Tag>)}</Space>
-                        : <Typography.Text type="secondary">{t('None set yet.')}</Typography.Text>}
+                    {allAreas
+                        ? <Tag>{t('All areas')}</Tag>
+                        : areas.length
+                            ? <Space size={[6, 6]} wrap>{areas.map((area) => <Tag key={area}>{area}</Tag>)}</Space>
+                            : <Typography.Text type="secondary">{t('None set yet. You can only pick up work once operations add your areas.')}</Typography.Text>}
                 </div>
                 <div>
                     <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>

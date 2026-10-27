@@ -32,9 +32,14 @@ type AppointmentDetailModalProps<T extends CalendarAppointment> = {
     open: boolean
     appointment?: T
     onClose: () => void
-    onComplete: (appointment: T) => void
-    /** Offered for declined appointments and open reschedule requests. */
+    /** Omit for roles that don't deliver the intervention (reception). */
+    onComplete?: (appointment: T) => void
+    /** Offered for declined appointments and open reschedule requests (any open appointment with `rescheduleAnytime`). */
     onReschedule?: (appointment: T) => void
+    /** Reception moves bookings on request, so it may reschedule any appointment that isn't finished. */
+    rescheduleAnytime?: boolean
+    /** Marks a pending appointment confirmed, e.g. after reception phoned the SME. */
+    onConfirm?: (appointment: T) => void
     /** Offered when the SME no longer needs the intervention; omit for roles that cannot assign interventions. */
     onReviewIntervention?: (appointment: T) => void
 }
@@ -43,13 +48,14 @@ type AppointmentDetailModalProps<T extends CalendarAppointment> = {
  * Appointment details live in a modal rather than beside the day list: the right rail is only wide
  * enough for one job, and reading a meeting's details is a deliberate act, not ambient context.
  */
-export function AppointmentDetailModal<T extends CalendarAppointment>({ open, appointment, onClose, onComplete, onReschedule, onReviewIntervention }: AppointmentDetailModalProps<T>) {
+export function AppointmentDetailModal<T extends CalendarAppointment>({ open, appointment, onClose, onComplete, onReschedule, rescheduleAnytime, onConfirm, onReviewIntervention }: AppointmentDetailModalProps<T>) {
     const { t } = useLanguage()
     const start = appointment ? toDayjs(appointment.startTime) : null
     const canComplete = appointment ? ['accepted', 'pending'].includes(appointment.status) : false
     const rescheduleAsk = openRescheduleRequestSummary(appointment?.rescheduleRequest)
     const dropRequested = isInterventionDropRequest(appointment)
-    const canReschedule = Boolean(appointment && onReschedule && !dropRequested && (appointment.status === 'declined' || (rescheduleAsk && ['pending', 'accepted'].includes(appointment.status))))
+    const canReschedule = Boolean(appointment && onReschedule && !dropRequested && (appointment.status === 'declined'
+        || ((rescheduleAsk || rescheduleAnytime) && ['pending', 'accepted'].includes(appointment.status))))
 
     const actionButtons = [
         dropRequested && appointment && onReviewIntervention
@@ -58,7 +64,10 @@ export function AppointmentDetailModal<T extends CalendarAppointment>({ open, ap
         canReschedule && appointment && onReschedule
             ? <Button key="reschedule" type="primary" icon={<RedoOutlined />} onClick={() => onReschedule(appointment)}>{t('Reschedule')}</Button>
             : null,
-        canComplete && appointment
+        appointment && onConfirm && appointment.status === 'pending'
+            ? <Button key="confirm" icon={<CheckCircleOutlined />} onClick={() => onConfirm(appointment)}>{t('Mark confirmed')}</Button>
+            : null,
+        canComplete && appointment && onComplete
             ? <Button key="complete" type="primary" icon={<CheckCircleOutlined />} onClick={() => onComplete(appointment)}>{t('Complete intervention')}</Button>
             : null,
     ].filter(Boolean)

@@ -298,6 +298,19 @@ export const computeContribution = (kpi: Kpi, data: KpiData, period: KpiPeriod, 
     return computeActual(kpi, { assignments: data.assignments.filter(isMine), appointments: data.appointments.filter((row) => !!uid && normalize(row.assigneeId) === uid) }, period, user, programId)
 }
 
+/** A consultant's own open interventions past their due date, so the Overdue KPI can link straight to them. */
+export const myOverdueAssignmentIds = (data: KpiData, user: FullIdentity | null, programId: string | null) => {
+    if (!user) return []
+    const uid = normalize(user.uid)
+    const email = normalize(user.email)
+    const today = dayjs().startOf('day')
+    return data.assignments
+        .filter((row) => (!!uid && normalize(row.assigneeId) === uid) || (!!email && normalize(row.assigneeEmail) === email))
+        .filter((row) => matchesActiveProgram(user, programId || 'all', String(row.programId || '')))
+        .filter((row) => !isCompleted(row) && !isDeclined(row) && toDate(row.dueDate) && dayjs(toDate(row.dueDate)).isBefore(today))
+        .map((row) => row.id)
+}
+
 // ---------------------------------------------------------------------------
 // Status
 // ---------------------------------------------------------------------------
@@ -321,4 +334,4 @@ export const statusFor = (kpi: Kpi, actual: KpiActual, target: number | null, pe
     return { status: 'behind', pace: null }
 }
 
-export const canEditKpis = (role?: string) => ['operations', 'director', 'admin', 'systemadmin'].includes(String(role || ''))
+export const canEditKpis = (role?: string) => ['operations', 'director', 'systemadmin'].includes(String(role || ''))

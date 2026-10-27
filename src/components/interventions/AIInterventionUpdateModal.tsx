@@ -7,6 +7,7 @@ import type { AiReview, InterventionRow, ProgressUpdateForm, UpdateMode } from '
 import { deliverableLabel } from '@/services/interventionOutcomeConfig'
 import { EVIDENCE_ACCEPT, evidenceFileProblem } from '@/services/interventionOverrideService'
 import { useLanguage, tr } from '@/providers/LanguageProvider'
+import { ModalActions } from '@/components/shared/ModalActions'
 
 const { Text, Paragraph } = Typography
 
@@ -191,9 +192,11 @@ export const AIInterventionUpdateModal = ({ open, row, mode, saving, onCancel, o
       onCancel={resetAndClose}
       // One full-width action; closing is the X. It submits the form below.
       footer={row ? (
-        <Button type="primary" icon={<SaveOutlined />} loading={saving || analysing} disabled={activeMode === 'ai' && !review} onClick={() => form.submit()}>
-          {t('Apply update')}
-        </Button>
+        <ModalActions>
+          <Button type="primary" icon={<SaveOutlined />} loading={saving || analysing} disabled={activeMode === 'ai' && !review} onClick={() => form.submit()}>
+            {t('Apply update')}
+          </Button>
+        </ModalActions>
       ) : null}
       width={900}
       destroyOnClose

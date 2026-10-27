@@ -5,6 +5,7 @@ import { sendSurveyToParticipants, type SurveyTemplate } from '@/services/survey
 import { listSendableParticipants, type ParticipantOption } from '@/services/surveyResponsesService'
 import type { WorkspaceProgram } from '@/services/workspaceProgramsService'
 import { useLanguage } from '@/providers/LanguageProvider'
+import { singleActionFooter } from '@/components/shared/modalFooter'
 
 type SendSurveyModalProps = {
     open: boolean
@@ -91,7 +92,7 @@ export const SendSurveyModal = ({ open, templates, programs, companyCode, onClos
             okText={t('Send')}
             confirmLoading={sending}
             onOk={() => void send()}
-            okButtonProps={{ disabled: !template || !selectedIds.length }}
+            {...singleActionFooter({ disabled: !template || !selectedIds.length })}
         >
             <Select
                 className="survey-response-control"

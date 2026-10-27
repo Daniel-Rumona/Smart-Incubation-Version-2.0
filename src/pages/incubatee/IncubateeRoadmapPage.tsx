@@ -1,51 +1,28 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
     Alert,
-    Avatar,
-    Badge,
     Button,
     Card,
-    Col,
-    Collapse,
-    Drawer,
-    Empty,
-    Grid,
+
     Input,
-    List,
     Progress,
     Rate,
-    Row,
-    Segmented,
-    Select,
     Space,
-    Statistic,
     Tag,
-    Timeline,
     Typography,
     Upload,
     message,
 } from "antd";
-import type { CollapseProps } from "antd";
 import {
-    AuditOutlined,
-    BankOutlined,
+    BulbOutlined,
     CheckCircleOutlined,
-    ClockCircleOutlined,
-    FileProtectOutlined,
-    FundProjectionScreenOutlined,
     InboxOutlined,
-    MessageOutlined,
-    ProjectOutlined,
-    RiseOutlined,
-    SafetyCertificateOutlined,
-    SearchOutlined,
+    RobotOutlined,
     SendOutlined,
     TeamOutlined,
-    ThunderboltOutlined,
     UserOutlined,
 } from "@ant-design/icons";
 import { Helmet } from "react-helmet";
-import Highcharts from "highcharts";
 import {
     Timestamp,
     addDoc,
@@ -60,24 +37,26 @@ import {
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { auth, db, storage } from "@/firebase";
-import { MotionCard } from "@/components/shared/Header";
 import { PageSkeleton } from "@/components/shared/PageSkeleton";
-import DashboardHeader from "@/components/shared/DashboardHeader";
-import { ThemedHighcharts } from "@/components/shared/ThemedHighcharts";
 import { agentApiBaseUrl, isAgentApiConfigured } from "@/config/agent";
 import { getAgentAuthHeaders } from "@/services/agentAuth";
 
 import { useActiveProgramId } from "@/lib/useActiveProgramId";
 import { useFullIdentity } from "@/hooks/useFullIdentity";
-import { loadIncubateeWorkspace } from "@/services/incubateeWorkspaceService";
-import type { IncubateeIntervention, IncubateeWorkspace } from "@/types/incubatee";
-import { useLanguage, tr } from '@/providers/LanguageProvider'
+import { useNavigate } from "react-router-dom";
+import { workspaceCompanyCode } from "@/services/companiesService";
+import { loadSmeWork, type SmeWork } from "@/services/smeWorkService";
+import { listConnectionRequestsForSme } from "@/services/connectionRequestService";
+import type { ConnectionRequest } from "@/types/connectionRequest";
+import { loadSavedSuggestions, requestSuggestions, type SavedSuggestions } from "@/services/roadmapSuggestionsService";
+import DashboardPage from "@/components/shared/DashboardPage";
+import ResponsiveModal from "@/components/shared/ResponsiveModal";
+import { useLanguage } from '@/providers/LanguageProvider'
+import "@/styles/roadmap.css";
 
-const { Title, Text, Paragraph } = Typography;
+const { Text, Paragraph } = Typography;
 const { TextArea } = Input;
-const { useBreakpoint } = Grid;
 
-type ViewMode = "roadmap" | "projections" | "agents" | "history";
 type AgentCategory =
     | "compliance"
     | "finance"
@@ -202,57 +181,6 @@ type AgentDocument = {
     currentStatus?: string | null;
 };
 
-const stageLabel = (stage?: string | null) => {
-    const labels: Record<string, string> = {
-        idea: "Idea Stage",
-        startup: "Startup",
-        early_growth: "Early Growth",
-        struggling: "Struggling",
-        scaling: "Scaling",
-        market_ready: "Market Ready",
-    };
-
-    return labels[stage || ""] || "Not classified";
-};
-
-const statusLabel = (status?: string) => {
-    const labels: Record<string, string> = {
-        program_recommended: "Programme Recommended",
-        agent_help_requested: "Agent Support Requested",
-        temporary_draft: "Draft",
-    };
-
-    return labels[status || ""] || "Submitted";
-};
-
-const urgencyColor = (level?: string | null) => {
-    if (level === "urgent") return "red";
-    if (level === "high") return "volcano";
-    if (level === "medium") return "gold";
-    if (level === "low") return "green";
-    return "default";
-};
-
-const riskColor = (level?: string | null) => {
-    if (level === "high") return "red";
-    if (level === "medium") return "gold";
-    if (level === "low") return "green";
-    return "default";
-};
-
-const categoryColor = (category: AgentCategory) => {
-    const colors: Record<AgentCategory, string> = {
-        compliance: "blue",
-        finance: "green",
-        market: "purple",
-        operations: "geekblue",
-        training: "orange",
-        general: "default",
-    };
-
-    return colors[category];
-};
-
 const toMillis = (value: FirestoreDate) => {
     if (!value) return 0;
     if (value instanceof Timestamp) return value.toMillis();
@@ -278,23 +206,6 @@ const weeksFromUrgency = (urgency?: UrgencyLevel) => {
     if (urgency === "high") return 4;
     if (urgency === "medium") return 6;
     return 8;
-};
-
-const urgencyFromDueDate = (dueDate?: FirestoreDate): UrgencyLevel => {
-    const millis = toMillis(dueDate);
-    if (!millis) return "medium";
-    const days = Math.ceil((millis - Date.now()) / 86400000);
-    if (days <= 7) return "urgent";
-    if (days <= 21) return "high";
-    if (days <= 45) return "medium";
-    return "low";
-};
-
-const roadmapStatusFromIntervention = (status: IncubateeIntervention["status"]): RoadmapItem["status"] => {
-    if (status === "Completed") return "completed";
-    if (status === "Declined" || status === "Rejected") return "blocked";
-    if (status === "In Progress" || status === "Awaiting Confirmation") return "in_progress";
-    return "not_started";
 };
 
 const categoryFromText = (value?: string): AgentCategory => {
@@ -334,15 +245,6 @@ const categoryFromText = (value?: string): AgentCategory => {
     )
         return "training";
     return "general";
-};
-
-const iconForCategory = (category: AgentCategory) => {
-    if (category === "compliance") return <SafetyCertificateOutlined />;
-    if (category === "finance") return <BankOutlined />;
-    if (category === "market") return <RiseOutlined />;
-    if (category === "operations") return <ProjectOutlined />;
-    if (category === "training") return <TeamOutlined />;
-    return <UserOutlined />;
 };
 
 const agentNameForCategory = (category: AgentCategory) => {
@@ -495,50 +397,6 @@ const buildRoadmap = (submission?: IntakeSubmission | null): RoadmapItem[] => {
     }));
 };
 
-const buildWorkspaceRoadmap = (workspace?: IncubateeWorkspace | null): RoadmapItem[] => {
-    if (!workspace?.assignedInterventions.length) return [];
-
-    return [...workspace.assignedInterventions]
-        .sort((left, right) => {
-            const leftStatus = roadmapStatusFromIntervention(left.status);
-            const rightStatus = roadmapStatusFromIntervention(right.status);
-            const statusRank: Record<NonNullable<RoadmapItem["status"]>, number> = {
-                in_progress: 0,
-                not_started: 1,
-                blocked: 2,
-                completed: 3,
-            };
-            const statusDelta = statusRank[leftStatus || "not_started"] - statusRank[rightStatus || "not_started"];
-            if (statusDelta) return statusDelta;
-            return (toMillis(left.dueDate) || Number.MAX_SAFE_INTEGER) - (toMillis(right.dueDate) || Number.MAX_SAFE_INTEGER);
-        })
-        .map((item) => {
-            const status = roadmapStatusFromIntervention(item.status);
-            const urgency = urgencyFromDueDate(item.dueDate);
-            return {
-                title: item.title,
-                interventionId: item.interventionId,
-                areaOfSupport: item.areaOfSupport || "General Support",
-                department: item.areaOfSupport || "General Support",
-                urgency,
-                reason: item.assigneeName
-                    ? `Assigned to ${item.assigneeName}${item.dueDate ? `, due ${formatDate(item.dueDate)}` : ""}.`
-                    : item.status === "Pending Assignment"
-                        ? "Confirmed in the diagnostic plan and awaiting assignment."
-                        : "Confirmed in the diagnostic plan.",
-                status,
-                estimatedWeeks: item.dueDate
-                    ? Math.max(1, Math.ceil((toMillis(item.dueDate) - Date.now()) / 604800000))
-                    : weeksFromUrgency(urgency),
-                progress: item.progress || (status === "completed" ? 100 : status === "in_progress" ? 35 : 0),
-                expectedImpact: `Move ${item.areaOfSupport || "support"} work forward through the confirmed growth plan.`,
-                targetOutcome: item.dueDate ? `Complete by ${formatDate(item.dueDate)}.` : "Complete the assigned intervention and capture progress evidence.",
-                dueDate: item.dueDate,
-                source: item.id.startsWith("unassigned-") ? "diagnostic_plan" : "assignment",
-            } satisfies RoadmapItem;
-        });
-};
-
 const buildAgents = (roadmap: RoadmapItem[]): SupportAgent[] => {
     const grouped = new Map<string, SupportAgent>();
 
@@ -622,17 +480,16 @@ const normalizeSupportAgent = (value: Partial<SupportAgent>, index: number): Sup
     };
 };
 
+/** One piece of the SME's real work, as the roadmap shows it (see smeWorkService). */
+type RoadmapWork = SmeWork;
+
 const SMEIntakeRoadmapPage: React.FC = () => {
     const { t } = useLanguage()
-    const screens = useBreakpoint();
     const { activeProgramId, isAllPrograms } = useActiveProgramId();
     const { user } = useFullIdentity();
 
     const [loading, setLoading] = useState(true);
     const [rows, setRows] = useState<IntakeSubmission[]>([]);
-    const [selectedSubmissionId, setSelectedSubmissionId] = useState<string>();
-    const [view, setView] = useState<ViewMode>("roadmap");
-    const [search, setSearch] = useState("");
     const [selectedAgent, setSelectedAgent] = useState<SupportAgent | null>(null);
     const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
     const [chatInput, setChatInput] = useState("");
@@ -642,7 +499,14 @@ const SMEIntakeRoadmapPage: React.FC = () => {
     const [remoteAgents, setRemoteAgents] = useState<SupportAgent[]>([]);
     const [agentDocuments, setAgentDocuments] = useState<AgentDocument[]>([]);
     const [documentUploading, setDocumentUploading] = useState(false);
-    const [workspace, setWorkspace] = useState<IncubateeWorkspace | null>(null);
+    const [work, setWork] = useState<RoadmapWork[]>([]);
+    const [saved, setSaved] = useState<SavedSuggestions | null>(null);
+    const [challenge, setChallenge] = useState("");
+    const [generating, setGenerating] = useState(false);
+    const [askOpen, setAskOpen] = useState(false);
+    const [showDone, setShowDone] = useState(false);
+    const [openedWork, setOpenedWork] = useState<RoadmapWork | null>(null);
+    const navigate = useNavigate();
 
     const userEmail = (
         auth.currentUser?.email ||
@@ -650,47 +514,24 @@ const SMEIntakeRoadmapPage: React.FC = () => {
         ""
     ).toLowerCase();
     const companyCode = user?.companyCode?.trim() || "";
-    const isMobile = !screens.md;
 
     useEffect(() => {
         const loadSubmissions = async () => {
             try {
                 setLoading(true);
 
-                if (!companyCode && !userEmail) {
+                // Only the SME's own intakes: the ones they submitted or that name them as the contact. Never by
+                // company, which would list every other SME in the same workspace (independent SMEs all share QTX).
+                if (!userEmail) {
                     setRows([]);
                     return;
                 }
 
                 const base = collection(db, "smeIntakeSubmissions");
-                const queriesToRun = [];
-
-                if (companyCode) {
-                    queriesToRun.push(
-                        query(
-                            base,
-                            where("companyCode", "==", companyCode),
-                            // orderBy("createdAt", "desc"),
-                        ),
-                    );
-                }
-
-                if (userEmail) {
-                    queriesToRun.push(
-                        query(
-                            base,
-                            where("contactEmail", "==", userEmail),
-                            // orderBy("createdAt", "desc"),
-                        ),
-                    );
-                    queriesToRun.push(
-                        query(
-                            base,
-                            where("createdByEmail", "==", userEmail),
-                            // orderBy("createdAt", "desc"),
-                        ),
-                    );
-                }
+                const queriesToRun = [
+                    query(base, where("contactEmail", "==", userEmail)),
+                    query(base, where("createdByEmail", "==", userEmail)),
+                ];
 
                 const snaps = await Promise.all(
                     queriesToRun.map((item) => getDocs(item)),
@@ -727,7 +568,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                     .sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
 
                 setRows(list);
-                setSelectedSubmissionId((current) => current || list[0]?.id);
+
             } catch (error) {
                 console.error("Failed to load SME intake submissions:", error);
                 message.error(t('Failed to load AI intake roadmap.'));
@@ -738,47 +579,109 @@ const SMEIntakeRoadmapPage: React.FC = () => {
         };
 
         loadSubmissions();
-    }, [activeProgramId, companyCode, isAllPrograms, userEmail, t]);
+    }, [activeProgramId, isAllPrograms, userEmail, t]);
 
-    useEffect(() => {
-        let cancelled = false;
-
-        const loadWorkspace = async () => {
-            if (!user || user.isApplicant) {
-                setWorkspace(null);
-                return;
-            }
-
-            try {
-                const loaded = await loadIncubateeWorkspace(user);
-                if (!cancelled) setWorkspace(loaded);
-            } catch (error) {
-                console.error("Failed to load incubatee workspace roadmap:", error);
-                if (!cancelled) setWorkspace(null);
-            }
-        };
-
-        void loadWorkspace();
-
-        return () => {
-            cancelled = true;
-        };
+    // The SME's real work: interventions assigned to them, from a programme, a consultant's accepted plan, or an AI
+    // agent. Read straight from assignedInterventions by their own ids, so applicants see it too.
+    const loadWork = React.useCallback(async () => {
+        if (!user) return;
+        try {
+            setWork(await loadSmeWork(user));
+        } catch (error) {
+            console.error("Failed to load roadmap work:", error);
+            setWork([]);
+        }
     }, [user]);
 
-    const selectedSubmission = useMemo(() => {
-        return (
-            rows.find((item) => item.id === selectedSubmissionId) || rows[0] || null
-        );
-    }, [rows, selectedSubmissionId]);
+    useEffect(() => { void loadWork(); }, [loadWork]);
 
-    const decision =
-        selectedSubmission?.decision || selectedSubmission?.aiResult?.decision;
-    const workspaceRoadmap = useMemo(() => buildWorkspaceRoadmap(workspace), [workspace]);
-    const roadmap = useMemo(
-        () => workspaceRoadmap.length ? workspaceRoadmap : buildRoadmap(selectedSubmission),
-        [selectedSubmission, workspaceRoadmap],
-    );
-    const localAgents = useMemo(() => dedupeAgents(buildAgents(roadmap)), [roadmap]);
+    // Steps the SME has already asked someone for (Find support's "Use this plan"), so they show as requested.
+    const [requests, setRequests] = useState<ConnectionRequest[]>([]);
+    useEffect(() => {
+        if (!user?.uid) return;
+        let active = true;
+        listConnectionRequestsForSme(user.uid).then((rows) => { if (active) setRequests(rows); }).catch(() => undefined);
+        return () => { active = false; };
+    }, [user?.uid]);
+    const requestedSteps = useMemo(() => {
+        const byStep = new Map<string, ConnectionRequest>();
+        requests.filter((row) => ["pending", "contacted", "proposed"].includes(row.status))
+            .forEach((row) => (row.planSteps || []).forEach((step) => byStep.set(cleanDocumentKey(step), row)));
+        return byStep;
+    }, [requests]);
+
+    // Suggestions the SME asked for, kept on their own account so they survive a reload.
+    useEffect(() => {
+        if (!user?.uid) return;
+        let cancelled = false;
+        loadSavedSuggestions(user.uid)
+            .then((saved) => {
+                if (!cancelled && saved) {
+                    setSaved(saved);
+                    setChallenge(saved.challenge || "");
+                }
+            })
+            .catch(() => undefined);
+        return () => { cancelled = true; };
+    }, [user?.uid]);
+
+    const selectedSubmission = rows[0] || null;
+    const decision = selectedSubmission?.decision || selectedSubmission?.aiResult?.decision;
+    const activeWork = useMemo(() => work
+        .filter((item) => item.state !== "done")
+        .sort((left, right) => (toMillis(left.dueDate) || Number.MAX_SAFE_INTEGER) - (toMillis(right.dueDate) || Number.MAX_SAFE_INTEGER)), [work]);
+    const doneWork = useMemo(() => work.filter((item) => item.state === "done"), [work]);
+    // Suggestions they asked for; failing that, an older AI intake's recommendations. Anything already under way drops out.
+    const suggestionsFromIntake = !saved?.items.length && Boolean(selectedSubmission);
+    const suggestionItems = useMemo(() => {
+        const taken = new Set(work.map((item) => cleanDocumentKey(item.title)));
+        const source: RoadmapItem[] = saved?.items.length ? saved.items as RoadmapItem[] : buildRoadmap(selectedSubmission);
+        return source.filter((item) => item.title && !taken.has(cleanDocumentKey(item.title))).slice(0, 4);
+    }, [saved, selectedSubmission, work]);
+    // What the agents are matched against: the work under way and the suggestions.
+    const roadmap = useMemo<RoadmapItem[]>(() => [
+        ...activeWork.map((item) => ({ title: item.title, department: item.area, areaOfSupport: item.area, progress: item.progress, dueDate: item.dueDate })),
+        ...suggestionItems,
+    ], [activeWork, suggestionItems]);
+    const localAgents = useMemo(() => dedupeAgents([...(saved?.agents || []).map(normalizeSupportAgent), ...buildAgents(roadmap)]), [roadmap, saved]);
+    const canUseMarketplace = user?.role === "incubatee" && user.isApplicant && user.smeJourney === "independent";
+
+    const workStateText = (item: RoadmapWork) => {
+        if (item.state === "done") return t("Done");
+        if (item.state === "waiting_you") return item.waitingOn === "plan" ? t("Waiting for you to sign the plan") : t("Marked done, waiting for you to confirm");
+        if (item.progress > 0) return t("{percent}% done", undefined, { percent: item.progress });
+        return item.state === "in_progress" ? t("Started with the agent") : t("Not started yet");
+    };
+
+    const agentForWork = (item: RoadmapWork) =>
+        agents.find((agent) => agent.id === item.assigneeId)
+        || normalizeSupportAgent({ id: item.assigneeId, name: item.helperName, department: item.area, focus: item.title, matchedInterventionTitle: item.title }, 0);
+    const agentForSuggestion = (item: RoadmapItem) =>
+        agents.find((agent) => agent.matchedInterventionTitle === item.title || agent.matchedInterventionTitles?.includes(item.title))
+        || normalizeSupportAgent({ department: item.department, focus: item.title, matchedInterventionTitle: item.title }, 0);
+
+    // Applicants have no interventions page, so a consultant's work opens here; accepted SMEs go to their interventions.
+    const openWork = (item: RoadmapWork) => {
+        if (user?.isApplicant) setOpenedWork(item);
+        else navigate("/incubatee/interventions");
+    };
+
+    /** The challenge and the business profile go to the AI; the suggestions are saved on the SME's own account. */
+    const generateSuggestions = async () => {
+        if (!user || !challenge.trim()) return;
+        setGenerating(true);
+        try {
+            setSaved(await requestSuggestions(user, challenge, work.map((item) => item.title)));
+            setAskOpen(false);
+            message.success(t("Here are a few places to start."));
+        } catch (error) {
+            console.error("Roadmap suggestions failed:", error);
+            message.error(t("Suggestions couldn’t be made just now. Try again in a moment."));
+        } finally {
+            setGenerating(false);
+        }
+    };
+
 
     useEffect(() => {
         let cancelled = false;
@@ -882,47 +785,6 @@ const SMEIntakeRoadmapPage: React.FC = () => {
         };
     }, [selectedSubmission, user?.uid]);
 
-    const filteredAgents = useMemo(() => {
-        const needle = search.trim().toLowerCase();
-        if (!needle) return agents;
-
-        return agents.filter((agent) => {
-            return [
-                agent.name,
-                agent.title,
-                agent.department,
-                agent.focus,
-                agent.category,
-            ]
-                .join(" ")
-                .toLowerCase()
-                .includes(needle);
-        });
-    }, [agents, search]);
-
-    const totalWeeks = roadmap.reduce(
-        (sum, item) => sum + (item.estimatedWeeks || 0),
-        0,
-    );
-    const averageProgress = roadmap.length
-        ? Math.round(
-            roadmap.reduce((sum, item) => sum + (item.progress || 0), 0) /
-            roadmap.length,
-        )
-        : 0;
-    const completedCount = roadmap.filter(
-        (item) => item.status === "completed",
-    ).length;
-    const estimatedFinishDate = useMemo(() => {
-        const dueDates = roadmap.map((item) => toMillis(item.dueDate)).filter(Boolean);
-        if (dueDates.length) return formatDate(Math.max(...dueDates));
-        if (!selectedSubmission || !totalWeeks) return "Not available";
-        const start = toMillis(selectedSubmission.createdAt) || Date.now();
-        const finish = new Date(start);
-        finish.setDate(finish.getDate() + totalWeeks * 7);
-        return formatDate(finish);
-    }, [roadmap, selectedSubmission, totalWeeks]);
-
     const selectedAgentDocumentStatus = useMemo(() => {
         if (!selectedAgent) return [];
         return selectedAgent.requestedItems.map((item) => {
@@ -990,263 +852,6 @@ const SMEIntakeRoadmapPage: React.FC = () => {
 
         return false;
     };
-
-    const impactChartOptions: Highcharts.Options = useMemo(
-        () => ({
-            chart: { type: "column", backgroundColor: "transparent", height: 320 },
-            title: { text: undefined },
-            credits: { enabled: false },
-            exporting: { enabled: false },
-            xAxis: {
-                categories: roadmap.map((item) => item.title),
-                labels: { style: { fontSize: "11px" } },
-            },
-            yAxis: {
-                min: 0,
-                max: 100,
-                title: { text: tr('Expected Impact / Progress') },
-                labels: { format: "{value}%" },
-            },
-            tooltip: { pointFormat: "<b>{point.y}%</b>" },
-            plotOptions: {
-                series: {
-                    dataLabels: {
-                        enabled: true,
-                        format: "{point.y}%",
-                        crop: false,
-                        overflow: "allow",
-                    },
-                },
-            },
-            series: [
-                {
-                    type: "column",
-                    name: tr('Impact'),
-                    data: roadmap.map((item) =>
-                        Math.max(
-                            35,
-                            item.progress ||
-                            (item.urgency === "urgent"
-                                ? 90
-                                : item.urgency === "high"
-                                    ? 75
-                                    : item.urgency === "medium"
-                                        ? 60
-                                        : 45),
-                        ),
-                    ),
-                },
-            ],
-        }),
-        [roadmap],
-    );
-
-    const projectionSplineOptions: Highcharts.Options = useMemo(() => {
-        const cumulative = roadmap.reduce<number[]>((acc, item, index) => {
-            const previous = acc[index - 1] || 0;
-            const impact =
-                item.urgency === "urgent" ? 28 :
-                    item.urgency === "high" ? 22 :
-                        item.urgency === "medium" ? 16 : 10;
-
-            acc.push(Math.min(100, previous + impact));
-            return acc;
-        }, []);
-
-        return {
-            chart: { type: "spline", backgroundColor: "transparent", height: 340 },
-            title: { text: undefined },
-            credits: { enabled: false },
-            exporting: { enabled: false },
-            xAxis: {
-                categories: roadmap.map((_, index) => `Step ${index + 1}`),
-            },
-            yAxis: {
-                min: 0,
-                max: 100,
-                title: { text: tr('Projected Readiness') },
-                labels: { format: "{value}%" },
-            },
-            tooltip: {
-                pointFormat: "<b>{point.y}% readiness</b>",
-            },
-            plotOptions: {
-                spline: {
-                    marker: {
-                        enabled: true,
-                        radius: 5,
-                    },
-                    dataLabels: {
-                        enabled: true,
-                        format: "{point.y}%",
-                        crop: false,
-                        overflow: "allow",
-                    },
-                },
-            },
-            series: [
-                {
-                    type: "spline",
-                    name: tr('Projected Readiness'),
-                    data: cumulative,
-                },
-            ],
-        };
-    }, [roadmap]);
-
-    const radarOptions: Highcharts.Options = useMemo(() => {
-        const categories = roadmap.map(item => item.department || "General");
-
-        return {
-            chart: {
-                polar: true,
-                type: "line",
-                backgroundColor: "transparent",
-                height: 360,
-            },
-            title: { text: undefined },
-            credits: { enabled: false },
-            exporting: { enabled: false },
-            pane: { size: "75%" },
-            xAxis: {
-                categories,
-                tickmarkPlacement: "on",
-                lineWidth: 0,
-            },
-            yAxis: {
-                gridLineInterpolation: "polygon",
-                min: 0,
-                max: 100,
-                tickInterval: 20,
-                labels: { format: "{value}%" },
-            },
-            tooltip: {
-                pointFormat: "<b>{point.y}%</b>",
-            },
-            plotOptions: {
-                series: {
-                    dataLabels: {
-                        enabled: true,
-                        format: "{point.y}%",
-                        crop: false,
-                        overflow: "allow",
-                    },
-                },
-            },
-            series: [
-                {
-                    type: "line",
-                    name: tr('Impact Strength'),
-                    data: roadmap.map(item =>
-                        item.urgency === "urgent" ? 95 :
-                            item.urgency === "high" ? 82 :
-                                item.urgency === "medium" ? 65 : 48
-                    ),
-                    pointPlacement: "on",
-                },
-                {
-                    type: "line",
-                    name: tr('Current Progress'),
-                    data: roadmap.map(item => item.progress || 0),
-                    pointPlacement: "on",
-                },
-            ],
-        };
-    }, [roadmap]);
-
-    const bubbleOptions: Highcharts.Options = useMemo(() => ({
-        chart: {
-            type: "bubble",
-            plotBorderWidth: 1,
-            backgroundColor: "transparent",
-            height: 360,
-        },
-        title: { text: undefined },
-        credits: { enabled: false },
-        exporting: { enabled: false },
-        xAxis: {
-            title: { text: tr('Estimated Weeks') },
-            min: 0,
-        },
-        yAxis: {
-            title: { text: tr('Impact Score') },
-            min: 0,
-            max: 100,
-            labels: { format: "{value}%" },
-        },
-        tooltip: {
-            useHTML: true,
-            pointFormat:
-                "<b>{point.name}</b><br/>Timeline: {point.x} weeks<br/>Impact: {point.y}%<br/>Weight: {point.z}",
-        },
-        plotOptions: {
-            bubble: {
-                minSize: 18,
-                maxSize: 58,
-                dataLabels: {
-                    enabled: true,
-                    format: "{point.name}",
-                    crop: false,
-                    overflow: "allow",
-                    style: { fontSize: "10px" },
-                },
-            },
-        },
-        series: [
-            {
-                type: "bubble",
-                name: tr('Intervention Weight'),
-                data: roadmap.map((item, index) => {
-                    const impact =
-                        item.urgency === "urgent" ? 95 :
-                            item.urgency === "high" ? 82 :
-                                item.urgency === "medium" ? 65 : 48;
-
-                    return {
-                        name: `I${index + 1}`,
-                        x: item.estimatedWeeks || 0,
-                        y: impact,
-                        z: Math.max(10, impact / 2),
-                    };
-                }),
-            },
-        ],
-    }), [roadmap]);
-
-    const timelineChartOptions: Highcharts.Options = useMemo(
-        () => ({
-            chart: { type: "bar", backgroundColor: "transparent", height: 320 },
-            title: { text: undefined },
-            credits: { enabled: false },
-            exporting: { enabled: false },
-            xAxis: { categories: roadmap.map((item) => item.title) },
-            yAxis: {
-                min: 0,
-                title: { text: tr('Estimated Weeks') },
-                allowDecimals: false,
-            },
-            tooltip: { pointFormat: "<b>{point.y} weeks</b>" },
-            plotOptions: {
-                series: {
-                    dataLabels: {
-                        enabled: true,
-                        format: "{point.y}w",
-                        crop: false,
-                        overflow: "allow",
-                    },
-                },
-            },
-            series: [
-                {
-                    type: "bar",
-                    name: tr('Timeline'),
-                    data: roadmap.map((item) => item.estimatedWeeks || 0),
-                },
-            ],
-        }),
-        [roadmap],
-    );
-
     const openAgent = (agent: SupportAgent) => {
         setSelectedAgent(agent);
         setChatMessages(buildChat(agent, selectedSubmission));
@@ -1255,32 +860,35 @@ const SMEIntakeRoadmapPage: React.FC = () => {
 
     const agentInterventionId = (agent: SupportAgent) => cleanDocumentKey(agent.matchedInterventionTitle || agent.focus || agent.id);
 
-    const recordAgentDelivery = async (agent: SupportAgent, roadmapItem?: RoadmapItem) => {
-        const participantId = String((selectedSubmission as Record<string, unknown> | null)?.participantId || user?.uid || '');
+    const recordAgentDelivery = async (agent: SupportAgent) => {
+        // The SME's own uid, so the work is theirs (the rule only lets an SME start agent work on themselves).
+        const participantId = String(user?.uid || '');
         if (!participantId) return;
         const interventionId = agentInterventionId(agent);
-        const deliveryProgramId = selectedSubmission?.recommendedProgramId || selectedSubmission?.decision?.recommendedProgramId || activeProgramId;
+        const programmeId = selectedSubmission?.recommendedProgramId || selectedSubmission?.decision?.recommendedProgramId || activeProgramId;
+        const deliveryProgramId = programmeId && programmeId !== 'all' ? programmeId : null;
         let assignmentId = agentAssignmentId;
 
         if (!assignmentId) {
             const snapshot = await getDocs(query(collection(db, 'assignedInterventions'), where('participantId', '==', participantId)));
             const existing = snapshot.docs.find((item) => {
                 const data = item.data();
-                return data.deliveryActorType === 'agent' && data.interventionId === interventionId && data.programId === deliveryProgramId;
+                return data.deliveryActorType === 'agent' && data.interventionId === interventionId && (data.programId || null) === deliveryProgramId;
             });
             if (existing) {
                 assignmentId = existing.id;
             } else {
                 const created = await addDoc(collection(db, 'assignedInterventions'), {
-                    companyCode: selectedSubmission?.companyCode || companyCode || null,
+                    companyCode: workspaceCompanyCode(user) || null,
                     participantId,
                     applicationId: selectedSubmission?.id || null,
                     interventionId,
                     interventionTitle: agent.matchedInterventionTitle || agent.focus,
-                    areaOfSupport: agent.department,
+                    areaOfSupport: agent.department || null,
                     businessName: selectedSubmission?.contactName || user?.displayName || 'SME',
                     programId: deliveryProgramId,
-                    programName: selectedSubmission?.recommendedProgramName || null,
+                    programName: deliveryProgramId ? selectedSubmission?.recommendedProgramName || null : null,
+                    source: 'roadmap_agent',
                     assigneeId: agent.id,
                     assigneeName: agent.name,
                     assigneeType: 'agent',
@@ -1290,7 +898,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                     participantStatus: 'accepted',
                     assigneeCompletionStatus: 'pending',
                     participantCompletionStatus: 'pending',
-                    progress: roadmapItem?.progress || 0,
+                    progress: 0,
                     agentConversationCount: 0,
                     createdAt: serverTimestamp(),
                     updatedAt: serverTimestamp(),
@@ -1340,6 +948,8 @@ const SMEIntakeRoadmapPage: React.FC = () => {
             return;
         }
         setSelectedAgent(null);
+        // Talking to an agent can start a piece of work; show it under way.
+        void loadWork();
     };
 
     const fallbackAgentReply = (agent: SupportAgent, userMessage: string) => {
@@ -1441,7 +1051,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                 ...current,
                 agentTurn,
             ]);
-            void recordAgentDelivery(selectedAgent, matchedRoadmapItem).catch((error) => console.error('Agent delivery could not be recorded:', error));
+            void recordAgentDelivery(selectedAgent).catch((error) => console.error('Agent delivery could not be recorded:', error));
         } catch (error) {
             console.error("Roadmap agent chat failed:", error);
             setChatMessages((current) => [
@@ -1459,457 +1069,163 @@ const SMEIntakeRoadmapPage: React.FC = () => {
         }
     };
 
-    const roadmapItems: CollapseProps["items"] = roadmap.map((item, index) => ({
-        key: `${item.title}-${index}`,
-        label: (
-            <Space wrap>
-                <Text strong>{item.title}</Text>
-                <Tag color={urgencyColor(item.urgency)}>{item.urgency || "medium"}</Tag>
-                <Tag>{item.department || t('General Support')}</Tag>
-            </Space>
-        ),
-        children: (
-            <Space direction="vertical" size={10} style={{ width: "100%" }}>
-                <Paragraph style={{ marginBottom: 0 }}>{item.reason}</Paragraph>
-                <Progress percent={item.progress || 0} />
-                <Text type="secondary">
-                    {t('Estimated duration:')} {item.estimatedWeeks || 0} {t('weeks')}
-                </Text>
-                <Text type="secondary">
-                    {t('Expected impact:')}{" "}
-                    {item.expectedImpact || t('Improve business readiness.')}
-                </Text>
-            </Space>
-        ),
-    }));
-
     if (loading) {
-        return (
-            <PageSkeleton variant="detail" label={t('Loading AI roadmap')} />
-        )
-
+        return <PageSkeleton variant="detail" label={t('Loading your roadmap')} />
     }
 
+    const doneCount = doneWork.length
+    const totalCount = activeWork.length + doneCount
+    const nextUp = activeWork.find((item) => item.state !== 'waiting_you') || activeWork[0]
+    const summary = totalCount
+        ? [
+            t('{done} of {total} done', undefined, { done: doneCount, total: totalCount }),
+            nextUp && (nextUp.dueDate
+                ? t('next: {title}, due {date}', undefined, { title: nextUp.title, date: formatDate(nextUp.dueDate) })
+                : t('next: {title}', undefined, { title: nextUp.title })),
+        ].filter(Boolean).join(' · ')
+        : t('Your roadmap fills in as you get support.')
+    const nothingYet = !totalCount && !suggestionItems.length
+
+    const challengeForm = (
+        <Space direction="vertical" size={10} style={{ width: '100%' }}>
+            <Input.TextArea
+                rows={3}
+                maxLength={800}
+                value={challenge}
+                onChange={(event) => setChallenge(event.target.value)}
+                placeholder={t('For example: we keep running out of cash at month end, and we don’t know our real costs.')}
+            />
+            <Text type="secondary" style={{ fontSize: 12.5 }}>{t('AI uses this and your business profile to suggest a few steps. Nothing is booked until you choose how to get help.')}</Text>
+            <Button type="primary" icon={<BulbOutlined />} loading={generating} disabled={!challenge.trim()} onClick={() => void generateSuggestions()}>
+                {t('Suggest where to start')}
+            </Button>
+        </Space>
+    )
+
+    const workRow = (item: RoadmapWork) => (
+        <div key={item.id} className="roadmap-row">
+            <span className={`roadmap-dot is-${item.state}`} aria-hidden="true" />
+            <div className="roadmap-row-text">
+                <Text strong>{item.title}</Text>
+                <Text type="secondary">{[workStateText(item), item.dueDate && t('due {date}', undefined, { date: formatDate(item.dueDate) })].filter(Boolean).join(' · ')}</Text>
+                {item.helperName && (
+                    <Text type="secondary" className="roadmap-helper">
+                        {item.helperType === 'agent' ? <RobotOutlined /> : <UserOutlined />} {item.helperType === 'agent' ? t('{name}, AI agent', undefined, { name: item.helperName }) : t('{name}, consultant', undefined, { name: item.helperName })}
+                    </Text>
+                )}
+            </div>
+            {item.state !== 'done' && (item.helperType === 'agent'
+                ? <Button type="primary" size="small" onClick={() => openAgent(agentForWork(item))}>{t('Continue')}</Button>
+                : <Button size="small" onClick={() => openWork(item)}>{t('Open')}</Button>)}
+        </div>
+    )
+
     return (
-        <div className="sme-roadmap-page">
+        <DashboardPage className="sme-roadmap-page roadmap-v2">
             <Helmet>
-                <title>{t('AI Roadmap | Smart Incubation')}</title>
+                <title>{t('Roadmap | Smart Incubation')}</title>
             </Helmet>
 
-            <DashboardHeader
-                title={`${selectedSubmission?.contactName || "SME"} Support Roadmap`}
-                subtitle={tr('Review AI intake recommendations, support projections, matched agents, and intake history.')}
-                actions={
-                    <Select
-                        value={selectedSubmission?.id}
-                        onChange={(value) => setSelectedSubmissionId(value)}
-                        style={{ width: isMobile ? "100%" : 320 }}
-                        placeholder={t('Select intake')}
-                        showSearch
-                        optionFilterProp="label"
-                        options={rows.slice(0, 20).map(item => ({
-                            label: `${formatDate(item.createdAt)} - ${statusLabel(item.status)}`,
-                            value: item.id
-                        }))}
-                    />
-                }
-            />
-            <Row gutter={[14, 14]} style={{ marginTop: 16 }}>
-                <Col xs={12} md={6}>
-                    <MotionCard style={{ borderRadius: 18 }}>
-                        <Statistic
-                            title={t('Roadmap Progress')}
-                            value={averageProgress}
-                            suffix="%"
-                            prefix={<RiseOutlined />}
-                        />
-                    </MotionCard>
-                </Col>
-                <Col xs={12} md={6}>
-                    <MotionCard style={{ borderRadius: 18 }}>
-                        <Statistic
-                            title={t('Interventions')}
-                            value={roadmap.length}
-                            prefix={<ProjectOutlined />}
-                        />
-                    </MotionCard>
-                </Col>
-                <Col xs={12} md={6}>
-                    <MotionCard style={{ borderRadius: 18 }}>
-                        <Statistic
-                            title={t('Completed')}
-                            value={completedCount}
-                            prefix={<CheckCircleOutlined />}
-                        />
-                    </MotionCard>
-                </Col>
-                <Col xs={12} md={6}>
-                    <MotionCard style={{ borderRadius: 18 }}>
-                        <Statistic
-                            title={t('Projected Finish')}
-                            value={estimatedFinishDate}
-                            prefix={<ClockCircleOutlined />}
-                            valueStyle={{ fontSize: 18 }}
-                        />
-                    </MotionCard>
-                </Col>
-            </Row>
+            <section className="roadmap-head">
+                <div className="roadmap-head-row">
+                    <div className="roadmap-head-text">
+                        <Text strong className="roadmap-title">{t('Your growth roadmap')}</Text>
+                        <Text type="secondary">{summary}</Text>
+                    </div>
+                    {!nothingYet && <Button icon={<BulbOutlined />} onClick={() => setAskOpen(true)}>{t('Suggest what’s next')}</Button>}
+                </div>
+                {totalCount > 0 && <Progress percent={Math.round((doneCount / totalCount) * 100)} showInfo={false} strokeColor="#6d5dfb" size="small" />}
+            </section>
 
-            <MotionCard.SunkenPanel style={{ marginTop: 16 }}>
-                <Row gutter={[12, 12]} align="middle">
-                    <Col xs={24} md={12} lg={9}>
-                        <Segmented
-                            block
-                            value={view}
-                            onChange={(value) => setView(value as ViewMode)}
-                            options={[
-                                { label: t('Roadmap'), value: "roadmap" },
-                                { label: t('Projections'), value: "projections" },
-                                { label: t('Agents'), value: "agents" },
-                                { label: t('History'), value: "history" },
-                            ]}
-                        />
-                    </Col>
-                    <Col xs={24} md={12} lg={15}>
-                        <Input
-                            allowClear
-                            prefix={<SearchOutlined />}
-                            placeholder={t('Search agents, interventions or departments')}
-                            value={search}
-                            onChange={(event) => setSearch(event.target.value)}
-                        />
-                    </Col>
-                </Row>
-            </MotionCard.SunkenPanel>
-
-            {!selectedSubmission ? (
-                <MotionCard style={{ marginTop: 16, borderRadius: 20 }}>
-                    <Empty description={t('No AI intake submission found for this SME.')} />
-                </MotionCard>
-            ) : null}
-
-            {selectedSubmission && view === "roadmap" && (
-                <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-                    <Col xs={24} lg={14}>
-                        <MotionCard title={t('Roadmap Timeline')} style={{ borderRadius: 20 }}>
-                            {roadmap.length ? (
-                                isMobile ? (
-                                    <Collapse
-                                        defaultActiveKey={[roadmapItems[0]?.key as string]}
-                                        items={roadmapItems}
-                                    />
-                                ) : (
-                                    <Timeline
-                                        items={roadmap.map((item, index) => ({
-                                            color:
-                                                item.status === "completed"
-                                                    ? "green"
-                                                    : index === 0
-                                                        ? "blue"
-                                                        : "gray",
-                                            dot: index === 0 ? <ThunderboltOutlined /> : undefined,
-                                            children: (
-                                                <Card size="small" className="roadmap-step-card">
-                                                    <Row gutter={[12, 12]} align="middle">
-                                                        <Col xs={24} md={16}>
-                                                            <Space direction="vertical" size={6}>
-                                                                <Space wrap>
-                                                                    <Text strong>{item.title}</Text>
-                                                                    <Tag color={urgencyColor(item.urgency)}>
-                                                                        {item.urgency || "medium"}
-                                                                    </Tag>
-                                                                    <Tag>
-                                                                        {item.department || t('General Support')}
-                                                                    </Tag>
-                                                                </Space>
-                                                                <Text type="secondary">{item.reason}</Text>
-                                                                <Text type="secondary">
-                                                                    {t('Expected impact:')}{" "}
-                                                                    {item.expectedImpact ||
-                                                                        t('Improve business readiness.')}
-                                                                </Text>
-                                                            </Space>
-                                                        </Col>
-                                                        <Col xs={24} md={8}>
-                                                            <Progress percent={item.progress || 0} />
-                                                            <Text type="secondary">
-                                                                {item.estimatedWeeks || 0} {t('weeks estimated')}
-                                                            </Text>
-                                                        </Col>
-                                                    </Row>
-                                                </Card>
-                                            ),
-                                        }))}
-                                    />
-                                )
-                            ) : (
-                                <Empty description={t('No AI recommended interventions found on this intake.')} />
-                            )}
-                        </MotionCard>
-                    </Col>
-
-                    <Col xs={24} lg={10}>
-                        <Space direction="vertical" size={16} style={{ width: "100%" }}>
-                            <MotionCard title={t('AI Summary')} style={{ borderRadius: 20 }}>
-                                <Space direction="vertical" size={10} style={{ width: "100%" }}>
-                                    <Paragraph style={{ marginBottom: 0 }}>
-                                        {decision?.summary || t('No AI summary was saved.')}
-                                    </Paragraph>
-                                    <Space wrap>
-                                        <Tag color="blue">{stageLabel(decision?.stage)}</Tag>
-                                        <Tag color={urgencyColor(decision?.urgencyLevel)}>
-                                            {t('Urgency:')} {decision?.urgencyLevel || "unknown"}
-                                        </Tag>
-                                        <Tag color={riskColor(decision?.riskLevel)}>
-                                            {t('Risk:')} {decision?.riskLevel || "unknown"}
-                                        </Tag>
-                                    </Space>
-                                    {decision?.recommendedProgramName ? (
-                                        <Alert
-                                            type="info"
-                                            showIcon
-                                            message={t('Recommended Programme')}
-                                            description={decision.recommendedProgramName}
-                                        />
-                                    ) : null}
-                                </Space>
-                            </MotionCard>
-
-                            <MotionCard
-                                title={t('Roadmap Projection')}
-                                style={{ borderRadius: 20 }}
-                            >
-                                <Space direction="vertical" size={12} style={{ width: "100%" }}>
-                                    <Progress percent={averageProgress} />
-                                    <Text>{t('Total estimated duration:')} {totalWeeks || 0} {t('weeks')}</Text>
-                                    <Text>{t('Projected finish:')} {estimatedFinishDate}</Text>
-                                </Space>
-                            </MotionCard>
-                        </Space>
-                    </Col>
-                </Row>
-            )}
-
-            {selectedSubmission && view === "projections" && (
-                <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-                    <Col xs={24} lg={8}>
-                        <MotionCard title={t('Projection Summary')} style={{ borderRadius: 20 }}>
-                            <Space direction="vertical" size={14} style={{ width: "100%" }}>
-                                <Statistic
-                                    title={t('Projected Readiness')}
-                                    value={Math.min(100, averageProgress + roadmap.length * 12)}
-                                    suffix="%"
-                                    prefix={<RiseOutlined />}
-                                />
-
-                                <Statistic
-                                    title={t('Estimated Duration')}
-                                    value={totalWeeks || 0}
-                                    suffix="weeks"
-                                    prefix={<ClockCircleOutlined />}
-                                />
-
-                                <Statistic
-                                    title={t('Projected Finish')}
-                                    value={estimatedFinishDate}
-                                    prefix={<FundProjectionScreenOutlined />}
-                                    valueStyle={{ fontSize: 18 }}
-                                />
-                            </Space>
-                        </MotionCard>
-                    </Col>
-
-                    <Col xs={24} lg={16}>
-                        <MotionCard title={t('Readiness Growth Projection')} style={{ borderRadius: 20 }}>
-                            <ThemedHighcharts options={projectionSplineOptions} />
-                        </MotionCard>
-                    </Col>
-
-                    <Col xs={24} lg={12}>
-                        <MotionCard title={t('Department Impact Radar')} style={{ borderRadius: 20 }}>
-                            <ThemedHighcharts options={radarOptions} />
-                        </MotionCard>
-                    </Col>
-
-                    <Col xs={24} lg={12}>
-                        <MotionCard title={t('Impact vs Timeline Bubble Map')} style={{ borderRadius: 20 }}>
-                            <ThemedHighcharts options={bubbleOptions} />
-                        </MotionCard>
-                    </Col>
-
-                    <Col xs={24} lg={12}>
-                        <MotionCard
-                            title={t('Expected Impact by Intervention')}
-                            style={{ borderRadius: 20 }}
-                        >
-                            <ThemedHighcharts options={impactChartOptions} />
-                        </MotionCard>
-                    </Col>
-                    <Col xs={24} lg={12}>
-                        <MotionCard
-                            title={t('Estimated Timeline by Intervention')}
-                            style={{ borderRadius: 20 }}
-                        >
-                            <ThemedHighcharts options={timelineChartOptions} />
-                        </MotionCard>
-                    </Col>
-                </Row>
-            )}
-
-            {selectedSubmission && view === "agents" && (
-                <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-                    {filteredAgents.map((agent) => (
-                        <Col xs={24} md={12} xl={8} key={agent.id}>
-                            <div className="agent-card" onClick={() => openAgent(agent)}>
-                                <div className="agent-card-top">
-                                    <Avatar
-                                        size={58}
-                                        className={`agent-avatar ${agent.category}`}
-                                        icon={iconForCategory(agent.category)}
-                                    />
-                                    <Badge
-                                        status={
-                                            agent.urgency === "urgent" || agent.urgency === "high"
-                                                ? "error"
-                                                : "processing"
-                                        }
-                                        text={agent.urgency || "medium"}
-                                    />
-                                </div>
-                                <Title level={4} style={{ margin: "16px 0 4px" }}>
-                                    {agent.name}
-                                </Title>
-                                <Text strong>{agent.title}</Text>
-                                <Paragraph type="secondary" style={{ marginTop: 10 }}>
-                                    {agent.intro}
-                                </Paragraph>
-                                <Space wrap>
-                                    <Tag color={categoryColor(agent.category)}>
-                                        {agent.category}
-                                    </Tag>
-                                    <Tag>{agent.department}</Tag>
-                                </Space>
-                                <div className="agent-card-footer">
-                                    <Text type="secondary">
-                                        {t('Matched to:')} {(agent.matchedInterventionTitles || [agent.matchedInterventionTitle]).filter(Boolean).slice(0, 2).join(", ")}
-                                        {(agent.matchedInterventionTitles?.length || 0) > 2 ? ` +${(agent.matchedInterventionTitles?.length || 0) - 2} more` : ""}
-                                    </Text>
-                                    <Button
-                                        type="primary"
-                                        shape="round"
-                                        icon={<MessageOutlined />}
-                                    >
-                                        {t('Open Chat')}
-                                    </Button>
-                                </div>
-                            </div>
-                        </Col>
-                    ))}
-
-                    {!filteredAgents.length && (
-                        <Col span={24}>
-                            <MotionCard style={{ borderRadius: 20 }}>
-                                <Empty description={t('No agents matched this AI roadmap.')} />
-                            </MotionCard>
-                        </Col>
+            {nothingYet && (
+                <Card className="roadmap-card" title={t('What’s holding the business back?')}>
+                    {challengeForm}
+                    {canUseMarketplace && (
+                        <div className="roadmap-or">
+                            <Text type="secondary">{t('Or go straight to help')}</Text>
+                            <Button onClick={() => navigate('/applicant/marketplace')}>{t('Find support')}</Button>
+                        </div>
                     )}
-                </Row>
+                </Card>
             )}
 
-            {selectedSubmission && view === "history" && (
-                <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-                    <Col xs={24} lg={10}>
-                        <MotionCard title={t('Intake History')} style={{ borderRadius: 20 }}>
-                            <Timeline
-                                items={[
-                                    {
-                                        dot: <AuditOutlined />,
-                                        children: (
-                                            <Space direction="vertical" size={2}>
-                                                <Text strong>{t('AI intake submitted')}</Text>
-                                                <Text type="secondary">
-                                                    {formatDate(selectedSubmission.createdAt)}
-                                                </Text>
-                                            </Space>
-                                        ),
-                                    },
-                                    {
-                                        dot: <FundProjectionScreenOutlined />,
-                                        children: (
-                                            <Space direction="vertical" size={2}>
-                                                <Text strong>
-                                                    {statusLabel(selectedSubmission.status)}
-                                                </Text>
-                                                <Text type="secondary">
-                                                    {selectedSubmission.recommendedProgramName ||
-                                                        decision?.recommendedProgramName ||
-                                                        t('Agent support path')}
-                                                </Text>
-                                            </Space>
-                                        ),
-                                    },
-                                    {
-                                        dot: <FileProtectOutlined />,
-                                        children: (
-                                            <Space direction="vertical" size={2}>
-                                                <Text strong>{t('Documents captured')}</Text>
-                                                <Text type="secondary">
-                                                    {selectedSubmission.uploadedDocuments?.length || 0}{" "}
-                                                    {t('uploaded document(s)')}
-                                                </Text>
-                                            </Space>
-                                        ),
-                                    },
-                                ]}
-                            />
-                        </MotionCard>
-                    </Col>
-
-                    <Col xs={24} lg={14}>
-                        <MotionCard title={t('Roadmap Record')} style={{ borderRadius: 20 }}>
-                            <List
-                                dataSource={roadmap}
-                                locale={{ emptyText: t('No roadmap records available.') }}
-                                renderItem={(item) => (
-                                    <List.Item>
-                                        <List.Item.Meta
-                                            avatar={
-                                                <Avatar
-                                                    icon={iconForCategory(
-                                                        categoryFromText(
-                                                            `${item.department} ${item.title}`,
-                                                        ),
-                                                    )}
-                                                />
-                                            }
-                                            title={
-                                                <Space wrap>
-                                                    <Text strong>{item.title}</Text>
-                                                    <Tag color={urgencyColor(item.urgency)}>
-                                                        {item.urgency || "medium"}
-                                                    </Tag>
-                                                </Space>
-                                            }
-                                            description={
-                                                item.reason ||
-                                                item.expectedImpact ||
-                                                t('AI recommended intervention.')
-                                            }
-                                        />
-                                    </List.Item>
-                                )}
-                            />
-                        </MotionCard>
-                    </Col>
-                </Row>
+            {activeWork.length > 0 && (
+                <Card className="roadmap-card" title={t('Under way')} extra={<Text type="secondary" className="roadmap-card-note">{t('Progress from your consultants and agents')}</Text>}>
+                    {activeWork.map(workRow)}
+                </Card>
             )}
 
-            <Drawer
+            {suggestionItems.length > 0 && (
+                <Card
+                    className="roadmap-card"
+                    title={<Space size={8}>{t('Suggested next')}<Tag bordered={false} color="purple">{t('AI suggestion')}</Tag></Space>}
+                    extra={<Text type="secondary" className="roadmap-card-note">{suggestionsFromIntake ? t('From your earlier intake') : t('From your business profile')}</Text>}
+                >
+                    <div className="roadmap-suggestions">
+                        {suggestionItems.map((item, index) => (
+                            <div key={`${item.title}-${index}`} className="roadmap-suggestion">
+                                <Text strong>{item.title}</Text>
+                                <Text type="secondary">{item.reason || item.expectedImpact}</Text>
+                                {(() => {
+                                    // Already asked someone for this step (Find support's "Use this plan"): show who, not the options again.
+                                    const request = requestedSteps.get(cleanDocumentKey(item.title));
+                                    return request ? (
+                                        <div className="roadmap-suggestion-actions">
+                                            <Tag bordered={false} color="gold" style={{ margin: 0 }}>{t('Requested from {name}', undefined, { name: request.targetName })}</Tag>
+                                            <Button type="link" size="small" style={{ padding: 0 }} onClick={() => navigate(`/applicant/marketplace?view=requests&request=${request.id}`)}>{t('View request')}</Button>
+                                        </div>
+                                    ) : (
+                                        <div className="roadmap-suggestion-actions">
+                                            {isAgentApiConfigured && <Button size="small" icon={<RobotOutlined />} onClick={() => openAgent(agentForSuggestion(item))}>{t('Do it with an agent')}</Button>}
+                                            {canUseMarketplace && <Button size="small" icon={<TeamOutlined />} onClick={() => navigate(`/applicant/marketplace?q=${encodeURIComponent(item.department || item.title)}`)}>{t('Find a consultant')}</Button>}
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        ))}
+                    </div>
+                </Card>
+            )}
+
+            {doneWork.length > 0 && (
+                <Card
+                    className="roadmap-card"
+                    title={<Space size={8}><CheckCircleOutlined className="roadmap-done-icon" />{t('Done ({count})', undefined, { count: doneWork.length })}</Space>}
+                    extra={<Button type="link" size="small" onClick={() => setShowDone((current) => !current)}>{showDone ? t('Hide') : t('Show')}</Button>}
+                >
+                    {showDone ? doneWork.map(workRow) : null}
+                </Card>
+            )}
+
+            <ResponsiveModal
+                open={askOpen}
+                onClose={() => setAskOpen(false)}
+                title={t('What’s holding the business back now?')}
+                width={520}
+                centered
+            >
+                {challengeForm}
+            </ResponsiveModal>
+
+            {/* A consultant's work, for applicants who have no interventions page: what it is, who's on it, where it stands. */}
+            <ResponsiveModal open={!!openedWork} onClose={() => setOpenedWork(null)} title={openedWork?.title} width={480} centered>
+                {openedWork && (
+                    <Space direction="vertical" size={10} style={{ width: '100%' }}>
+                        <Text>{workStateText(openedWork)}</Text>
+                        {openedWork.helperName && <Text type="secondary"><UserOutlined /> {t('{name}, consultant', undefined, { name: openedWork.helperName })}</Text>}
+                        {openedWork.dueDate && <Text type="secondary">{t('Due {date}', undefined, { date: formatDate(openedWork.dueDate) })}</Text>}
+                        {openedWork.progress > 0 && <Progress percent={openedWork.progress} size="small" strokeColor="#6d5dfb" />}
+                        {openedWork.note && <Paragraph type="secondary" style={{ marginBottom: 0 }}>“{openedWork.note}”</Paragraph>}
+                    </Space>
+                )}
+            </ResponsiveModal>
+
+            <ResponsiveModal
                 title={selectedAgent?.name || t('Agent Chat')}
                 open={!!selectedAgent}
                 onClose={closeAgent}
-                width={isMobile ? "100%" : 520}
-                destroyOnClose
+                width={600}
+                centered
             >
                 {selectedAgent ? (
                     <Space direction="vertical" size={16} style={{ width: "100%" }}>
@@ -2005,14 +1321,9 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                         </Space.Compact>
                     </Space>
                 ) : null}
-            </Drawer>
+            </ResponsiveModal>
 
             <style>{`
-                .sme-roadmap-page {
-                    min-height: 100vh;
-                    padding: 24px;
-                }
-
                 .roadmap-step-card {
                     border-radius: 16px;
                     border: 1px solid #e6f4ff;
@@ -2133,10 +1444,6 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                 }
 
                 @media (max-width: 767px) {
-                    .sme-roadmap-page {
-                        padding: 12px;
-                    }
-
                     .agent-card {
                         min-height: unset;
                         padding: 18px;
@@ -2148,7 +1455,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                     }
                 }
             `}</style>
-        </div>
+        </DashboardPage>
     );
 };
 

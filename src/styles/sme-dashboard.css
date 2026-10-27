@@ -1,0 +1,51 @@
+/* =========================================================
+   INDEPENDENT SME DASHBOARD
+   The one thing to do now, what's waiting, the work under way, who's helping. Same look as the roadmap.
+   ========================================================= */
+
+.sme-dash {
+    --sme-dash-accent: #6d5dfb;
+    --sme-dash-border: rgba(109, 93, 251, 0.12);
+    display: grid;
+    align-content: start;
+    gap: 16px;
+}
+
+html[data-theme='dark'] .sme-dash {
+    --sme-dash-accent: #8b7dff;
+    --sme-dash-border: rgba(139, 92, 246, 0.18);
+}
+
+.sme-dash-card.ant-card { border: 1px solid var(--sme-dash-border); border-radius: 14px; }
+.sme-dash-greeting-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.sme-dash-greeting-text { display: grid; flex: 1; min-width: 240px; gap: 2px; }
+.sme-dash-greeting-line { font-size: 16px; line-height: 1.4; text-wrap: pretty; }
+
+.sme-dash-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.sme-dash-stack { display: grid; gap: 16px; }
+
+.sme-dash-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid rgba(100, 116, 139, 0.12); }
+.sme-dash-row:first-child { border-top: 0; padding-top: 0; }
+.sme-dash-row-text { display: grid; flex: 1; min-width: 0; gap: 2px; }
+.sme-dash-row-text .ant-typography-secondary { font-size: 12.5px; }
+.sme-dash-row-text .ant-progress { margin: 2px 0 0; }
+.sme-dash-detail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sme-dash-tag { flex: none; margin: 0; }
+.sme-dash-due { flex: none; font-size: 12.5px; }
+.sme-dash-foot { display: block; margin-top: 10px; font-size: 12.5px; }
+.sme-dash-row-icon, .sme-dash-avatar {
+    display: inline-grid; place-items: center; flex: none;
+    width: 32px; height: 32px; border-radius: 50%;
+    background: rgba(109, 93, 251, 0.1); color: var(--sme-dash-accent);
+}
+.sme-dash-inline-link.ant-btn { height: auto; padding: 0; }
+.sme-dash-steps { margin: 0; padding-left: 18px; display: grid; gap: 8px; color: var(--ant-color-text-secondary); }
+
+@media (max-width: 991px) {
+    .sme-dash-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 575px) {
+    .sme-dash-row { flex-wrap: wrap; }
+    .sme-dash-detail { white-space: normal; }
+}
+.sme-dash-profile-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-top: 10px; }

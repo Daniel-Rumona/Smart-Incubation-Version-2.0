@@ -42,6 +42,8 @@ import {
     RadarChartOutlined,
     EllipsisOutlined,
     SearchOutlined,
+    FileExcelOutlined,
+    PhoneOutlined,
 } from '@ant-design/icons'
 import { db } from '@/firebase/config'
 import {
@@ -77,6 +79,8 @@ import {
 import { initialsOf } from '@/utils/initials'
 import PointListInput from '@/components/participants/PointListInput'
 import YesNoCards from '@/components/participants/YesNoCards'
+import ImportSmesModal from '@/components/participants/ImportSmesModal'
+import { applyProgrammeGrowthPlan } from '@/services/programLinkService'
 import PlatformLinksInput, { type PlatformLink } from '@/components/participants/PlatformLinksInput'
 import { ComplianceOverview, InterventionsPanel, SwotTab, TrendCard, type TrendRow } from '@/components/participants/ParticipantDrawerTabs'
 import { buildLivePlanItems, livePlanProgress, type LivePlanItem } from '@/utils/liveDiagnosticPlan'
@@ -87,6 +91,7 @@ import { FilterBar } from '@/components/shared/FilterBar'
 import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
 import '@/styles/operations-participants.css'
 import { useLanguage } from '@/providers/LanguageProvider'
+import { singleActionFooter } from '@/components/shared/modalFooter'
 
 const { Text } = Typography
 const { TextArea } = Input
@@ -485,6 +490,11 @@ export const ParticipantsPage: React.FC = () => {
     const { t } = useLanguage()
     const navigate = useNavigate()
     const { user } = useFullIdentity()
+    // Reception looks SMEs up, registers walk-ins and updates contact numbers; programme and profile changes stay with operations.
+    const isReception = user?.role === 'admin'
+    const [contactForm] = Form.useForm<{ phone?: string, alternativePhone?: string }>()
+    const [contactOpen, setContactOpen] = useState(false)
+    const [savingContact, setSavingContact] = useState(false)
     const { getSetting, settings, loading: settingsLoading } = useSystemSettings()
     const smeDivisionModel = String(
         settings?.smeDivisionModel ||
@@ -515,6 +525,7 @@ export const ParticipantsPage: React.FC = () => {
     const [, setProgramNameMap] = useState<Record<string, string>>({})
     const [programOptions, setProgramOptions] = useState<Array<{ value: string; label: string }>>([])
     const [assignProgramOpen, setAssignProgramOpen] = useState(false)
+    const [importOpen, setImportOpen] = useState(false)
     const [assigningProgram, setAssigningProgram] = useState(false)
     const [selectedProgramId, setSelectedProgramId] = useState<string>()
 
@@ -678,10 +689,11 @@ export const ParticipantsPage: React.FC = () => {
             }
 
             const completedByParticipantId: Record<string, number> = {}
-            const completionsSnap = await getDocs(
+            // Reception can't read delivery records, so its directory shows no progress rather than failing to load.
+            const completionDocs = isReception ? [] : (await getDocs(
                 query(collection(db, 'interventionCompletions'), where('companyCode', '==', companyCode))
-            )
-            completionsSnap.docs.forEach(completion => {
+            )).docs
+            completionDocs.forEach(completion => {
                 const pid = String((completion.data() as AnyDoc).participantId || '').trim()
                 if (!pid) return
                 completedByParticipantId[pid] = (completedByParticipantId[pid] || 0) + 1
@@ -921,6 +933,16 @@ export const ParticipantsPage: React.FC = () => {
             }
             await batch.commit()
 
+            // A no-application programme with a set list brings its own confirmed growth plan.
+            if (viewData.applicationId) {
+                const growthPlan = await applyProgrammeGrowthPlan(viewData.applicationId).catch((error) => {
+                    console.error(error)
+                    message.warning(t('The programme was assigned, but its growth plan could not be set up. Confirm it on Growth plans.'))
+                    return { applied: false }
+                })
+                if (growthPlan.applied) message.info(t("Growth plan set from the programme's interventions and confirmed."))
+            }
+
             await addDoc(collection(db, 'participantAuditTrail'), {
                 participantId: viewData.participantId,
                 applicationId: viewData.applicationId || null,
@@ -1037,7 +1059,7 @@ export const ParticipantsPage: React.FC = () => {
         setEditMode(false)
     }
 
-    const secondaryActions = [
+    const secondaryActions = isReception ? [] : [
         ...(canAssignProgram ? [{ key: 'assign', icon: <DeploymentUnitOutlined />, label: t('Assign Program'), danger: false, disabled: false, onClick: () => setAssignProgramOpen(true) }] : []),
         {
             key: 'discontinue',
@@ -1048,6 +1070,43 @@ export const ParticipantsPage: React.FC = () => {
             onClick: () => setRemoveModalOpen(true)
         }
     ]
+
+    const openContact = () => {
+        contactForm.setFieldsValue({ phone: viewData?.participant?.phone || '', alternativePhone: viewData?.participant?.alternativePhone || '' })
+        setContactOpen(true)
+    }
+
+    /** Reception's only edit: contact numbers on the participant record, with an audit entry. */
+    const saveContact = async () => {
+        if (!viewData?.participantId) return
+        const values = await contactForm.validateFields()
+        const next = { phone: String(values.phone || '').trim(), alternativePhone: String(values.alternativePhone || '').trim() }
+        const before = { phone: String(viewData.participant?.phone || ''), alternativePhone: String(viewData.participant?.alternativePhone || '') }
+        const changes = (['phone', 'alternativePhone'] as const)
+            .filter((field) => next[field] !== before[field])
+            .map((field) => ({ field, label: field === 'phone' ? 'Phone' : 'Alternative phone', before: before[field] || null, after: next[field] || null, scope: 'participant' }))
+        if (!changes.length) { setContactOpen(false); return }
+        try {
+            setSavingContact(true)
+            await updateDoc(doc(db, 'participants', viewData.participantId), { ...next, updatedAt: serverTimestamp(), updatedBy: user?.uid || null })
+            await addDoc(collection(db, 'participantAuditTrail'), {
+                participantId: viewData.participantId,
+                applicationId: viewData.applicationId || null,
+                companyCode: String(user?.companyCode || '').trim(),
+                actionType: 'contact_updated',
+                changes,
+                createdAt: serverTimestamp(),
+                createdBy: { uid: user?.uid || null, email: user?.email || null, name: user?.name || user?.displayName || null, role: user?.role || null },
+            })
+            setViewData((current) => current ? { ...current, participant: { ...(current.participant || {}), ...next } } : current)
+            message.success(t('Contact details updated.'))
+            setContactOpen(false)
+        } catch {
+            message.error(t('Contact details could not be updated.'))
+        } finally {
+            setSavingContact(false)
+        }
+    }
 
     const closeView = () => {
         setViewOpen(false)
@@ -1128,10 +1187,10 @@ export const ParticipantsPage: React.FC = () => {
             ).trim()
 
             const [applicantProfileSnap, businessProfileSnap, complianceSnap, diagnosticPlanSnap, assignmentSnap] = await Promise.all([
-                applicantProfileId ? getDoc(doc(db, 'applicantProfiles', applicantProfileId)) : Promise.resolve(null),
-                businessProfileId ? getDoc(doc(db, 'businessProfiles', businessProfileId)) : Promise.resolve(null),
-                getDocs(query(collection(db, 'complianceDocuments'), where('participantId', '==', record.id))),
-                applicationDocId ? getDoc(doc(db, 'diagnosticPlans', applicationDocId)) : Promise.resolve(null),
+                applicantProfileId && !isReception ? getDoc(doc(db, 'applicantProfiles', applicantProfileId)) : Promise.resolve(null),
+                businessProfileId && !isReception ? getDoc(doc(db, 'businessProfiles', businessProfileId)) : Promise.resolve(null),
+                isReception ? Promise.resolve(null) : getDocs(query(collection(db, 'complianceDocuments'), where('participantId', '==', record.id))),
+                applicationDocId && !isReception ? getDoc(doc(db, 'diagnosticPlans', applicationDocId)) : Promise.resolve(null),
                 getDocs(query(collection(db, 'assignedInterventions'), where('companyCode', '==', String((user as any)?.companyCode || '').trim()), where('participantId', '==', record.id)))
             ])
 
@@ -1141,7 +1200,7 @@ export const ParticipantsPage: React.FC = () => {
             const businessProfile = businessProfileSnap && businessProfileSnap.exists()
                 ? { id: businessProfileSnap.id, ...(businessProfileSnap.data() as AnyDoc) }
                 : null
-            const complianceDocuments: AnyDoc[] = complianceSnap.docs.map(d => ({ id: d.id, ...(d.data() as AnyDoc) } as AnyDoc))
+            const complianceDocuments: AnyDoc[] = (complianceSnap?.docs || []).map(d => ({ id: d.id, ...(d.data() as AnyDoc) } as AnyDoc))
             const diagnosticPlan: AnyDoc | null = diagnosticPlanSnap && diagnosticPlanSnap.exists()
                 ? { id: diagnosticPlanSnap.id, ...(diagnosticPlanSnap.data() as AnyDoc) }
                 : null
@@ -1814,7 +1873,7 @@ export const ParticipantsPage: React.FC = () => {
                             {t('View')}
                         </Button>
 
-                        {!String(record.programId || '').trim() && (
+                        {!isReception && !String(record.programId || '').trim() && (
                             <Button
                                 icon={<DeploymentUnitOutlined />}
                                 onClick={async () => {
@@ -1927,20 +1986,41 @@ export const ParticipantsPage: React.FC = () => {
                     />
                 }
                 actions={
-                    <Button
-                        type="primary"
-                        icon={<PlusOutlined />}
-                        disabled={isAllPrograms}
-                        onClick={() =>
-                            navigate('/operations/participants/new', {
-                                state: { activeProgramId }
-                            })
-                        }
-                    >
-                        {t('Add SME')}
-                    </Button>
+                    <Space wrap>
+                        {!isReception && (
+                            <Button
+                                icon={<FileExcelOutlined />}
+                                disabled={isAllPrograms}
+                                onClick={() => setImportOpen(true)}
+                            >
+                                {t('Import from Excel')}
+                            </Button>
+                        )}
+                        <Button
+                            type="primary"
+                            icon={<PlusOutlined />}
+                            disabled={isAllPrograms}
+                            onClick={() =>
+                                navigate('/operations/participants/new', {
+                                    state: { activeProgramId }
+                                })
+                            }
+                        >
+                            {isReception ? t('Register walk-in') : t('Add SME')}
+                        </Button>
+                    </Space>
                 }
             />
+
+            {!isAllPrograms && activeProgramId && (
+                <ImportSmesModal
+                    open={importOpen}
+                    programId={activeProgramId}
+                    programName={programOptions.find(option => option.value === activeProgramId)?.label || activeProgramId}
+                    onClose={() => setImportOpen(false)}
+                    onImported={() => void refreshList()}
+                />
+            )}
 
             <Card className="operations-participants-card">
                 <ResponsiveDataView
@@ -1960,7 +2040,7 @@ export const ParticipantsPage: React.FC = () => {
                             <Progress percent={record.progress || 0} size="small" />
                             <Space wrap>
                                 <Button size="small" onClick={() => openView(record)}>{t('View')}</Button>
-                                {!String(record.programId || '').trim() && (
+                                {!isReception && !String(record.programId || '').trim() && (
                                     <Button
                                         size="small"
                                         icon={<DeploymentUnitOutlined />}
@@ -2019,7 +2099,11 @@ export const ParticipantsPage: React.FC = () => {
                             </Button>
                         ))}
                         {editMode ? <Button onClick={cancelEdit}>{t('Cancel')}</Button> : null}
-                        {!editMode ? (
+                        {isReception ? (
+                            <Button type="primary" icon={<PhoneOutlined />} disabled={!viewData} onClick={openContact}>
+                                {t('Update contact')}
+                            </Button>
+                        ) : !editMode ? (
                             <Button type="primary" icon={<EditOutlined />} disabled={!viewData} onClick={() => setEditMode(true)}>
                                 {t('Edit')}
                             </Button>
@@ -2555,6 +2639,21 @@ export const ParticipantsPage: React.FC = () => {
             </DetailShell>
 
             <Modal
+                open={contactOpen}
+                title={t('Update contact')}
+                onCancel={() => setContactOpen(false)}
+                onOk={() => void saveContact()}
+                okText={t('Save')}
+                confirmLoading={savingContact}
+                destroyOnHidden
+            >
+                <Typography.Paragraph type="secondary">{t('Only phone numbers can be changed here. Ask operations to change other details.')}</Typography.Paragraph>
+                <Form form={contactForm} layout="vertical" requiredMark={false}>
+                    <Form.Item name="phone" label={t('Primary phone')}><Input prefix={<PhoneOutlined />} placeholder={t('Include country code, e.g. +27')} /></Form.Item>
+                    <Form.Item name="alternativePhone" label={t('Alternative phone')}><Input prefix={<PhoneOutlined />} /></Form.Item>
+                </Form>
+            </Modal>
+            <Modal
                 title={t('Assign Program')}
                 open={assignProgramOpen}
                 confirmLoading={assigningProgram}
@@ -2564,6 +2663,7 @@ export const ParticipantsPage: React.FC = () => {
                 }}
                 onOk={assignProgramToParticipant}
                 okText={t('Assign')}
+                {...singleActionFooter()}
             >
                 <Alert
                     type="info"
@@ -2594,7 +2694,7 @@ export const ParticipantsPage: React.FC = () => {
                 }}
                 onOk={removeFromProgram}
                 okText={t('Discontinue SME')}
-                okButtonProps={{ danger: true, disabled: !removalReason.trim() }}
+                {...singleActionFooter({ danger: true, disabled: !removalReason.trim() })}
             >
                 <Alert
                     type="error"

@@ -8,9 +8,11 @@ import { HttpsError, onCall, onRequest, type Request } from 'firebase-functions/
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { runInterventionDeadlineDigest, type DigestDeps } from './deadlineDigest.js'
 import { runFollowUpReminders } from './followUps.js'
+import { acceptPlan, MarketplaceError, notifyChange, nudgeUnanswered, type MarketplaceDeps } from './marketplace.js'
+import { AvailableWorkError, claimAvailableWork, listAvailableWork } from './availableWork.js'
 import { runSmeCheckbackAsks } from './smeCheckbacks.js'
 import { DirectorSetupError, completeDirectorSetup } from './directorSetup.js'
-import { JoinError, getProgramLinkInfo, joinProgram, type JoinInput } from './programJoin.js'
+import { JoinError, buildConfirmedSetPlan, enrolInDirectProgram, forcedProgramInterventions, getProgramLinkInfo, joinProgram, type JoinInput } from './programJoin.js'
 import {
   processWhatsAppInboundEvent,
   processWhatsAppMessageStatusEvent,
@@ -662,12 +664,17 @@ async function requireAuth(request: Request) {
   return getAuth().verifyIdToken(match[1])
 }
 
-async function requireAccountManager(request: Request) {
+/**
+ * System admins, project admins and operations staff. `allowDirector` also admits directors, only on the staff
+ * create/update/delete endpoints, where canManageProjectStaff then limits them to their company's reception admins.
+ * `allowReception` admits company reception (`admin`), only for registering walk-in SMEs as pending applications.
+ */
+async function requireAccountManager(request: Request, options: { allowDirector?: boolean, allowReception?: boolean } = {}) {
   const decoded = await requireAuth(request)
   const snapshot = await getFirestore().collection('users').doc(decoded.uid).get()
   const role = String(snapshot.data()?.role || '').trim().toLowerCase()
 
-  if (!['systemadmin', 'admin', 'projectadmin', 'operations'].includes(role)) {
+  if (!['systemadmin', 'projectadmin', 'operations', ...(options.allowDirector ? ['director'] : []), ...(options.allowReception ? ['admin'] : [])].includes(role)) {
     throw new Error('permission_denied')
   }
 
@@ -675,11 +682,17 @@ async function requireAccountManager(request: Request) {
     decoded,
     role,
     companyCode: String(snapshot.data()?.companyCode || '').trim(),
-    isPlatformAdmin: ['systemadmin', 'admin'].includes(role),
+    isPlatformAdmin: role === 'systemadmin',
   }
 }
 
-const projectStaffRoles = ['consultant', 'projectadmin']
+/** Which account roles each company manager may create, edit or remove (platform admins may manage any). */
+const MANAGEABLE_ROLES: Record<string, string[]> = {
+  projectadmin: ['consultant', 'projectadmin', 'admin'],
+  operations: ['consultant', 'projectadmin'],
+  // Directors only add their company's reception admins.
+  director: ['admin'],
+}
 /** Creates/refreshes a company record without ever overwriting a display name someone has already set. */
 const ensureCompanyRecord = async (
   db: FirebaseFirestore.Firestore,
@@ -717,18 +730,21 @@ const projectStaffPermissions = [
 const sanitizeManagedPermissions = (
   manager: { isPlatformAdmin: boolean },
   permissions: unknown,
+  targetRole?: unknown,
 ) => {
   if (!Array.isArray(permissions)) return undefined
+  // Company reception (`admin`) always runs on its role's defaults; only a platform admin may customise it.
+  if (!manager.isPlatformAdmin && String(targetRole || '').trim().toLowerCase() === 'admin') return undefined
   return manager.isPlatformAdmin
     ? permissions.filter((permission): permission is string => typeof permission === 'string')
     : permissions.filter((permission): permission is string => typeof permission === 'string' && projectStaffPermissions.includes(permission))
 }
 const canManageProjectStaff = (
-  manager: { companyCode: string, isPlatformAdmin: boolean },
+  manager: { role: string, companyCode: string, isPlatformAdmin: boolean },
   role: unknown,
   companyCode: unknown,
 ) => manager.isPlatformAdmin || (
-  projectStaffRoles.includes(String(role || '').trim().toLowerCase())
+  (MANAGEABLE_ROLES[manager.role] || []).includes(String(role || '').trim().toLowerCase())
   && !!manager.companyCode
   && manager.companyCode === String(companyCode || '').trim()
 )
@@ -1480,10 +1496,10 @@ export const createPlatformUser = onRequest({ region }, (request, response) => {
     }
 
     try {
-      const admin = await requireAccountManager(request)
+      const admin = await requireAccountManager(request, { allowDirector: true })
 
       const payload = request.body as PlatformUserPayload
-      const permissions = sanitizeManagedPermissions(admin, payload.permissions)
+      const permissions = sanitizeManagedPermissions(admin, payload.permissions, payload.role)
       if (admin.role !== 'systemadmin' && payload.role === 'systemadmin') {
         jsonResponse(response, 403, { ok: false, error: 'permission_denied' })
         return
@@ -1617,7 +1633,9 @@ export const createParticipantAccount = onRequest({ region }, (request, response
     }
 
     try {
-      const manager = await requireAccountManager(request)
+      const manager = await requireAccountManager(request, { allowReception: true })
+      // Reception registers walk-ins for review: a Pending application, no participant record or plan until accepted.
+      const isReception = manager.role === 'admin'
       const payload = request.body as ParticipantAccountPayload
       const email = normalizeEmail(payload.email)
       const participantName = String(payload.participantName || '').trim()
@@ -1626,6 +1644,10 @@ export const createParticipantAccount = onRequest({ region }, (request, response
 
       if (!isValidEmail(email) || !participantName || !businessName || !programId) {
         jsonResponse(response, 400, { ok: false, error: 'participant_details_required' })
+        return
+      }
+      if (isReception && !manager.companyCode) {
+        jsonResponse(response, 403, { ok: false, error: 'permission_denied' })
         return
       }
 
@@ -1642,6 +1664,23 @@ export const createParticipantAccount = onRequest({ region }, (request, response
       }
       const db = getFirestore()
       const applicationId = `${userRecord.uid}__${programId}`
+      const [programSnapshot, existingApplication, existingUser] = await Promise.all([
+        db.collection('programs').doc(programId).get(),
+        db.collection('applications').doc(applicationId).get(),
+        db.collection('users').doc(userRecord.uid).get(),
+      ])
+      if (isReception) {
+        // Never turn a staff account into an SME, and never reset an application someone already decided on.
+        const existingRole = String(existingUser.data()?.role || '').trim().toLowerCase()
+        if (existingUser.exists && existingRole && existingRole !== 'incubatee') {
+          jsonResponse(response, 409, { ok: false, error: 'email_in_use' })
+          return
+        }
+        if (existingApplication.exists) {
+          jsonResponse(response, 409, { ok: false, error: 'already_registered' })
+          return
+        }
+      }
       const profile = {
         uid: userRecord.uid,
         participantId: userRecord.uid,
@@ -1662,8 +1701,10 @@ export const createParticipantAccount = onRequest({ region }, (request, response
         onboardingAnswers: payload.onboardingAnswers || {},
         updatedAt: FieldValue.serverTimestamp(),
       }
+      const plan = isReception ? null : await buildConfirmedSetPlan(db, { program: programSnapshot.data(), programId, applicationId, participantId: userRecord.uid })
       await Promise.all([
-        db.collection('participants').doc(userRecord.uid).set(profile, { merge: true }),
+        ...(plan ? [db.collection('diagnosticPlans').doc(applicationId).set(plan)] : []),
+        ...(isReception ? [] : [db.collection('participants').doc(userRecord.uid).set(profile, { merge: true })]),
         db.collection('applicantProfiles').doc(userRecord.uid).set({
           uid: userRecord.uid,
           participantName,
@@ -1696,15 +1737,27 @@ export const createParticipantAccount = onRequest({ region }, (request, response
           mustChangePassword: true,
           active: true,
           status: 'active',
+          ...(isReception ? {} : { assignedProgramIds: FieldValue.arrayUnion(programId) }),
           updatedAt: FieldValue.serverTimestamp(),
         }, { merge: true }),
-        db.collection('applications').doc(applicationId).set({
-          ...profile,
-          applicationStatus: 'Accepted',
-          acceptedAt: FieldValue.serverTimestamp(),
-          createdAt: FieldValue.serverTimestamp(),
-          createdBy: manager.decoded.uid,
-        }, { merge: true }),
+        db.collection('applications').doc(applicationId).set(isReception
+          ? {
+            ...profile,
+            applicationStatus: 'Pending',
+            source: 'walk_in',
+            submittedAt: new Date().toISOString(),
+            createdAt: FieldValue.serverTimestamp(),
+            createdBy: manager.decoded.uid,
+          }
+          : {
+            ...profile,
+            // Staff-added SMEs skip the application, so they get the programme's set interventions here (never reset on a re-add).
+            ...(!existingApplication.exists ? { interventions: { required: forcedProgramInterventions(programSnapshot.data()), assigned: [], completed: [], participationRate: 0 } } : {}),
+            applicationStatus: 'Accepted',
+            acceptedAt: FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
+            createdBy: manager.decoded.uid,
+          }, { merge: true }),
       ])
       const resetLink = buildPasswordActionUrl(await getAuth().generatePasswordResetLink(email), { invite: true, request })
       await queueTemplateMail({
@@ -1713,7 +1766,9 @@ export const createParticipantAccount = onRequest({ region }, (request, response
         template: buildAuthActionTemplate({
           title: 'Your Smart Incubation account is ready',
           name: participantName,
-          intro: `You have been added to ${payload.programName || 'a Smart Incubation programme'}. Use the secure link below to set your password and continue.`,
+          intro: isReception
+            ? `You have been registered for ${payload.programName || 'a Smart Incubation programme'}. Your application is being reviewed; use the secure link below to set your password and follow its progress.`
+            : `You have been added to ${payload.programName || 'a Smart Incubation programme'}. Use the secure link below to set your password and continue.`,
           actionLabel: 'Set your password',
           actionUrl: resetLink,
           expiryNote: 'This account setup link is time-sensitive. Contact your programme administrator if you need a new invitation.',
@@ -1735,7 +1790,7 @@ export const deleteUserAccount = onRequest({ region }, (request, response) => {
     }
 
     try {
-      const admin = await requireAccountManager(request)
+      const admin = await requireAccountManager(request, { allowDirector: true })
 
       const payload = request.body as DeleteUserPayload
       let uid = payload.uid
@@ -1906,9 +1961,9 @@ export const updatePlatformUser = onRequest({ region }, (request, response) => {
     }
 
     try {
-      const admin = await requireAccountManager(request)
+      const admin = await requireAccountManager(request, { allowDirector: true })
       const payload = request.body as UpdateUserPayload
-      const permissions = sanitizeManagedPermissions(admin, payload.permissions)
+      const permissions = sanitizeManagedPermissions(admin, payload.permissions, payload.role)
       const uid = String(payload.uid || '').trim()
 
       if (!uid) {
@@ -2056,6 +2111,56 @@ function buildCompanyChangeRequestAdminTemplate(input: {
   return { subject, text, html }
 }
 
+// Labels for the settings a director changes directly (src/services/companySettingsEditService.ts).
+const directSettingLabels: Record<string, string> = {
+  consultantLabel: 'What you call facilitators',
+  interventionDeliveryRoles: 'Who delivers interventions',
+  assignmentModel: 'Who assigns interventions',
+  smeDivisionModel: 'How SMEs are divided among facilitators',
+  hasDepartments: 'Departments',
+  hasBranches: 'Branches or offices',
+}
+
+const describeSettingValue = (value: unknown) => {
+  if (value === null || value === undefined || value === '') return 'Not set'
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+  if (Array.isArray(value)) return value.map(String).join(', ')
+  return String(value)
+}
+
+function buildCompanySettingChangedTemplate(input: {
+  companyName: string
+  companyCode: string
+  changedBy: string
+  field: string
+  from: unknown
+  to: unknown
+}) {
+  const setting = directSettingLabels[input.field] || input.field
+  const subject = `Company setting changed: ${input.companyName || input.companyCode}`
+  const change = `${setting}: ${describeSettingValue(input.from)} → ${describeSettingValue(input.to)}`
+  const text = [
+    'A director changed a company setting. No action is needed unless it looks wrong.',
+    '',
+    `Company: ${input.companyName || input.companyCode}`,
+    `Company code: ${input.companyCode || 'Not recorded'}`,
+    `Changed by: ${input.changedBy || 'Not recorded'}`,
+    '',
+    change,
+  ].join('\n')
+  const html = `
+    <p>A director changed a company setting. No action is needed unless it looks wrong.</p>
+    <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin:16px 0;">
+      <p style="margin:0;"><strong>Company:</strong> ${escapeHtml(input.companyName || input.companyCode)}</p>
+      <p style="margin:6px 0 0;"><strong>Company code:</strong> ${escapeHtml(input.companyCode || 'Not recorded')}</p>
+      <p style="margin:6px 0 0;"><strong>Changed by:</strong> ${escapeHtml(input.changedBy || 'Not recorded')}</p>
+    </div>
+    <p>${escapeHtml(change)}</p>
+    <p style="color:#6b7280;font-size:13px;">The change is listed under Admin &gt; Change Requests.</p>
+  `
+  return { subject, text, html }
+}
+
 function buildCompanyChangeRequestResponseTemplate(input: {
   companyName: string
   decision: 'approved' | 'declined'
@@ -2091,7 +2196,7 @@ async function requireCallableAccountManager(request: LegacyCallableRequest<unkn
 
   const snapshot = await getFirestore().collection('users').doc(uid).get()
   const role = String(snapshot.data()?.role || '').trim().toLowerCase()
-  if (!['systemadmin', 'admin', 'projectadmin', 'operations'].includes(role)) {
+  if (!['systemadmin', 'projectadmin', 'operations'].includes(role)) {
     throw new HttpsError('permission-denied', 'permission_denied')
   }
 
@@ -2099,7 +2204,7 @@ async function requireCallableAccountManager(request: LegacyCallableRequest<unkn
     decoded: { uid },
     role,
     companyCode: String(snapshot.data()?.companyCode || '').trim(),
-    isPlatformAdmin: ['systemadmin', 'admin'].includes(role),
+    isPlatformAdmin: role === 'systemadmin',
   }
 }
 
@@ -2186,7 +2291,7 @@ async function deleteUserAndFirestoreCallable(request: LegacyCallableRequest<Del
 async function createManagedUserCallable(request: LegacyCallableRequest<PlatformUserPayload>) {
   const admin = await requireCallableAccountManager(request)
   const payload = request.data || {}
-  const permissions = sanitizeManagedPermissions(admin, payload.permissions)
+  const permissions = sanitizeManagedPermissions(admin, payload.permissions, payload.role)
 
   if (admin.role !== 'systemadmin' && payload.role === 'systemadmin') {
     throw new HttpsError('permission-denied', 'permission_denied')
@@ -2280,7 +2385,7 @@ async function createManagedUserCallable(request: LegacyCallableRequest<Platform
 async function updateManagedUserCallable(request: LegacyCallableRequest<UpdateUserPayload>) {
   const admin = await requireCallableAccountManager(request)
   const payload = request.data || {}
-  const permissions = sanitizeManagedPermissions(admin, payload.permissions)
+  const permissions = sanitizeManagedPermissions(admin, payload.permissions, payload.role)
   const uid = String(payload.uid || '').trim()
 
   if (!uid) throw new HttpsError('invalid-argument', 'uid_required')
@@ -2484,6 +2589,40 @@ export const notifyCompanySettingsChangeRequest = onDocumentCreated(
   },
 )
 
+// A director changed a company setting directly: tell the platform admin (they no longer approve these).
+export const notifyCompanySettingsChange = onDocumentCreated(
+  {
+    document: 'companySettingsChanges/{changeId}',
+    region,
+  },
+  async event => {
+    const data = event.data?.data() || {}
+    const companyCode = String(data.companyCode || '').trim()
+    const field = String(data.field || '').trim()
+    if (!companyCode || !field) return
+
+    const template = buildCompanySettingChangedTemplate({
+      companyName: String(data.companyName || companyCode),
+      companyCode,
+      changedBy: String(data.changedByName || '') + (data.changedByEmail ? ` (${normalizeEmail(data.changedByEmail)})` : ''),
+      field,
+      from: data.from,
+      to: data.to,
+    })
+
+    const mailRef = await queueTemplateMail({
+      to: companyChangeRequestAdminEmail,
+      source: 'companySettingsDirectChangeAdminNotification',
+      template,
+    })
+
+    await event.data?.ref.set({
+      adminNotificationMailId: mailRef.id,
+      adminNotificationQueuedAt: FieldValue.serverTimestamp(),
+    }, { merge: true })
+  },
+)
+
 export const reviewSystemSettingsChangeRequest = onCall({ region }, async request => {
   const admin = await requireCallableAccountManager(request as LegacyCallableRequest<unknown>)
   if (!admin.isPlatformAdmin) throw new HttpsError('permission-denied', 'permission_denied')
@@ -2600,6 +2739,58 @@ export const joinProgramAsSme = onCall({ region }, async request => {
   if (!uid) throw new HttpsError('unauthenticated', 'not_authenticated')
   try {
     return { ok: true, ...(await joinProgram(getFirestore(), uid, (request.data || {}) as JoinInput)) }
+  } catch (error) {
+    throw joinErrorToHttps(error)
+  }
+})
+
+/**
+ * After staff move an SME's application to another programme: if that programme has no application and a set
+ * list, the SME's growth plan becomes that list, already confirmed. Other programmes are left to staff.
+ */
+export const applyProgrammeGrowthPlan = onCall({ region }, async request => {
+  const manager = await requireCallableAccountManager(request as LegacyCallableRequest<unknown>)
+  const applicationId = String((request.data as { applicationId?: unknown } | undefined)?.applicationId || '').trim()
+  if (!applicationId || applicationId.includes('/')) throw new HttpsError('invalid-argument', 'application_required')
+  const db = getFirestore()
+  const application = await db.collection('applications').doc(applicationId).get()
+  if (!application.exists) throw new HttpsError('not-found', 'application_not_found')
+  const data = application.data() as Record<string, unknown>
+  const companyCode = String(data.companyCode || '').trim()
+  if (!manager.isPlatformAdmin && companyCode !== manager.companyCode) throw new HttpsError('permission-denied', 'permission_denied')
+  const programId = String(data.programId || '').trim()
+  const program = programId ? (await db.collection('programs').doc(programId).get()).data() : undefined
+  const participantId = String(data.participantId || data.uid || data.applicantProfileId || '').trim()
+
+  // The SME's own programme list decides their workspace (e.g. the Training menu), so it follows the move.
+  // Older records keep the login uid under uid/userId, or only share the email with the account.
+  let accountUid = String(data.uid || data.userId || '').trim()
+  if (!accountUid && participantId && (await db.collection('users').doc(participantId).get()).exists) accountUid = participantId
+  if (!accountUid && data.email) accountUid = await getAuth().getUserByEmail(String(data.email)).then(user => user.uid).catch(() => '')
+  const accountRef = accountUid ? db.collection('users').doc(accountUid) : null
+  if (accountRef && programId && (await accountRef.get()).exists) {
+    await accountRef.update({ assignedProgramIds: [programId], updatedAt: FieldValue.serverTimestamp() })
+  }
+
+  const plan = await buildConfirmedSetPlan(db, { program, programId, applicationId, participantId, replaceOtherProgramme: true })
+  if (!plan) return { ok: true, applied: false }
+  const batch = db.batch()
+  // Replaces any plan from the previous programme outright, so no old confirmations or interventions linger.
+  batch.set(db.collection('diagnosticPlans').doc(applicationId), plan)
+  batch.update(db.collection('applications').doc(applicationId), {
+    'interventions.required': forcedProgramInterventions(program),
+    updatedAt: FieldValue.serverTimestamp(),
+  })
+  await batch.commit()
+  return { ok: true, applied: true }
+})
+
+/** Accepts the signed-in SME into a no-application programme once their profile is complete. */
+export const enrolInDirectProgramme = onCall({ region }, async request => {
+  const uid = request.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'not_authenticated')
+  try {
+    return { ok: true, ...(await enrolInDirectProgram(getFirestore(), uid, String((request.data as { programId?: unknown } | undefined)?.programId || ''))) }
   } catch (error) {
     throw joinErrorToHttps(error)
   }
@@ -3145,3 +3336,78 @@ export const runInterventionDeadlineDigestNow = onRequest({ region, timeoutSecon
     }
   })
 })
+
+// ---------------------------------------------------------------------------
+// Facilitators picking up their own work (see availableWork.ts)
+// ---------------------------------------------------------------------------
+
+/** What the signed-in facilitator can pick up: their programmes and areas, nothing anyone is already on. */
+export const listFacilitatorAvailableWork = onCall({ region }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in to see available work.')
+  try {
+    return await listAvailableWork(getFirestore(), request.auth.uid)
+  } catch (error) {
+    if (error instanceof AvailableWorkError) throw new HttpsError(error.code, error.message)
+    throw error
+  }
+})
+
+/** The facilitator picks up one intervention (or its next step); the first to do so gets it. */
+export const claimFacilitatorWork = onCall({ region }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in to pick up work.')
+  const data = (request.data || {}) as { participantId?: unknown, interventionId?: unknown, stepId?: unknown }
+  try {
+    return await claimAvailableWork(getFirestore(), request.auth.uid, {
+      participantId: String(data.participantId || ''),
+      interventionId: String(data.interventionId || ''),
+      stepId: data.stepId ? String(data.stepId) : null,
+    })
+  } catch (error) {
+    if (error instanceof AvailableWorkError) throw new HttpsError(error.code, error.message)
+    throw error
+  }
+})
+
+// Consultant marketplace: plans, alerts and the unanswered-request nudge (see marketplace.ts)
+// ---------------------------------------------------------------------------
+
+const buildMarketplaceDeps = (): MarketplaceDeps => ({
+  db: getFirestore(),
+  appUrl: getAppBaseUrl(),
+  sendEmail: async (input) => {
+    const email = normalizeEmail(input.to)
+    if (!isValidEmail(email) || await getSuppressedEmail(email)) return false
+    const template = buildAuthActionTemplate({ title: input.subject, name: input.name, intro: input.intro, actionLabel: input.actionLabel, actionUrl: input.actionUrl, expiryNote: '' })
+    await queueTemplateMail({ to: email, source: input.source, template: { ...template, subject: input.subject } })
+    return true
+  },
+  sendWhatsApp: sendWhatsAppAlert,
+})
+
+/** The SME accepts a consultant's plan: the plan's interventions are created for the consultant. */
+export const acceptConnectionPlan = onCall({ region }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in to accept this plan.')
+  const requestId = String((request.data as { requestId?: unknown } | null)?.requestId || '').trim()
+  if (!requestId) throw new HttpsError('invalid-argument', 'Which request is this?')
+  try {
+    return { assignmentIds: await acceptPlan(getFirestore(), request.auth.uid, requestId) }
+  } catch (error) {
+    if (error instanceof MarketplaceError) throw new HttpsError(error.code, error.message)
+    throw error
+  }
+})
+
+/** Tells the other side when something happens on a marketplace request. */
+export const notifyConnectionRequestChange = onDocumentWritten({ document: 'connectionRequests/{requestId}', region }, async (event) => {
+  const before = event.data?.before?.exists ? event.data.before.data() as Record<string, unknown> : null
+  const after = event.data?.after?.exists ? event.data.after.data() as Record<string, unknown> : null
+  await notifyChange(buildMarketplaceDeps(), String(event.params.requestId), before, after)
+})
+
+/** Every morning (06:00 UTC): alert operations about requests a consultant hasn't answered in 3 days. */
+export const nudgeUnansweredConnectionRequests = onSchedule(
+  { schedule: '0 6 * * *', timeZone: 'Etc/UTC', region, timeoutSeconds: 120 },
+  async () => {
+    await nudgeUnanswered(buildMarketplaceDeps())
+  },
+)

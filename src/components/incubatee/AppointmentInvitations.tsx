@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Alert, App, Button, Card, DatePicker, Input, List, Modal, Radio, Skeleton, Space, Tag, Typography } from 'antd'
+import { Alert, App, Button, Card, DatePicker, Empty, Input, List, Modal, Radio, Skeleton, Space, Tag, Typography } from 'antd'
 import { CalendarOutlined } from '@ant-design/icons'
 import { collection, getDocs, query, where } from 'firebase/firestore'
 import type { Dayjs } from 'dayjs'
@@ -14,6 +14,7 @@ import {
 } from '@/services/agentService'
 import type { IncubateeWorkspace } from '@/types/incubatee'
 import { useLanguage, tr } from '@/providers/LanguageProvider'
+import { ModalActions } from '@/components/shared/ModalActions'
 
 type Invitation = {
   id: string
@@ -23,7 +24,11 @@ type Invitation = {
   meetingType?: MeetingType
   location?: string
   meetingLink?: string
+  /** Waiting for the SME's answer; otherwise already accepted. */
+  awaiting: boolean
 }
+
+const UPCOMING_STATUSES = new Set(['pending', 'accepted', 'confirmed'])
 
 const CHUNK = 30 // Firestore `in` limit
 
@@ -34,8 +39,9 @@ const OTHER_OPTION = { code: 'other' as DeclineReasonCode, get label() { return 
  * Accepting is one tap. Declining asks for a reason; the SME can suggest another time, or, before
  * any session has been held, say they no longer need the intervention (operations then confirms).
  * Writes go through the backend because SMEs cannot write appointments directly.
+ * `upcoming` (the SME Appointments page) also lists accepted appointments and says so when there are none.
  */
-export const AppointmentInvitations = ({ workspace, onChanged }: { workspace: IncubateeWorkspace, onChanged?: () => void }) => {
+export const AppointmentInvitations = ({ workspace, onChanged, upcoming = false }: { workspace: IncubateeWorkspace, onChanged?: () => void, upcoming?: boolean }) => {
   const { t } = useLanguage()
   const { message } = App.useApp()
   const { user } = useFullIdentity()
@@ -64,7 +70,8 @@ export const AppointmentInvitations = ({ workspace, onChanged }: { workspace: In
         ))
         snapshot.docs.forEach((row) => {
           const data = row.data() as Record<string, unknown>
-          if (String(data.status || 'pending') !== 'pending') return
+          const status = String(data.status || 'pending')
+          if (upcoming ? !UPCOMING_STATUSES.has(status) : status !== 'pending') return
           const start = toDayjs(data.startTime)
           if (!start || start.isBefore(new Date())) return
           rows.push({
@@ -75,6 +82,7 @@ export const AppointmentInvitations = ({ workspace, onChanged }: { workspace: In
             meetingType: data.meetingType as MeetingType | undefined,
             location: typeof data.location === 'string' ? data.location : undefined,
             meetingLink: typeof data.meetingLink === 'string' ? data.meetingLink : undefined,
+            awaiting: status === 'pending',
           })
         })
       }
@@ -82,7 +90,7 @@ export const AppointmentInvitations = ({ workspace, onChanged }: { workspace: In
     } catch {
       setInvitations([]) // the rest of the page still works; invitations simply don't show
     }
-  }, [assignmentIds, companyCode])
+  }, [assignmentIds, companyCode, upcoming])
 
   useEffect(() => {
     const timeout = window.setTimeout(() => void load(), 0)
@@ -103,11 +111,16 @@ export const AppointmentInvitations = ({ workspace, onChanged }: { workspace: In
     }
   }
 
-  if (!invitations?.length) return invitations === undefined ? <Skeleton active paragraph={{ rows: 1 }} /> : null
+  if (invitations === undefined) return <Skeleton active paragraph={{ rows: 1 }} />
+  if (!invitations.length) {
+    return upcoming
+      ? <Card className="incubatee-card"><Empty description={t('No upcoming appointments. When your programme team books a session, it shows here.')} /></Card>
+      : null
+  }
 
   return (
     <>
-      <Card className="incubatee-card" style={{ marginBottom: 12 }} title={<Space><CalendarOutlined />{t('Appointments awaiting your response')}</Space>}>
+      <Card className="incubatee-card" style={{ marginBottom: 12 }} title={<Space><CalendarOutlined />{t(upcoming ? 'Upcoming appointments' : 'Appointments awaiting your response')}</Space>}>
         <List
           itemLayout="vertical"
           dataSource={invitations}
@@ -116,16 +129,18 @@ export const AppointmentInvitations = ({ workspace, onChanged }: { workspace: In
             return (
               <List.Item
                 key={item.id}
-                actions={[
+                actions={item.awaiting ? [
                   <Button key="accept" type="primary" loading={busyId === item.id} onClick={() => void accept(item)}>{t('Accept')}</Button>,
                   <Button key="decline" danger disabled={busyId === item.id} onClick={() => setDeclining(item)}>{t('Decline')}</Button>,
-                ]}
+                ] : []}
               >
                 <Space direction="vertical" size={2}>
                   <Typography.Text strong>{item.title}</Typography.Text>
                   <Typography.Text>{start ? `${start.format('dddd, DD MMMM YYYY')} · ${formatSpan({ id: item.id, interventionTitle: item.title, meetingType: item.meetingType ?? 'online', status: 'pending', startTime: item.startTime, endTime: item.endTime })}` : t('Time to be confirmed')}</Typography.Text>
                   <Space wrap size={6}>
                     <Tag>{meetingTypeLabel(item.meetingType)}</Tag>
+                    {upcoming && (item.awaiting ? <Tag color="gold">{t('Awaiting your response')}</Tag> : <Tag color="green">{t('Confirmed')}</Tag>)}
+                    {!item.awaiting && item.meetingLink && <a href={item.meetingLink} target="_blank" rel="noreferrer">{t('Join link')}</a>}
                     {item.location && <Typography.Text type="secondary">{item.location}</Typography.Text>}
                   </Space>
                 </Space>
@@ -156,11 +171,11 @@ const DeclineModal = ({ invitation, onClose, onDone }: { invitation?: Invitation
     footer={null}
     destroyOnHidden
   >
-    {invitation && <DeclineForm key={invitation.id} invitation={invitation} onClose={onClose} onDone={onDone} />}
+    {invitation && <DeclineForm key={invitation.id} invitation={invitation} onDone={onDone} />}
   </Modal>
 )
 
-const DeclineForm = ({ invitation, onClose, onDone }: { invitation: Invitation, onClose: () => void, onDone: () => Promise<void> }) => {
+const DeclineForm = ({ invitation, onDone }: { invitation: Invitation, onDone: () => Promise<void> }) => {
   const { t } = useLanguage()
   const { message } = App.useApp()
   const [context, setContext] = useState<AppointmentRsvpContext>()
@@ -247,12 +262,11 @@ const DeclineForm = ({ invitation, onClose, onDone }: { invitation: Invitation, 
           )}
         </>
       )}
-      <Space style={{ justifyContent: 'flex-end', width: '100%' }}>
-        <Button onClick={onClose}>{t('Cancel')}</Button>
+      <ModalActions>
         <Button danger type="primary" disabled={!code || !context} loading={saving} onClick={() => void submit()}>
           {dropping ? t('Send request') : t('Decline appointment')}
         </Button>
-      </Space>
+      </ModalActions>
     </Space>
   )
 }

@@ -8,7 +8,6 @@ import {
   ClockCircleOutlined,
   DashboardOutlined,
   ExperimentOutlined,
-  FallOutlined,
   FileProtectOutlined,
   FlagOutlined,
   FundOutlined,
@@ -26,95 +25,51 @@ import { ReportPlayer, type PlayerSlide } from '@/components/reports/ReportPlaye
 import { useLanguage } from '@/providers/LanguageProvider'
 import { useRegisterAgentPageContext } from '@/shared/hooks/useRegisterAgentPageContext'
 
-// The evidence-based sales pitch, told as slides. The copy is a sales document that quotes its sources,
-// so it stays in English; only the page around it is translated. Screens are 2880×1800 captures of
-// test data (public/pitch), so no real client appears in sales material.
-const SOURCES = [
-  { label: 'Ngcobo (2024), small business sustainability in eThekwini, UKZN', url: 'https://researchspace.ukzn.ac.za/items/b09188b4-2c4b-451d-a832-0e0b049a9458/full' },
-  { label: 'McKenzie & Woodruff (2012), business training evaluations, IZA DP 6895', url: 'https://www.iza.org/publications/dp/6895' },
-  { label: 'Bruhn, Karlan & Schoar, consulting for SMEs in Mexico, IPA', url: 'https://poverty-action.org/study/boosting-firms-productivity-mexico-with-consulting-services' },
-  { label: 'Bloom et al., Does Management Matter? Evidence from India, LSE CEP', url: 'https://cep.lse.ac.uk/_NEW/PUBLICATIONS/abstract.asp?index=3751' },
-  { label: 'Global Accelerator Learning Initiative, GALI insights', url: 'https://www.galidata.org/insights' },
-]
-
+// The sales pitch, told as slides: the scientific method the platform builds into everyday programme work.
+// The copy is sales material, so it stays in English; only the page around it is translated. Screens are
+// 2880×1800 captures of test data (public/pitch), so no real client appears in sales material.
 const SLIDES: PlayerSlide[] = [
   {
     kind: 'title',
     eyebrow: 'Sales pitch',
-    title: 'Smart Incubation: the evidence-based case',
-    subtitle: 'Software for the support model that randomised trials show works: diagnose, tailor, follow through, measure.',
+    title: 'Smart Incubation: support you can measure',
+    subtitle: 'The method of a good study, built into everyday programme work: a baseline, a plan, tracked delivery, verified outcomes and a comparison.',
     icon: <ExperimentOutlined />,
     accent: '#8b5cf6',
   },
   {
-    kind: 'focus',
-    title: 'The problem',
-    lead: 'About half of South African small businesses close within 24 months, and most support programmes cannot prove they changed that.',
-    icon: <FallOutlined />,
-    accent: '#f0808a',
-    figure: { value: '70–80%', label: 'of survivors fail within five years (widely quoted, weakly sourced)' },
-  },
-  {
     kind: 'narrative',
-    title: 'Why the evidence is mixed',
-    lead: 'Generic support often shows little effect, and weak measurement hides the effects that are there.',
-    icon: <QuestionCircleOutlined />,
-    accent: '#f59e0b',
+    title: 'The method, built in',
+    lead: 'Every SME goes through the same steps, and each step leaves data you can analyse.',
+    icon: <ExperimentOutlined />,
+    accent: '#8b5cf6',
     points: [
-      { icon: <WarningOutlined />, text: 'Few business-training trials find significant gains in profits or sales.', meta: 'McKenzie & Woodruff, 2012', tone: 'warn' },
-      { icon: <AuditOutlined />, text: 'Studies are underpowered, stop within a year and lose firms to drop-out.', meta: 'Same review', tone: 'warn' },
-      { icon: <FundOutlined />, text: 'Funders pay for support they cannot verify.', tone: 'risk' },
-    ],
-  },
-  {
-    kind: 'focus',
-    title: 'Tailored support works',
-    lead: 'In a randomised trial of 432 Mexican SMEs, firms offered a year of personalised consulting grew far more than the control group over five years.',
-    icon: <RiseOutlined />,
-    accent: '#34d399',
-    barsTitle: 'Five-year gain against the control group',
-    bars: [
-      { label: 'Employees', value: 57, total: 100, color: '#34d399', note: '+57%' },
-      { label: 'Total wage bill', value: 72, total: 100, color: '#22d3ee', note: '+72%' },
-    ],
-  },
-  {
-    kind: 'focus',
-    title: 'Structure beats going it alone',
-    lead: 'Across GALI programmes, accelerated ventures outgrew the applicants they turned away within a year. Indian plants given management consulting raised productivity by 11%.',
-    icon: <TeamOutlined />,
-    accent: '#38bdf8',
-    barsTitle: 'One-year growth, accelerated vs rejected',
-    bars: [
-      { label: 'Revenue, accelerated', value: 50, total: 60, color: '#38bdf8', note: '50%' },
-      { label: 'Revenue, rejected', value: 30, total: 60, color: '#64748b', note: '30%' },
-      { label: 'Jobs, accelerated', value: 47, total: 60, color: '#38bdf8', note: '47%' },
-      { label: 'Jobs, rejected', value: 30, total: 60, color: '#64748b', note: '30%' },
+      { icon: <AuditOutlined />, text: 'Record and baseline: structured applications and a diagnostic for every SME.', tone: 'info' },
+      { icon: <ClockCircleOutlined />, text: 'Track: every intervention, its status and what it is waiting on.', tone: 'info' },
+      { icon: <SafetyCertificateOutlined />, text: 'Verify and compare: evidence, independent outcome reports, and before-and-after figures.', tone: 'good' },
     ],
   },
   {
     kind: 'screen',
-    title: 'Select, with a record',
-    lead: 'Every application, its details and the decision sit in one queue.',
+    title: 'Structured records from day one',
+    lead: 'Every applicant is captured in the same fields, so cohorts can be compared and reported on.',
     icon: <SolutionOutlined />,
     accent: '#8b5cf6',
     image: '/pitch/applications.jpg',
-    focus: { x: 0, y: 30, scale: 1.2 },
     alt: 'Applications review: counts of pending, accepted and rejected applications, a list of SMEs, and one applicant’s details.',
     points: [
-      { icon: <CheckCircleOutlined />, text: 'Accept or reject, with the decision kept on file.', tone: 'good' },
-      { icon: <AuditOutlined />, text: 'Programme, province, B-BBEE level and gender captured for reporting.', tone: 'info' },
+      { icon: <AuditOutlined />, text: 'Programme, province, B-BBEE level and gender recorded for each SME.', tone: 'info' },
+      { icon: <CheckCircleOutlined />, text: 'Each decision is kept on file with the application.', tone: 'good' },
       { icon: <FundOutlined />, text: 'Filter by status and date, or open the analytics.', tone: 'info' },
     ],
   },
   {
     kind: 'screen',
-    title: 'Diagnose before you prescribe',
-    lead: 'Each SME gets a Diagnostic Growth Plan: a business overview, a SWOT, and the support each gap needs.',
+    title: 'A baseline for every SME',
+    lead: 'Before any support, a Diagnostic Growth Plan records where the business stands: an overview and a SWOT.',
     icon: <AimOutlined />,
     accent: '#a78bfa',
     image: '/pitch/diagnostic-plan.jpg',
-    focus: { x: 50, y: 85, scale: 1.35 },
     alt: 'A Diagnostic Growth Plan for a test SME, showing its business overview and SWOT analysis.',
     points: [
       { icon: <TeamOutlined />, text: 'Operations and the SME both sign off the plan.', tone: 'info' },
@@ -124,12 +79,11 @@ const SLIDES: PlayerSlide[] = [
   },
   {
     kind: 'screen',
-    title: 'See every stall, and who it is waiting on',
-    lead: 'Monitoring shows the status of every intervention, and why held-up work is held up.',
+    title: 'Delivery measured, not assumed',
+    lead: 'Every intervention’s status is tracked, and held-up work is grouped by its cause.',
     icon: <ClockCircleOutlined />,
     accent: '#f59e0b',
     image: '/pitch/monitoring.jpg',
-    focus: { x: 50, y: 80, scale: 1.15 },
     alt: 'Intervention monitoring: assigned, overdue and progress counts, a status mix chart and a chart of hold-up reasons.',
     points: [
       { icon: <WarningOutlined />, text: 'Hold-ups grouped by cause: facilitator acceptance, delivery or SME acceptance.', tone: 'warn' },
@@ -138,41 +92,39 @@ const SLIDES: PlayerSlide[] = [
     ],
   },
   {
-    kind: 'screen',
-    title: 'One view of each SME’s readiness',
-    lead: 'The Control Tower scores each SME for funding and market readiness, and lists what is still missing.',
-    icon: <DashboardOutlined />,
-    accent: '#38bdf8',
-    image: '/pitch/control-tower.jpg',
-    focus: { x: 75, y: 40, scale: 1.3 },
-    alt: 'The SME Control Tower for a test SME: revenue, compliance and growth-plan cards, and funding and market readiness checklists.',
-    points: [
-      { icon: <RiseOutlined />, text: 'Revenue, compliance and growth-plan progress on one screen.', tone: 'good' },
-      { icon: <SafetyCertificateOutlined />, text: 'Each required document or milestone shows as met, pending or missing.', tone: 'info' },
-      { icon: <WarningOutlined />, text: 'SMEs that need attention are listed first.', tone: 'warn' },
-    ],
-  },
-  {
     kind: 'narrative',
-    title: 'Outcomes are verified, not claimed',
-    lead: 'A completed intervention needs evidence, and its outcome is checked from two sides.',
+    title: 'Outcomes verified from three sources',
+    lead: 'An outcome counts when the evidence, the facilitator and the SME agree.',
     icon: <SafetyCertificateOutlined />,
     accent: '#22d3ee',
     points: [
       { icon: <FileProtectOutlined />, text: 'No intervention reaches 100% until proof of evidence is attached.', tone: 'good' },
       { icon: <TeamOutlined />, text: 'Facilitator and SME report the outcome separately, without seeing each other’s answer.', tone: 'good' },
-      { icon: <RiseOutlined />, text: 'Revenue and headcount are compared before and after each firm’s first completed intervention.', tone: 'info' },
+      { icon: <FlagOutlined />, text: 'Each intervention has a defined outcome and a follow-up date to check it.', tone: 'info' },
     ],
     note: 'Outcomes not fully achieved are checked again after 30 days.',
   },
   {
     kind: 'screen',
-    title: 'Targets that flag themselves',
-    lead: 'Programme KPIs fill in from delivery data and are checked against their targets every period.',
+    title: 'Readiness scored by explicit rules',
+    lead: 'The Control Tower scores each SME for funding and market readiness against stated criteria.',
+    icon: <DashboardOutlined />,
+    accent: '#38bdf8',
+    image: '/pitch/control-tower.jpg',
+    alt: 'The SME Control Tower for a test SME: revenue, compliance and growth-plan cards, and funding and market readiness checklists.',
+    points: [
+      { icon: <CheckCircleOutlined />, text: 'Ready means every required gate is met and the score is 75 or more.', tone: 'good' },
+      { icon: <SafetyCertificateOutlined />, text: 'Each gate shows as met, pending or missing, with the reason.', tone: 'info' },
+      { icon: <RiseOutlined />, text: 'Revenue, compliance and growth-plan progress on one screen.', tone: 'info' },
+    ],
+  },
+  {
+    kind: 'screen',
+    title: 'Targets set in advance, checked every period',
+    lead: 'Programme KPIs fill in from delivery data and are compared with the targets each programme sets.',
     icon: <FlagOutlined />,
     accent: '#f0808a',
     image: '/pitch/kpis.jpg',
-    focus: { x: 0, y: 40, scale: 1.25 },
     alt: 'The KPIs page: a summary of KPIs needing attention and cards for each KPI against its target, with trends.',
     points: [
       { icon: <WarningOutlined />, text: 'Met, behind or off track, with the trend against last quarter.', tone: 'warn' },
@@ -182,46 +134,34 @@ const SLIDES: PlayerSlide[] = [
   },
   {
     kind: 'screen',
-    title: 'Measured against a comparison',
-    lead: 'Impact analysis compares revenue before and after support, and supported SMEs against those not yet supported.',
+    title: 'Before and after, and a comparison group',
+    lead: 'Revenue in the six months before support is compared with the six months after, and supported SMEs with those not yet supported.',
     icon: <BarChartOutlined />,
     accent: '#34d399',
     image: '/pitch/impact.jpg',
-    focus: { x: 0, y: 35, scale: 1.35 },
     alt: 'Impact analysis: revenue growth, jobs created and outcomes achieved, a before-and-after revenue chart per SME, and a comparison of supported and not-yet-supported SMEs.',
     points: [
       { icon: <RiseOutlined />, text: 'The change for each SME, not just an average.', tone: 'good' },
       { icon: <TeamOutlined />, text: 'Jobs created and outcomes achieved alongside revenue.', tone: 'good' },
-      { icon: <QuestionCircleOutlined />, text: 'States its own caveat: a comparison, not proof of cause.', tone: 'info' },
+      { icon: <QuestionCircleOutlined />, text: 'Labelled as a comparison, not proof of cause.', tone: 'info' },
     ],
   },
   {
     kind: 'narrative',
-    title: 'Test it: a 12-month pilot',
-    lead: 'Run one cohort on the platform against a comparison cohort, and judge it on your own data.',
-    icon: <ExperimentOutlined />,
-    accent: '#34d399',
-    points: [
-      { icon: <RiseOutlined />, text: 'Measured: revenue and headcount at 6 and 12 months, on-time rate, evidence rate, reporting hours.', tone: 'info' },
-      { icon: <FlagOutlined />, text: 'Success: better delivery and growth than the comparison cohort, and reports in hours, not weeks.', tone: 'good' },
-      { icon: <WarningOutlined />, text: 'Failure: no difference. We would report that too.', tone: 'warn' },
-    ],
-  },
-  {
-    kind: 'narrative',
-    title: 'What we do not claim',
+    title: 'Honest about its own data',
+    lead: 'The system keeps track of how sure each figure is, so reports do not overclaim.',
     icon: <QuestionCircleOutlined />,
     accent: '#f59e0b',
     points: [
-      { icon: <ExperimentOutlined />, text: 'The trials tested consulting, not software. The pilot is how we find out what the platform adds.', tone: 'warn' },
-      { icon: <AuditOutlined />, text: 'Revenue and headcount are self-reported. Evidence and two-sided checks reduce the risk; they do not remove it.', tone: 'warn' },
-      { icon: <FundOutlined />, text: 'Before-and-after is not a control group. A comparison cohort is still needed.', tone: 'warn' },
+      { icon: <TeamOutlined />, text: 'A facilitator’s answer is recorded as an observation, not as proof.', tone: 'info' },
+      { icon: <AuditOutlined />, text: 'Revenue and headcount are self-reported; evidence and blind checks back them up.', tone: 'warn' },
+      { icon: <BarChartOutlined />, text: 'Before-and-after only uses SMEs with figures on both sides.', tone: 'info' },
     ],
   },
   {
     kind: 'closing',
-    title: 'Run one cohort for 12 months',
-    subtitle: 'We set up the programme, its KPI targets and a comparison group with you, and share the 6-month results in full.',
+    title: 'See it on your own programme',
+    subtitle: 'Run one cohort on Smart Incubation, and every figure in this pitch comes from your own data.',
     icon: <FlagOutlined />,
     accent: '#8b5cf6',
   },
@@ -234,7 +174,7 @@ const SalesPitchPage = () => {
 
   useRegisterAgentPageContext({
     pageKey: 'admin-sales-pitch', pageName: 'Sales pitch',
-    purpose: 'Present the evidence-based sales pitch for Smart Incubation as a slide player.',
+    purpose: 'Present the sales pitch for Smart Incubation, on how it measures and verifies SME support, as a slide player.',
     metrics: { slides: SLIDES.length },
   })
 
@@ -249,9 +189,9 @@ const SalesPitchPage = () => {
       <Col xs={24} lg={15}>
         <Card>
           <Space direction="vertical" size={12} style={{ width: '100%' }}>
-            <Typography.Title level={4} style={{ margin: 0 }}>Smart Incubation: the evidence-based case</Typography.Title>
+            <Typography.Title level={4} style={{ margin: 0 }}>Smart Incubation: support you can measure</Typography.Title>
             <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
-              {t('A {count}-slide pitch built on randomised trials of SME support, with a pilot design and its limits stated. Plays full screen; use the arrow keys to move and Esc to close.', undefined, { count: SLIDES.length })}
+              {t('How Smart Incubation measures and verifies SME support, in {count} slides on real screens of the system. Plays full screen; use the arrow keys to move and Esc to close.', undefined, { count: SLIDES.length })}
             </Typography.Paragraph>
             <div><Button type="primary" size="large" icon={<PlayCircleFilled />} onClick={startPlayer}>{t('Play pitch')}</Button></div>
           </Space>
@@ -262,13 +202,6 @@ const SalesPitchPage = () => {
           <ol style={{ margin: 0, paddingLeft: 20 }}>
             {SLIDES.map((slide) => <li key={slide.title}><Typography.Text>{slide.title}</Typography.Text></li>)}
           </ol>
-        </Card>
-      </Col>
-      <Col xs={24}>
-        <Card title={t('Sources')}>
-          <ul style={{ margin: 0, paddingLeft: 20 }}>
-            {SOURCES.map((source) => <li key={source.url}><a href={source.url} target="_blank" rel="noreferrer">{source.label}</a></li>)}
-          </ul>
         </Card>
       </Col>
     </Row>

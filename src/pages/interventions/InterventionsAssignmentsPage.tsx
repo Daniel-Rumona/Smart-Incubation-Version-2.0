@@ -35,13 +35,14 @@ import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
 import { useSystemSettings } from '@/contexts/SystemSettingsContext'
 import { useActiveProgramId } from '@/hooks/useActiveProgramId'
 import { matchesActiveProgram } from '@/services/workspaceProgramsService'
-import { areasFor, assignmentStartsAccepted, useCompanyWorkSettings } from '@/services/companyWorkSettingsService'
+import { assignmentStartsAccepted, coversArea as consultantCoversArea, useCompanyWorkSettings } from '@/services/companyWorkSettingsService'
 import { isAgentStrategy } from '@/services/agentOrchestrationService'
 import { useEntitlements } from '@/hooks/useEntitlements'
 import { listActiveAgents } from '@/services/agentRegistryService'
 import type { AgentDefinition, InterventionDeliveryStrategy } from '@/types/agentOrchestration'
 import type { InterventionOutcomeDefinition } from '@/types/interventions'
 import { useLanguage, tr } from '@/providers/LanguageProvider'
+import { ModalActions } from '@/components/shared/ModalActions'
 
 type RequiredIntervention = {
     interventionId?: string
@@ -726,7 +727,7 @@ export const InterventionsAssignemnts = () => {
         const item = participant?.requiredInterventions.find((row) => interventionId(row) === interventionIdWatch)
         return item ? interventionArea(item) : ''
     })()
-    const coversArea = (assigneeId: string) => !!assignArea && areasFor(workSettings, assigneeId).some((area) => area.toLowerCase() === assignArea.toLowerCase())
+    const coversArea = (assigneeId: string) => !!assignArea && consultantCoversArea(workSettings, assigneeId, assignArea)
     // Matching consultants first, everyone else after, each group in its existing order.
     const assigneeOptions = assignees
         .map((assignee) => ({ value: assignee.id, label: `${assignee.name}${assignee.id === user?.uid ? ' (Me)' : ''} (${assigneeRoleLabel(assignee.role)})${assignee.email ? ` - ${assignee.email}` : ''}`, match: coversArea(assignee.id) }))
@@ -1255,12 +1256,11 @@ export const InterventionsAssignemnts = () => {
                                     </Form.Item>
                                 </Col>
                             </Row>
-                            <Space style={{ justifyContent: 'flex-end', width: '100%' }}>
-                                <Button onClick={closeAssignmentModal}>{t('Cancel')}</Button>
+                            <ModalActions>
                                 <Button type="primary" icon={<UserSwitchOutlined />} loading={saving} onClick={() => void handleDetailsContinue()}>
                                     {deliveryMode === 'agent' ? t('Assign') : t('Continue')}
                                 </Button>
-                            </Space>
+                            </ModalActions>
                         </>
                     )}
 
@@ -1328,13 +1328,10 @@ export const InterventionsAssignemnts = () => {
                                     <Input />
                                 </Form.Item>
                             )}
-                            <Space style={{ justifyContent: 'space-between', width: '100%' }}>
+                            <ModalActions>
                                 <Button onClick={() => setAssignStep(isSelfAssign ? 'details' : 'appointmentGate')}>{t('Back')}</Button>
-                                <Space>
-                                    <Button onClick={closeAssignmentModal}>{t('Cancel')}</Button>
-                                    <Button type="primary" icon={<UserSwitchOutlined />} loading={saving} onClick={() => void handleFinalAssign()}>{t('Assign')}</Button>
-                                </Space>
-                            </Space>
+                                <Button type="primary" icon={<UserSwitchOutlined />} loading={saving} onClick={() => void handleFinalAssign()}>{t('Assign')}</Button>
+                            </ModalActions>
                         </Space>
                     )}
                 </Form>

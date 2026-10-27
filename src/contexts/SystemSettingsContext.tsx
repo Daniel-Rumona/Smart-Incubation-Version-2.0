@@ -8,6 +8,8 @@ type SystemSettings = Record<string, unknown>
 type SystemSettingsContextValue = {
   settings: SystemSettings
   loading: boolean
+  /** The signed-in user's settings (and so their plan) have loaded. Before that, plan-gated features are unknown. */
+  ready: boolean
   consultantLabel: string
   smeDivisionModel: string
   getSetting: <T,>(key: string, fallback: T) => T
@@ -20,15 +22,19 @@ export const SystemSettingsProvider = ({ children }: PropsWithChildren) => {
   const { user } = useFullIdentity()
   const [settings, setSettings] = useState<SystemSettings>({})
   const [loading, setLoading] = useState(false)
+  // Which user and company the current settings belong to; ready once that matches who is signed in now.
+  const [loadedFor, setLoadedFor] = useState<string | null>(null)
 
   const uid = user?.uid
   const companyCode = String(user?.companyCode || '').trim()
+  const loadKey = uid ? `${uid}|${companyCode}` : null
 
   // Settings are only readable once signed in, and must reload when the signed-in user changes
   // (not just their company: an SME without a companyCode would otherwise keep the signed-out, empty settings).
   const load = useCallback(async () => {
     if (!uid) {
       setSettings({})
+      setLoadedFor(null)
       return
     }
 
@@ -50,6 +56,7 @@ export const SystemSettingsProvider = ({ children }: PropsWithChildren) => {
       console.warn('Could not load system settings; using defaults.', error)
     } finally {
       setLoading(false)
+      setLoadedFor(`${uid}|${companyCode}`)
     }
   }, [companyCode, uid])
 
@@ -63,7 +70,8 @@ export const SystemSettingsProvider = ({ children }: PropsWithChildren) => {
 
   const consultantLabel = getSetting('consultantLabel', 'Consultants')
   const smeDivisionModel = getSetting('smeDivisionModel', 'registered_consultant_only')
-  const value = useMemo(() => ({ settings, loading, consultantLabel, smeDivisionModel, getSetting, refresh: load }), [consultantLabel, getSetting, load, loading, settings, smeDivisionModel])
+  const ready = !!loadKey && loadedFor === loadKey
+  const value = useMemo(() => ({ settings, loading, ready, consultantLabel, smeDivisionModel, getSetting, refresh: load }), [consultantLabel, getSetting, load, loading, ready, settings, smeDivisionModel])
 
   return <SystemSettingsContext.Provider value={value}>{children}</SystemSettingsContext.Provider>
 }

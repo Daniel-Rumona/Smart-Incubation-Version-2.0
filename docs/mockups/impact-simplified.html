@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Impact simplified</title>
+<style>
+  :root {
+    --accent: #6d5dfb; --accent-2: #4f7df3;
+    --bg: #f5f6fb; --surface: #ffffff; --surface-2: #eef0f8; --ink: #172033; --muted: #5b6478; --line: rgba(109,93,251,.14);
+    --ok: #059669; --ok-dark: #047857; --ok-bg: rgba(5,150,105,.1);
+    --amber: #d97706; --off: #dc2626; --off-bg: rgba(220,38,38,.08); --blue: #2563eb; --pink: #db2777; --slate: #94a3b8;
+    --note: #b45309; --note-bg: rgba(217,119,6,.1);
+    --ease: cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  [data-theme="dark"] {
+    --bg: #0f1117; --surface: #1b1e2a; --surface-2: #232737; --ink: #eef0f6; --muted: #a1a9bd; --line: rgba(139,92,246,.24);
+    --ok: #34d399; --ok-dark: #059669; --ok-bg: rgba(52,211,153,.12); --off: #f87171; --off-bg: rgba(248,113,113,.1);
+    --slate: #64748b; --note: #fbbf24; --note-bg: rgba(251,191,36,.12);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
+  button { font: inherit; color: inherit; }
+
+  /* mockup controls */
+  .controls { position: sticky; top: 0; z-index: 9; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; padding: 12px; background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+  .seg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); }
+  .seg button { border: 0; background: none; color: var(--muted); font-weight: 650; font-size: 13px; padding: 7px 14px; border-radius: 999px; cursor: pointer; }
+  .seg button.on { color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+  .stage { display: flex; justify-content: center; padding: 24px 16px 48px; }
+  .frame { width: 1180px; max-width: 100%; border: 1px solid var(--line); border-radius: 22px; background: var(--bg); padding: 22px; container-type: inline-size; transition: width .35s var(--ease); }
+  .stage.phone .frame { width: 375px; border-radius: 36px; padding: 16px; }
+  .view { display: none; } .view.on { display: block; }
+
+  .chg { display: none; margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; font-size: 12.5px; line-height: 1.4; color: var(--note); background: var(--note-bg); border: 1px dashed color-mix(in srgb, var(--note) 50%, transparent); }
+  .show-notes .chg { display: block; }
+
+  /* page chrome */
+  .page-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; margin-bottom: 16px; }
+  .page-head h1 { font-size: 22px; margin: 0; }
+  .page-head span { color: var(--muted); font-size: 13px; }
+  .grid { display: grid; gap: 14px; margin-bottom: 14px; }
+  .g4 { grid-template-columns: repeat(4, 1fr); } .g3 { grid-template-columns: repeat(3, 1fr); }
+  .g2 { grid-template-columns: 1fr 1fr; } .g-16-8 { grid-template-columns: 2fr 1fr; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; min-width: 0; }
+  .card h3 { font-size: 15px; margin: 0 0 12px; display: flex; align-items: center; gap: 6px; }
+  .tip { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; font-size: 11px; font-weight: 700; color: var(--muted); border: 1px solid var(--line); cursor: help; }
+  .muted { color: var(--muted); }
+  .small { font-size: 12px; }
+
+  /* metric cards */
+  .metric { display: flex; gap: 12px; align-items: flex-start; }
+  .metric i { flex: none; width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; font-style: normal; font-size: 17px; color: #fff; }
+  .metric small { display: block; color: var(--muted); font-size: 12.5px; }
+  .metric b { display: block; font-size: 26px; line-height: 1.15; letter-spacing: -.01em; }
+  .metric em { display: block; font-style: normal; color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .metric em strong { color: var(--ok); font-weight: 650; }
+  .metric.big b { font-size: 32px; }
+
+  /* headline number + caption */
+  .headline { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+  .headline strong { font-size: 34px; line-height: 1; color: var(--ok); }
+  .headline span { color: var(--muted); font-size: 13px; }
+
+  /* horizontal bars */
+  .bars { display: grid; gap: 8px; }
+  .bar-row { display: grid; grid-template-columns: 120px 1fr; gap: 10px; align-items: center; font-size: 12.5px; }
+  .bar-track { position: relative; height: 18px; display: flex; border-radius: 5px; overflow: hidden; background: var(--surface-2); }
+  .bar-track span { height: 100%; }
+  .diverge { position: relative; height: 18px; }
+  .diverge .zero { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--muted); }
+  .diverge span { position: absolute; top: 0; height: 100%; border-radius: 4px; }
+  .diverge b { position: absolute; top: 0; font-size: 11px; line-height: 18px; font-weight: 650; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 12px; font-size: 12px; color: var(--muted); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+
+  .compare-line { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); font-size: 13px; }
+  .compare-line b { color: var(--ok); }
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .compare > div, .mini > div { padding: 12px 14px; border-radius: 12px; background: var(--surface-2); display: grid; gap: 2px; }
+  .compare strong { font-size: 28px; }
+  .mini { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .mini strong { font-size: 22px; } .mini span { font-weight: 600; font-size: 12.5px; } .mini small { color: var(--muted); font-size: 11.5px; }
+  .mini .risk strong { color: var(--off); }
+  .dispute { padding: 10px 12px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--off) 35%, transparent); background: var(--off-bg); display: grid; gap: 2px; font-size: 13px; }
+  .empty-hint { padding: 12px 14px; border-radius: 12px; background: var(--surface-2); color: var(--muted); font-size: 13px; }
+
+  /* table */
+  .search { width: 100%; max-width: 320px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); margin: 0 0 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font-weight: 650; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  td { padding: 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  tr:last-child td { border-bottom: 0; }
+  .tag { display: inline-block; font-size: 11.5px; font-weight: 650; padding: 1px 7px; border-radius: 6px; margin-left: 6px; }
+  .tag.up { color: var(--ok); background: var(--ok-bg); } .tag.down { color: var(--off); background: var(--off-bg); }
+  .sme-cards { display: none; gap: 10px; }
+  .sme-card { padding: 12px; border-radius: 12px; background: var(--surface-2); display: grid; gap: 4px; font-size: 13px; }
+  .sme-card div { display: flex; justify-content: space-between; gap: 8px; }
+
+  /* moved-out preview */
+  .moved { display: none; margin-top: 22px; padding: 14px; border-radius: 16px; border: 2px dashed color-mix(in srgb, var(--note) 45%, transparent); }
+  .show-notes .moved { display: block; }
+  .moved > p { margin: 0 0 12px; font-size: 12.5px; color: var(--note); font-weight: 650; }
+
+  @container (max-width: 760px) {
+    .g4, .g3 { grid-template-columns: 1fr 1fr; }
+    .g2, .g-16-8 { grid-template-columns: 1fr; }
+    .g3 > :first-child { grid-column: 1 / -1; }
+    .bar-row { grid-template-columns: 84px 1fr; font-size: 12px; }
+    .metric b { font-size: 22px; } .metric.big b { font-size: 26px; }
+    .metric i { display: none; }
+    .headline strong { font-size: 28px; }
+    table { display: none; } .sme-cards { display: grid; }
+    .search { max-width: none; }
+  }
+</style>
+</head>
+<body>
+<div class="controls">
+  <div class="seg" id="page"><button data-p="current">Current</button><button class="on" data-p="simple">Simplified</button></div>
+  <div class="seg" id="view"><button class="on" data-v="desktop">Desktop</button><button data-v="phone">Phone</button></div>
+  <div class="seg" id="theme"><button class="on" data-t="light">Light</button><button data-t="dark">Dark</button></div>
+  <div class="seg" id="notes"><button class="on" data-n="on">Show changes</button><button data-n="off">Hide changes</button></div>
+</div>
+
+<div class="stage show-notes" id="stage">
+  <div class="frame">
+
+    <!-- ================= CURRENT ================= -->
+    <section class="view" id="current">
+      <div class="page-head"><h1>Impact analysis</h1><span>Sample data · Youth Enterprise Programme 2026</span></div>
+      <div class="chg">This is today's page, redrawn with the same sample data. It has 11 blocks and about 16 numbers before the SME table.</div>
+      <div class="grid g4">
+        <div class="card metric"><i style="background:var(--ok)">↗</i><div><small>Revenue growth</small><b>+12%</b><em>Since joining, across 20 SMEs</em></div></div>
+        <div class="card metric"><i style="background:var(--blue)">👥</i><div><small>Jobs created</small><b>+23</b><em>Net change across 18 SMEs</em></div></div>
+        <div class="card metric"><i style="background:var(--amber)">✓</i><div><small>Outcomes achieved</small><b>67%</b><em>Of 52 followed-up interventions</em></div></div>
+        <div class="card metric"><i style="background:var(--off)">$</i><div><small>SMEs growing</small><b>14 / 20</b><em>Revenue up since joining</em></div></div>
+      </div>
+      <div class="grid g2">
+        <div class="card"><h3>Before and after support</h3>
+          <div class="headline"><strong>+9%</strong><span>Median change in average monthly revenue, 6 months before against 6 months after an SME's first completed intervention. 9 of 12 SMEs improved.</span></div>
+          <div class="bars" data-chart="beforeafter"></div>
+        </div>
+        <div class="card"><h3>Supported and not yet supported</h3>
+          <div class="compare">
+            <div><span class="muted">With a completed intervention</span><strong>+14%</strong><small class="muted">13 SMEs</small></div>
+            <div><span class="muted">None completed yet</span><strong>+4%</strong><small class="muted">7 SMEs</small></div>
+          </div>
+          <p class="muted small" style="margin:12px 0 0">Median revenue growth since joining. A comparison, not proof of cause: the groups can differ in other ways.</p>
+        </div>
+      </div>
+      <div class="grid g-16-8">
+        <div class="card"><h3>Outcomes by area of support</h3><div class="bars" data-chart="areas-current"></div><div class="legend" data-legend="current"></div></div>
+        <div class="card"><h3>Check-backs</h3>
+          <div class="mini">
+            <div><strong>41</strong><span>Answers recorded</span><small>63% on WhatsApp</small></div>
+            <div class="risk"><strong>5</strong><span>Overdue</span><small>Waiting on an answer past its date</small></div>
+            <div><strong>28</strong><span>Achieved first time</span><small>At the first check-back</small></div>
+            <div><strong>7</strong><span>Achieved after a re-check</span><small>Needed more than one check-back</small></div>
+            <div><strong>33</strong><span>SME answers</span><small>For 41 facilitator rounds</small></div>
+            <div><strong>82%</strong><span>Agreement</span><small>27 of 33 rounds both answered</small></div>
+          </div>
+          <p class="muted small" style="margin:12px 0 0">Facilitators record the official result; SMEs answer the same question for themselves, in the app or on WhatsApp.</p>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:14px"><h3>Disputed outcomes</h3>
+        <div class="grid g2" style="margin:0">
+          <div class="dispute"><b>Bookkeeping set-up</b><span class="muted">Imbali Crafts</span><span>Facilitator: Achieved · SME: No</span><i class="muted">"We still can't do the monthly close ourselves."</i></div>
+          <div class="dispute"><b>Website launch</b><span class="muted">Mzansi Print</span><span>Facilitator: Achieved · SME: No</span></div>
+        </div>
+      </div>
+      <input class="search" placeholder="Search SMEs">
+      <div class="card"><h3>Impact by SME</h3><div data-table="current"></div></div>
+    </section>
+
+    <!-- ================= SIMPLIFIED ================= -->
+    <section class="view on" id="simple">
+      <div class="page-head"><h1>Impact analysis</h1><span>Sample data · Youth Enterprise Programme 2026</span></div>
+
+      <div class="chg"><b>3 numbers, not 4.</b> "SMEs growing" folds into the revenue card. Outcomes now shows how many results the SME confirmed, which is the verification the landing page promises.</div>
+      <div class="grid g3">
+        <div class="card metric big"><i style="background:var(--ok)">↗</i><div><small>Revenue growth</small><b>+12%</b><em><strong>14 of 20</strong> SMEs growing since joining</em></div></div>
+        <div class="card metric big"><i style="background:var(--blue)">👥</i><div><small>Jobs created</small><b>+23</b><em>Net, across 18 SMEs</em></div></div>
+        <div class="card metric big"><i style="background:var(--amber)">✓</i><div><small>Outcomes achieved</small><b>67%</b><em><strong>24 of 35</strong> confirmed by the SME</em></div></div>
+      </div>
+
+      <div class="chg"><b>Outcomes chart: 4 colours, not 7.</b> The three check-back statuses become one grey "Awaiting result" bar. Achieved stays split into SME-confirmed (dark) and facilitator only (light).</div>
+      <div class="card" style="margin-bottom:14px"><h3>Outcomes by area of support</h3><div class="bars" data-chart="areas-simple"></div><div class="legend" data-legend="simple"></div></div>
+
+      <div class="chg"><b>One revenue story.</b> Before and after keeps its chart. The 40-word method note moves into the ⓘ tooltip. "Supported and not yet supported" shrinks to one line underneath.</div>
+      <div class="card" style="margin-bottom:14px">
+        <h3>Before and after support <span class="tip" title="Median change in average monthly revenue: 6 months before against 6 months after each SME's first completed intervention.">i</span></h3>
+        <div class="headline"><strong>+9%</strong><span>Median revenue change after support. 9 of 12 SMEs improved.</span></div>
+        <div class="bars" data-chart="beforeafter"></div>
+        <div class="compare-line">SMEs with completed support grew <b>+14%</b> since joining; those not yet supported grew <b>+4%</b>. <span class="muted">A comparison, not proof of cause.</span></div>
+      </div>
+
+      <div class="chg"><b>Unchanged:</b> the SME table. The "Before → after" column now also shows on phone cards.</div>
+      <input class="search" placeholder="Search SMEs">
+      <div class="card"><h3>Impact by SME</h3><div data-table="simple"></div></div>
+
+      <div class="chg" style="margin-top:14px"><b>No data yet?</b> Sections without enough data are hidden, and a single line explains what will appear, like this:</div>
+      <div class="chg" style="background:none;border:0;padding:0">
+        <div class="empty-hint">Growth figures appear once SMEs have revenue or headcount for two periods. SMEs add these on their metrics page.</div>
+      </div>
+
+      <div class="moved">
+        <p>Moved out: this now lives on Interventions › Monitoring as "Follow-ups to chase"</p>
+        <div class="grid g2" style="margin:0">
+          <div class="card"><h3>Check-backs</h3>
+            <div class="mini">
+              <div class="risk"><strong>5</strong><span>Overdue</span><small>Past their check-back date</small></div>
+              <div><strong>8</strong><span>Due</span><small>Waiting on an answer</small></div>
+              <div><strong>3</strong><span>No check-back set</span><small>Completed without a date</small></div>
+              <div><strong>63%</strong><span>Answered on WhatsApp</span><small>Of 41 answers</small></div>
+            </div>
+          </div>
+          <div class="card"><h3>Disputed outcomes <span class="muted small">2</span></h3>
+            <div style="display:grid;gap:8px">
+              <div class="dispute"><b>Bookkeeping set-up · Imbali Crafts</b><span>Facilitator: Achieved · SME: No</span></div>
+              <div class="dispute"><b>Website launch · Mzansi Print</b><span>Facilitator: Achieved · SME: No</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<script>
+  const C = { conf: 'var(--ok-dark)', ach: 'var(--ok)', part: 'var(--amber)', not: 'var(--off)', due: 'var(--blue)', over: 'var(--pink)', none: 'var(--slate)' }
+  const areas = [
+    { area: 'Finance', conf: 7, ach: 10, part: 3, not: 1, due: 2, over: 1, none: 1 },
+    { area: 'Marketing', conf: 6, ach: 8, part: 2, not: 2, due: 2, over: 1, none: 0 },
+    { area: 'Compliance', conf: 6, ach: 9, part: 1, not: 0, due: 1, over: 1, none: 0 },
+    { area: 'Operations', conf: 3, ach: 5, part: 2, not: 3, due: 2, over: 1, none: 2 },
+    { area: 'Digital', conf: 2, ach: 3, part: 2, not: 1, due: 1, over: 1, none: 0 },
+  ]
+  const legends = {
+    current: [['conf', 'Achieved, SME confirmed'], ['ach', 'Achieved, facilitator only'], ['part', 'Partially'], ['not', 'Not yet'], ['due', 'Check-back due'], ['over', 'Check-back overdue'], ['none', 'No check-back set']],
+    simple: [['conf', 'Achieved, SME confirmed'], ['ach', 'Achieved, facilitator only'], ['part', 'Partially'], ['not', 'Not yet'], ['none', 'Awaiting result']],
+  }
+  const segs = (a, simple) => [
+    ['conf', a.conf], ['ach', a.ach - a.conf], ['part', a.part], ['not', a.not],
+    ...(simple ? [['none', a.due + a.over + a.none]] : [['due', a.due], ['over', a.over], ['none', a.none]]),
+  ]
+  const max = Math.max(...areas.map(a => a.ach + a.part + a.not + a.due + a.over + a.none))
+  for (const mode of ['current', 'simple']) {
+    document.querySelector(`[data-chart="areas-${mode}"]`).innerHTML = areas.map(a =>
+      `<div class="bar-row"><span>${a.area}</span><div class="bar-track" style="background:none">${segs(a, mode === 'simple').map(([k, v]) => v ? `<span title="${v}" style="width:${v / max * 100}%;background:${C[k]}"></span>` : '').join('')}</div></div>`).join('')
+    document.querySelector(`[data-legend="${mode}"]`).innerHTML = legends[mode].map(([k, l]) => `<span><i style="background:${C[k]}"></i>${l}</span>`).join('')
+  }
+
+  const ba = [['Ubuntu Bakery', 34], ['Khanya Solar', 22], ['Siyakha Logistics', 18], ['Thembeka Foods', 12], ['Lethu Cleaning', 10], ['Imbali Crafts', 9], ['Mzansi Print', 9], ['Sizwe Motors', 6], ['Nandi Beauty', 3], ['Kasi Fresh', -2], ['Amandla Tech', -5], ['Zola Events', -11]]
+  const lo = -15, hi = 40, pos = v => (v - lo) / (hi - lo) * 100
+  document.querySelectorAll('[data-chart="beforeafter"]').forEach(el => {
+    el.innerHTML = ba.map(([n, v]) => {
+      const left = Math.min(pos(0), pos(v)), width = Math.abs(pos(v) - pos(0))
+      const label = v >= 0 ? `left:calc(${pos(v)}% + 4px)` : `right:calc(${100 - pos(v)}% + 4px)`
+      return `<div class="bar-row"><span>${n}</span><div class="diverge"><i class="zero" style="left:${pos(0)}%"></i><span style="left:${left}%;width:${width}%;background:${v >= 0 ? 'var(--ok)' : 'var(--off)'}"></span><b style="${label}">${v > 0 ? '+' : ''}${v}%</b></div></div>`
+    }).join('')
+  })
+
+  const smes = [
+    ['Ubuntu Bakery', 'R 42k → R 61k', 45, '6 → 9', 3, 4, '3 of 3 achieved', 34],
+    ['Khanya Solar', 'R 120k → R 151k', 26, '12 → 15', 3, 3, '2 of 3 achieved', 22],
+    ['Siyakha Logistics', 'R 88k → R 99k', 13, '9 → 11', 2, 5, '4 of 4 achieved', 18],
+    ['Imbali Crafts', 'R 18k → R 20k', 11, '3 → 3', 0, 2, '1 of 2 achieved', 9],
+    ['Kasi Fresh', 'R 55k → R 52k', -5, '7 → 6', -1, 2, '0 of 1 achieved', -2],
+    ['Zola Events', 'R 31k → R 27k', -13, '4 → 4', 0, 1, 'Awaiting follow-up', -11],
+  ]
+  const tag = (v, pct = true) => v === 0 ? '' : `<span class="tag ${v > 0 ? 'up' : 'down'}">${v > 0 ? '+' : '−'}${Math.abs(v)}${pct ? '%' : ''}</span>`
+  document.querySelectorAll('[data-table]').forEach(el => {
+    const simple = el.dataset.table === 'simple'
+    el.innerHTML = `<table><thead><tr><th>SME</th><th>Revenue</th><th>Employees</th><th>Completed</th><th>Outcomes</th><th>Before → after</th></tr></thead><tbody>${smes.map(s =>
+      `<tr><td><b>${s[0]}</b></td><td>${s[1]}${tag(s[2])}</td><td>${s[3]}${tag(s[4], false)}</td><td style="text-align:center">${s[5]}</td><td>${s[6]}</td><td style="text-align:center">${tag(s[7])}</td></tr>`).join('')}</tbody></table>
+      <div class="sme-cards">${smes.map(s => `<div class="sme-card"><div><b>${s[0]}</b>${tag(s[2])}</div><div><span class="muted">Revenue</span><span>${s[1]}</span></div><div><span class="muted">Employees</span><span>${s[3]}</span></div><div><span class="muted">Outcomes</span><span>${s[6]}</span></div>${simple ? `<div><span class="muted">Before → after</span><span>${tag(s[7])}</span></div>` : ''}</div>`).join('')}</div>`
+  })
+
+  const seg = (id, fn) => document.getElementById(id).addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return
+    document.querySelectorAll('#' + id + ' button').forEach(x => x.classList.toggle('on', x === b))
+    fn(b.dataset)
+  })
+  const stage = document.getElementById('stage')
+  seg('page', d => document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === d.p)))
+  seg('view', d => stage.classList.toggle('phone', d.v === 'phone'))
+  seg('theme', d => document.documentElement.dataset.theme = d.t)
+  seg('notes', d => stage.classList.toggle('show-notes', d.n === 'on'))
+</script>
+</body>
+</html>

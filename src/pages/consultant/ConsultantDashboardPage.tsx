@@ -37,6 +37,8 @@ import {
     toDate,
 } from './ConsultantWorkspaceUtils'
 import '@/styles/consultant.css'
+import { lastMessage, listConnectionRequestsForConsultant, waitsOnConsultant } from '@/services/connectionRequestService'
+import type { ConnectionRequest } from '@/types/connectionRequest'
 
 type ConsultantStatus = ReturnType<typeof deriveConsultantStatus>
 type Bucket = 'toAccept' | 'inProgress' | 'overdue' | 'completed' | 'declined'
@@ -93,6 +95,7 @@ export const ConsultantDashboardPage = () => {
     const [metricModal, setMetricModal] = useState<{ title: string; rows: DashboardRow[] } | null>(null)
     const [appointments, setAppointments] = useState<Array<Record<string, unknown>>>([])
     const [profile, setProfile] = useState<ConsultantMarketplaceProfile | null>(null)
+    const [marketRequests, setMarketRequests] = useState<ConnectionRequest[]>([])
     const [previewOpen, setPreviewOpen] = useState(false)
     const [requesting, setRequesting] = useState<{ id: string; title: string; participant: string } | null>(null)
     const [perfRange, setPerfRange] = useState<'weekly' | 'monthly'>('weekly')
@@ -109,6 +112,7 @@ export const ConsultantDashboardPage = () => {
             .catch(() => { if (active) setAppointments([]) })
         // Freelance consultants are listed in the marketplace, so their listing is part of what needs them.
         if (freelance) void getConsultantProfile(user.uid, { name: user.displayName, email: user.email }).then((next) => { if (active) setProfile(next) }).catch(() => undefined)
+        if (freelance) void listConnectionRequestsForConsultant(user.uid).then((rows) => { if (active) setMarketRequests(rows) }).catch(() => undefined)
         return () => { active = false }
     }, [freelance, user?.displayName, user?.email, user?.uid])
 
@@ -231,6 +235,13 @@ export const ConsultantDashboardPage = () => {
     const dueTag = (row: DashboardRow) => ({ text: dueLabel(row.dueDate as Date), tone: 'warning' as const })
     const dueSoonOpen = dueSoon.filter((row) => row.bucket !== 'toAccept')
     const yourNeeds: NeedItem[] = [
+        // Marketplace requests waiting on a freelancer's reply come first: an SME is waiting to hear back.
+        ...marketRequests.filter(waitsOnConsultant).map((request) => ({
+            key: `request-${request.id}`,
+            title: request.status === 'pending' ? t('Request from {sme}', undefined, { sme: request.smeName }) : t('{sme} replied', undefined, { sme: request.smeName }),
+            detail: [request.areaOfSupport, lastMessage(request)?.text || request.note].filter(Boolean).join(' · '),
+            action: { label: t('Reply'), onClick: () => navigate('/consultant/requests', { state: { focusRequestId: request.id } }) },
+        })),
         ...(freelance && profile && !published ? [{
             key: 'profile',
             title: profileReady ? t('Publish your profile') : t('Finish your profile'),
@@ -537,7 +548,7 @@ export const ConsultantDashboardPage = () => {
             </ResponsiveModal>
 
             {profile && (
-                <ResponsiveModal open={previewOpen} onClose={() => setPreviewOpen(false)} title={t('How SMEs see your profile')} width={420} centered>
+                <ResponsiveModal open={previewOpen} onClose={() => setPreviewOpen(false)} title={t('How SMEs see your profile')} width={520} centered className="consultant-profile-preview-modal">
                     <ConsultantMarketplaceCard profile={profile} action={<Button type="primary" block disabled>{t('Choose this consultant')}</Button>} />
                 </ResponsiveModal>
             )}

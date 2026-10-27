@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { App, Card, Col, Empty, Input, Row, Tag, Typography, type TableProps } from 'antd'
-import { CheckCircleOutlined, FundOutlined, RiseOutlined, SearchOutlined, TeamOutlined } from '@ant-design/icons'
+import { App, Card, Col, Input, Row, Select, Tag, Tooltip, Typography, type TableProps } from 'antd'
+import { CheckCircleOutlined, CloseOutlined, InfoCircleOutlined, RiseOutlined, SearchOutlined, TeamOutlined } from '@ant-design/icons'
 import type Highcharts from 'highcharts'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
@@ -11,19 +11,25 @@ import { CHART_COLORS } from '@/config/chartPalette'
 import { useActiveProgramId } from '@/hooks/useActiveProgramId'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { useLanguage } from '@/providers/LanguageProvider'
-import { BEFORE_AFTER_WINDOW_MONTHS, loadImpactAnalytics, type ImpactAnalytics, type OutcomeBucket, type SmeImpact } from '@/services/impactAnalyticsService'
+import { BEFORE_AFTER_WINDOW_MONTHS, loadImpactAnalytics, type ImpactAnalytics, type SmeImpact } from '@/services/impactAnalyticsService'
 import { formatCurrencyZAR, formatMetricNumber } from '@/services/smePerformanceMetrics'
 import '@/styles/impact-analysis.css'
 
-// Results first (good to bad), then the interventions still waiting on a check-back answer.
-const OUTCOME_SERIES: Array<{ key: OutcomeBucket, label: string, color: string }> = [
-    { key: 'achieved', label: 'Achieved', color: CHART_COLORS.success },
-    { key: 'partially', label: 'Partially', color: CHART_COLORS.amber },
-    { key: 'not_yet', label: 'Not yet', color: CHART_COLORS.danger },
-    { key: 'checkback_due', label: 'Check-back due', color: CHART_COLORS.primary },
-    { key: 'checkback_overdue', label: 'Check-back overdue', color: CHART_COLORS.pink },
-    { key: 'no_checkback', label: 'No check-back set', color: CHART_COLORS.slate },
+// Below this many SMEs a median says little, so the headline figure is left out.
+const MIN_SMES_FOR_MEDIAN = 5
+
+// Revenue change after support, grouped into bands so the chart reads the same for 8 SMEs or 800.
+type BandKey = 'down_big' | 'down' | 'flat' | 'up' | 'up_big'
+const BANDS: Array<{ key: BandKey, label: string, color: string, matches: (change: number) => boolean }> = [
+    { key: 'down_big', label: 'Down more than 20%', color: CHART_COLORS.danger, matches: (change) => change < -20 },
+    { key: 'down', label: 'Down 5–20%', color: '#f87171', matches: (change) => change >= -20 && change < -5 },
+    { key: 'flat', label: 'About the same', color: CHART_COLORS.slate, matches: (change) => change >= -5 && change <= 5 },
+    { key: 'up', label: 'Up 5–20%', color: '#34d399', matches: (change) => change > 5 && change <= 20 },
+    { key: 'up_big', label: 'Up more than 20%', color: CHART_COLORS.success, matches: (change) => change > 20 },
 ]
+const bandOf = (change: number) => BANDS.find((band) => band.matches(change))?.key
+
+type SortKey = 'name' | 'gains' | 'drops'
 
 const signed = (value: number) => `${value > 0 ? '+' : value < 0 ? '−' : ''}${Math.abs(value)}`
 
@@ -41,6 +47,8 @@ export default function ImpactAnalysisPage() {
     const [data, setData] = useState<ImpactAnalytics | null>(null)
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
+    const [band, setBand] = useState<BandKey | null>(null)
+    const [sort, setSort] = useState<SortKey>('name')
 
     const load = useCallback(async () => {
         if (identityLoading || !user) return
@@ -73,44 +81,70 @@ export default function ImpactAnalysisPage() {
             legend: { enabled: true },
             tooltip: { shared: true },
             plotOptions: { series: { stacking: 'normal' } },
-            // "Achieved" splits into the part the SME also confirmed (darker) and the facilitator-only rest.
+            // Results only; anything still waiting on a check-back is one grey "Awaiting result" bar.
             series: [
                 { type: 'bar', name: t('Achieved, SME confirmed'), color: '#047857', data: data.areas.map((area) => area.achievedConfirmed) },
-                ...OUTCOME_SERIES.map((series) => ({
-                    type: 'bar' as const,
-                    name: t(series.key === 'achieved' ? 'Achieved, facilitator only' : series.label),
-                    color: series.color,
-                    data: data.areas.map((area) => (series.key === 'achieved' ? area.achieved - area.achievedConfirmed : area[series.key])),
-                })),
+                { type: 'bar', name: t('Achieved, facilitator only'), color: CHART_COLORS.success, data: data.areas.map((area) => area.achieved - area.achievedConfirmed) },
+                { type: 'bar', name: t('Partially'), color: CHART_COLORS.amber, data: data.areas.map((area) => area.partially) },
+                { type: 'bar', name: t('Not yet'), color: CHART_COLORS.danger, data: data.areas.map((area) => area.not_yet) },
+                { type: 'bar', name: t('Awaiting result'), color: CHART_COLORS.slate, data: data.areas.map((area) => area.checkback_due + area.checkback_overdue + area.no_checkback) },
             ],
         }
     }, [data, t])
 
+    const bandCounts = useMemo(() => {
+        const counts: Record<BandKey, number> = { down_big: 0, down: 0, flat: 0, up: 0, up_big: 0 }
+        ;(data?.smes || []).forEach((sme) => {
+            const key = sme.beforeAfterChange === null ? undefined : bandOf(sme.beforeAfterChange)
+            if (key) counts[key] += 1
+        })
+        return counts
+    }, [data])
+
     const beforeAfterChart = useMemo<Highcharts.Options | null>(() => {
-        const compared = (data?.smes || []).filter((sme) => sme.beforeAfterChange !== null)
-            .sort((left, right) => (right.beforeAfterChange as number) - (left.beforeAfterChange as number))
-            .slice(0, 12)
-        if (!compared.length) return null
+        if (!data?.beforeAfter.count) return null
         return {
-            chart: { type: 'bar', height: Math.max(200, compared.length * 34 + 70) },
+            chart: { type: 'column', height: 260 },
             title: { text: undefined },
-            xAxis: { categories: compared.map((sme) => sme.name) },
-            yAxis: { title: { text: t('Change in average monthly revenue (%)') }, plotLines: [{ value: 0, width: 1, color: CHART_COLORS.slate }] },
+            xAxis: { categories: BANDS.map((item) => t(item.label)) },
+            yAxis: { min: 0, allowDecimals: false, title: { text: t('SMEs') } },
             legend: { enabled: false },
-            tooltip: { valueSuffix: '%' },
-            plotOptions: { series: { dataLabels: { enabled: true, format: '{y}%' } } },
+            tooltip: { pointFormat: `<b>{point.y}</b> ${t('SMEs')}` },
+            plotOptions: {
+                column: { cursor: 'pointer', borderRadius: 4, dataLabels: { enabled: true } },
+                series: {
+                    point: {
+                        // Clicking a band filters the SME table to it; clicking it again clears the filter.
+                        events: { click(this: Highcharts.Point) { const key = BANDS[this.index]?.key; if (key) setBand((current) => (current === key ? null : key)) } },
+                    },
+                },
+            },
             series: [{
-                type: 'bar',
-                name: t('Change'),
-                data: compared.map((sme) => ({ y: sme.beforeAfterChange as number, color: (sme.beforeAfterChange as number) >= 0 ? CHART_COLORS.success : CHART_COLORS.danger })),
+                type: 'column',
+                name: t('SMEs'),
+                data: BANDS.map((item) => ({
+                    y: bandCounts[item.key],
+                    color: item.color,
+                    opacity: band && band !== item.key ? 0.35 : 1,
+                })),
             }],
         }
-    }, [data, t])
+    }, [band, bandCounts, data, t])
 
     const rows = useMemo(() => {
         const needle = search.trim().toLowerCase()
-        return (data?.smes || []).filter((sme) => !needle || sme.name.toLowerCase().includes(needle))
-    }, [data, search])
+        const filtered = (data?.smes || []).filter((sme) =>
+            (!needle || sme.name.toLowerCase().includes(needle))
+            && (!band || (sme.beforeAfterChange !== null && bandOf(sme.beforeAfterChange) === band)))
+        if (sort === 'name') return filtered
+        // SMEs without a before-and-after figure go last either way.
+        const direction = sort === 'gains' ? -1 : 1
+        return [...filtered].sort((left, right) => {
+            if (left.beforeAfterChange === null) return right.beforeAfterChange === null ? 0 : 1
+            if (right.beforeAfterChange === null) return -1
+            return (left.beforeAfterChange - right.beforeAfterChange) * direction
+        })
+    }, [band, data, search, sort])
 
     const revenueCell = (sme: SmeImpact) => sme.revenueLatest === null
         ? <Typography.Text type="secondary">{t('Not recorded')}</Typography.Text>
@@ -141,22 +175,42 @@ export default function ImpactAnalysisPage() {
         { title: t('Before → after'), key: 'beforeAfter', width: 130, align: 'center', render: (_, sme) => <ChangeTag value={sme.beforeAfterChange} /> },
     ]
 
-    const noMetrics = !!data && data.smesWithRevenue === 0 && data.smesWithJobs === 0
+    const followedUp = data ? data.outcomes.achieved + data.outcomes.partially + data.outcomes.not_yet : 0
+    const outcomesHint = !data
+        ? undefined
+        : data.outcomes.achieved
+            ? t('{confirmed} of {achieved} confirmed by the SME', undefined, { confirmed: data.smeCheckbacks.confirmedAchieved, achieved: data.outcomes.achieved })
+            : t('Of {count} followed-up interventions', undefined, { count: followedUp })
+
+    // Sections without enough data are left out; one note says what will appear and when.
+    const missing = data && !pageLoading
+        ? [
+            data.smesWithRevenue === 0 && data.smesWithJobs === 0 && t('Growth figures appear once SMEs have revenue or headcount recorded for two periods. SMEs add these on their metrics page.'),
+            !data.areas.length && t('Outcomes by area appear once interventions are completed.'),
+            !data.beforeAfter.count && t('Before and after support appears once SMEs have monthly revenue on both sides of their first completed intervention.'),
+        ].filter((line): line is string => Boolean(line))
+        : []
+
+    const showOutcomes = pageLoading || !!outcomesChart
+    const showBeforeAfter = pageLoading || !!beforeAfterChart
+    const bandLabel = band ? BANDS.find((item) => item.key === band)?.label : undefined
 
     return (
         <DashboardPage className="operations-impact-analysis-page">
             <Row gutter={[12, 12]} className="dashboard-metrics-row">
-                <Col xs={12} lg={6}>
+                <Col xs={24} md={8}>
                     <DashboardMetricCard
                         loading={pageLoading}
                         icon={<RiseOutlined />}
                         iconClassName="dashboard-icon-green"
                         label={t('Revenue growth')}
                         value={data?.revenueGrowth !== null && data?.revenueGrowth !== undefined ? `${signed(data.revenueGrowth)}%` : '—'}
-                        hint={data?.smesWithRevenue ? t('Since joining, across {count} SMEs', undefined, { count: data.smesWithRevenue }) : t('No revenue history yet')}
+                        hint={data?.smesWithRevenue
+                            ? t('{growing} of {count} SMEs growing since joining', undefined, { growing: data.growingSmes, count: data.smesWithRevenue })
+                            : t('No revenue history yet')}
                     />
                 </Col>
-                <Col xs={12} lg={6}>
+                <Col xs={12} md={8}>
                     <DashboardMetricCard
                         loading={pageLoading}
                         icon={<TeamOutlined />}
@@ -166,158 +220,105 @@ export default function ImpactAnalysisPage() {
                         hint={data?.smesWithJobs ? t('Net change across {count} SMEs', undefined, { count: data.smesWithJobs }) : t('No headcount history yet')}
                     />
                 </Col>
-                <Col xs={12} lg={6}>
+                <Col xs={12} md={8}>
                     <DashboardMetricCard
                         loading={pageLoading}
                         icon={<CheckCircleOutlined />}
                         iconClassName="dashboard-icon-orange"
                         label={t('Outcomes achieved')}
                         value={data?.achievedRate !== null && data?.achievedRate !== undefined ? `${data.achievedRate}%` : '—'}
-                        hint={data ? t('Of {count} followed-up interventions', undefined, { count: data.outcomes.achieved + data.outcomes.partially + data.outcomes.not_yet }) : undefined}
-                    />
-                </Col>
-                <Col xs={12} lg={6}>
-                    <DashboardMetricCard
-                        loading={pageLoading}
-                        icon={<FundOutlined />}
-                        iconClassName="dashboard-icon-red"
-                        label={t('SMEs growing')}
-                        value={data?.smesWithRevenue ? `${data.growingSmes} / ${data.smesWithRevenue}` : '—'}
-                        hint={t('Revenue up since joining')}
+                        hint={outcomesHint}
                     />
                 </Col>
             </Row>
 
-            {noMetrics && (
+            {missing.length > 0 && (
                 <Card className="dashboard-section-card motion-card impact-note">
-                    <Typography.Text type="secondary">
-                        {t('Growth figures appear once SMEs have revenue or headcount recorded for at least two periods. SMEs add these on their metrics page, and operations can add them on the participant’s profile.')}
-                    </Typography.Text>
+                    {missing.map((line) => <Typography.Paragraph key={line} type="secondary">{line}</Typography.Paragraph>)}
                 </Card>
             )}
 
             <Row gutter={[16, 16]}>
-                <Col xs={24} xl={12}>
-                    <Card loading={pageLoading} className="dashboard-section-card motion-card" title={t('Before and after support')}>
-                        {data && data.beforeAfter.count ? (
-                            <>
-                                <div className="impact-headline">
-                                    <strong className={(data.beforeAfter.medianChange || 0) >= 0 ? 'is-up' : 'is-down'}>{signed(data.beforeAfter.medianChange || 0)}%</strong>
-                                    <span>
-                                        {t('Median change in average monthly revenue, {months} months before against {months} months after an SME’s first completed intervention. {improved} of {count} SMEs improved.', undefined, { months: BEFORE_AFTER_WINDOW_MONTHS, improved: data.beforeAfter.improved, count: data.beforeAfter.count })}
-                                    </span>
-                                </div>
-                                {beforeAfterChart && <ThemedHighcharts options={beforeAfterChart} />}
-                            </>
-                        ) : (
-                            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('Needs monthly revenue on both sides of an SME’s first completed intervention.')} />
-                        )}
-                    </Card>
-                </Col>
-                <Col xs={24} xl={12}>
-                    <Card loading={pageLoading} className="dashboard-section-card motion-card" title={t('Supported and not yet supported')}>
-                        {data && data.smesWithRevenue ? (
-                            <>
-                                <div className="impact-compare">
-                                    <div>
-                                        <Typography.Text type="secondary">{t('With a completed intervention')}</Typography.Text>
-                                        <strong>{data.servedGrowth === null ? '—' : `${signed(data.servedGrowth)}%`}</strong>
-                                        <small>{t('{count} SMEs', undefined, { count: data.servedCount })}</small>
-                                    </div>
-                                    <div>
-                                        <Typography.Text type="secondary">{t('None completed yet')}</Typography.Text>
-                                        <strong>{data.notServedGrowth === null ? '—' : `${signed(data.notServedGrowth)}%`}</strong>
-                                        <small>{t('{count} SMEs', undefined, { count: data.notServedCount })}</small>
-                                    </div>
-                                </div>
-                                <Typography.Text type="secondary" className="impact-footnote">
-                                    {t('Median revenue growth since joining. A comparison, not proof of cause: the groups can differ in other ways.')}
-                                </Typography.Text>
-                            </>
-                        ) : (
-                            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('Needs revenue recorded for at least two periods.')} />
-                        )}
-                    </Card>
-                </Col>
-                <Col xs={24} xl={16}>
-                    <Card loading={pageLoading} className="dashboard-section-card motion-card" title={t('Outcomes by area of support')}>
-                        {outcomesChart
-                            ? <ThemedHighcharts options={outcomesChart} />
-                            : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('No completed interventions yet.')} />}
-                    </Card>
-                </Col>
-                <Col xs={24} xl={8}>
-                    {/* The facilitator check-backs behind the outcome figures: are they being answered, and how? */}
-                    <Card loading={pageLoading} className="dashboard-section-card motion-card" title={t('Check-backs')}>
-                        {data && (data.checkbacks.answered || data.checkbacks.overdue || data.outcomes.checkback_due) ? (
-                            <div className="impact-checkbacks">
-                                <div>
-                                    <strong>{data.checkbacks.answered}</strong>
-                                    <span>{t('Answers recorded')}</span>
-                                    <small>{data.checkbacks.answered ? t('{percent}% on WhatsApp', undefined, { percent: Math.round((data.checkbacks.viaWhatsapp / data.checkbacks.answered) * 100) }) : '—'}</small>
-                                </div>
-                                <div className={data.checkbacks.overdue ? 'is-risk' : undefined}>
-                                    <strong>{data.checkbacks.overdue}</strong>
-                                    <span>{t('Overdue')}</span>
-                                    <small>{t('Waiting on an answer past its date')}</small>
-                                </div>
-                                <div>
-                                    <strong>{data.checkbacks.achievedFirstTime}</strong>
-                                    <span>{t('Achieved first time')}</span>
-                                    <small>{t('At the first check-back')}</small>
-                                </div>
-                                <div>
-                                    <strong>{data.checkbacks.achievedAfterRecheck}</strong>
-                                    <span>{t('Achieved after a re-check')}</span>
-                                    <small>{t('Needed more than one check-back')}</small>
-                                </div>
-                                {/* The SME's side: how many rounds they answered, and how often they agreed with the facilitator. */}
-                                <div>
-                                    <strong>{data.smeCheckbacks.answered}</strong>
-                                    <span>{t('SME answers')}</span>
-                                    <small>{t('For {rounds} facilitator rounds', undefined, { rounds: data.smeCheckbacks.facilitatorRounds })}</small>
-                                </div>
-                                <div>
-                                    <strong>{data.smeCheckbacks.agreementRate === null ? '—' : `${data.smeCheckbacks.agreementRate}%`}</strong>
-                                    <span>{t('Agreement')}</span>
-                                    <small>{data.smeCheckbacks.pairs ? t('{agreed} of {pairs} rounds both answered', undefined, { agreed: data.smeCheckbacks.agreed, pairs: data.smeCheckbacks.pairs }) : t('No rounds both answered yet')}</small>
-                                </div>
-                            </div>
-                        ) : (
-                            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('No check-backs yet. They start once an intervention with an outcome is completed.')} />
-                        )}
-                        <Typography.Text type="secondary" className="impact-footnote">
-                            {t('Facilitators record the official result; SMEs answer the same question for themselves, in the app or on WhatsApp.')}
-                        </Typography.Text>
-                    </Card>
-                </Col>
-                {!!data?.smeCheckbacks.disputes.length && (
+                {showOutcomes && (
                     <Col span={24}>
-                        {/* Achieved by the facilitator, but the SME said No for the same round: worth a conversation. */}
-                        <Card className="dashboard-section-card motion-card" title={t('Disputed outcomes')}>
-                            <div className="impact-disputes">
-                                {data.smeCheckbacks.disputes.map((dispute) => (
-                                    <div key={dispute.id}>
-                                        <Typography.Text strong>{dispute.title}</Typography.Text>
-                                        <Typography.Text type="secondary">{dispute.smeName}</Typography.Text>
-                                        <Typography.Text>{t('Facilitator: Achieved · SME: No')}</Typography.Text>
-                                        {dispute.note && <Typography.Text type="secondary" italic>“{dispute.note}”</Typography.Text>}
+                        <Card loading={pageLoading} className="dashboard-section-card motion-card" title={t('Outcomes by area of support')}>
+                            {outcomesChart && <ThemedHighcharts options={outcomesChart} />}
+                        </Card>
+                    </Col>
+                )}
+                {showBeforeAfter && (
+                    <Col span={24}>
+                        <Card
+                            loading={pageLoading}
+                            className="dashboard-section-card motion-card"
+                            title={(
+                                <span className="impact-card-title">
+                                    {t('Before and after support')}
+                                    <Tooltip title={t('Change in average monthly revenue: {months} months before against {months} months after each SME’s first completed intervention.', undefined, { months: BEFORE_AFTER_WINDOW_MONTHS })}>
+                                        <InfoCircleOutlined />
+                                    </Tooltip>
+                                </span>
+                            )}
+                        >
+                            {data && beforeAfterChart && (
+                                <>
+                                    <div className="impact-headline">
+                                        {data.beforeAfter.count >= MIN_SMES_FOR_MEDIAN && (
+                                            <strong className={(data.beforeAfter.medianChange || 0) >= 0 ? 'is-up' : 'is-down'}>{signed(data.beforeAfter.medianChange || 0)}%</strong>
+                                        )}
+                                        <span>
+                                            {data.beforeAfter.count >= MIN_SMES_FOR_MEDIAN
+                                                ? t('Median revenue change after support. {improved} of {count} SMEs improved.', undefined, { improved: data.beforeAfter.improved, count: data.beforeAfter.count })
+                                                : t('Only {count} SMEs have enough data so far, too few for a reliable median.', undefined, { count: data.beforeAfter.count })}
+                                            {' '}
+                                            {t('Based on {count} of {total} SMEs.', undefined, { count: data.beforeAfter.count, total: data.totalSmes })}
+                                        </span>
                                     </div>
-                                ))}
-                            </div>
+                                    <ThemedHighcharts options={beforeAfterChart} />
+                                    <Typography.Text type="secondary" className="impact-footnote">{t('Click a bar to see those SMEs in the table below.')}</Typography.Text>
+                                    {data.servedGrowth !== null && data.notServedGrowth !== null && (
+                                        <div className="impact-compare-line">
+                                            {t('SMEs with completed support grew {served}% since joining; those not yet supported grew {notServed}%.', undefined, { served: signed(data.servedGrowth), notServed: signed(data.notServedGrowth) })}
+                                            {' '}
+                                            <Typography.Text type="secondary">{t('A comparison, not proof of cause.')}</Typography.Text>
+                                        </div>
+                                    )}
+                                </>
+                            )}
                         </Card>
                     </Col>
                 )}
             </Row>
 
-            <FilterBar compact primary={<Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('Search SMEs')} allowClear />} />
+            <FilterBar
+                compact
+                primary={(
+                    <>
+                        <Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('Search SMEs')} allowClear />
+                        <Select
+                            value={sort}
+                            onChange={setSort}
+                            options={[
+                                { value: 'name', label: t('Sort: name') },
+                                { value: 'gains', label: t('Sort: biggest gains') },
+                                { value: 'drops', label: t('Sort: biggest drops') },
+                            ]}
+                        />
+                        {bandLabel && (
+                            <Tag className="impact-band-filter" closable closeIcon={<CloseOutlined />} onClose={() => setBand(null)}>
+                                {t('Before → after')}: {t(bandLabel)}
+                            </Tag>
+                        )}
+                    </>
+                )}
+            />
             <Card className="dashboard-section-card motion-card" title={t('Impact by SME')}>
                 <ResponsiveDataView<SmeImpact>
                     rowKey="id"
                     rows={rows}
                     columns={columns}
                     loading={pageLoading}
-                    emptyText={t('No SMEs in this programme yet.')}
+                    emptyText={band ? t('No SMEs in this band.') : t('No SMEs in this programme yet.')}
                     renderCard={(sme) => (
                         <div className="impact-sme-card">
                             <span className="impact-sme-head">
@@ -329,6 +330,7 @@ export default function ImpactAnalysisPage() {
                                 <dt>{t('Employees')}</dt><dd>{jobsCell(sme)}</dd>
                                 <dt>{t('Completed')}</dt><dd>{sme.completedInterventions}</dd>
                                 <dt>{t('Outcomes')}</dt><dd>{outcomesCell(sme)}</dd>
+                                <dt>{t('Before → after')}</dt><dd><ChangeTag value={sme.beforeAfterChange} /></dd>
                             </dl>
                         </div>
                     )}

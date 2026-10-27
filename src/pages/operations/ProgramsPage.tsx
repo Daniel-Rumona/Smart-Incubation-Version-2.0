@@ -33,6 +33,7 @@ import {
     DeleteOutlined,
     EditOutlined,
     FieldNumberOutlined,
+    FormOutlined,
     GlobalOutlined,
     LinkOutlined,
     PauseCircleOutlined,
@@ -47,6 +48,7 @@ import {
     TrophyOutlined,
     UnlockOutlined,
     UnorderedListOutlined,
+    UserAddOutlined,
 } from '@ant-design/icons'
 import { useSystemSettings } from '@/contexts/SystemSettingsContext'
 import { buildProgramLink } from '@/services/programLinkService'
@@ -79,6 +81,7 @@ import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 type ProgramStatus = 'Active' | 'Inactive' | 'Upcoming' | 'Completed'
 type AssignmentMode = 'sme_choice' | 'force_all'
+type IntakeMode = 'application' | 'direct'
 
 type OnboardingQuestion = {
     id: string
@@ -121,6 +124,7 @@ type ProgramRecord = {
     complianceRequirements?: ComplianceRequirement[]
     agentSupportMode: AgentSupportMode
     openToExternalSmes?: boolean
+    intakeMode: IntakeMode
 }
 
 type ProgramDetailsForm = {
@@ -135,6 +139,7 @@ type ProgramDetailsForm = {
     maxCapacity?: number
     assignedAdmin?: string
     openToExternalSmes?: boolean
+    intakeMode: IntakeMode
 }
 
 type EligibilityForm = {
@@ -160,17 +165,20 @@ const AVAILABILITY_CARDS: Array<{ value: boolean; icon: ReactNode; title: string
     { value: false, icon: <BankOutlined />, get title() { return tr('Internal to Company') }, get hint() { return tr('Only SMEs already in this workspace can join.') } },
     { value: true, icon: <GlobalOutlined />, get title() { return tr('External') }, get hint() { return tr('SMEs outside this company can discover and apply.') } },
 ]
-const PROGRAM_TYPE_OPTIONS = [
-    'Pre-incubation',
-    'Incubation',
-    'Acceleration',
-    'Funding readiness',
-    'Market access',
-    'Enterprise development',
-    'Supplier development',
-    'Mentorship',
+// Incubation runs the full path (applications, growth plans). Training only delivers a predefined list of interventions.
+const PROGRAM_TYPE_OPTIONS = ['Incubation', 'Training']
+const TYPE_CARDS: Array<{ value: string; icon: ReactNode; hint: string }> = [
+    { value: 'Incubation', icon: <ProjectOutlined />, get hint() { return tr('Applications, growth plans and interventions.') } },
+    { value: 'Training', icon: <TeamOutlined />, get hint() { return tr('Delivers a set list of interventions only.') } },
 ]
-/** A programme may have been saved in lowercase ("acceleration"). Show it exactly as the dropdown spells it ("Acceleration"). */
+const isTrainingType = (type?: string) => type === 'Training'
+const INTAKE_CARDS: Array<{ value: IntakeMode; icon: ReactNode; title: string; hint: string }> = [
+    { value: 'application', icon: <FormOutlined />, get title() { return tr('Application') }, get hint() { return tr('SMEs apply and your team reviews each application.') } },
+    { value: 'direct', icon: <UserAddOutlined />, get title() { return tr('No application') }, get hint() { return tr('Add SMEs yourself or send the link. They fill in their details and are accepted straight away.') } },
+]
+/** Older programmes have no intake mode; they always took applications. */
+const normalizeIntakeMode = (value: unknown): IntakeMode => value === 'direct' ? 'direct' : 'application'
+/** A programme may have been saved in lowercase ("training"). Show it exactly as the cards spell it ("Training"). Older types are kept as saved. */
 const normalizeProgramType = (raw: string) => {
     const value = raw.trim()
     if (!value) return ''
@@ -279,7 +287,8 @@ export const ProgramsPage = () => {
     const [limitSelections, setLimitSelections] = useState(false)
     const [maxSelections, setMaxSelections] = useState<number | null>(3)
     const [selectedInterventions, setSelectedInterventions] = useState<string[]>([])
-    const [interventionSearch, setInterventionSearch] = useState('')
+    // The intervention picked in the dropdown, waiting for the + button.
+    const [pendingIntervention, setPendingIntervention] = useState<string>()
     const [interventionArea, setInterventionArea] = useState<string>()
     const [supportMode, setSupportMode] = useState<AgentSupportMode>('simultaneous')
     const [programSearch, setProgramSearch] = useState('')
@@ -287,20 +296,21 @@ export const ProgramsPage = () => {
     const [activityRange, setActivityRange] = useState<[Dayjs, Dayjs] | null>(null)
 
     const companyCode = String(user?.companyCode || '').trim()
+    // Training and no-application programmes always assign a set list: SMEs never fill in an application to choose from.
+    const training = isTrainingType(detailsDraft?.type)
+    const setListOnly = training || normalizeIntakeMode(detailsDraft?.intakeMode) === 'direct'
+    const effectiveMode: AssignmentMode = setListOnly ? 'force_all' : assignmentMode
 
     const interventionAreas = useMemo(() => Array.from(new Set(interventions.map((item) => item.area?.trim()).filter((area): area is string => !!area))).sort(), [interventions])
-    const filteredInterventions = useMemo(() => {
-        const search = interventionSearch.trim().toLowerCase()
-        return interventions.filter((item) => {
-            const matchesArea = !interventionArea || item.area === interventionArea
-            const matchesSearch = !search || `${item.title} ${item.area || ''}`.toLowerCase().includes(search)
-            return matchesArea && matchesSearch
-        })
-    }, [interventionArea, interventionSearch, interventions])
-    const visibleInterventionOptions = useMemo(() => {
-        const visibleIds = new Set(filteredInterventions.map((item) => item.id))
-        return interventions.filter((item) => visibleIds.has(item.id) || selectedInterventions.includes(item.id))
-    }, [filteredInterventions, interventions, selectedInterventions])
+    // The dropdown offers only what is not on the list yet, narrowed by the area filter.
+    const addableInterventions = useMemo(() => interventions
+        .filter((item) => !selectedInterventions.includes(item.id) && (!interventionArea || item.area === interventionArea))
+        .sort((a, b) => a.title.localeCompare(b.title)), [interventionArea, interventions, selectedInterventions])
+    const addPendingIntervention = () => {
+        if (!pendingIntervention) return
+        setSelectedInterventions((current) => current.includes(pendingIntervention) ? current : [...current, pendingIntervention])
+        setPendingIntervention(undefined)
+    }
 
     const load = useCallback(async () => {
         if (!companyCode) return
@@ -338,6 +348,7 @@ export const ProgramsPage = () => {
                     complianceRequirements: Array.isArray(data.complianceRequirements) ? data.complianceRequirements as ComplianceRequirement[] : [],
                     agentSupportMode: normalizeAgentSupportMode(data),
                     openToExternalSmes: data.openToExternalSmes === true,
+                    intakeMode: normalizeIntakeMode(data.intakeMode),
                 }
             }).sort((a, b) => a.name.localeCompare(b.name)))
             setInterventions(interventionSnap.docs.map((record) => {
@@ -412,14 +423,14 @@ export const ProgramsPage = () => {
         setLimitSelections(false)
         setMaxSelections(3)
         setSelectedInterventions([])
-        setInterventionSearch('')
+        setPendingIntervention(undefined)
         setInterventionArea(undefined)
         setSupportMode('simultaneous')
     }
 
     const openCreate = () => {
         resetWizard()
-        const defaults = { status: 'Active' as const, cohortYear: String(dayjs().year()), openToExternalSmes: false }
+        const defaults = { type: 'Incubation', intakeMode: 'application' as const, status: 'Active' as const, cohortYear: String(dayjs().year()), openToExternalSmes: false }
         detailsForm.setFieldsValue(defaults)
         setDetailsDraft(defaults as ProgramDetailsForm)
         setModalOpen(true)
@@ -456,6 +467,7 @@ export const ProgramsPage = () => {
             maxCapacity: program.maxCapacity,
             assignedAdmin: matchAdmin(program.assignedAdmin),
             openToExternalSmes: program.openToExternalSmes === true,
+            intakeMode: program.intakeMode,
         }
         detailsForm.setFieldsValue(details)
         setDetailsDraft(details)
@@ -485,12 +497,12 @@ export const ProgramsPage = () => {
             if (invalidQuestion) { message.error(t('Every onboarding question needs question text.')); return null }
             if (invalidOptions) { message.error(t('Dropdown questions need at least two answer options.')); return null }
         }
-        if (index === 3 && assignmentMode === 'sme_choice' && limitSelections && !(Number(maxSelections) >= 1)) {
+        if (index === 3 && effectiveMode === 'sme_choice' && limitSelections && !(Number(maxSelections) >= 1)) {
             message.error(t('Enter the most interventions an SME can choose.'))
             return null
         }
-        if (index === 3 && assignmentMode === 'force_all' && !selectedInterventions.length) {
-            message.error(t('Select at least one required intervention.'))
+        if (index === 3 && effectiveMode === 'force_all' && !selectedInterventions.length) {
+            message.error(t(setListOnly ? 'Select the interventions this programme delivers.' : 'Select at least one required intervention.'))
             return null
         }
         return {}
@@ -540,6 +552,17 @@ export const ProgramsPage = () => {
                 message.error(t('Program details are incomplete. Please review the first step.'))
                 return
             }
+            // Use the type being saved, which may have just changed on the details section.
+            const savingSetList = isTrainingType(values.type) || normalizeIntakeMode(values.intakeMode) === 'direct'
+            const mode: AssignmentMode = savingSetList ? 'force_all' : assignmentMode
+            if (savingSetList && !selectedInterventions.length) {
+                setDetailsDraft(values)
+                setDirection(1)
+                setPicking(false)
+                setStep(3)
+                message.error(t('Select the interventions this programme delivers.'))
+                return
+            }
             const eligibilityValues = captured?.eligibility ?? eligibilityDraft
             const eligibilityCriteria = Object.fromEntries(
                 selectedEligibilityCriteria
@@ -582,16 +605,17 @@ export const ProgramsPage = () => {
                 budget: Number(values.budget || 0),
                 maxCapacity: Number(values.maxCapacity || 0),
                 openToExternalSmes: values.openToExternalSmes === true,
+                intakeMode: normalizeIntakeMode(values.intakeMode),
                 companyCode,
                 eligibilityCriteria,
                 onboardingQuestions: savedQuestions,
                 interventionPolicy: {
-                    mode: assignmentMode,
+                    mode,
                     sourceScope: 'company',
-                    forcedInterventionIds: assignmentMode === 'force_all' ? selectedInterventions : [],
-                    forcedInterventions: assignmentMode === 'force_all' ? forcedInterventions : [],
-                    allowSmeSelection: assignmentMode === 'sme_choice',
-                    maxSelections: assignmentMode === 'sme_choice' && limitSelections && Number(maxSelections) >= 1 ? Number(maxSelections) : null,
+                    forcedInterventionIds: mode === 'force_all' ? selectedInterventions : [],
+                    forcedInterventions: mode === 'force_all' ? forcedInterventions : [],
+                    allowSmeSelection: mode === 'sme_choice',
+                    maxSelections: mode === 'sme_choice' && limitSelections && Number(maxSelections) >= 1 ? Number(maxSelections) : null,
                 },
                 complianceRequirements: savedRequirements,
                 agentSupportMode: supportMode,
@@ -639,10 +663,10 @@ export const ProgramsPage = () => {
     }
 
     const sectionSummaries = [
-        editing ? `${editing.name} · ${editing.status}` : '',
+        editing ? `${editing.name} · ${editing.status} · ${t(normalizeIntakeMode(detailsDraft?.intakeMode) === 'direct' ? 'No application' : 'Application')}` : '',
         selectedEligibilityCriteria.length ? `${selectedEligibilityCriteria.length} ${t('criteria set')}` : t('No restrictions'),
         questions.length ? `${questions.length} ${t(questions.length === 1 ? 'question' : 'questions')}` : t('No extra questions'),
-        assignmentMode === 'force_all' ? `${t('Required for all')} (${selectedInterventions.length})` : limitSelections ? `${t('SMEs choose, up to')} ${maxSelections}` : t('SMEs choose their interventions'),
+        effectiveMode === 'force_all' ? `${t(setListOnly ? 'Set list' : 'Required for all')} (${selectedInterventions.length})` : limitSelections ? `${t('SMEs choose, up to')} ${maxSelections}` : t('SMEs choose their interventions'),
         (SUPPORT_OPTIONS.find((option) => option.value === supportMode) || SUPPORT_OPTIONS[0]).short,
         requirements.length ? `${requirements.length} ${t(requirements.length === 1 ? 'document' : 'documents')}` : t('All compliance documents'),
     ]
@@ -666,7 +690,7 @@ export const ProgramsPage = () => {
                         <Typography.Text strong>{program.name}</Typography.Text>
                         {program.openToExternalSmes && <Tag color="cyan">{t('External SMEs')}</Tag>}
                     </Space>
-                    <Typography.Text type="secondary">{program.cohortYear || t('No cohort')} · {program.type || t('General')}</Typography.Text>
+                    <Typography.Text type="secondary">{program.cohortYear || t('No cohort')} · {program.type ? t(program.type) : t('General')} · {t(program.intakeMode === 'direct' ? 'No application' : 'Application')}</Typography.Text>
                 </Space>
             ),
         },
@@ -687,7 +711,7 @@ export const ProgramsPage = () => {
         {
             title: t('Actions'),
             width: 160,
-            render: (_, program) => <Space>{programLinksEnabled && <Tooltip title={t('Copy the link SMEs use to join this programme')}><Button type="text" icon={<LinkOutlined />} aria-label={`Copy link for ${program.name}`} onClick={() => void copyProgramLink(program)} /></Tooltip>}<Button type="text" icon={<EditOutlined />} aria-label={`Edit ${program.name}`} onClick={() => openEdit(program)} /><Popconfirm title={t('Delete this program?')} description={t('This cannot be undone.')} onConfirm={() => void remove(program)}><Button danger className="program-delete-button" icon={<DeleteOutlined />} aria-label={`Delete ${program.name}`} /></Popconfirm></Space>,
+            render: (_, program) => <Space>{(programLinksEnabled || program.intakeMode === 'direct') && <Tooltip title={t('Copy the link SMEs use to join this programme')}><Button type="text" icon={<LinkOutlined />} aria-label={`Copy link for ${program.name}`} onClick={() => void copyProgramLink(program)} /></Tooltip>}<Button type="text" icon={<EditOutlined />} aria-label={`Edit ${program.name}`} onClick={() => openEdit(program)} /><Popconfirm title={t('Delete this program?')} description={t('This cannot be undone.')} onConfirm={() => void remove(program)}><Button danger className="program-delete-button" icon={<DeleteOutlined />} aria-label={`Delete ${program.name}`} /></Popconfirm></Space>,
         },
     ]
 
@@ -750,8 +774,32 @@ export const ProgramsPage = () => {
 
                 {!(editing && picking) && <div className="program-wizard-body">
                     {step === 0 && (
-                        <Form form={detailsForm} layout="vertical">
+                        <Form form={detailsForm} layout="vertical" onValuesChange={(changed: Partial<ProgramDetailsForm>) => {
+                            // A new Training programme usually has no application; the team can still change it.
+                            if (!editing && changed.type) detailsForm.setFieldValue('intakeMode', isTrainingType(changed.type) ? 'direct' : 'application')
+                        }}>
                             <Form.Item name="name" label={t('Program name')} rules={[{ required: true, message: tr('Enter a program name.') }]}><Input placeholder={t('e.g. Growth Accelerator 2026')} /></Form.Item>
+                            <Form.Item name="type" label={t('Program type')} rules={[{ required: true, message: tr('Choose a program type.') }]}>
+                                <Radio.Group className="program-choice-grid is-compact program-radio-cards">
+                                    {TYPE_CARDS.map((option) => (
+                                        <Radio.Button value={option.value} key={option.value}>
+                                            <span className="program-status-icon">{option.icon}</span>
+                                            <span className="program-status-copy"><strong>{t(option.value)}</strong><small>{option.hint}</small></span>
+                                        </Radio.Button>
+                                    ))}
+                                </Radio.Group>
+                            </Form.Item>
+                            {editing?.type && !PROGRAM_TYPE_OPTIONS.includes(editing.type) && <Typography.Paragraph type="secondary">{t('Saved as')} “{editing.type}”. {t('Choose Incubation or Training to update it.')}</Typography.Paragraph>}
+                            <Form.Item name="intakeMode" label={t('How do SMEs join?')} rules={[{ required: true }]}>
+                                <Radio.Group className="program-choice-grid is-compact program-radio-cards">
+                                    {INTAKE_CARDS.map((option) => (
+                                        <Radio.Button value={option.value} key={option.value}>
+                                            <span className="program-status-icon">{option.icon}</span>
+                                            <span className="program-status-copy"><strong>{option.title}</strong><small>{option.hint}</small></span>
+                                        </Radio.Button>
+                                    ))}
+                                </Radio.Group>
+                            </Form.Item>
                             <Form.Item name="status" label={t('Status')} rules={[{ required: true }]}>
                                 <Radio.Group className="program-status-grid program-radio-cards">
                                     {STATUS_CARDS.map((option) => (
@@ -764,9 +812,8 @@ export const ProgramsPage = () => {
                             </Form.Item>
                             <Form.Item name="description" label={t('Description')} rules={[{ required: true, message: tr('Describe the program.') }]}><Input.TextArea rows={2} /></Form.Item>
                             <Row gutter={16}>
-                                <Col xs={24} md={8}><Form.Item name="type" label={t('Program type')}><Select allowClear showSearch placeholder={t('Select program type')} options={[...PROGRAM_TYPE_OPTIONS, ...(editing?.type && !PROGRAM_TYPE_OPTIONS.includes(editing.type) ? [editing.type] : [])].map((value) => ({ value, label: value }))} /></Form.Item></Col>
-                                <Col xs={24} md={8}><Form.Item name="cohortYear" label={t('Cohort year')} rules={[{ required: true }]}><Input /></Form.Item></Col>
-                                <Col xs={24} md={8}><Form.Item name="assignedAdmin" label={t('Project admin')}><Select allowClear showSearch optionFilterProp="label" options={adminOptions} placeholder={t('Select an admin')} /></Form.Item></Col>
+                                <Col xs={24} md={12}><Form.Item name="cohortYear" label={t('Cohort year')} rules={[{ required: true }]}><Input /></Form.Item></Col>
+                                <Col xs={24} md={12}><Form.Item name="assignedAdmin" label={t('Project admin')}><Select allowClear showSearch optionFilterProp="label" options={adminOptions} placeholder={t('Select an admin')} /></Form.Item></Col>
                             </Row>
                             <Row gutter={16}>
                                 <Col xs={24} md={6}><Form.Item name="startDate" label={t('Start date')}><DatePicker style={{ width: '100%' }} /></Form.Item></Col>
@@ -851,8 +898,11 @@ export const ProgramsPage = () => {
 
                     {step === 3 && (
                         <section className="program-assignment-stage">
-                            <Typography.Title level={4}>{t('Intervention assignment')}</Typography.Title>
-                            <div className={`program-assignment-slot${assignmentMode === 'force_all' ? ' is-expanded' : ''}`}>
+                            <Typography.Title level={4}>{t(training ? 'Training interventions' : setListOnly ? 'Programme interventions' : 'Intervention assignment')}</Typography.Title>
+                            {setListOnly && <Typography.Paragraph type="secondary">{t(training
+                                ? 'Training programmes deliver a set list of interventions. Every participant receives all of them.'
+                                : 'SMEs join this programme without an application, so it delivers a set list. Every participant receives all of them, and their growth plan is confirmed automatically.')}</Typography.Paragraph>}
+                            {!setListOnly && <div className={`program-assignment-slot${assignmentMode === 'force_all' ? ' is-expanded' : ''}`}>
                                 <Radio.Group value={assignmentMode} onChange={(event) => setAssignmentMode(event.target.value)} className="program-choice-grid program-radio-cards">
                                     <Radio.Button value="sme_choice"><strong>{t('SME chooses')}</strong><span>{t('Participants choose relevant interventions from the catalogue.')}</span></Radio.Button>
                                     <Radio.Button value="force_all"><strong>{t('Program assigns')}</strong><span>{t('Every selected intervention is included in each diagnostic plan.')}</span></Radio.Button>
@@ -873,31 +923,44 @@ export const ProgramsPage = () => {
                                         )}
                                     </div>
                                 )}
-                            </div>
-                            {assignmentMode === 'force_all' && (
-                                <div className="program-field-gap program-intervention-browser">
-                                    <Typography.Title level={5}>{t('Find required interventions')}</Typography.Title>
-                                    <Row gutter={[12, 12]}>
-                                        <Col xs={24} md={15}>
-                                            <Input prefix={<SearchOutlined />} value={interventionSearch} onChange={(event) => setInterventionSearch(event.target.value)} allowClear placeholder={t('Search intervention title or area')} />
-                                        </Col>
-                                        <Col xs={24} md={9}>
-                                            <Select allowClear value={interventionArea} onChange={setInterventionArea} style={{ width: '100%' }} placeholder={t('Filter by Area of Support')} options={interventionAreas.map((area) => ({ value: area, label: area }))} />
-                                        </Col>
-                                    </Row>
-                                    <Typography.Text type="secondary" className="program-intervention-count">{t('Showing')} {filteredInterventions.length} {t('of')} {interventions.length} {t('interventions')}</Typography.Text>
-                                    <Typography.Text strong>{t('Required interventions')}</Typography.Text>
-                                    <Select
-                                        mode="multiple"
-                                        showSearch
-                                        optionFilterProp="label"
-                                        maxTagCount="responsive"
-                                        value={selectedInterventions}
-                                        onChange={setSelectedInterventions}
-                                        style={{ width: '100%', marginTop: 8 }}
-                                        placeholder={filteredInterventions.length ? t('Select interventions') : t('No interventions match these filters')}
-                                        options={visibleInterventionOptions.map((item) => ({ value: item.id, label: item.area ? `${item.title} · ${item.area}` : item.title }))}
-                                    />
+                            </div>}
+                            {effectiveMode === 'force_all' && (
+                                <div className={`program-intervention-browser${setListOnly ? '' : ' program-field-gap'}`}>
+                                    <Typography.Title level={5}>{t(setListOnly ? 'Find interventions to deliver' : 'Find required interventions')}</Typography.Title>
+                                    <div className="program-intervention-picker">
+                                        <Select allowClear value={interventionArea} onChange={setInterventionArea} className="program-intervention-area" placeholder={t('All areas of support')} options={interventionAreas.map((area) => ({ value: area, label: area }))} />
+                                        <Select
+                                            showSearch
+                                            allowClear
+                                            optionFilterProp="label"
+                                            value={pendingIntervention}
+                                            onChange={setPendingIntervention}
+                                            className="program-intervention-select"
+                                            placeholder={addableInterventions.length ? t('Choose an intervention') : t('No more interventions to add')}
+                                            notFoundContent={t('No interventions match')}
+                                            options={addableInterventions.map((item) => ({ value: item.id, label: item.area ? `${item.title} · ${item.area}` : item.title }))}
+                                        />
+                                        <Tooltip title={t('Add intervention')}>
+                                            <Button type="primary" shape="circle" icon={<PlusOutlined />} disabled={!pendingIntervention} aria-label={t('Add intervention')} onClick={addPendingIntervention} />
+                                        </Tooltip>
+                                    </div>
+                                    <Typography.Text strong className="program-intervention-list-label">{t(setListOnly ? 'Interventions delivered' : 'Required interventions')} ({selectedInterventions.length})</Typography.Text>
+                                    {selectedInterventions.length ? (
+                                        <ol className="program-intervention-list">
+                                            {selectedInterventions.map((id) => {
+                                                const item = interventions.find((intervention) => intervention.id === id)
+                                                return (
+                                                    <li key={id}>
+                                                        <span className="program-intervention-list-copy">
+                                                            <strong>{item?.title || t('Intervention no longer in the catalogue')}</strong>
+                                                            {item?.area && <small>{item.area}</small>}
+                                                        </span>
+                                                        <Button danger type="text" icon={<DeleteOutlined />} aria-label={`${t('Remove')} ${item?.title || id}`} onClick={() => setSelectedInterventions((current) => current.filter((value) => value !== id))} />
+                                                    </li>
+                                                )
+                                            })}
+                                        </ol>
+                                    ) : <Typography.Paragraph type="secondary" className="program-intervention-empty">{t('No interventions added yet. Choose one above and press +.')}</Typography.Paragraph>}
                                 </div>
                             )}
                         </section>

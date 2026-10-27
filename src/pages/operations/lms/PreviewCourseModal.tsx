@@ -40,7 +40,6 @@ const PreviewCourseBody = ({ open, title, description, lessons, onClose }: Previ
             {steps.length === 0 || !current ? (
                 <div className="survey-preview-empty">
                     <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('This course has no lessons yet')} />
-                    <Button onClick={onClose}>{t('Close')}</Button>
                 </div>
             ) : (
                 <SurveyQuestionFrame

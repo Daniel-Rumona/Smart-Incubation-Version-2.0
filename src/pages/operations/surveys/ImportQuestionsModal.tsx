@@ -11,6 +11,7 @@ import {
 import { SURVEY_FIELD_TYPES, type SurveyField } from '@/services/surveyTemplatesService'
 import { isAgentApiConfigured } from '@/config/agent'
 import { useLanguage } from '@/providers/LanguageProvider'
+import { ModalActions } from '@/components/shared/ModalActions'
 
 export type ImportOptions = { replace: boolean, applyMeta: boolean }
 
@@ -94,12 +95,13 @@ export const ImportQuestionsModal = ({ open, category, hasExistingFields, onClos
             width={720}
             maskClosable={!analysing}
             className="survey-import-modal"
-            footer={[
-                <Button key="cancel" onClick={close} disabled={analysing}>{t('Cancel')}</Button>,
-                <Button key="apply" type="primary" disabled={!result || !selected.length} onClick={apply}>
-                    {selected.length ? `Add ${selected.length} question${selected.length === 1 ? '' : 's'}` : t('Add questions')}
-                </Button>,
-            ]}
+            footer={(
+                <ModalActions>
+                    <Button type="primary" disabled={!result || !selected.length} onClick={apply}>
+                        {selected.length ? `Add ${selected.length} question${selected.length === 1 ? '' : 's'}` : t('Add questions')}
+                    </Button>
+                </ModalActions>
+            )}
         >
             <Space direction="vertical" size={16} className="survey-import-stack">
                 {!isAgentApiConfigured && (

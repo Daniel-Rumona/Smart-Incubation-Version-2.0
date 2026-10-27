@@ -18,7 +18,7 @@ export type AgentRatingRecord = {
 }
 
 export const listAgentRatings = async (user: FullIdentity): Promise<AgentRatingRecord[]> => {
-  if (!['systemadmin', 'admin'].includes(user.role)) throw new Error('forbidden')
+  if (user.role !== 'systemadmin') throw new Error('forbidden')
   const snapshot = await getDocs(collection(getFirebaseDb(), 'agentConversationRatings'))
   return snapshot.docs.flatMap(record => {
     const data = record.data()

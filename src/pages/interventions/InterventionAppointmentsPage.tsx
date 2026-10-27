@@ -1,9 +1,9 @@
-import { Alert, App, Button, Card, Col, DatePicker, Form, Input, Modal, Progress, Row, Segmented, Select, Space, Tooltip, Typography, Upload } from 'antd'
+import { Alert, App, Button, Card, Col, DatePicker, Form, Input, Modal, Progress, Row, Segmented, Select, Tooltip, Typography, Upload } from 'antd'
 import { CheckCircleOutlined, EditOutlined, LeftOutlined, PlusOutlined, RightOutlined, SaveOutlined, SearchOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import type { Dayjs } from 'dayjs'
 import { addDoc, arrayUnion, collection, doc, getDocs, query, serverTimestamp, Timestamp, updateDoc, where } from 'firebase/firestore'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { PageLoadingBar } from '@/components/shared/PageSkeleton'
@@ -36,6 +36,8 @@ import { sendAdminEmail } from '@/services/emailOperationsService'
 import { EVIDENCE_ACCEPT, evidenceFileProblem, uploadEvidenceFiles } from '@/services/interventionOverrideService'
 import { matchesActiveProgram } from '@/services/workspaceProgramsService'
 import { useLanguage, tr } from '@/providers/LanguageProvider'
+import { workspaceCompanyCode } from '@/services/companiesService'
+import { ModalActions } from '@/components/shared/ModalActions'
 
 type AppointmentRow = {
     id: string
@@ -157,6 +159,9 @@ export const InterventionAppointmentsPage = () => {
     const { user } = useFullIdentity()
     const { activeProgramId } = useActiveProgramId()
     const { assignments, loading: assignmentsLoading, refresh: refreshAssignments, isMine } = useAssignedInterventions()
+    // Reception keeps the whole company's calendar: books, moves and confirms for any intervention, never completes.
+    const isReception = user?.role === 'admin'
+    const inScope = useCallback((assignment: Parameters<typeof isMine>[0]) => isReception || isMine(assignment), [isMine, isReception])
     const [searchParams, setSearchParams] = useSearchParams()
     const navigate = useNavigate()
     const [form] = Form.useForm<AppointmentForm>()
@@ -181,18 +186,19 @@ export const InterventionAppointmentsPage = () => {
     const [outcomeStep, setOutcomeStep] = useState(0)
 
     const assignableInterventions = useMemo(() => assignments
-        .filter(isMine)
+        .filter(inScope)
         .filter((assignment) => matchesActiveProgram(user, activeProgramId, String(assignment.programId || '')))
         .filter((assignment) => !['completed', 'cancelled', 'declined'].includes(normalize(assignment.status))),
-        [activeProgramId, assignments, isMine, user])
+        [activeProgramId, assignments, inScope, user])
 
     const interventionById = useMemo(() => new Map(assignments.map((assignment) => [assignment.id, assignment])), [assignments])
 
     const loadAppointments = async () => {
-        if (!user?.companyCode) return
+        const companyCode = workspaceCompanyCode(user)
+        if (!companyCode) return
         try {
             setLoading(true)
-            const snapshot = await getDocs(query(collection(db, 'appointments'), where('companyCode', '==', user.companyCode)))
+            const snapshot = await getDocs(query(collection(db, 'appointments'), where('companyCode', '==', companyCode)))
             const appointmentRows: AppointmentRow[] = snapshot.docs.map((row) => ({
                 ...(row.data() as AppointmentRow),
                 id: row.id,
@@ -201,7 +207,7 @@ export const InterventionAppointmentsPage = () => {
                 .filter((appointment) => {
                     const assignment = interventionById.get(appointment.assignedInterventionId)
                     if (!assignment) return false
-                    if (!isMine(assignment)) return false
+                    if (!inScope(assignment)) return false
                     return matchesActiveProgram(user, activeProgramId, String(appointment.programId || assignment.programId || ''))
                 }))
         } catch {
@@ -335,7 +341,7 @@ export const InterventionAppointmentsPage = () => {
         try {
             setSaving(true)
             const appointmentRef = await addDoc(collection(db, 'appointments'), {
-                companyCode: user.companyCode || null,
+                companyCode: workspaceCompanyCode(user) || null,
                 assignedInterventionId: assignment.id,
                 interventionId: assignment.interventionId,
                 interventionTitle: assignment.interventionTitle || 'Intervention',
@@ -361,7 +367,7 @@ export const InterventionAppointmentsPage = () => {
                 updatedAt: serverTimestamp(),
             })
             await addDoc(collection(db, 'notifications'), {
-                companyCode: user.companyCode || null,
+                companyCode: workspaceCompanyCode(user) || null,
                 type: 'appointment_scheduled',
                 appointmentId: appointmentRef.id,
                 assignedInterventionId: assignment.id,
@@ -384,6 +390,24 @@ export const InterventionAppointmentsPage = () => {
     }
 
     const canReviewInterventions = !!user && hasRolePermission(user.role, 'assign_interventions', user.permissions)
+
+    /** Reception marks a pending booking confirmed once the SME agreed by phone or in person. */
+    const confirmAppointment = async (appointment: AppointmentRow) => {
+        try {
+            await updateDoc(doc(db, 'appointments', appointment.id), {
+                status: 'accepted',
+                confirmationSource: 'reception',
+                confirmedBy: user?.uid || null,
+                confirmedAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+            })
+            message.success(t('Appointment confirmed.'))
+            setDetailOpen(false)
+            await loadAppointments()
+        } catch {
+            message.error(t('Appointment could not be confirmed.'))
+        }
+    }
 
     const openReschedule = (appointment: AppointmentRow) => {
         setDetailOpen(false)
@@ -443,7 +467,7 @@ export const InterventionAppointmentsPage = () => {
                 updatedAt: serverTimestamp(),
             })
             await addDoc(collection(db, 'notifications'), {
-                companyCode: user.companyCode || null,
+                companyCode: workspaceCompanyCode(user) || null,
                 type: 'appointment_rescheduled',
                 appointmentId: rescheduleTarget.id,
                 assignedInterventionId: rescheduleTarget.assignedInterventionId,
@@ -562,7 +586,7 @@ export const InterventionAppointmentsPage = () => {
             }
 
             await addDoc(collection(db, 'notifications'), {
-                companyCode: user.companyCode || null,
+                companyCode: workspaceCompanyCode(user) || null,
                 type: 'appointment_completed_progress_update',
                 appointmentId: selected.id,
                 assignedInterventionId: selected.assignedInterventionId,
@@ -582,7 +606,7 @@ export const InterventionAppointmentsPage = () => {
                     })
                 } catch {
                     await addDoc(collection(db, 'notifications'), {
-                        companyCode: user.companyCode || null,
+                        companyCode: workspaceCompanyCode(user) || null,
                         type: 'appointment_email_failed',
                         appointmentId: selected.id,
                         recipientRoles: ['operations'],
@@ -664,8 +688,10 @@ export const InterventionAppointmentsPage = () => {
                 open={detailOpen}
                 appointment={selected}
                 onClose={() => setDetailOpen(false)}
-                onComplete={openOutcome}
+                onComplete={isReception ? undefined : openOutcome}
                 onReschedule={openReschedule}
+                rescheduleAnytime={isReception}
+                onConfirm={isReception ? (appointment) => void confirmAppointment(appointment) : undefined}
                 onReviewIntervention={canReviewInterventions ? reviewIntervention : undefined}
             />
 
@@ -695,10 +721,9 @@ export const InterventionAppointmentsPage = () => {
                         </Form.Item>
                         {rescheduleMeetingType === 'online' && <Form.Item name="meetingLink" label={t('Meeting link')} rules={[{ required: true, message: tr('Add the meeting link.') }]}><Input placeholder={t('Paste Zoom, Google Meet, Teams, or any online meeting link')} /></Form.Item>}
                         {rescheduleMeetingType === 'in_person' && <Form.Item name="location" label={t('Location')} rules={[{ required: true, message: tr('Add the location.') }]}><Input.TextArea rows={3} /></Form.Item>}
-                        <Space style={{ justifyContent: 'flex-end', width: '100%' }}>
-                            <Button onClick={() => setRescheduleTarget(undefined)}>{t('Cancel')}</Button>
+                        <ModalActions>
                             <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={saving}>{t('Reschedule')}</Button>
-                        </Space>
+                        </ModalActions>
                     </Form>
                 )}
             </Modal>
@@ -725,10 +750,9 @@ export const InterventionAppointmentsPage = () => {
                             return null
                         }}
                     </Form.Item>
-                    <Space style={{ justifyContent: 'flex-end', width: '100%' }}>
-                        <Button onClick={() => setCreateOpen(false)}>{t('Cancel')}</Button>
+                    <ModalActions>
                         <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={saving}>{t('Save appointment')}</Button>
-                    </Space>
+                    </ModalActions>
                 </Form>}
             </Modal>
 
@@ -780,10 +804,11 @@ export const InterventionAppointmentsPage = () => {
                                     </Upload>
                                 </Form.Item>
                                 <Progress percent={progressFromOutcome(interventionById.get(selected.assignedInterventionId), outcomeForm.getFieldsValue())} />
-                                <Space className="appointment-outcome-actions">
-                                    <Button onClick={() => setOutcomeOpen(false)}>{t('Cancel')}</Button>
-                                    <Button type="primary" htmlType="submit" icon={<CheckCircleOutlined />} loading={saving}>{t('Complete appointment')}</Button>
-                                </Space>
+                                <div className="appointment-outcome-actions">
+                                    <ModalActions>
+                                        <Button type="primary" htmlType="submit" icon={<CheckCircleOutlined />} loading={saving}>{t('Complete appointment')}</Button>
+                                    </ModalActions>
+                                </div>
                             </>}
                         </Form>}
                     </>

@@ -67,7 +67,7 @@ const statusBucket = (value: unknown): AdminApplicationStatus => {
 
 /** `companyCode` narrows every figure to one company; leave it out for the whole platform. */
 export const getAdminDashboardSummary = async (user: FullIdentity, range?: [Date, Date], previousRange?: [Date, Date], companyCode?: string): Promise<AdminDashboardSummary> => {
-  if (!['systemadmin', 'admin'].includes(user.role)) throw new Error('forbidden')
+  if (user.role !== 'systemadmin') throw new Error('forbidden')
   const db = getFirebaseDb()
   const [allUsers, allApplications, failedLogs, allSessions] = await Promise.all([
     getDocs(collection(db, 'users')),

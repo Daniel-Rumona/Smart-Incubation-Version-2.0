@@ -22,7 +22,7 @@ export const DUE_SOON_DAYS = 14
 
 const DAY_MS = 86_400_000
 const normalize = (value: unknown) => String(value ?? '').trim().toLowerCase()
-const OPERATIONS_SIDE_ROLES = ['operations', 'projectadmin', 'projectmanager', 'admin', 'systemadmin']
+const OPERATIONS_SIDE_ROLES = ['operations', 'projectadmin', 'projectmanager', 'systemadmin']
 
 export type FollowUpActor = { id: string, role?: unknown, name?: unknown, email?: unknown, companyCode?: unknown }
 

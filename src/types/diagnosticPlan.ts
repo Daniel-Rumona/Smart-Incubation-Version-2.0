@@ -15,6 +15,8 @@ export type DiagnosticConfirmationMeta = {
   email?: string
   signatureURL?: string
   confirmedAt?: string
+  /** Confirmed by the system, not signed: a no-application programme's set list. */
+  automatic?: boolean
 }
 
 export type DiagnosticSwot = {

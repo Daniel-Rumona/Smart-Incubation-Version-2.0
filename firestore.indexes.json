@@ -7,6 +7,30 @@
         { "fieldPath": "companyCode", "order": "ASCENDING" },
         { "fieldPath": "followUpDueAt", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "interventions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "companyCode", "order": "ASCENDING" },
+        { "fieldPath": "title", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "systemSettingsChangeRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "requestedByUid", "order": "ASCENDING" },
+        { "fieldPath": "requestedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "companySettingsChanges",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "companyCode", "order": "ASCENDING" },
+        { "fieldPath": "changedAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

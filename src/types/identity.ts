@@ -47,6 +47,8 @@ export type FullIdentity = {
   smeOnboardingComplete: boolean
   /** SMEs only. 'programme': joined or applying through a programme; 'independent': marketplace and Agentic. */
   smeJourney?: SmeJourney
+  /** Independent SMEs only: they asked to see programmes after choosing consultants and agents (users/{uid}.smeShowProgrammes). */
+  showProgrammes?: boolean
   /** A programme whose link this person opened but has not joined yet (kept on the account, not just the browser). */
   pendingProgramId?: string | null
 }

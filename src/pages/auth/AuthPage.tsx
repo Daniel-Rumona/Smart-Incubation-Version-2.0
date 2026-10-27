@@ -48,6 +48,7 @@ import { PRIVACY_URL, TERMS_URL } from '@/config/company'
 import { HolidayBanner } from '@/components/shared/HolidayBanner'
 // Photo: Unsplash (unsplash.com/photos/8kMbEUF8kIQ), free Unsplash licence.
 import authPanelPhoto from '@/assets/auth-panel.jpg'
+import { singleActionFooter } from '@/components/shared/modalFooter'
 import '@/styles/auth/auth.css'
 
 const { Title, Paragraph, Text } = Typography
@@ -173,7 +174,10 @@ export default function AuthPage() {
       return
     }
 
-    navigate(firstLoginComplete ? getRoleHomePath(role, isApplicant, smeOnboardingComplete) : '/welcome', { replace: true })
+    // Auth state and the identity provider update independently. Starting the workspace with a
+    // fresh document load avoids redirecting a newly verified account through the stale identity
+    // that was rendered by the sign-in page just before this success callback.
+    window.location.assign(firstLoginComplete ? getRoleHomePath(role, isApplicant, smeOnboardingComplete) : '/welcome')
   }
 
   const handleSubmit = async () => {
@@ -557,6 +561,7 @@ export default function AuthPage() {
         onCancel={() => setResetOpen(false)}
         onOk={handleSendResetLink}
         okText={t('auth.sendResetLink', 'Send reset link')}
+        {...singleActionFooter()}
         confirmLoading={resetLoading}
         centered
         className="auth-reset-modal"

@@ -36,7 +36,8 @@ INACTIVE_APPOINTMENT_STATUSES = {"cancelled", "declined"}
 _ALL = {"assign_interventions", "track_interventions", "view_participants"}
 ROLE_PERMISSIONS: dict[str, set[str]] = {
     "systemadmin": _ALL,
-    "admin": _ALL,
+    # Company reception role: none of these until its access is defined (mirrors permissions.ts).
+    "admin": set(),
     "projectadmin": _ALL,
     "projectmanager": {"assign_interventions", "track_interventions", "view_participants"},
     "operations": _ALL,

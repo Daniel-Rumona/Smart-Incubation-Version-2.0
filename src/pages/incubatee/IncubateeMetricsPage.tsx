@@ -23,7 +23,6 @@ import {
     BarChartOutlined,
     CalendarOutlined,
     CheckCircleFilled,
-    CloseCircleOutlined,
     DollarCircleOutlined,
     LineChartOutlined,
     PlusOutlined,
@@ -56,6 +55,7 @@ import { FilterBar } from "@/components/shared/FilterBar";
 import { ThemedHighcharts } from "@/components/shared/ThemedHighcharts";
 import "@/styles/incubatee.css";
 import { tr, useLanguage } from '@/providers/LanguageProvider'
+import { ModalActions } from '@/components/shared/ModalActions'
 
 const { Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -1108,21 +1108,15 @@ export const MonthlyPerformanceForm: React.FC = () => {
                 destroyOnHidden={false}
                 className="incubatee-upload-modal"
                 footer={
-                    <Space className="incubatee-upload-footer">
+                    <ModalActions>
                         {step === "pick" ? (
-                            <>
-                                <Button icon={<CloseCircleOutlined />} onClick={() => setModalVisible(false)}>
-                                    {tr('Cancel')}
-                                </Button>
-
-                                <Button
-                                    type="primary"
-                                    disabled={!sections.length}
-                                    onClick={() => setStep("form")}
-                                >
-                                    {sections.length ? `Continue with ${sections.length}` : "Choose at least one"}
-                                </Button>
-                            </>
+                            <Button
+                                type="primary"
+                                disabled={!sections.length}
+                                onClick={() => setStep("form")}
+                            >
+                                {sections.length ? `Continue with ${sections.length}` : "Choose at least one"}
+                            </Button>
                         ) : (
                             <>
                                 <Button onClick={() => setStep("pick")}>{tr('Back')}</Button>
@@ -1137,7 +1131,7 @@ export const MonthlyPerformanceForm: React.FC = () => {
                                 </Button>
                             </>
                         )}
-                    </Space>
+                    </ModalActions>
                 }
             >
                 {step === "pick" ? (

@@ -58,6 +58,11 @@ export default function SmeOnboardingPage() {
   const [autoJoinFailed, setAutoJoinFailed] = useState(false)
   const autoJoining = Boolean(pendingProgramId) && !autoJoinFailed
   const autoJoinStarted = useRef(false)
+  // Already joined a programme (joining moves the SME into its company, which can rebuild this page before it
+  // moves on): carry on to the profile or the programme instead of asking the onboarding questions again.
+  const joinedProgramId = !pendingProgramId && user?.smeJourney === 'programme' && user.smeOnboardingComplete
+    ? user.assignedProgramIds?.[0] || ''
+    : ''
 
   const stepKeys = useMemo<StepKey[]>(() => {
     if (hasCompany === true) return ['start', 'company', 'program', 'review']
@@ -173,7 +178,14 @@ export default function SmeOnboardingPage() {
     })()
   }, [message, navigate, pendingProgramId, t, user])
 
-  if (!user || autoJoining) return <PageSkeleton variant="detail" label={autoJoining ? t('Setting up your programme') : t('Loading your account')} />
+  useEffect(() => {
+    if (!user || !joinedProgramId || autoJoinStarted.current) return
+    void getApplicantProfileBundle(user.uid, user.email)
+      .then((bundle) => navigate(isApplicantProfileComplete(bundle) ? `/applicant/programs/${joinedProgramId}/apply` : '/applicant/profile', { replace: true }))
+      .catch(() => navigate('/applicant/profile', { replace: true }))
+  }, [joinedProgramId, navigate, user])
+
+  if (!user || autoJoining || joinedProgramId) return <PageSkeleton variant="detail" label={autoJoining ? t('Setting up your programme') : t('Loading your account')} />
 
   return (
     <DashboardPage className="applicant-page">
@@ -225,7 +237,7 @@ export default function SmeOnboardingPage() {
 
         {currentKey === 'program' && (
           <Space direction="vertical" size={16} style={{ width: '100%' }}>
-            <Text strong>{t('Which programme would you like to apply to at')} {selectedCompany?.name}?</Text>
+            <Text strong>{t('Which programme would you like to join at')} {selectedCompany?.name}?</Text>
             {!companyProgramsLoading && !companyPrograms.length && (
               <Paragraph type="secondary">{t('No programmes are currently open at this company. You can continue and pick one later from your dashboard.')}</Paragraph>
             )}

@@ -341,13 +341,13 @@ html[data-theme='dark'] .program-eligibility-card.is-selected {
 }
 
 .program-status-copy strong {
-    color: var(--app-text);
+    color: var(--ant-color-text);
     font-size: 13px;
     line-height: 1.25;
 }
 
 .program-status-copy small {
-    color: var(--app-text-muted);
+    color: var(--ant-color-text-secondary);
     font-size: 11px;
     line-height: 1.3;
 }
@@ -398,7 +398,7 @@ html[data-theme='dark'] .program-eligibility-card.is-selected {
 
 .program-choice-grid strong,
 .agent-support-grid strong {
-    color: var(--app-text);
+    color: var(--ant-color-text);
     font-size: 15px;
 }
 
@@ -415,7 +415,7 @@ html[data-theme='dark'] .program-eligibility-card.is-selected {
 .agent-support-grid small {
     display: block;
     margin-top: 6px;
-    color: var(--app-text-muted);
+    color: var(--ant-color-text-secondary);
 }
 
 .agent-support-icon {
@@ -451,22 +451,193 @@ html[data-theme='dark'] .program-eligibility-card.is-selected {
     margin: 10px 0 16px;
 }
 
-@media (max-width: 767px) {
-    .director-dashboard-metrics>div:nth-child(n + 3) {
-        display: none;
+/* Area filter, intervention dropdown and a round + button; what is added lists underneath. */
+.program-intervention-picker {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
+    gap: 12px;
+    align-items: center;
+}
+
+.program-intervention-picker .ant-select {
+    width: 100%;
+}
+
+.program-intervention-list-label {
+    display: block;
+    margin: 20px 0 8px;
+}
+
+.program-intervention-list {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: program-intervention;
+}
+
+.program-intervention-list li {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    padding: 10px 8px 10px 12px;
+    border: 1px solid rgba(109, 93, 251, .18);
+    border-radius: 12px;
+    background: var(--app-surface, transparent);
+    counter-increment: program-intervention;
+}
+
+.program-intervention-list li::before {
+    content: counter(program-intervention);
+    display: grid;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    border-radius: 50%;
+    color: #6d5dfb;
+    font-size: 13px;
+    font-weight: 600;
+    background: rgba(109, 93, 251, .12);
+}
+
+.program-intervention-list-copy {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.program-intervention-list-copy strong {
+    color: var(--ant-color-text);
+    overflow-wrap: anywhere;
+}
+
+.program-intervention-list-copy small {
+    color: var(--ant-color-text-secondary);
+}
+
+.program-intervention-empty {
+    margin: 0 !important;
+}
+
+@media (max-width: 640px) {
+    .program-intervention-picker {
+        grid-template-columns: minmax(0, 1fr) auto;
     }
 
-    .director-dashboard-metrics .ant-statistic-title {
-        display: none;
-    }
-
-    .director-dashboard-inner {
-        padding: 0;
+    .program-intervention-area {
+        grid-column: 1 / -1;
     }
 }
 
 .director-dashboard-page .filter-bar {
     margin-bottom: 12px;
+}
+
+/* Director dashboard: needs your attention */
+.director-attention-card,
+.director-dashboard-page .dashboard-section-card {
+    height: 100%;
+    margin-bottom: 0;
+}
+
+.director-attention {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+}
+
+.director-attention button {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--ant-color-border-secondary);
+    border-radius: 12px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color .2s ease, background .2s ease;
+}
+
+.director-attention button:hover {
+    border-color: var(--ant-color-primary-border);
+    background: var(--ant-color-fill-quaternary);
+}
+
+.director-attention-icon {
+    flex: none;
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    color: #d97706;
+    background: rgba(217, 119, 6, .12);
+}
+
+.director-attention-icon.is-overdue,
+.director-attention-icon.is-high_risk {
+    color: #dc2626;
+    background: rgba(220, 38, 38, .1);
+}
+
+.director-attention-text {
+    flex: 1;
+    min-width: 0;
+    font-size: 13.5px;
+}
+
+.director-attention-go {
+    flex: none;
+    color: var(--ant-color-text-tertiary);
+}
+
+/* Director dashboard: programmes at a glance */
+.director-programme-row {
+    cursor: pointer;
+}
+
+.director-completion {
+    display: grid;
+    gap: 2px;
+}
+
+.director-completion .ant-progress {
+    margin: 0;
+}
+
+.director-completion .ant-typography {
+    font-size: 12px;
+}
+
+.director-flags {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.director-flags .ant-tag {
+    margin-inline-end: 0;
+}
+
+.director-programme-card {
+    display: grid;
+    gap: 8px;
+}
+
+.director-programme-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
 }
 
 .program-manager-page .program-filter-bar .filter-bar-primary>.ant-btn {
@@ -691,6 +862,13 @@ html[data-theme='dark'] .program-eligibility-card.is-selected {
     padding-right: calc(var(--ring) + var(--ring-edge) + 14px) !important;
 }
 
+/* antd turns a checked button's text the primary colour; on these cards the border, tint, icon and ring show
+   the choice, so the words keep their normal colours and stay readable. */
+.program-radio-cards .ant-radio-button-wrapper.ant-radio-button-wrapper-checked,
+.program-radio-cards .ant-radio-button-wrapper.ant-radio-button-wrapper-checked:hover {
+    color: var(--ant-color-text);
+}
+
 .program-eligibility-card {
     padding-right: 42px;
 }
@@ -800,5 +978,261 @@ html[data-theme='dark'] .program-eligibility-card.is-selected::after {
 @media (prefers-reduced-motion: reduce) {
     .program-modal {
         transition: none;
+    }
+}
+
+/* Director dashboard: overdue interventions modal (src/components/director/OverdueUpdatesModal.tsx) */
+.director-overdue {
+    display: grid;
+    gap: 12px;
+}
+
+.director-overdue-intro.ant-typography {
+    margin: 0;
+}
+
+.director-overdue-group {
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid var(--ant-color-border-secondary);
+    border-radius: 14px;
+}
+
+.director-overdue-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.director-overdue-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    font-size: 12.5px;
+}
+
+.director-overdue-meta .ant-tag {
+    margin-inline-end: 0;
+}
+
+.director-overdue-last {
+    display: block;
+    margin-top: 4px;
+    font-size: 12px;
+}
+
+.director-overdue-compose {
+    display: grid;
+    gap: 8px;
+}
+
+.director-overdue-compose-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.director-overdue-items {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 6px;
+}
+
+.director-overdue-items li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: var(--ant-color-fill-quaternary);
+}
+
+.director-overdue-items li > span {
+    display: grid;
+    min-width: 0;
+    font-size: 13px;
+}
+
+.director-overdue-items li > span .ant-typography {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.director-overdue-items .ant-tag {
+    flex: none;
+    margin-inline-end: 0;
+}
+
+.director-overdue-more.ant-btn {
+    justify-self: start;
+    padding-inline: 0;
+}
+
+.director-overdue-asof {
+    font-size: 12px;
+}
+
+/* Director dashboard: all clear, and the single-programme KPI list */
+.director-all-clear {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 12px;
+    background: rgba(22, 163, 74, .08);
+}
+
+.director-all-clear > .anticon {
+    flex: none;
+    margin-top: 2px;
+    font-size: 20px;
+    color: #16a34a;
+}
+
+.director-all-clear > div {
+    display: grid;
+    gap: 2px;
+}
+
+.director-kpi-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 6px;
+}
+
+.director-kpi-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: var(--ant-color-fill-quaternary);
+}
+
+.director-kpi-list li > span {
+    display: grid;
+    min-width: 0;
+    font-size: 13px;
+}
+
+.director-kpi-list li > span .ant-typography:last-child {
+    font-size: 12px;
+}
+
+.director-kpi-list .ant-tag {
+    flex: none;
+    margin-inline-end: 0;
+}
+
+/* Programme performance (src/pages/director/DirectorProgramsPage.tsx) */
+.director-programme-scorecard {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid var(--ant-color-border-secondary);
+    border-top: 3px solid var(--ant-color-border-secondary);
+    border-radius: 16px;
+    background: var(--ant-color-bg-container);
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color .2s ease, box-shadow .2s ease;
+}
+
+.director-programme-scorecard:hover {
+    box-shadow: var(--ant-box-shadow-tertiary);
+}
+
+.director-programme-scorecard-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 0;
+}
+
+.director-programme-scorecard-head .ant-typography {
+    font-size: 15px;
+}
+
+.director-programme-scorecard-head .ant-tag,
+.director-programme-scorecard-stats .ant-tag {
+    margin-inline-end: 0;
+}
+
+.director-programme-scorecard-sub,
+.director-small {
+    font-size: 12px;
+}
+
+.director-programme-scorecard-completion {
+    display: grid;
+    gap: 2px;
+    font-size: 12px;
+}
+
+.director-programme-scorecard-completion > span {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+}
+
+.director-programme-scorecard-completion > span .ant-typography-strong,
+.director-programme-scorecard-completion > span strong {
+    font-size: 20px;
+}
+
+.director-programme-scorecard-completion .ant-progress {
+    margin: 0;
+}
+
+.director-programme-scorecard-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.director-programme-scorecard-stats > div {
+    display: grid;
+    gap: 4px;
+    align-content: start;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: var(--ant-color-fill-quaternary);
+    font-size: 12px;
+}
+
+.director-programme-scorecard-stats > div > span {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.director-pagination {
+    display: flex;
+    justify-content: center;
+    margin-top: 16px;
+}
+
+@media (max-width: 767px) {
+    .director-hide-mobile {
+        display: none;
     }
 }

@@ -2,7 +2,7 @@ import { App, Avatar, Button, Card, Col, Dropdown, Form, Input, Row, Segmented, 
 import { AimOutlined, ArrowLeftOutlined, ArrowRightOutlined, CheckCircleOutlined, ClockCircleOutlined, DeleteOutlined, EditOutlined, LockOutlined, MoreOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, StopOutlined, TeamOutlined, UserSwitchOutlined, WhatsAppOutlined } from '@ant-design/icons'
 import ResponsiveModal from '@/components/shared/ResponsiveModal'
 import { WeekHoursEditor } from '@/components/shared/WeekHoursEditor'
-import { areasFor, listCompanyAreasOfSupport, saveConsultantWork, saveOperatingHours, saveRequireConsultantAcceptance, useCompanyWorkSettingsState, type CompanyWorkSettings, type WorkWindow } from '@/services/companyWorkSettingsService'
+import { areasFor, coversAllAreas, listCompanyAreasOfSupport, saveConsultantWork, saveOperatingHours, saveRequireConsultantAcceptance, useCompanyWorkSettingsState, type CompanyWorkSettings, type WorkWindow } from '@/services/companyWorkSettingsService'
 import { useEffect, useMemo, useState } from 'react'
 import { countryFromPhone, providersForCountry } from '@/config/phoneProviders'
 import '@/styles/staff-modal.css'
@@ -21,7 +21,10 @@ import { getRolePermissions } from '@/config/permissions'
 
 type StaffForm = Omit<ManagedUser, 'id' | 'status' | 'companyCode'> & { active: boolean }
 type Section = 'details' | 'access' | 'work'
-type WorkDraft = { areas: string[]; ownHours: boolean; hours: WorkWindow[] }
+type WorkDraft = { areas: string[]; allAreas: boolean; ownHours: boolean; hours: WorkWindow[] }
+
+// The "All areas" choice in the areas list (stored as allAreas, not as an area).
+const ALL_AREAS = "__all_areas__"
 
 const SECTION_ORDER: Section[] = ['details', 'access', 'work']
 // Details can't be passed (adding) or saved until these match; the Phone number field uses the same pattern.
@@ -53,7 +56,7 @@ const initials = (row: ManagedUser) => (row.name || row.email).split(/\s+/).filt
 // The work a consultant has saved, or company hours and no areas when nothing is saved yet.
 const savedWork = (settings: CompanyWorkSettings | null, uid?: string): WorkDraft => {
   const own = uid ? settings?.consultants[uid]?.hours : undefined
-  return { areas: areasFor(settings, uid), ownHours: !!own?.length, hours: own?.length ? own : settings?.operatingHours || [] }
+  return { areas: areasFor(settings, uid), allAreas: coversAllAreas(settings, uid), ownHours: !!own?.length, hours: own?.length ? own : settings?.operatingHours || [] }
 }
 
 const sameWork = (left: WorkDraft, right: WorkDraft) => JSON.stringify(left) === JSON.stringify(right)
@@ -105,10 +108,16 @@ export const StaffPage = () => {
   const active = Form.useWatch('active', form) as boolean | undefined
   const phoneCountry = countryFromPhone(phone)
   const providerOptions = providersForCountry(phoneCountry).map((value) => ({ value, label: value }))
+  // Directors only add reception admins; operations can't add them (mirrors MANAGEABLE_ROLES in functions/src/index.ts).
+  const isDirector = user?.role === USER_ROLES.DIRECTOR
   const roleOptions = useMemo(() => [
-    { value: USER_ROLES.CONSULTANT, label: t('operations.staff.consultant') },
-    { value: USER_ROLES.PROJECT_ADMIN, label: t('operations.staff.projectAdmin') },
-  ], [t])
+    ...(isDirector ? [] : [
+      { value: USER_ROLES.CONSULTANT, label: t('operations.staff.consultant') },
+      { value: USER_ROLES.PROJECT_ADMIN, label: t('operations.staff.projectAdmin') },
+    ]),
+    ...(isDirector || user?.role === USER_ROLES.PROJECT_ADMIN ? [{ value: USER_ROLES.ADMIN, label: t('Admin (reception)') }] : []),
+  ], [isDirector, t, user?.role])
+  const defaultRole = roleOptions[0]?.value || USER_ROLES.CONSULTANT
   const roleLabel = (value: UserRole) => value === USER_ROLES.OPERATIONS ? t('Operations') : roleOptions.find((option) => option.value === value)?.label || value
   const roleColor = (value: UserRole) => value === USER_ROLES.OPERATIONS ? 'blue' : 'purple'
   const staffError = (error: unknown, fallbackKey: string) => {
@@ -120,7 +129,8 @@ export const StaffPage = () => {
   // How consultants work: company operating hours, and each consultant's areas of support and optional own hours.
   // Nothing that writes these settings is enabled until they have loaded, so an empty draft never replaces them.
   const { settings: workSettings, status: workStatus, retry: retryWork } = useCompanyWorkSettingsState(user?.companyCode)
-  const workAvailable = Boolean(user?.companyCode)
+  // Operating hours and consultant work are for delivery managers, not directors adding reception staff.
+  const workAvailable = Boolean(user?.companyCode) && !isDirector
   const workReady = workStatus === 'ready' && workSettings !== null
   const [companyAreas, setCompanyAreas] = useState<string[]>([])
   const [hoursOpen, setHoursOpen] = useState(false)
@@ -244,6 +254,7 @@ export const StaffPage = () => {
     staff: staff.length,
     consultants: staff.filter((row) => row.role === USER_ROLES.CONSULTANT).length,
     projectAdmins: staff.filter((row) => row.role === USER_ROLES.PROJECT_ADMIN).length,
+    admins: staff.filter((row) => row.role === USER_ROLES.ADMIN).length,
     missingAreas: staff.filter(missingAreas).length,
   }), [staff, workSettings]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -267,7 +278,7 @@ export const StaffPage = () => {
     setEditing(record)
     setFormValues(record
       ? { name: record.name, email: record.email, role: record.role, phone: record.phone || '', phoneIsWhatsApp: record.phoneIsWhatsApp === true, phoneProvider: record.phoneProvider || undefined, permissions: record.permissions || getRolePermissions(record.role), active: record.status === 'active' }
-      : { name: '', email: '', role: USER_ROLES.CONSULTANT, phone: '', phoneIsWhatsApp: false, phoneProvider: undefined, permissions: getRolePermissions(USER_ROLES.CONSULTANT), active: true })
+      : { name: '', email: '', role: defaultRole, phone: '', phoneIsWhatsApp: false, phoneProvider: undefined, permissions: getRolePermissions(defaultRole), active: true })
     setWorkDraft(undefined)
     setSection('details')
     setModalOpen(true)
@@ -275,7 +286,8 @@ export const StaffPage = () => {
 
   // Editing jumps between sections; adding walks through them in order, so nothing is skipped by accident.
   const showWork = role === USER_ROLES.CONSULTANT
-  const sections: Section[] = ['details', 'access', ...(showWork ? ['work' as const] : [])]
+  // Reception admins always get exactly the reception access, so there is no Access step for them.
+  const sections: Section[] = ['details', ...(role === USER_ROLES.ADMIN ? [] : ['access' as const]), ...(showWork ? ['work' as const] : [])]
   const visibleSection: Section = sections.includes(section) ? section : 'details'
   const stepIndex = sections.indexOf(visibleSection)
   const isLastStep = stepIndex === sections.length - 1
@@ -317,7 +329,7 @@ export const StaffPage = () => {
     // Areas and hours live in the company's work settings, so they save separately and only when changed.
     if (values.role === USER_ROLES.CONSULTANT && workChanged && workReady && uid) {
       try {
-        await saveConsultantWork(user, uid, { areasOfSupport: workDraft.areas, hours: workDraft.ownHours ? workDraft.hours : null })
+        await saveConsultantWork(user, uid, { areasOfSupport: workDraft.allAreas ? [] : workDraft.areas, allAreas: workDraft.allAreas, hours: workDraft.ownHours ? workDraft.hours : null })
       } catch {
         message.warning(t('Saved, but their areas and hours could not be saved. Try again from Edit.'))
       }
@@ -474,6 +486,11 @@ export const StaffPage = () => {
 
   return (
     <DashboardPage className="staff-page">
+      {isDirector ? (
+        <Row gutter={[16, 16]} className="dashboard-metrics-row">
+          <Col xs={12} lg={6}><DashboardMetricCard icon={<TeamOutlined />} label={t('Reception admins')} value={metrics.admins} /></Col>
+        </Row>
+      ) : (
       <Row gutter={[16, 16]} className="dashboard-metrics-row">
         <Col xs={12} lg={6}><DashboardMetricCard icon={<TeamOutlined />} label={t('operations.staff.members')} value={metrics.staff} /></Col>
         <Col xs={12} lg={6}><DashboardMetricCard icon={<TeamOutlined />} label={t('operations.staff.consultants')} value={metrics.consultants} /></Col>
@@ -491,6 +508,7 @@ export const StaffPage = () => {
           />
         </Col>
       </Row>
+      )}
       <FilterBar
         compact
         primary={<Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('Search name, email, role, area or phone')} allowClear />}
@@ -621,8 +639,20 @@ export const StaffPage = () => {
                     ? <Skeleton active paragraph={{ rows: 4 }} />
                     : (
                       <>
-                        <Form.Item label={t('Areas of support')} extra={companyAreas.length ? t('Interventions in these areas list this consultant first when assigning.') : t('Your interventions have no areas of support yet. Add them when setting up interventions.')}>
-                          <Select mode="multiple" allowClear value={work.areas} placeholder={t('Choose areas')} options={companyAreas.map((area) => ({ value: area, label: area }))} onChange={(areas) => updateWork({ areas })} />
+                        <Form.Item label={t('Areas of support')} extra={companyAreas.length ? t('They only pick up interventions in these areas, and are listed first when assigning them. Choose All areas to let them take any.') : t('Your interventions have no areas of support yet. Add them when setting up interventions.')}>
+                          <Select
+                            mode="multiple"
+                            allowClear
+                            value={work.allAreas ? [ALL_AREAS] : work.areas}
+                            placeholder={t('Choose areas')}
+                            options={[{ value: ALL_AREAS, label: t('All areas') }, ...companyAreas.map((area) => ({ value: area, label: area }))]}
+                            // All areas and specific areas don't mix: picking one clears the other.
+                            onChange={(next: string[]) => {
+                              const picksAll = next.includes(ALL_AREAS)
+                              if (picksAll && !work.allAreas) updateWork({ allAreas: true, areas: [] })
+                              else updateWork({ allAreas: false, areas: next.filter((area) => area !== ALL_AREAS) })
+                            }}
+                          />
                         </Form.Item>
                         <Form.Item label={t('Working hours')}>
                           <Segmented

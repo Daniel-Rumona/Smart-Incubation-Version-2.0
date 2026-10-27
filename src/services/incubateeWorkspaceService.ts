@@ -92,7 +92,7 @@ export const loadIncubateeWorkspace = async (user: FullIdentity): Promise<Incuba
     getDocs(query(collection(db, 'interventionRequests'), where('participantId', '==', participantId))),
     getDocs(query(collection(db, 'formAssignments'), where('participantId', '==', participantId))),
     getDocs(query(collection(db, 'formRequests'), where('participantId', '==', participantId))),
-    getDocs(query(collection(db, 'notifications'), where('participantId', '==', participantId))),
+    Promise.all(participantIds.map((id) => getDocs(query(collection(db, 'notifications'), where('participantId', '==', id))))).then((snapshots) => ({ docs: snapshots.flatMap((snapshot) => snapshot.docs) })),
   ])
   const applicationRows = new Map<string, LooseDocument>()
   applicationSnapshots.forEach((snapshot) => snapshot.docs.forEach((row) => applicationRows.set(row.id, { id: row.id, ...row.data() } as LooseDocument)))

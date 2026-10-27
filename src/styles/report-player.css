@@ -236,15 +236,16 @@ html[data-theme='dark'] .rp-overlay {
 /* Screen slide: a product screenshot in a browser frame, slowly drifting closer, points beside it. */
 .rp-screen { display: grid; gap: clamp(18px, 2.4vw, 32px); grid-template-columns: minmax(0, 1fr); align-items: center; }
 .rp-screen.has-points { grid-template-columns: minmax(0, 2.5fr) minmax(240px, 1fr); }
-@media (max-width: 900px) { .rp-screen.has-points { grid-template-columns: minmax(0, 1fr); } }
-.rp-screen-frame { margin: 0; min-width: 0; overflow: hidden; border: 1px solid var(--rp-border-strong); border-radius: 16px; background: var(--rp-surface); box-shadow: 0 24px 60px -24px var(--rp-accent-soft), 0 8px 24px -12px rgba(15, 23, 42, 0.25); animation: rp-fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both; }
+.rp-screen.has-points .rp-screen-frame { justify-self: end; }
+@media (max-width: 900px) { .rp-screen.has-points { grid-template-columns: minmax(0, 1fr); } .rp-screen.has-points .rp-screen-frame { justify-self: center; } }
+.rp-screen-frame { justify-self: center; width: fit-content; max-width: 100%; margin: 0; min-width: 0; overflow: hidden; border: 1px solid var(--rp-border-strong); border-radius: 16px; background: var(--rp-surface); box-shadow: 0 24px 60px -24px var(--rp-accent-soft), 0 8px 24px -12px rgba(15, 23, 42, 0.25); animation: rp-fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both; }
 .rp-screen-bar { display: flex; gap: 6px; padding: 10px 14px; border-bottom: 1px solid var(--rp-border); }
 .rp-screen-bar i { width: 10px; height: 10px; border-radius: 50%; background: var(--rp-track); }
-/* `focus` zooms in on the part that matters (--rp-zoom about --rp-zoom-x/y); the drift then eases a little closer. */
-.rp-screen-view { overflow: hidden; max-height: min(64vh, 680px); }
-.rp-screen-view img { display: block; width: 100%; height: auto; transform-origin: var(--rp-zoom-x, 50%) var(--rp-zoom-y, 0%); animation: rp-screen-drift var(--rp-duration, 14s) ease-out both; user-select: none; }
+/* The whole screen, never cropped: sized to the space left under the title, the frame hugging the image. */
+.rp-screen-view { overflow: hidden; }
+.rp-screen-view img { display: block; width: auto; height: auto; max-width: 100%; max-height: min(58vh, 720px); animation: rp-screen-drift var(--rp-duration, 14s) ease-out both; user-select: none; }
 .rp-screen-points { align-self: center; }
-@keyframes rp-screen-drift { from { transform: scale(var(--rp-zoom, 1)); } to { transform: scale(calc(var(--rp-zoom, 1) * 1.045)); } }
+@keyframes rp-screen-drift { from { transform: scale(1); } to { transform: scale(1.02); } }
 
 /* Part-to-whole: one bar, 3px gaps, the legend carries the counts. */
 .rp-breakdown { display: grid; gap: 14px; animation: rp-fade-up 0.6s ease 0.35s both; }

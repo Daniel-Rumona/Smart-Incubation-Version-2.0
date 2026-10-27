@@ -3,12 +3,14 @@ import { AlertOutlined, BarChartOutlined, BellOutlined, BulbOutlined, ClockCircl
 import type Highcharts from 'highcharts'
 import dayjs from 'dayjs'
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { collection, doc, getDocs, query, serverTimestamp, updateDoc, where } from 'firebase/firestore'
 import { db } from '@/firebase'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
 import { InterventionOpsActions } from '@/components/interventions/InterventionOpsActions'
+import { FollowUpsToChaseCard } from '@/components/interventions/FollowUpsToChaseCard'
 import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
 import { ThemedHighcharts } from '@/components/shared/ThemedHighcharts'
 import { useAssignedInterventions, type AssignedIntervention } from '@/contexts/AssignedInterventionsContext'
@@ -26,6 +28,7 @@ import { hasWorkStarted } from '@/utils/interventionStart'
 
 type AssignmentKind = 'all' | 'single' | 'grouped'
 type HealthFilter = 'all' | 'on_track' | 'held_up' | 'overdue' | 'completed'
+const HEALTH_FILTERS: HealthFilter[] = ['all', 'on_track', 'held_up', 'overdue', 'completed']
 type DeliveryFilter = 'all' | 'human' | 'agent' | 'unmarked'
 type MonitorSection = 'overview' | 'insights' | 'assignments'
 type StandardStatus =
@@ -208,10 +211,12 @@ export const InterventionsMonitoringPage = () => {
     const { activeProgramId, isAllPrograms } = useActiveProgramId()
     const { user } = useFullIdentity()
     const [view, setView] = useState<AssignmentKind>('all')
-    const [health, setHealth] = useState<HealthFilter>('all')
+    // Links such as the director's "Ask for an update" notification open the page already filtered (?health=overdue).
+    const [searchParams] = useSearchParams()
+    const [health, setHealth] = useState<HealthFilter>(() => (HEALTH_FILTERS.includes(searchParams.get('health') as HealthFilter) ? searchParams.get('health') as HealthFilter : 'all'))
     const [delivery, setDelivery] = useState<DeliveryFilter>('all')
     const [status, setStatus] = useState<StandardStatusFilter>('all')
-    const [section, setSection] = useState<MonitorSection>('overview')
+    const [section, setSection] = useState<MonitorSection>(() => (searchParams.get('health') ? 'assignments' : 'overview'))
     const [programme, setProgramme] = useState('All')
     const [search, setSearch] = useState('')
     const [selected, setSelected] = useState<MonitorRow>()
@@ -787,6 +792,9 @@ export const InterventionsMonitoringPage = () => {
 
             {section === 'overview' && (
                 <Row gutter={[12, 12]}>
+                    <Col span={24}>
+                        <FollowUpsToChaseCard />
+                    </Col>
                     <Col xs={24} xl={12}>
                         <Card>
                             <ThemedHighcharts options={statusChartOptions} />

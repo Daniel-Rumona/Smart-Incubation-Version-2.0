@@ -55,7 +55,7 @@ type PageUsageRow = {
     users: number
 }
 
-const adminRoles = [USER_ROLES.SYSTEM_ADMIN, USER_ROLES.ADMIN]
+const adminRoles = [USER_ROLES.SYSTEM_ADMIN]
 
 const formatDuration = (seconds: number) => {
     const roundedMinutes = Math.max(0, Math.round(seconds / 60))

@@ -163,3 +163,20 @@ html[data-theme='dark'] .kpi-rows { border-color: rgba(139, 92, 246, 0.2); }
 @media (prefers-reduced-motion: reduce) {
   .kpi-row-more, .kpi-row-chevron, .kpis-chip { transition: none; }
 }
+
+/* Consultant view: their own figure leads, the company's sits underneath, and a link goes to the work. */
+.kpi-card-yours { align-self: center; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #5b4fd6; background: rgba(109, 93, 251, 0.1); }
+html[data-theme='dark'] .kpi-card-yours { color: #b7afff; background: rgba(165, 155, 255, 0.14); }
+.kpi-card-company { display: block; margin-top: -6px; font-size: 12.5px; }
+.kpi-work-link.ant-btn { justify-self: start; height: auto; padding: 0; font-weight: 600; }
+.kpi-work-link .anticon { font-size: 10px; }
+.kpi-row-value em { font-style: normal; font-size: 10.5px; font-weight: 700; color: #6d5dfb; }
+
+.kpis-company-toggle { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 10px; width: 100%; padding: 12px 14px; border: 1px dashed rgba(100, 116, 139, 0.3); border-radius: 14px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.kpis-company-toggle span { font-weight: 700; }
+.kpis-company-toggle span em { font-style: normal; font-weight: 500; color: rgba(100, 116, 139, 1); }
+.kpis-company-toggle small { grid-column: 1; font-size: 12px; color: rgba(100, 116, 139, 1); }
+.kpis-company-toggle .kpi-row-chevron { grid-column: 2; grid-row: 1 / span 2; }
+.kpis-company-toggle[aria-expanded='true'] .kpi-row-chevron { transform: rotate(90deg); }
+.kpis-company .kpi-rows,
+.kpis-company .ant-row { margin-top: 10px; }

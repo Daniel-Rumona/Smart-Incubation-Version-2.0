@@ -10,11 +10,13 @@ import { FilterBar } from '@/components/shared/FilterBar'
 import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
 import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
+import { hasRolePermission } from '@/config/permissions'
 import { useLanguage } from '@/providers/LanguageProvider'
 import { listOperationsApplications, updateOperationsApplicationStatus } from '@/services/operationsApplicationsService'
 import { CHART_COLORS, CHART_PALETTE } from '@/config/chartPalette'
 import { initialsOf } from '@/utils/initials'
 import type { OperationsApplication } from '@/types/operations'
+import { singleActionFooter } from '@/components/shared/modalFooter'
 import '@/styles/applications-review.css'
 
 const { RangePicker } = DatePicker
@@ -70,6 +72,8 @@ export const ApplicationsReviewPage = () => {
     const isCompact = !screens.xl
     const reduceMotion = useReducedMotion()
     const { user } = useFullIdentity()
+    // Reception (and anyone without manage_applications) sees the decision but can't change it.
+    const canDecide = Boolean(user && hasRolePermission(user.role, 'manage_applications', user.permissions))
     const [applications, setApplications] = useState<OperationsApplication[]>([])
     const [loading, setLoading] = useState(false)
     const [selected, setSelected] = useState<OperationsApplication>()
@@ -186,7 +190,7 @@ export const ApplicationsReviewPage = () => {
             {section === 'ai' && <Space orientation="vertical" size={16} className="applications-detail-stack">
                 <div>
                     <Typography.Text strong>{t('operations.applications.decision')}</Typography.Text>
-                    <div className="applications-decision-cards">
+                    {!canDecide ? <div><Tag color={statusColor(normalizeStatus(selected.applicationStatus))}>{t(`operations.applications.${normalizeStatus(selected.applicationStatus).toLowerCase()}`)}</Tag><Typography.Paragraph type="secondary" style={{ margin: '6px 0 0' }}>{t('Operations or a project admin accepts or declines applications.')}</Typography.Paragraph></div> : <div className="applications-decision-cards">
                         {STATUSES.map((value) => {
                             const isActive = normalizeStatus(selected.applicationStatus) === value
                             const icon = value === 'Accepted' ? <CheckCircleOutlined /> : value === 'Rejected' ? <CloseCircleOutlined /> : <ClockCircleOutlined />
@@ -202,7 +206,7 @@ export const ApplicationsReviewPage = () => {
                                 </button>
                             )
                         })}
-                    </div>
+                    </div>}
                     {normalizeStatus(selected.applicationStatus) === 'Rejected' && <Alert type="error" showIcon style={{ marginTop: 10 }} message={t('Reason for rejection')} description={selected.rejectionReason || t('No reason recorded')} />}
                 </div>
                 {hasAiReview ? <>
@@ -240,7 +244,7 @@ export const ApplicationsReviewPage = () => {
             {!isCompact && <Col xl={10}><Card className="applications-panel">{details}</Card></Col>}
         </Row>
         <Modal open={detailOpen} title={t('operations.applications.details')} footer={null} onCancel={() => setDetailOpen(false)} width={760}>{details}</Modal>
-        <Modal open={!!pendingUpdate} title={t('operations.applications.confirmDecision')} onCancel={() => { setPendingUpdate(undefined); setRejectionReason('') }} onOk={() => void confirmStatusChange()} okText={t('operations.applications.updateStatus')}>{t('operations.applications.change')} {pendingUpdate?.row.businessName} {t('operations.applications.to')} <strong>{pendingUpdate?.status}</strong>?{pendingUpdate?.status === 'Rejected' && <Input.TextArea style={{ marginTop: 12 }} rows={3} value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} placeholder={t('Reason for rejection')} maxLength={500} showCount />}</Modal>
+        <Modal open={canDecide && !!pendingUpdate} title={t('operations.applications.confirmDecision')} onCancel={() => { setPendingUpdate(undefined); setRejectionReason('') }} onOk={() => void confirmStatusChange()} okText={t('operations.applications.updateStatus')} {...singleActionFooter()}>{t('operations.applications.change')} {pendingUpdate?.row.businessName} {t('operations.applications.to')} <strong>{pendingUpdate?.status}</strong>?{pendingUpdate?.status === 'Rejected' && <Input.TextArea style={{ marginTop: 12 }} rows={3} value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} placeholder={t('Reason for rejection')} maxLength={500} showCount />}</Modal>
         <Modal open={analyticsOpen} title={t('operations.applications.analytics')} footer={null} centered width={640} onCancel={() => setAnalyticsOpen(false)} className="applications-analytics-modal">
             <div className="applications-analytics-grid">
                 <div className="applications-analytics-card applications-analytics-gauge">

@@ -5,6 +5,7 @@ import ResponsiveModal from '@/components/shared/ResponsiveModal'
 import type { BusinessDirector, DirectorRole } from '@/types/applicant'
 import { ageFromSaIdNumber, genderFromSaIdNumber, ownershipFromDirectors, totalShare, YOUTH_MAX_AGE } from '@/utils/businessDirectors'
 import { tr, useLanguage } from '@/providers/LanguageProvider'
+import { ModalActions } from '@/components/shared/ModalActions'
 import '@/styles/applicant/directors-editor.css'
 
 const { Text } = Typography
@@ -185,10 +186,9 @@ export default function DirectorsEditor({ directors, onChange, self, saving = fa
                 onClose={() => setEditing(null)}
                 title={editing === SELF_ID ? t('Your director details') : editing === 'new' ? t('Add director') : t('Edit director')}
                 width={560}
-                footer={<>
-                    <Button onClick={() => setEditing(null)} disabled={saving}>{t('Cancel')}</Button>
+                footer={<ModalActions>
                     <Button type="primary" loading={saving} onClick={() => void save()}>{t('Save director')}</Button>
-                </>}
+                </ModalActions>}
             >
                 <Form form={form} layout="vertical" requiredMark>
                     <Row gutter={12}>

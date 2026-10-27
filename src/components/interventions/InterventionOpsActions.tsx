@@ -14,6 +14,7 @@ import {
   type ReassignCandidate,
   type ReassignMode,
 } from '@/services/interventionOverrideService'
+import { singleActionFooter } from '@/components/shared/modalFooter'
 
 const { Text } = Typography
 
@@ -113,6 +114,7 @@ export const InterventionOpsActions = ({ assignment, title, participantName, isC
         title="Take over this intervention"
         onCancel={close}
         okText="Take over"
+        {...singleActionFooter()}
         confirmLoading={saving}
         onOk={() => void run(() => takeOverIntervention(user, assignment, note), 'You are now the assignee.')}
         destroyOnClose
@@ -128,7 +130,7 @@ export const InterventionOpsActions = ({ assignment, title, participantName, isC
         title="Reassign to another consultant"
         onCancel={close}
         okText="Reassign"
-        okButtonProps={{ disabled: !selectedCandidate }}
+        {...singleActionFooter({ disabled: !selectedCandidate })}
         confirmLoading={saving}
         onOk={() => selectedCandidate && void run(() => reassignIntervention(user, assignment, selectedCandidate, mode, note), `Reassigned to ${selectedCandidate.name}.`)}
         destroyOnClose
@@ -166,7 +168,7 @@ export const InterventionOpsActions = ({ assignment, title, participantName, isC
         title="Complete this intervention"
         onCancel={close}
         okText="Mark as completed"
-        okButtonProps={{ disabled: reason.trim().length < 10 || !files.length }}
+        {...singleActionFooter({ disabled: reason.trim().length < 10 || !files.length })}
         confirmLoading={saving}
         onOk={() => void run(() => completeInterventionWithEvidence(user, assignment, { reason, files: files.map((file) => file.originFileObj as File).filter(Boolean) }), 'Intervention completed.')}
         destroyOnClose

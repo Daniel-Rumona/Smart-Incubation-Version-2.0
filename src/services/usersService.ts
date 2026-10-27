@@ -40,13 +40,13 @@ export type OrphanUserRecord = {
 
 export const previewOrphanUsers = async (user: FullIdentity) => {
   assertAdmin(user)
-  if (!['systemadmin', 'admin'].includes(user.role)) throw new Error('platform-admin-required')
+  if (user.role !== 'systemadmin') throw new Error('platform-admin-required')
   return callAdminEndpoint<{ count: number, orphans: OrphanUserRecord[] }>('cleanupOrphanUserRecords', { dryRun: true })
 }
 
 export const cleanupOrphanUsers = async (user: FullIdentity, confirmation: string) => {
   assertAdmin(user)
-  if (!['systemadmin', 'admin'].includes(user.role)) throw new Error('platform-admin-required')
+  if (user.role !== 'systemadmin') throw new Error('platform-admin-required')
   return callAdminEndpoint<{ count: number, deletedRecordCount: number, deletedUserIds: string[] }>('cleanupOrphanUserRecords', {
     dryRun: false,
     confirmation,

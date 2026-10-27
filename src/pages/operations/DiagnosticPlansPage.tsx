@@ -25,6 +25,7 @@ import { useAssignedInterventions } from '@/contexts/AssignedInterventionsContex
 import { buildLivePlanItems, livePlanProgress, planStatusColor, type LivePlanItem } from '@/utils/liveDiagnosticPlan'
 import SwotOutcomeCard from '@/components/interventions/SwotOutcomeCard'
 import PlanOutcomeChips from '@/components/interventions/PlanOutcomeChips'
+import { ModalActions } from '@/components/shared/ModalActions'
 import '@/styles/operations-diagnostics.css'
 
 type StatusFilter = 'All' | 'Draft' | 'Confirmed'
@@ -382,10 +383,10 @@ export const DiagnosticPlansPage = () => {
         || participant.plan.confirmedMeta?.incubatee
         || participant.plan.confirmedMeta?.sme
 
-    const signatureHtml = (title: string, meta?: { name?: string, email?: string, signatureURL?: string, confirmedAt?: string }) => `
+    const signatureHtml = (title: string, meta?: { name?: string, email?: string, signatureURL?: string, confirmedAt?: string, automatic?: boolean }) => `
         <td>
             <strong>${escapeHtml(title)}</strong><br />
-            ${meta?.signatureURL ? `<img class="signature-img" src="${escapeHtml(meta.signatureURL)}" alt="${escapeHtml(title)} signature" />` : '<div class="signature-missing">Pending signature</div>'}
+            ${meta?.signatureURL ? `<img class="signature-img" src="${escapeHtml(meta.signatureURL)}" alt="${escapeHtml(title)} signature" />` : `<div class="signature-missing">${meta?.automatic ? 'Confirmed automatically (programme set list)' : 'Pending signature'}</div>`}
             <div>${escapeHtml(displayValue(meta?.name || meta?.email))}</div>
             <div>${escapeHtml(meta?.confirmedAt ? new Date(meta.confirmedAt).toLocaleString() : emptyValue)}</div>
         </td>
@@ -605,11 +606,7 @@ export const DiagnosticPlansPage = () => {
                 onCancel={() => setSelected(undefined)}
                 title={selected?.businessName}
                 footer={selected ? (
-                    <Space wrap className="diagnostic-modal-footer">
-                        <Button danger onClick={() => setSelected(undefined)}>
-                            {t('common.cancel')}
-                        </Button>
-
+                    <ModalActions>
                         <Button icon={<DownloadOutlined />} onClick={() => downloadDocument(selected)}>{t('common.download')}</Button>
 
                         {canManage && selected.plan.status !== 'Confirmed' && (
@@ -627,7 +624,7 @@ export const DiagnosticPlansPage = () => {
                                 </Button>
                             </>
                         )}
-                    </Space>
+                    </ModalActions>
                 ) : null}
                 width={1040}
                 centered
@@ -796,7 +793,7 @@ export const DiagnosticPlansPage = () => {
                                         <Typography.Text strong>{t('Operations Signature')}</Typography.Text>
                                         {operationsSignature(selected)?.signatureURL
                                             ? <img src={operationsSignature(selected)?.signatureURL} alt={t('Operations signature')} />
-                                            : <div className="diagnostic-signature-empty">{t('Pending signature')}</div>}
+                                            : <div className="diagnostic-signature-empty">{t(operationsSignature(selected)?.automatic ? 'Confirmed automatically' : 'Pending signature')}</div>}
                                         <Typography.Text>{displayValue(operationsSignature(selected)?.name || operationsSignature(selected)?.email)}</Typography.Text>
                                         <Typography.Text type="secondary">
                                             {operationsSignature(selected)?.confirmedAt
@@ -811,7 +808,7 @@ export const DiagnosticPlansPage = () => {
                                         <Typography.Text strong>{t('SME Signature')}</Typography.Text>
                                         {smeSignature(selected)?.signatureURL
                                             ? <img src={smeSignature(selected)?.signatureURL} alt={t('SME signature')} />
-                                            : <div className="diagnostic-signature-empty">{t('Pending signature')}</div>}
+                                            : <div className="diagnostic-signature-empty">{t(smeSignature(selected)?.automatic ? 'Confirmed automatically' : 'Pending signature')}</div>}
                                         <Typography.Text>{displayValue(smeSignature(selected)?.name || smeSignature(selected)?.email)}</Typography.Text>
                                         <Typography.Text type="secondary">
                                             {smeSignature(selected)?.confirmedAt

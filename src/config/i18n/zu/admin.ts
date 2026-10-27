@@ -166,9 +166,8 @@ export const zuAdmin: Record<string, string> = {
   "agents enabled": "abenzeli abanikwe amandla",
   "registered agents": "abenzeli ababhalisiwe",
   "to confirm:": "ukuqinisekisa:",
-  "A {count}-slide pitch built on randomised trials of SME support, with a pilot design and its limits stated. Plays full screen; use the arrow keys to move and Esc to close.": "Ukwethula okunamaslayidi angu-{count} okusekelwe ezivivinyweni ezingahleliwe zokusekelwa kwama-SME, kunohlelo lokuhlola nemikhawulo yakho ichaziwe. Kudlala esikrinini esigcwele; sebenzisa izinkinobho zemicibisholo ukuhamba, no-Esc ukuvala.",
+  "How Smart Incubation measures and verifies SME support, in {count} slides on real screens of the system. Plays full screen; use the arrow keys to move and Esc to close.": "Ukuthi i-Smart Incubation ilinganisa futhi iqinisekisa kanjani ukusekelwa kwama-SME, emaslayidini angu-{count} ezikrinini zangempela zesistimu. Kudlala esikrinini esigcwele; sebenzisa izinkinobho zemicibisholo ukuhamba, no-Esc ukuvala.",
   "Automatic figures are for {company} only. Manual figures and targets are platform-wide.": "Izibalo ezizenzakalelayo zeka-{company} kuphela. Izibalo ezifakwa ngesandla nemigomo ingeyenkundla yonke.",
   "Play pitch": "Dlala ukwethula",
   "Slides": "Amaslayidi",
-  "Sources": "Imithombo",
 }

@@ -5,6 +5,7 @@ import { generateCourseFromText, generateQuizForLesson, type GeneratedCourse } f
 import { MATERIAL_ACCEPT, extractMaterialText, isSupportedMaterial, uploadCourseMaterial } from '@/services/courseMaterialsService'
 import type { CourseLesson, QuizQuestion } from '@/services/courseTemplatesService'
 import { useLanguage } from '@/providers/LanguageProvider'
+import { ModalActions } from '@/components/shared/ModalActions'
 
 type Step = 'upload' | 'review' | 'quizzes'
 
@@ -163,12 +164,11 @@ const GenerateCourseBody = ({ open, hasLessons, onClose, onLessons, onQuiz }: Ge
                             <span>{t('Attach the file to each lesson so learners can open it and ask the AI about it')}</span>
                         </Space>
 
-                        <Space style={{ justifyContent: 'flex-end', width: '100%' }}>
-                            <Button onClick={onClose}>{t('Cancel')}</Button>
+                        <ModalActions>
                             <Button type="primary" disabled={!selected.length} onClick={() => void addLessons()}>
                                 {t('Add {count} lessons', undefined, { count: selected.length })}
                             </Button>
-                        </Space>
+                        </ModalActions>
                     </Space>
                 )}
 

@@ -78,15 +78,40 @@ export const useNotifications = () => {
     if (!user || !enabled) { setItems([]); setLoading(false); return }
     try {
       if (user.role === 'incubatee') {
-        const workspace = await loadIncubateeWorkspace(user)
-        setItems((workspace?.notifications || []).map((row) => ({
+        // Marketplace-only SMEs do not have an accepted programme application, so their
+        // workspace is intentionally absent. Their inbox must not depend on that workspace.
+        // New notifications are addressed directly to the signed-in account; retain the
+        // workspace feed as a fallback for older programme notifications.
+        const [workspaceResult, addressedResult] = await Promise.allSettled([
+          loadIncubateeWorkspace(user),
+          getDocs(query(collection(db, 'notifications'), where('recipientUid', '==', user.uid), limit(50))),
+        ])
+        const rows = new Map<string, { id: string, type?: string, title?: string, message?: unknown, createdAt?: unknown, read?: boolean, readBy?: Record<string, unknown>, recipientRoles?: unknown }>()
+        if (workspaceResult.status === 'fulfilled') {
+          workspaceResult.value?.notifications.forEach((row) => rows.set(row.id, row))
+        }
+        if (addressedResult.status === 'fulfilled') {
+          addressedResult.value.docs.forEach((document) => {
+            const data = document.data()
+            const recipientRoles = data.recipientRoles
+            if (Array.isArray(recipientRoles) && !recipientRoles.includes('incubatee')) return
+            rows.set(document.id, {
+              id: document.id,
+              type: typeof data.type === 'string' ? data.type : '',
+              title: String(typeof data.message === 'object' && data.message !== null ? data.title || 'Notification' : data.title || data.message || 'Notification'),
+              createdAt: data.createdAt,
+              read: data.readBy?.incubatee === true,
+            })
+          })
+        }
+        setItems([...rows.values()].map((row) => ({
           id: row.id,
           source: 'incubatee' as const,
           type: row.type || '',
-          title: row.title,
+          title: row.title || 'Notification',
           body: '',
           createdAt: toDay(row.createdAt),
-          read: row.read,
+          read: row.read === true,
           tone: incubateeTone(row.type || ''),
         })))
       } else {

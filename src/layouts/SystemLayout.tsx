@@ -46,6 +46,7 @@ import { AgentFab } from '@/components/agent/AgentFab'
 import { GuideMe } from '@/components/guide/GuideMe'
 import { PageGuideProvider } from '@/components/guide/PageGuideContext'
 import { AgenticHomePage } from '@/pages/agentic/AgenticHomePage'
+import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
 import { useSystemSettings } from '@/contexts/SystemSettingsContext'
 import { useEntitlements } from '@/hooks/useEntitlements'
@@ -53,10 +54,12 @@ import { SystemLayoutTopbarContext, type SystemLayoutPageChrome } from '@/contex
 import { WorkspaceShellProvider } from '@/contexts/WorkspaceShellContext'
 import { ALL_PROGRAMS, setActiveProgramId, useActiveProgramId } from '@/hooks/useActiveProgramId'
 import { ALL_COMPANIES, setActiveCompanyCode, useActiveCompanyCode } from '@/hooks/useActiveCompanyCode'
-import { listWorkspacePrograms, type WorkspaceProgram } from '@/services/workspaceProgramsService'
+import { isTrainingProgram, listWorkspacePrograms, type WorkspaceProgram } from '@/services/workspaceProgramsService'
+import { listCoursesForParticipant } from '@/services/courseProgressService'
 import { canAccessPlatformOwnerRoute, isPlatformAdmin, listWorkspaceCompanies, type WorkspaceCompany } from '@/services/companiesService'
 import { journeyAllows, journeyAllowsAgentic, marketplaceConsultantAllows } from '@/utils/routeAccess'
 import { hasOwnInterventionDocuments } from '@/services/interventionDocumentsService'
+import { listMyApplications } from '@/services/applicantService'
 import { ProgramResumeBanner } from '@/components/applicant/ProgramResumeBanner'
 import '@/styles/system-layout.css'
 // Page fade-in and skeleton styles; the full LoadingOverlay is only used for this first load now.
@@ -65,11 +68,13 @@ import '@/styles/page-loading.css'
 const { Content } = Layout
 const { useBreakpoint } = Grid
 
-const workspaceDashboardPath = (user?: { role?: UserRole, isApplicant?: boolean } | null) => {
-    if (user?.role === 'incubatee') return user.isApplicant ? '/applicant/application-tracker' : '/incubatee'
+const workspaceDashboardPath = (user?: { role?: UserRole, isApplicant?: boolean, smeJourney?: string } | null) => {
+    // Applicants who chose consultants and agents get their own dashboard; programme applicants start at Programmes.
+    if (user?.role === 'incubatee') return user.isApplicant ? (user.smeJourney === 'independent' ? '/applicant/dashboard' : '/applicant/programs') : '/incubatee'
     if (user?.role === 'consultant') return '/consultant'
     if (user?.role === 'projectadmin') return '/projectadmin'
     if (user?.role === 'director') return '/director'
+    if (user?.role === 'admin') return '/reception'
     if (user?.role === 'operations' || user?.role === 'projectmanager') return '/operations'
     return '/dashboard'
 }
@@ -117,6 +122,7 @@ const NAVIGATION_DESCRIPTIONS: Record<string, string> = {
     '/incubatee/compliance': 'Keep required business information and compliance evidence up to date.',
     '/consultant': 'Your work today, what’s coming up, and how you’re doing.',
     '/consultant/profile': 'What SMEs see when they look for a consultant.',
+    '/consultant/requests': 'SMEs who found you in the marketplace. Reply, send a plan, or decline.',
     '/consultant/smes': 'The SMEs you support and the work for each one.',
     '/consultant/interventions': 'Accept new work, update progress and upload your evidence.',
     '/consultant/feedback': 'What SMEs said about your work.',
@@ -164,6 +170,10 @@ const navigationDescription = (route: AppRoute, label: string) => {
     return description ? tr(description) : tr('Review and manage {label} for this workspace.', undefined, { label: label.toLowerCase() })
 }
 
+/** Everything a Training SME's menu holds: their programme only delivers a set list, so no plans, metrics or tracker. */
+const TRAINING_SME_PATHS = new Set(['/incubatee', '/incubatee/roadmap', '/incubatee/lms', '/incubatee/compliance', '/incubatee/appointments'])
+const TRAINING_SME_QUICK_LINK_PATHS = ['/incubatee/roadmap', '/incubatee/lms', '/incubatee/appointments', '/incubatee/compliance']
+
 /** The 3 highest-value pages per role, surfaced as one-click topbar shortcuts. */
 const QUICK_LINK_PATHS: Partial<Record<UserRole, string[]>> = {
     [USER_ROLES.INCUBATEE]: ['/incubatee/interventions', '/incubatee/diagnostic-plan', '/incubatee/compliance'],
@@ -172,10 +182,11 @@ const QUICK_LINK_PATHS: Partial<Record<UserRole, string[]>> = {
     [USER_ROLES.PROJECT_MANAGER]: ['/shared/applications', '/operations/risk-register', '/operations/reports'],
     [USER_ROLES.OPERATIONS]: ['/shared/applications', '/operations/risk-register', '/operations/reports'],
     [USER_ROLES.DIRECTOR]: ['/director/portfolio', '/director/programs', '/director/reports'],
-    [USER_ROLES.ADMIN]: ['/admin/users', '/admin/usage', '/admin/email-operations'],
+    [USER_ROLES.ADMIN]: ['/shared/applications', '/shared/interventions/appointments', '/shared/participants'],
     [USER_ROLES.SYSTEM_ADMIN]: ['/admin/users', '/admin/usage', '/admin/agent-registry'],
 }
-const APPLICANT_QUICK_LINK_PATHS = ['/applicant/profile', '/applicant/programs', '/applicant/application-tracker', '/applicant/roadmap']
+// Home is Programmes; the profile lives under My profile. Marketplace shows only for independent SMEs (the route's own rules).
+const APPLICANT_QUICK_LINK_PATHS = ['/applicant/marketplace', '/applicant/application-tracker', '/applicant/roadmap']
 
 const ROLE_LABELS: Partial<Record<UserRole, string>> = {
     [USER_ROLES.INCUBATEE]: 'SME',
@@ -228,7 +239,7 @@ export const SystemLayout = () => {
     const { t, language, setLanguage } = useLanguage()
     const { mode, toggleTheme } = useThemeMode()
     const { user, loading: identityLoading } = useFullIdentity()
-    const { settings } = useSystemSettings()
+    const { settings, ready: settingsReady } = useSystemSettings()
     const entitlements = useEntitlements()
     const { message } = App.useApp()
 
@@ -238,6 +249,18 @@ export const SystemLayout = () => {
     const { activeCompanyCode } = useActiveCompanyCode()
     const [programs, setPrograms] = useState<WorkspaceProgram[]>([])
     const [programsVersion, setProgramsVersion] = useState(0)
+    // An accepted SME whose programmes are all Training gets the small workspace (see TRAINING_SME_PATHS).
+    const isTrainingSme = user?.role === 'incubatee' && !user.isApplicant && programs.length > 0 && programs.every(isTrainingProgram)
+    // Courses join a Training SME's menu once at least one is set up for them.
+    const [hasCourses, setHasCourses] = useState(false)
+    useEffect(() => {
+        if (!isTrainingSme || !user || !isFirebaseConfigured) return
+        let cancelled = false
+        listCoursesForParticipant(user)
+            .then((rows) => { if (!cancelled) setHasCourses(rows.length > 0) })
+            .catch(() => undefined)
+        return () => { cancelled = true }
+    }, [isTrainingSme, user])
     const [companies, setCompanies] = useState<WorkspaceCompany[]>([])
     const [companyLogoUrl, setCompanyLogoUrl] = useState('')
     /**
@@ -248,7 +271,10 @@ export const SystemLayout = () => {
     const [requestedShellMode, setShellMode] = useState<'agentic' | 'workspace'>(() => (location.search ? 'workspace' : 'agentic'))
     // Without the agentic support plan feature there is no Agentic home: the workspace is the only mode.
     // ...and programme applicants keep to their programme until they are accepted.
-    const agenticAllowed = entitlements.has('agenticSupport') && journeyAllowsAgentic(user)
+    // Until the company's settings load the plan is unknown, so Agentic waits rather than showing and then vanishing
+    // for plans without it.
+    const agenticAllowed = settingsReady && entitlements.has('agenticSupport') && journeyAllowsAgentic(user)
+    const agenticPending = !settingsReady && requestedShellMode === 'agentic'
     const shellMode: 'agentic' | 'workspace' = agenticAllowed ? requestedShellMode : 'workspace'
     // Phones split the shell in two: identity on top, the controls people tap on the bottom bar,
     // and everything set-and-forget behind the account panel.
@@ -273,6 +299,20 @@ export const SystemLayout = () => {
             .catch(() => undefined)
         return () => { cancelled = true }
     }, [checkDocuments, user])
+
+    // Independent SMEs (no programme) only see the application tracker once they've applied to one.
+    const [hasApplications, setHasApplications] = useState(false)
+    useEffect(() => {
+        if (!checkDocuments || !user || !isFirebaseConfigured) return
+        let cancelled = false
+        listMyApplications(user.uid)
+            .then((rows) => { if (!cancelled) setHasApplications(rows.length > 0) })
+            .catch(() => undefined)
+        return () => { cancelled = true }
+    }, [checkDocuments, user])
+    const meetsApplicationsRule = (route: AppRoute) => (!route.showInNavWhenHasApplications || !checkDocuments || hasApplications)
+        // And Programmes stays out of their menu until they ask to see programmes.
+        && (!route.programmesOptIn || !checkDocuments || !!user?.showProgrammes)
 
     useEffect(() => {
         const refreshPrograms = () => setProgramsVersion((version) => version + 1)
@@ -367,7 +407,7 @@ export const SystemLayout = () => {
 
     const audience = useMemo<WorkspaceAudience>(() => {
         if (user?.role === 'incubatee') return user.isApplicant ? 'applicant' : 'incubatee'
-        if (user?.role === 'operations' || user?.role === 'projectadmin' || user?.role === 'consultant') return 'operations'
+        if (user?.role === 'operations' || user?.role === 'projectadmin' || user?.role === 'consultant' || user?.role === 'admin') return 'operations'
         return 'platform'
     }, [user])
 
@@ -395,33 +435,39 @@ export const SystemLayout = () => {
                 if (hideHumanDelivery && isHumanDeliveryPage) return []
                 if (hideHumanDelivery && agentSupportMode === 'fully_agentic' && route.path === '/shared/interventions/appointments' && user?.role !== USER_ROLES.CONSULTANT) return []
                 if (hideHumanDelivery && agentSupportMode === 'fully_agentic' && route.path.startsWith('/operations/interventions/') &&!['/operations/interventions/monitoring', '/operations/interventions/assign'].includes(route.path)) return []
+                if (route.trainingSmesOnly && !isTrainingSme) return []
                 const children = route.children ? applyAgentDeliveryAccess(route.children as typeof routes) : undefined
-                return [{ ...route, children }]
+                // Training SMEs: other pages stay reachable from links (the dashboard's tiles) but leave the menu.
+                const trainingHides = isTrainingSme && (!TRAINING_SME_PATHS.has(route.path) || (route.path === '/incubatee/lms' && !hasCourses))
+                return [{ ...route, children, ...(trainingHides ? { showInNav: false } : {}) }]
             })
 
         return applyAgentDeliveryAccess(routes)
-    }, [agentSupportMode, audience, currentRoleCanDeliver, hideHumanDelivery, user])
+    }, [agentSupportMode, audience, currentRoleCanDeliver, hasCourses, hideHumanDelivery, isTrainingSme, user])
     const selectedKey = useMemo(() => {
         return findSelectedRouteKey(visibleRoutes, location.pathname) || '/'
     }, [location.pathname, visibleRoutes])
-    const quickLinkRoutes = useMemo(() => {
+    const baseQuickLinks = useMemo(() => {
         const byPath = new Map(flattenRoutes(visibleRoutes).map((route) => [route.path, route]))
         const homePath = workspaceDashboardPath(user)
         const homeRoute = byPath.get(homePath)
         const home: QuickLink[] = homeRoute ? [{ path: homeRoute.path, label: t('Home'), icon: homeRoute.icon }] : []
 
-        const candidatePaths = user?.role === 'incubatee' && user.isApplicant
-            ? APPLICANT_QUICK_LINK_PATHS
-            : (user?.role && QUICK_LINK_PATHS[user.role]) || []
+        const candidatePaths = isTrainingSme
+            ? TRAINING_SME_QUICK_LINK_PATHS.filter((path) => path !== '/incubatee/lms' || hasCourses)
+            : user?.role === 'incubatee' && user.isApplicant
+                ? APPLICANT_QUICK_LINK_PATHS
+                : (user?.role && QUICK_LINK_PATHS[user.role]) || []
         const rest = candidatePaths
             .filter((path) => path !== homePath)
             .map((path) => byPath.get(path))
             .filter((route): route is AppRoute => Boolean(route))
+            .filter(meetsApplicationsRule)
             .slice(0, 3)
             .map((route) => ({ path: route.path, label: t(route.labelKey), icon: route.icon }))
 
         return [...home, ...rest]
-    }, [t, user, visibleRoutes])
+    }, [t, user, visibleRoutes, hasApplications, checkDocuments, isTrainingSme, hasCourses]) // eslint-disable-line react-hooks/exhaustive-deps
     /** Section › Page trail for the topbar, so orientation survives the navigation modal closing. */
     const currentLocationLabel = useMemo(() => {
         const trail: string[] = []
@@ -444,14 +490,16 @@ export const SystemLayout = () => {
      * Sections become tabs, so only real groups earn one. Standalone top-level pages are collected
      * into a single leading section instead of each getting a tab that opens onto one lonely card.
      */
-    const navigationSections = useMemo(() => {
+    const menuSections = useMemo(() => {
         const meetsSettingRule = (route: AppRoute) => (!route.showInNavWhenAnySetting?.length
             || route.showInNavWhenAnySetting.some((settingKey) => !!settings[settingKey]))
+            && Object.entries(route.showInNavWhenSettingEquals || {}).every(([settingKey, value]) => settings[settingKey] === value)
             && (!route.showInNavWhenHasDocuments || hasOwnDocuments)
+            && meetsApplicationsRule(route)
 
         // Pages already one tap away (the desktop quick-link switch, the phone tab bar) are left out of the
         // Menu. Tablets have neither, so they keep every page there.
-        const pinned = new Set(isTablet ? [] : quickLinkRoutes.map((link) => link.path))
+        const pinned = new Set(isTablet ? [] : baseQuickLinks.map((link) => link.path))
         const isListed = (route: AppRoute) => route.showInNav && meetsSettingRule(route) && !pinned.has(route.path)
 
         const navRoutes = visibleRoutes.filter((route) => isListed(route) || (route.children?.length && route.showInNav && meetsSettingRule(route)))
@@ -469,7 +517,19 @@ export const SystemLayout = () => {
             ...(standalone.length ? [{ key: OVERVIEW_SECTION_KEY, label: t('nav.overview', 'Overview'), items: standalone }] : []),
             ...groups,
         ]
-    }, [hasOwnDocuments, isTablet, quickLinkRoutes, settings, t, visibleRoutes])
+    }, [hasOwnDocuments, hasApplications, isTablet, baseQuickLinks, settings, t, visibleRoutes]) // eslint-disable-line react-hooks/exhaustive-deps
+    // A Menu holding a single page (a Training SME's Compliance, say) is one tap too many: that page joins the
+    // quick links instead and the Menu goes. Tablets have no quick links, so they keep their Menu.
+    const loneMenuRoute = useMemo(() => {
+        const items = menuSections.flatMap((section) => section.items)
+        return !isTablet && items.length === 1 ? items[0] : null
+    }, [isTablet, menuSections])
+    const quickLinkRoutes = useMemo<QuickLink[]>(() => loneMenuRoute
+        ? [...baseQuickLinks, { path: loneMenuRoute.path, label: t(loneMenuRoute.labelKey), icon: loneMenuRoute.icon }]
+        : baseQuickLinks, [baseQuickLinks, loneMenuRoute, t])
+    const navigationSections = useMemo(() => (loneMenuRoute ? [] : menuSections), [loneMenuRoute, menuSections])
+    // With every page already in the top bar there's nothing left to open, so the Menu button goes too.
+    const hasMenuItems = navigationSections.some((section) => section.items.length > 0)
 
     const showTopbarBackButton = shellMode === 'workspace' && pageChrome.showBackButton
     const isChromelessMobile = isMobile && pageChrome.hideChrome
@@ -605,7 +665,7 @@ export const SystemLayout = () => {
                             <header
                                 ref={topbarRef}
                                 id="guide-app-topbar"
-                                className={`app-topbar-pill${isMobile && !isTablet && projectSelector ? ' has-phone-scope' : ''}`}
+                                className={`app-topbar-pill${isMobile && !isTablet && projectSelector ? ' has-phone-scope' : ''}${!isMobile && settingsReady && !agenticAllowed ? ' has-no-mode-switch' : ''}`}
                                 style={{
                                     left: isMobile ? 10 : 12,
                                 }}
@@ -626,7 +686,7 @@ export const SystemLayout = () => {
                                         <div className="app-topbar-tablet-nav">
                                             {modeSwitch}
 
-                                            {shellMode === 'workspace' && (
+                                            {shellMode === 'workspace' && hasMenuItems && (
                                                 <Button
                                                     icon={<MenuOutlined />}
                                                     onClick={() => setNavigationOpen(true)}
@@ -686,7 +746,7 @@ export const SystemLayout = () => {
                                     </Space>
                                 ) : (
                                     <Space size={8} className="app-topbar-actions">
-                                        {shellMode === 'workspace' && <Button icon={<MenuOutlined />} onClick={() => setNavigationOpen(true)} className="app-menu-button">{t('Menu')}</Button>}
+                                        {shellMode === 'workspace' && hasMenuItems && <Button icon={<MenuOutlined />} onClick={() => setNavigationOpen(true)} className="app-menu-button">{t('Menu')}</Button>}
 
                                         {projectSelector}
 
@@ -721,7 +781,7 @@ export const SystemLayout = () => {
                                 }}
                             >
                                 <ProgramResumeBanner />
-                                {shellMode === 'agentic' ? <AgenticHomePage /> : <Outlet key={location.pathname} />}
+                                {agenticPending ? <PageSkeleton /> : shellMode === 'agentic' ? <AgenticHomePage /> : <Outlet key={location.pathname} />}
                             </Content>
 
                             {hasPhoneBottomBar && (() => {
@@ -746,15 +806,28 @@ export const SystemLayout = () => {
                                                 </button>
                                             )
                                         })}
-                                        <button
-                                            type="button"
-                                            className={`app-tab${!onShortcut ? ' is-active' : ''}`}
-                                            aria-label={t('Menu')}
-                                            onClick={() => setNavigationOpen(true)}
-                                        >
-                                            <span className="app-tab-icon"><MenuOutlined /></span>
-                                            <span className="app-tab-label">{t('Menu')}</span>
-                                        </button>
+                                        {hasMenuItems ? (
+                                            <button
+                                                type="button"
+                                                className={`app-tab${!onShortcut ? ' is-active' : ''}`}
+                                                aria-label={t('Menu')}
+                                                onClick={() => setNavigationOpen(true)}
+                                            >
+                                                <span className="app-tab-icon"><MenuOutlined /></span>
+                                                <span className="app-tab-label">{t('Menu')}</span>
+                                            </button>
+                                        ) : agenticAllowed && (
+                                            // No Menu (every page is a tab), and Menu holds the phone's way back to Agentic: offer it here.
+                                            <button
+                                                type="button"
+                                                className="app-tab"
+                                                aria-label={t('Agentic')}
+                                                onClick={() => handleShellModeChange('agentic')}
+                                            >
+                                                <span className="app-tab-icon"><RobotOutlined /></span>
+                                                <span className="app-tab-label">{t('Agentic')}</span>
+                                            </button>
+                                        )}
                                     </nav>
                                 )
                             })()}

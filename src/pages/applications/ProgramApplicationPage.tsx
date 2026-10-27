@@ -12,6 +12,7 @@ import ApplicationReviewPanel from '@/components/applications/ApplicationReviewP
 import ApplicantJourneySteps from '@/components/applicant/ApplicantJourneySteps'
 import { useFullscreenMobilePage } from '@/contexts/SystemLayoutTopbarContext'
 import { getApplicantProfileBundle } from '@/services/applicantService'
+import { callableMessage, enrolInDirectProgramme } from '@/services/programLinkService'
 import {
     buildSelectedInterventions,
     calculateComplianceScore,
@@ -68,6 +69,8 @@ export default function ProgramApplicationPage() {
     const [interventionGroups, setInterventionGroups] = useState<ProgramInterventionGroup[]>([])
     const [interventionSelections, setInterventionSelections] = useState<Record<string, string[]>>({})
     const [interventionPolicy, setInterventionPolicy] = useState<ProgramInterventionPolicy>(DEFAULT_INTERVENTION_POLICY)
+    // No-application programmes accept the SME on arrival; this holds why that failed, if it did.
+    const [enrolError, setEnrolError] = useState('')
 
     const isMobile = !screens.md
 
@@ -123,6 +126,7 @@ export default function ProgramApplicationPage() {
             return {
                 name: '',
                 companyCode: '',
+                direct: false,
             }
         }
 
@@ -137,12 +141,14 @@ export default function ProgramApplicationPage() {
             return {
                 name: '',
                 companyCode: '',
+                direct: false,
             }
         }
 
         const data = programSnap.data() as {
             name?: string
             companyCode?: string
+            intakeMode?: string
         }
 
         const nextProgramName = String(data.name || '').trim()
@@ -154,6 +160,7 @@ export default function ProgramApplicationPage() {
         return {
             name: nextProgramName,
             companyCode: nextCompanyCode,
+            direct: data.intakeMode === 'direct',
         }
     }, [programId])
 
@@ -163,6 +170,20 @@ export default function ProgramApplicationPage() {
                 setLoading(true)
 
                 const programContext = await resolveProgramContext()
+
+                // No application: the profile they just finished is all this programme needs.
+                if (programContext.direct && programId) {
+                    try {
+                        const enrolled = await enrolInDirectProgramme(programId)
+                        if (!enrolled.alreadyAccepted) message.success(`${t('You have been added to')} ${enrolled.programName}.`)
+                        // A full load, so the workspace re-reads the SME as a programme participant.
+                        window.location.assign('/incubatee')
+                    } catch (error) {
+                        setEnrolError(callableMessage(error, t('We could not add you to this programme.')))
+                        setLoading(false)
+                    }
+                    return
+                }
 
                 const [setup, documentRequirements] = await Promise.all([
                     getProgramApplicationSetup(programId),
@@ -316,6 +337,20 @@ export default function ProgramApplicationPage() {
         } finally {
             setSubmitting(false)
         }
+    }
+
+    if (enrolError) {
+        return (
+            <div className="program-application-page program-application-loading">
+                <Card>
+                    <Space direction="vertical" size={12}>
+                        <Title level={4}>{programName || t('Programme')}</Title>
+                        <Typography.Text>{enrolError}</Typography.Text>
+                        <Button type="primary" onClick={() => navigate('/applicant/profile')}>{t('Review my profile')}</Button>
+                    </Space>
+                </Card>
+            </div>
+        )
     }
 
     if (loading) {

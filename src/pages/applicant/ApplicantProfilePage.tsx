@@ -1,45 +1,39 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { App, Button, Card, Form, Grid, Progress, Segmented, Space, Spin, Steps, Typography } from 'antd'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { App, Button, Card, Form, Grid, Progress, Segmented, Typography } from 'antd'
 import {
     ArrowLeftOutlined,
     ArrowRightOutlined,
-    AuditOutlined,
-    BankOutlined,
     CheckCircleOutlined,
     EnvironmentOutlined,
     ExclamationCircleOutlined,
     FileProtectOutlined,
-    FormOutlined,
     PhoneOutlined,
     RobotOutlined,
-    SaveOutlined,
     ShopOutlined,
     UserOutlined,
 } from '@ant-design/icons'
 import DashboardPageShell from '@/components/shared/DashboardPage'
-import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import ResponsiveModal from '@/components/shared/ResponsiveModal'
 import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { useLanguage, tr, tEnglish } from '@/providers/LanguageProvider'
 import { getApplicantProfileBundle, isApplicantProfileComplete, saveApplicantProfile } from '@/services/applicantService'
-import { getNextProgramToApply } from '@/services/applicantJourneyService'
-import ApplicantJourneySteps from '@/components/applicant/ApplicantJourneySteps'
+import { getNextProgramToApply, isDirectProgram } from '@/services/applicantJourneyService'
 import type { ApplicantProfile, ApplicantProfileBundle, ApplicantProfileInput, BusinessDirector } from '@/types/applicant'
 import ApplicantProfileAIAssist from '@/components/applicant/ApplicantProfileAIAssist'
 import ApplicantProfileManualForm from '@/components/applicant/ApplicantProfileManualForm'
 import ApplicantProfileReviewStep from '@/components/applicant/ApplicantProfileReviewStep'
 import BusinessProfileSections from '@/components/applicant/BusinessProfileSections'
 import { BUSINESS_PROFILE_SECTIONS, hasProfileValue, type BusinessProfileSectionKey } from '@/components/applicant/businessProfileSectionsConfig'
+import { REQUIRED_PROFILE_FIELDS } from '@/utils/applicantProfileCompletion'
 import '@/styles/applicant/applicant-profile.css'
 import '@/styles/applicant/business-profile.css'
 
 const { Text } = Typography
 const { useBreakpoint } = Grid
 
-type ApplicantInputMode = 'manual' | 'ai'
 
 export type ApplicantProfileFormValues = Partial<Omit<ApplicantProfile, 'id' | 'uid'>> & {
     fullName?: string
@@ -83,19 +77,18 @@ const stepItems = [
     { get title() { return tr('Review') }, icon: <CheckCircleOutlined /> },
 ]
 
-const requiredProfileFields: Array<keyof ApplicantProfileFormValues> = [
-    'participantName',
-    'email',
-    'phone',
-    'gender',
-    'businessName',
-    'sector',
-    'natureOfBusiness',
-    'yearsOfTrading',
-    'province',
-    'city',
-    'businessAddress',
+/** What each setup step asks for, its required fields, and a line on why it matters. */
+const stepGuide: Array<{ title: string, hint: string, required: Array<keyof ApplicantProfileFormValues> }> = [
+    { title: 'About you', hint: 'Who the programme team will be working with.', required: ['participantName', 'email', 'gender'] },
+    { title: 'Contact details', hint: 'How the programme team reaches you.', required: ['phone'] },
+    { title: 'Your business', hint: 'What a programme team reads first.', required: ['businessName', 'sector', 'natureOfBusiness', 'yearsOfTrading'] },
+    { title: 'Registration and compliance', hint: 'Optional, but many programmes ask for it.', required: [] },
+    { title: 'Where you operate', hint: 'Some programmes are for specific provinces or communities.', required: ['province', 'city', 'businessAddress'] },
+    { title: 'Check and save', hint: 'Look everything over before you save.', required: [] },
 ]
+
+// Shared with the SME dashboard, so both say the same about what's missing.
+const requiredProfileFields = REQUIRED_PROFILE_FIELDS as unknown as Array<keyof ApplicantProfileFormValues>
 
 function hasValue(value: unknown) {
     return value !== undefined && value !== null && String(value).trim() !== ''
@@ -162,17 +155,22 @@ type ApplicantProfilePageProps = {
 export const ApplicantProfilePage = ({ mode = 'applicant' }: ApplicantProfilePageProps) => {
     const isIncubatee = mode === 'incubatee'
     const [form] = Form.useForm<ApplicantProfileFormValues>()
+    const [nextProgramId, setNextProgramId] = useState('')
+    // The next programme takes no application: the button joins it instead of continuing an application.
+    const [nextProgramDirect, setNextProgramDirect] = useState(false)
     const { message } = App.useApp()
     const { t } = useLanguage()
     const { user } = useFullIdentity()
     const navigate = useNavigate()
+    // Sent here from the SME dashboard because required details are missing (often an SME the programme team added).
+    const [searchParams] = useSearchParams()
+    const finishing = isIncubatee && searchParams.get('finish') === '1'
     const screens = useBreakpoint()
     const isMobile = !screens.md
 
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [hasProfile, setHasProfile] = useState(false)
-    const [activeMode, setActiveMode] = useState<ApplicantInputMode>('manual')
     const [activeStep, setActiveStep] = useState(0)
     const [aiRawDump, setAiRawDump] = useState('')
     const [missingFields, setMissingFields] = useState<string[]>([])
@@ -196,6 +194,18 @@ export const ApplicantProfilePage = ({ mode = 'applicant' }: ApplicantProfilePag
     }, [accountEmail, form, formSnapshot, watchedValues])
 
     const completion = useMemo(() => calculateCompletion(liveValues), [liveValues])
+    // A first-time applicant is guided through the steps; once their profile is complete (and for SMEs already in a
+    // programme) it's shown as sections, each edited on its own.
+    const sectionsView = isIncubatee || hasProfile
+
+    // The programme an applicant came for, so a finished profile can lead straight into that application.
+    useEffect(() => {
+        if (isIncubatee || !user) return
+        void getNextProgramToApply(user.uid).then(async (id) => {
+            setNextProgramId(id || '')
+            setNextProgramDirect(await isDirectProgram(id).catch(() => false))
+        }).catch(() => undefined)
+    }, [isIncubatee, user])
 
     useEffect(() => {
         // The route guard only renders this page for a signed-in user, so `loading` simply waits for one.
@@ -226,7 +236,7 @@ export const ApplicantProfilePage = ({ mode = 'applicant' }: ApplicantProfilePag
         pageKey: 'applicant-profile',
         pageName: isIncubatee ? 'Business profile' : tEnglish('applicant.profile.title', 'Applicant Profile'),
         purpose: tEnglish('applicant.profile.subtitle', 'Complete personal, business, compliance, and operating details for applications.'),
-        currentFilters: { inputMode: activeMode, activeStep: stepItems[activeStep]?.title || 'Unknown' },
+        currentFilters: { inputMode: aiOpen ? 'ai' : 'manual', activeStep: stepItems[activeStep]?.title || 'Unknown' },
         metrics: {
             profileSaved: hasProfile,
             completion,
@@ -264,7 +274,7 @@ export const ApplicantProfilePage = ({ mode = 'applicant' }: ApplicantProfilePag
         setMissingFields(extractedMissingFields)
         // The assistant keeps asking follow-ups, so its sheet stays open; the sections behind it
         // show its answers, and nothing is stored until the SME saves them.
-        if (isIncubatee) setAiPending(true)
+        if (sectionsView) setAiPending(true)
     }
 
     const discardAiAnswers = () => {
@@ -307,31 +317,30 @@ export const ApplicantProfilePage = ({ mode = 'applicant' }: ApplicantProfilePag
             if (values.gender !== 'Male' && values.gender !== 'Female') {
                 form.setFields([{ name: 'gender', errors: ['Gender must be Male or Female'] }])
                 setActiveStep(0)
-                if (isIncubatee) setEditingSection('personal')
+                if (sectionsView) setEditingSection('personal')
                 message.error(t('Gender must be Male or Female'))
                 return false
             }
 
             await saveApplicantProfile(user.uid, user.email, values as ApplicantProfileInput)
-            setHasProfile(true)
+            const wasSectionsView = sectionsView
+            const complete = calculateCompletion(values) >= 100
+            // Each setup step saves as it goes; the sections view takes over only once everything required is in.
+            setHasProfile((current) => current || complete)
             setFormSnapshot(values)
             setLoadedValues(values)
-            if (isIncubatee) {
-                message.success(t('Business profile saved'))
+            if (wasSectionsView) {
+                message.success(isIncubatee ? t('Business profile saved') : t('Profile saved'))
                 setAiPending(false)
                 return true
             }
 
-            message.success(
-                completion >= 100
-                    ? t('applicant.profile.completed', 'Applicant profile completed')
-                    : t('applicant.profile.saveSuccess', 'Applicant profile saved')
-            )
+            message.success(complete ? t('applicant.profile.completed', 'Applicant profile completed') : t('Saved. Carry on when you’re ready.'))
 
             // Details done: carry on into the application for the programme they came for, instead of a programmes list.
-            if (completion >= 100) {
-                const nextProgramId = await getNextProgramToApply(user.uid, user.email).catch(() => '')
-                if (nextProgramId) navigate(`/applicant/programs/${nextProgramId}/apply`)
+            if (complete) {
+                const programId = nextProgramId || await getNextProgramToApply(user.uid).catch(() => '')
+                if (programId) navigate(`/applicant/programs/${programId}/apply`)
             }
             return true
         } catch (error) {
@@ -357,8 +366,29 @@ export const ApplicantProfilePage = ({ mode = 'applicant' }: ApplicantProfilePag
         value: index,
     }))
 
-    if (isIncubatee) {
-        if (loading) return <PageSkeleton variant="detail" label={t('Loading your business profile')} />
+    if (loading) return <PageSkeleton variant="detail" label={isIncubatee ? t('Loading your business profile') : t('applicant.profile.loading', 'Loading applicant profile...')} />
+
+    // The AI assistant, opened from either view. It fills the form; nothing is stored until the person saves.
+    const aiSheet = (
+        <ResponsiveModal
+            open={aiOpen}
+            onClose={() => setAiOpen(false)}
+            title={t('Fill with AI')}
+            width={720}
+            destroyOnHidden={false}
+            footer={<Button onClick={() => setAiOpen(false)}>{t('Done')}</Button>}
+        >
+            <ApplicantProfileAIAssist
+                rawDump={aiRawDump}
+                currentValues={liveValues}
+                missingFields={missingFields}
+                onRawDumpChange={setAiRawDump}
+                onApplyExtractedFields={handleApplyExtractedFields}
+            />
+        </ResponsiveModal>
+    )
+
+    if (sectionsView) {
 
         const missingRequired = requiredProfileFields.filter((field) => !hasProfileValue(liveValues[field]))
         const missingLabels = missingRequired
@@ -417,7 +447,7 @@ export const ApplicantProfilePage = ({ mode = 'applicant' }: ApplicantProfilePag
                         <ExclamationCircleOutlined className="business-profile-notice-icon" aria-hidden="true" />
                         <div className="business-profile-notice-text">
                             <Text strong>{missingRequired.length === 1 ? t('1 detail missing') : t('{count} details missing', undefined, { count: missingRequired.length })}</Text>
-                            <Text type="secondary">{missingLabels.join(', ')}</Text>
+                            <Text type="secondary">{finishing ? `${t('Your programme team needs these before supporting you:')} ${missingLabels.join(', ')}` : missingLabels.join(', ')}</Text>
                         </div>
                         <div className="business-profile-notice-actions">
                             <Button type="primary" onClick={() => openSection(firstMissingSection.key)}>{missingRequired.length === 1 ? t('Add it') : t('Add them')}</Button>
@@ -437,155 +467,139 @@ export const ApplicantProfilePage = ({ mode = 'applicant' }: ApplicantProfilePag
                     saving={saving}
                 />
 
-                <ResponsiveModal
-                    open={aiOpen}
-                    onClose={() => setAiOpen(false)}
-                    title={t('Fill with AI')}
-                    width={720}
-                    destroyOnHidden={false}
-                    footer={<Button onClick={() => setAiOpen(false)}>{t('Done')}</Button>}
-                >
-                    <ApplicantProfileAIAssist
-                        rawDump={aiRawDump}
-                        currentValues={liveValues}
-                        missingFields={missingFields}
-                        onRawDumpChange={setAiRawDump}
-                        onApplyExtractedFields={handleApplyExtractedFields}
-                    />
-                </ResponsiveModal>
+                {/* An SME who came to finish their details: everything is in, back to the workspace. */}
+                {finishing && missingRequired.length === 0 && !editingSection && !aiPending && (
+                    <section className="business-profile-notice is-ready">
+                        <CheckCircleOutlined className="business-profile-notice-icon" aria-hidden="true" />
+                        <div className="business-profile-notice-text">
+                            <Text strong>{t('All your details are in')}</Text>
+                            <Text type="secondary">{t('Your programme team can now support you with them.')}</Text>
+                        </div>
+                        <div className="business-profile-notice-actions">
+                            <Button type="primary" icon={<ArrowRightOutlined />} iconPlacement="end" onClick={() => navigate('/incubatee')}>{t('Go to my dashboard')}</Button>
+                        </div>
+                    </section>
+                )}
+
+                {/* An applicant with everything in: the way on to an application. */}
+                {!isIncubatee && missingRequired.length === 0 && !editingSection && !aiPending && (
+                    <section className="business-profile-notice is-ready">
+                        <CheckCircleOutlined className="business-profile-notice-icon" aria-hidden="true" />
+                        <div className="business-profile-notice-text">
+                            <Text strong>{t('Your profile is ready')}</Text>
+                            <Text type="secondary">{nextProgramId ? (nextProgramDirect ? t('That is all this programme needs. Join it now.') : t('Carry on with the application you started.')) : t('Programmes use it to check you qualify.')}</Text>
+                        </div>
+                        <div className="business-profile-notice-actions">
+                            <Button type="primary" icon={<ArrowRightOutlined />} iconPlacement="end" onClick={() => navigate(nextProgramId ? `/applicant/programs/${nextProgramId}/apply` : '/applicant/programs')}>
+                                {nextProgramId ? t(nextProgramDirect ? 'Join the programme' : 'Continue your application') : t('Browse programmes')}
+                            </Button>
+                        </div>
+                    </section>
+                )}
+
+                {aiSheet}
             </DashboardPageShell>
         )
     }
 
-    if (loading) {
-        return (
-            <DashboardPageShell className="applicant-profile-page">
-                <div className="applicant-profile-loading">
-                    <Spin size="large" />
-                    <Text type="secondary">{isIncubatee ? t('Loading your business profile') : t('applicant.profile.loading', 'Loading applicant profile...')}</Text>
-                </div>
-            </DashboardPageShell>
-        )
+    // First visit: guided setup. Each step saves as it goes; the list shows what's done and what's left.
+    const lastStep = stepItems.length - 1
+    const missingIn = (step: number) => stepGuide[step].required.filter((field) => !hasValue(liveValues[field])).length
+    const saveAndContinue = async () => {
+        const saved = await handleSave()
+        if (saved && activeStep < lastStep) goToStep(activeStep + 1)
     }
 
     return (
-        <DashboardPageShell className="applicant-profile-page">
-            <div className="applicant-profile-shell">
-                {!isIncubatee && <ApplicantJourneySteps current={0} />}
-                <Card className="applicant-profile-hero" bordered={false}>
-                    <div className="applicant-profile-hero-main">
-                        <div className="applicant-profile-hero-icon">
-                            {activeMode === 'manual' ? <FormOutlined /> : <RobotOutlined />}
-                        </div>
-                        <div className="applicant-profile-hero-copy">
-                            <Typography.Title level={3}>{isIncubatee ? t('Business profile') : t('applicant.profile.title', 'Applicant Profile')}</Typography.Title>
-                            <Text type="secondary">
-                                {isIncubatee
-                                    ? t('Keep your personal and business details up to date. Your programme team uses them for your plan and reports.')
-                                    : t('applicant.profile.subtitle', 'Complete your personal and business details before applying to a programme.')}
-                            </Text>
-                        </div>
-                    </div>
-
-                    <div className="applicant-profile-hero-actions">
-                        <Segmented
-                            value={activeMode}
-                            block={isMobile}
-                            onChange={(value) => setActiveMode(value as ApplicantInputMode)}
-                            options={[
-                                { label: t('Manual'), value: 'manual', icon: <FormOutlined /> },
-                                { label: t('AI Assist'), value: 'ai', icon: <RobotOutlined /> },
-                            ]}
-                        />
-                        <div className="applicant-profile-progress">
-                            <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
-                                <Text type="secondary">{t('Profile completion')}</Text>
-                                <Text strong>{completion}%</Text>
-                            </Space>
-                            <Progress percent={completion} showInfo={false} size="small" status={completion >= 100 ? 'success' : 'active'} />
-                        </div>
-                    </div>
-                </Card>
-
-                <div className="applicant-profile-metrics">
-                    <DashboardMetricCard
-                        icon={<CheckCircleOutlined />}
-                        label={t('applicant.profile.status', 'Status')}
-                        value={hasProfile ? t('applicant.profile.saved', 'Saved') : t('applicant.profile.setup', 'Setup')}
-                    />
-                    <DashboardMetricCard
-                        icon={<ShopOutlined />}
-                        label={t('applicant.profile.business', 'Business')}
-                        value={liveValues.businessName || t('applicant.profile.notAdded', 'Not added')}
-                    />
-                    <DashboardMetricCard
-                        icon={<BankOutlined />}
-                        label={t('applicant.profile.sector', 'Sector')}
-                        value={liveValues.sector || t('applicant.profile.notAdded', 'Not added')}
-                    />
-                    <DashboardMetricCard
-                        icon={<AuditOutlined />}
-                        label={t('applicant.profile.missing', 'Missing')}
-                        value={String(requiredProfileFields.filter((field) => !hasValue(liveValues[field])).length)}
-                    />
+        <DashboardPageShell className="business-profile-page applicant-setup-page">
+            <section className="business-profile-header applicant-setup-header">
+                <Progress
+                    type="circle"
+                    percent={completion}
+                    size={48}
+                    strokeWidth={10}
+                    strokeColor="#6d5dfb"
+                    format={(percent) => <span className="business-profile-score">{percent}%</span>}
+                />
+                <div className="business-profile-header-text">
+                    <Text strong className="business-profile-name">{t('Set up your business profile')}</Text>
+                    <Text type="secondary">{t('Programmes use it to check you qualify. It takes about 5 minutes, and you can stop and come back.')}</Text>
                 </div>
+            </section>
 
-                <Card className="applicant-profile-card" bordered={false}>
-                    {activeMode === 'ai' ? (
-                        <ApplicantProfileAIAssist
-                            rawDump={aiRawDump}
-                            currentValues={liveValues}
-                            missingFields={missingFields}
-                            onRawDumpChange={setAiRawDump}
-                            onApplyExtractedFields={handleApplyExtractedFields}
-                        />
+            <section className="business-profile-notice is-ai">
+                <RobotOutlined className="business-profile-notice-icon" aria-hidden="true" />
+                <div className="business-profile-notice-text">
+                    <Text strong>{t('Short on time?')}</Text>
+                    <Text type="secondary">{t('Describe your business in a few sentences, and AI fills in what it can for you to check.')}</Text>
+                </div>
+                <div className="business-profile-notice-actions">
+                    <Button icon={<RobotOutlined />} onClick={() => setAiOpen(true)}>{t('Fill with AI')}</Button>
+                </div>
+            </section>
+
+            <Card className="applicant-setup" bordered={false}>
+                <div className="applicant-setup-layout">
+                    {isMobile ? (
+                        <Segmented block value={activeStep} onChange={(value) => goToStep(Number(value))} options={mobileStepItems} />
                     ) : (
-                        <Form
-                            form={form}
-                            layout="vertical"
-                            requiredMark
-                            preserve
-                            onValuesChange={handleValuesChange}
-                            validateMessages={{
-                                required: '${label} is required',
-                                types: { email: 'Enter a valid email address' },
-                            }}
-                        >
-                            <div className="applicant-profile-step-nav">
-                                {isMobile ? (
-                                    <Segmented block value={activeStep} onChange={(value) => goToStep(Number(value))} options={mobileStepItems} />
-                                ) : (
-                                    <Steps size="small" current={activeStep} onChange={goToStep} items={stepItems} />
-                                )}
-                            </div>
-
-                            {activeStep < stepItems.length - 1 ? (
-                                <ApplicantProfileManualForm activeStep={activeStep} email={accountEmail} />
-                            ) : (
-                                <ApplicantProfileReviewStep values={liveValues} />
-                            )}
-
-                            <div className="applicant-profile-actions">
-                                <Button icon={<ArrowLeftOutlined />} disabled={activeStep === 0} onClick={() => goToStep(activeStep - 1)}>
-                                    {t('Previous')}
-                                </Button>
-
-                                <Space className="applicant-profile-actions-right">
-                                    {activeStep < stepItems.length - 1 ? (
-                                        <Button type="primary" icon={<ArrowRightOutlined />} iconPosition="end" onClick={() => goToStep(activeStep + 1)}>
-                                            {t('Next')}
-                                        </Button>
-                                    ) : null}
-
-                                    <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={handleSave}>
-                                        {t('applicant.profile.save', 'Save profile')}
-                                    </Button>
-                                </Space>
-                            </div>
-                        </Form>
+                        <nav className="applicant-setup-steps" aria-label={t('Profile steps')}>
+                            {stepItems.map((item, index) => {
+                                const left = missingIn(index)
+                                const done = index < lastStep && left === 0 && stepGuide[index].required.length > 0
+                                return (
+                                    <button
+                                        key={item.title}
+                                        type="button"
+                                        className={`applicant-setup-step${index === activeStep ? ' is-current' : ''}${done ? ' is-done' : ''}`}
+                                        aria-current={index === activeStep ? 'step' : undefined}
+                                        onClick={() => goToStep(index)}
+                                    >
+                                        <span className="applicant-setup-step-icon">{done && index !== activeStep ? <CheckCircleOutlined /> : item.icon}</span>
+                                        <span className="applicant-setup-step-label">{item.title}</span>
+                                        {left > 0 && <span className="applicant-setup-step-left">{t('{count} left', undefined, { count: left })}</span>}
+                                    </button>
+                                )
+                            })}
+                        </nav>
                     )}
-                </Card>
-            </div>
+
+                    <Form
+                        form={form}
+                        layout="vertical"
+                        requiredMark
+                        preserve
+                        onValuesChange={handleValuesChange}
+                        className="applicant-setup-form"
+                        validateMessages={{
+                            required: '${label} is required',
+                            types: { email: 'Enter a valid email address' },
+                        }}
+                    >
+                        <div className="applicant-setup-step-head">
+                            <Text strong className="applicant-setup-step-title">{t(stepGuide[activeStep].title)}</Text>
+                            <Text type="secondary">{t(stepGuide[activeStep].hint)}</Text>
+                        </div>
+
+                        {activeStep < lastStep ? (
+                            <ApplicantProfileManualForm activeStep={activeStep} email={accountEmail} />
+                        ) : (
+                            <ApplicantProfileReviewStep values={liveValues} />
+                        )}
+
+                        <div className="applicant-setup-footer">
+                            <Button icon={<ArrowLeftOutlined />} disabled={activeStep === 0} onClick={() => goToStep(activeStep - 1)}>{t('Back')}</Button>
+                            <Button type="primary" className="applicant-setup-save" loading={saving} onClick={() => void saveAndContinue()}>
+                                {activeStep < lastStep
+                                    ? t('Save and continue to {step}', undefined, { step: stepItems[activeStep + 1].title })
+                                    : t('applicant.profile.save', 'Save profile')}
+                            </Button>
+                        </div>
+                    </Form>
+                </div>
+            </Card>
+
+            {aiSheet}
         </DashboardPageShell>
     )
 }

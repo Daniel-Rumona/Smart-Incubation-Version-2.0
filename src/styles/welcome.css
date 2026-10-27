@@ -478,8 +478,12 @@
     background: transparent;
 }
 
-.welcome-actions-row { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.welcome-actions-row .ant-btn { width: 100%; }
+/* Back only takes what it needs and the main action gets the rest, wrapping rather than spilling out of a narrow box
+   (the signature box is narrow on tablets and small laptops too, not just phones). */
+.welcome-actions-row { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; }
+.welcome-actions-row .ant-btn { width: 100%; min-width: 0; height: auto; min-height: 40px; white-space: normal; line-height: 1.25; }
+.welcome-actions-row .ant-btn:first-child:not(:only-child) { white-space: nowrap; }
+.welcome-actions-row .ant-btn:last-child > span:not(.ant-btn-icon) { min-width: 0; overflow-wrap: break-word; }
 .welcome-actions-row:has(> .ant-btn:only-child) .ant-btn { grid-column: 1 / -1; }
 .welcome-step-consultantLocation .welcome-back,
 .welcome-step-consultantReach .welcome-back,
@@ -646,15 +650,24 @@ html[data-theme='dark'] .welcome-panel .ant-select-selector {
 }
 
 @media (max-width: 767px) {
-    .welcome-floating-actions { top: 10px; right: 10px; }
-    .welcome-floating-btn { padding-inline: 11px; }
+    /* Phones: the language and theme buttons get their own row above the card instead of floating over its corner,
+       and the card is only as tall as the step it shows. */
     .welcome-page {
-        padding: 10px;
-        align-items: start;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        padding: max(10px, env(safe-area-inset-top)) 12px max(16px, env(safe-area-inset-bottom));
     }
 
+    .welcome-floating-actions {
+        position: static;
+        align-self: flex-end;
+    }
+
+    .welcome-floating-btn { padding-inline: 11px; }
+
     .welcome-shell {
-        margin-top: 10px;
         border-radius: 24px !important;
     }
 
@@ -663,7 +676,7 @@ html[data-theme='dark'] .welcome-panel .ant-select-selector {
     }
 
     .welcome-conversation-stage {
-        min-height: 520px;
+        min-height: 0;
         align-content: start;
         padding-top: 6px;
     }

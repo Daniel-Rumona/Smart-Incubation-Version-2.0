@@ -7,7 +7,9 @@ import type { ManagedUser } from '@/types/operations'
 /** Staff values sent to the server. `permissions: null` clears a stored override so the person follows their role's defaults. */
 export type StaffValues = Omit<ManagedUser, 'id' | 'permissions'> & { permissions?: IdentityPermission[] | null }
 
+// Directors may manage their company's reception admins (and only those: the staff functions enforce it).
 const assertPermission = (user: FullIdentity, permission: 'view_staff' | 'manage_staff') => {
+  if (user.role === 'director' && user.companyCode) return
   if (!hasRolePermission(user.role, permission, user.permissions)) throw new Error('forbidden')
 }
 
@@ -40,7 +42,8 @@ export const listOperationsStaff = async (user: FullIdentity) => {
   return snapshot.docs.flatMap((record) => {
     const data = record.data()
     // Operations users are listed for visibility only: the staff Cloud Functions don't let managers change them.
-    if (data.role !== 'consultant' && data.role !== 'projectadmin' && data.role !== 'operations') return []
+    // Directors only see the reception admins they manage.
+    if (user.role === 'director' ? data.role !== 'admin' : !['consultant', 'projectadmin', 'operations', 'admin'].includes(data.role)) return []
     // deleteUserAccount keeps the profile as a tombstone with status 'deleted'; its sign-in no longer exists.
     if (data.status === 'deleted') return []
     return [{

@@ -58,7 +58,7 @@ export default function JoinProgramPage() {
 
             {usable && (
               <>
-                <Paragraph type="secondary" style={{ margin: 0 }}>{t('Create your account, tell us about your business, then apply. We will take you through it step by step.')}</Paragraph>
+                <Paragraph type="secondary" style={{ margin: 0 }}>{info.direct ? t('Create your account and tell us about your business. There is no application: you join the programme as soon as your details are in.') : t('Create your account, tell us about your business, then apply. We will take you through it step by step.')}</Paragraph>
                 <Button type="primary" size="large" block icon={<ArrowRightOutlined />} onClick={() => start('signup')}>{t('Create my account')}</Button>
                 <Button size="large" block icon={<LoginOutlined />} onClick={() => start('login')}>{t('I already have an account')}</Button>
               </>

@@ -16,6 +16,7 @@ import {
     FormOutlined,
     HeatMapOutlined,
     IdcardOutlined,
+    InboxOutlined,
     ExclamationCircleOutlined,
     FundProjectionScreenOutlined,
     MailOutlined,
@@ -70,12 +71,16 @@ import ParticipantsPage from '@/pages/operations/ParticipantsPage'
 import SmeMetricsPage from '@/pages/operations/SmeMetricsPage'
 import { ParticipantOnboardingPage } from '@/pages/operations/ParticipantOnboardingPage'
 import { StaffPage } from '@/pages/shared/StaffPage'
+import { ReceptionHomePage } from '@/pages/reception/ReceptionHomePage'
 import { DiagnosticPlansPage } from '@/pages/operations/DiagnosticPlansPage'
 import RiskRegisterPage from '@/pages/operations/RiskRegisterPage'
 import SmeControlTowerPage from '@/pages/operations/SmeControlTowerPage'
 import ImpactAnalysisPage from '@/pages/operations/ImpactAnalysisPage'
 import OperationsReportsPage from '@/pages/operations/OperationsReportsPage'
 import KpisPage from '@/pages/kpis/KpisPage'
+import ConsultantRequestsPage from '@/pages/consultant/ConsultantRequestsPage'
+import ApplicantHomeRedirect from '@/pages/applicant/ApplicantHomeRedirect'
+import IndependentSmeDashboardPage from '@/pages/applicant/IndependentSmeDashboardPage'
 import ProgramsPage from '@/pages/operations/ProgramsPage'
 import SurveysPage from '@/pages/operations/surveys/SurveysPage'
 import IncubateeSurveysPage from '@/pages/incubatee/surveys/IncubateeSurveysPage'
@@ -96,6 +101,8 @@ import { IncubateeInterventionsPage } from '@/pages/incubatee/IncubateeIntervent
 import IncubateeDiagnosticPlanPage from '@/pages/incubatee/IncubateeDiagnosticPlanPage'
 import IncubateePlanReadyPage from '@/pages/incubatee/IncubateePlanReadyPage'
 import IncubateeCompliancePage from '@/pages/incubatee/IncubateeCompliancePage'
+import IncubateeAppointmentsPage from '@/pages/incubatee/IncubateeAppointmentsPage'
+import IncubateeTrainingRoadmapPage from '@/pages/incubatee/IncubateeTrainingRoadmapPage'
 import IncubateeMetricsPage from '@/pages/incubatee/IncubateeMetricsPage'
 import IncubateeRoadmapPage from '@/pages/incubatee/IncubateeRoadmapPage'
 import AgentWorkspacePage from '@/pages/incubatee/AgentWorkspacePage'
@@ -107,6 +114,7 @@ import ConsultantProfilePage from '@/pages/consultant/ConsultantProfilePage'
 import UserProfilePage from '@/pages/profile/UserProfilePage'
 import NotificationCenterPage from '@/pages/notifications/NotificationCenterPage'
 import ConsultantSmesPage from '@/pages/consultant/ConsultantSmesPage'
+import ConsultantAvailableWorkPage from '@/pages/consultant/ConsultantAvailableWorkPage'
 import SmeOnboardingPage from '@/pages/applicant/SmeOnboardingPage'
 import ProviderMarketplacePage from '@/pages/applicant/ProviderMarketplacePage'
 import { AllocatedInterventions } from '@/pages/interventions/AllocatedInterventionsPage'
@@ -140,7 +148,6 @@ const allRoles = Object.values(USER_ROLES)
 const dashboardRoles = allRoles.filter(role => role !== USER_ROLES.DIRECTOR)
 const operationsRoles = [
     USER_ROLES.SYSTEM_ADMIN,
-    USER_ROLES.ADMIN,
     USER_ROLES.DIRECTOR,
     USER_ROLES.PROJECT_ADMIN,
     USER_ROLES.PROJECT_MANAGER,
@@ -148,14 +155,13 @@ const operationsRoles = [
 ]
 const operationsDashboardRoles = [
     USER_ROLES.SYSTEM_ADMIN,
-    USER_ROLES.ADMIN,
     USER_ROLES.DIRECTOR,
     USER_ROLES.PROJECT_MANAGER,
     USER_ROLES.OPERATIONS,
 ]
 const projectAdminRoles = [USER_ROLES.PROJECT_ADMIN]
 const incubateeRoles = [USER_ROLES.INCUBATEE]
-const adminRoles = [USER_ROLES.SYSTEM_ADMIN, USER_ROLES.ADMIN]
+const adminRoles = [USER_ROLES.SYSTEM_ADMIN]
 const directorRoles = [USER_ROLES.DIRECTOR]
 const applicationReviewRoles = [USER_ROLES.PROJECT_ADMIN, USER_ROLES.OPERATIONS]
 const complianceRoles = [USER_ROLES.PROJECT_ADMIN, USER_ROLES.OPERATIONS]
@@ -165,6 +171,7 @@ const interventionWorkspaceRoles = [
     USER_ROLES.OPERATIONS,
 ]
 const consultantRoles = [USER_ROLES.CONSULTANT]
+const receptionRoles = [USER_ROLES.ADMIN]
 const placeholder = <ComingSoonPage />
 
 export const appRoutes: AppRoute[] = [
@@ -189,6 +196,27 @@ export const appRoutes: AppRoute[] = [
         audiences: ['applicant'],
         showInNav: false
     },
+    // Where applicants land after signing in: Programmes, or the profile setup until that's complete.
+    {
+        path: '/applicant',
+        labelKey: 'nav.dashboard',
+        element: <ApplicantHomeRedirect />,
+        allowedRoles: incubateeRoles,
+        audiences: ['applicant'],
+        showInNav: false
+    },
+    // Home for SMEs who chose consultants and agents instead of a programme. It's the top bar's Home, so not in the menu.
+    {
+        path: '/applicant/dashboard',
+        labelKey: 'nav.dashboard',
+        icon: <DashboardOutlined />,
+        element: <IndependentSmeDashboardPage />,
+        allowedRoles: incubateeRoles,
+        audiences: ['applicant'],
+        smeJourneys: ['independent'],
+        showInNav: false
+    },
+    // Reached from My profile and from any flow that needs a complete profile, so it isn't in the menu.
     {
         path: '/applicant/profile',
         labelKey: 'nav.profile',
@@ -196,7 +224,7 @@ export const appRoutes: AppRoute[] = [
         element: <ApplicantProfilePage />,
         allowedRoles: incubateeRoles,
         audiences: ['applicant'],
-        showInNav: true
+        showInNav: false
     },
     {
         path: '/applicant/programs',
@@ -204,6 +232,8 @@ export const appRoutes: AppRoute[] = [
         icon: <ProjectOutlined />,
         element: <ProgramsDiscoveryPage />,
         allowedRoles: incubateeRoles,
+        // SMEs who chose consultants and agents only get it in their menu once they ask for it (on their dashboard).
+        programmesOptIn: true,
         audiences: ['applicant'],
         showInNav: true
     },
@@ -235,7 +265,10 @@ export const appRoutes: AppRoute[] = [
         icon: <AuditOutlined />,
         element: <ApplicationTrackerPage />,
         allowedRoles: incubateeRoles,
-        audiences: ['applicant'], showInNav: true
+        audiences: ['applicant'],
+        // SMEs who said they don't need a programme have nothing to track until they apply to one.
+        showInNavWhenHasApplications: true,
+        showInNav: true
     },
     {
         path: '/applicant/roadmap',
@@ -266,10 +299,17 @@ export const appRoutes: AppRoute[] = [
     { path: '/incubatee/lms', labelKey: 'nav.courses', icon: <ReadOutlined />, element: <IncubateeCoursesPage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], showInNav: true },
     { path: '/incubatee/lms/:id', labelKey: 'nav.courses', icon: <ReadOutlined />, element: <CourseLessonPage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], showInNav: false },
     { path: '/incubatee/compliance', labelKey: 'nav.compliance', icon: <SafetyCertificateOutlined />, element: <IncubateeCompliancePage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], showInNav: true },
+    // Training SMEs follow their set list here instead of the growth plan and interventions tracker.
+    { path: '/incubatee/roadmap', labelKey: 'nav.roadmap', icon: <HeatMapOutlined />, element: <IncubateeTrainingRoadmapPage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], showInNav: true, trainingSmesOnly: true },
+    // Other SMEs answer appointment invitations on their interventions page, which Training SMEs don't have in their menu.
+    { path: '/incubatee/appointments', labelKey: 'nav.appointments', icon: <CalendarOutlined />, element: <IncubateeAppointmentsPage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], showInNav: true, trainingSmesOnly: true },
     { path: '/consultant', labelKey: 'nav.dashboard', icon: <DashboardOutlined />, element: <ConsultantDashboardPage />, allowedRoles: consultantRoles, requiredPermission: 'view_dashboard', audiences: ['operations'], showInNav: true },
     { path: '/consultant/profile', labelKey: 'nav.consultantProfile', icon: <UserOutlined />, element: <ConsultantProfilePage />, allowedRoles: consultantRoles, audiences: ['operations'], showInNav: false },
+    { path: '/consultant/requests', labelKey: 'nav.consultantRequests', icon: <MessageOutlined />, element: <ConsultantRequestsPage />, allowedRoles: consultantRoles, audiences: ['operations'], marketplaceConsultantsOnly: true, showInNav: true },
     { path: '/consultant/smes', labelKey: 'nav.mySmes', icon: <TeamOutlined />, element: <ConsultantSmesPage />, allowedRoles: consultantRoles, requiredPermission: 'track_interventions', audiences: ['operations'], showInNav: true },
     { path: '/consultant/interventions', labelKey: 'nav.myInterventions', icon: <FormOutlined />, element: <AllocatedInterventions />, allowedRoles: consultantRoles, requiredPermission: 'track_interventions', audiences: ['operations'], showInNav: true },
+    // Only when the company uses 'Facilitators pick their own' (Company settings); the page explains itself otherwise.
+    { path: '/consultant/available-work', labelKey: 'Available work', icon: <InboxOutlined />, element: <ConsultantAvailableWorkPage />, allowedRoles: consultantRoles, requiredPermission: 'track_interventions', audiences: ['operations'], hideFromMarketplaceConsultants: true, showInNav: true, showInNavWhenSettingEquals: { assignmentModel: 'consultant_self_assign' } },
     { path: '/consultant/allocated', labelKey: 'nav.myInterventions', icon: <FormOutlined />, element: <AllocatedInterventions />, allowedRoles: consultantRoles, requiredPermission: 'track_interventions', audiences: ['operations'], showInNav: false },
     // Same page and URL as the staff entry under Interventions; listed here so it sits in the facilitator menu.
     { path: '/shared/interventions/appointments', labelKey: 'nav.appointments', icon: <CalendarOutlined />, element: <InterventionAppointmentsPage />, allowedRoles: consultantRoles, requiredPermission: 'track_interventions', audiences: ['operations'], showInNav: true },
@@ -300,6 +340,13 @@ export const appRoutes: AppRoute[] = [
             { path: '/shared/staff/manage', labelKey: 'nav.manageTeam', icon: <UserSwitchOutlined />, element: <StaffPage />, allowedRoles: applicationReviewRoles, requiredPermission: 'manage_staff', audiences: ['operations'], showInNav: true },
         ],
     },
+    // Company reception (`admin`): one flat menu over the shared pages; each page limits what reception can change.
+    { path: '/reception', labelKey: 'nav.dashboard', icon: <DashboardOutlined />, element: <ReceptionHomePage />, allowedRoles: receptionRoles, audiences: ['operations'], showInNav: true },
+    { path: '/shared/applications', labelKey: 'nav.applications', icon: <AuditOutlined />, element: <ApplicationsReviewPage />, allowedRoles: receptionRoles, requiredPermission: 'view_applications', audiences: ['operations'], showInNav: true },
+    { path: '/shared/participants', labelKey: 'nav.participants', icon: <IdcardOutlined />, element: <ParticipantsPage />, allowedRoles: receptionRoles, requiredPermission: 'view_participants', audiences: ['operations'], showInNav: true },
+    { path: '/operations/participants/new', labelKey: 'operations.participants.add', icon: <UserOutlined />, element: <ParticipantOnboardingPage />, allowedRoles: receptionRoles, requiredPermission: 'view_participants', audiences: ['operations'], showInNav: false },
+    { path: '/shared/interventions/appointments', labelKey: 'nav.appointments', icon: <CalendarOutlined />, element: <InterventionAppointmentsPage />, allowedRoles: receptionRoles, requiredPermission: 'track_interventions', audiences: ['operations'], showInNav: true },
+    { path: '/operations/connection-requests', labelKey: 'nav.connectionRequests', icon: <TeamOutlined />, element: <ConsultantConnectionRequestsPage />, allowedRoles: receptionRoles, audiences: ['operations'], platformOwnerOnly: true, showInNav: true },
     { path: '/shared/applications', labelKey: 'nav.applications', icon: <AuditOutlined />, element: <ApplicationsReviewPage />, allowedRoles: applicationReviewRoles, requiredPermission: 'view_applications', audiences: ['operations'], showInNav: true },
     { path: '/operations/participants/applications', labelKey: 'nav.applications', icon: <AuditOutlined />, element: <Navigate to="/shared/applications" replace />, allowedRoles: applicationReviewRoles, requiredPermission: 'view_applications', audiences: ['operations'], showInNav: false },
     {
@@ -425,11 +472,11 @@ export const appRoutes: AppRoute[] = [
         labelKey: 'nav.agentAvailability',
         icon: <SafetyCertificateOutlined />,
         element: <AgentAvailabilityPage />,
-        allowedRoles: [USER_ROLES.SYSTEM_ADMIN, USER_ROLES.ADMIN],
+        allowedRoles: [USER_ROLES.SYSTEM_ADMIN],
         audiences: ['platform'], showInNav: true
     },
     { path: '/admin/plans', labelKey: 'nav.companyPlans', icon: <DollarOutlined />, element: <CompanyPlansPage />, allowedRoles: adminRoles, requiredPermission: 'manage_users', audiences: ['platform'], showInNav: true },
-    { path: '/admin/agent-ratings', labelKey: 'nav.agentRatings', icon: <StarOutlined />, element: <AgentRatingsPage />, allowedRoles: [USER_ROLES.SYSTEM_ADMIN, USER_ROLES.ADMIN], audiences: ['platform'], showInNav: true },
+    { path: '/admin/agent-ratings', labelKey: 'nav.agentRatings', icon: <StarOutlined />, element: <AgentRatingsPage />, allowedRoles: [USER_ROLES.SYSTEM_ADMIN], audiences: ['platform'], showInNav: true },
     { path: '/admin/sales-pitch', labelKey: 'nav.salesPitch', icon: <ExperimentOutlined />, element: <SalesPitchPage />, allowedRoles: adminRoles, audiences: ['platform'], showInNav: true },
     { path: '/notifications', labelKey: 'nav.notifications', icon: <BellOutlined />, element: <NotificationCenterPage />, allowedRoles: [USER_ROLES.INCUBATEE, USER_ROLES.OPERATIONS, USER_ROLES.PROJECT_ADMIN, USER_ROLES.PROJECT_MANAGER, USER_ROLES.CONSULTANT], audiences: ['platform', 'applicant', 'incubatee', 'operations'], showInNav: false },
     { path: '/profile', labelKey: 'nav.profile', icon: <ProfileOutlined />, element: <UserProfilePage />, allowedRoles: allRoles.filter(role => role !== USER_ROLES.INCUBATEE), audiences: ['platform'], showInNav: false },

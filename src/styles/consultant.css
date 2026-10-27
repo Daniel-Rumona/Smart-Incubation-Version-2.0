@@ -40,8 +40,9 @@
 .consultant-contact-email-card strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .consultant-contact-email-card span { color: var(--ant-color-text-secondary); font-size: 12px; }
 .consultant-contact-email-card .ant-tag { margin-inline-end: 0; }
-.consultant-phone-input-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.consultant-phone-input-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 14px; }
 .consultant-phone-input-row .ant-checkbox-wrapper { white-space: nowrap; font-size: 12px; }
+.consultant-phone-provider { margin-top: 8px !important; margin-bottom: 0 !important; }
 .consultant-profile-form-professional .consultant-field-location,
 .consultant-profile-form-professional > .ant-card,
 .consultant-profile-form-professional .consultant-contact-fields,
@@ -95,7 +96,7 @@
 .consultant-profile-badges { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
 .consultant-profile-badges .ant-tag { margin-inline-end: 0; }
 .consultant-profile-acceptance { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; padding: 10px 0; border-block: 1px solid rgba(100, 116, 139, .14); font-size: 13px; }
-.consultant-profile-checklist { display: grid; gap: 6px; padding-top: 12px; }
+.consultant-profile-checklist { display: grid; flex: 1 1 auto; min-height: 0; gap: 6px; padding-top: 12px; overflow-y: auto; scrollbar-gutter: stable; }
 .consultant-profile-checklist-head strong { font-size: 13px; }
 .consultant-profile-checklist ul { display: grid; gap: 2px; margin: 4px 0 0; padding: 0; list-style: none; }
 .consultant-profile-checklist li { display: flex; align-items: center; gap: 8px; min-height: 26px; font-size: 12.5px; }
@@ -108,7 +109,15 @@
 .consultant-profile-checklist li button { padding: 2px 6px; border: 0; border-radius: 6px; background: transparent; color: #6d5dfb; font: inherit; font-weight: 600; cursor: pointer; transition: background-color 150ms ease, transform 160ms cubic-bezier(0.23, 1, 0.32, 1); }
 .consultant-profile-checklist li button:active { transform: scale(.96); }
 @media (hover: hover) and (pointer: fine) { .consultant-profile-checklist li button:hover { background: rgba(109, 93, 251, .08); } }
-.consultant-profile-actions { display: grid; gap: 8px; margin-top: auto; padding-top: 14px; }
+.consultant-profile-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); flex: 0 0 auto; gap: 8px; margin-top: 8px; padding-top: 12px; background: var(--ant-color-bg-container); }
+
+/* The marketplace card is deliberately a normal vertical reading flow in its preview.
+   Modal action styling must never turn its nested Ant Space groups into columns. */
+.consultant-profile-preview-modal .ant-modal-body { padding-top: 4px; }
+.consultant-profile-preview-modal .consultant-service-card { width: 100%; }
+.consultant-profile-preview-modal .consultant-service-card .ant-space { width: 100%; }
+.consultant-profile-preview-modal .consultant-service-card .ant-space-vertical { align-items: stretch; }
+.consultant-profile-preview-modal .consultant-service-card .ant-space:not(.ant-space-vertical) { flex-wrap: wrap; }
 
 /* A red dot on a tab that still has something required to fill in. */
 .consultant-profile-tab { position: relative; display: inline-flex; align-items: center; gap: 6px; }
@@ -416,6 +425,7 @@ html[data-theme='dark'] .consultant-week-day.is-selected { border-color: rgba(16
 html[data-theme='dark'] .consultant-profile-acceptance { border-color: rgba(203, 213, 225, .14); }
 html[data-theme='dark'] .consultant-profile-unsaved { color: #fbbf24; }
 html[data-theme='dark'] .consultant-profile-checklist li button { color: #b4a9ff; }
+html[data-theme='dark'] .consultant-profile-actions { background: var(--ant-color-bg-container); }
 
 /* Consultant dashboard: one sentence on what needs you, then a short list to act on. */
 .consultant-dashboard-greeting { margin-bottom: 16px; }

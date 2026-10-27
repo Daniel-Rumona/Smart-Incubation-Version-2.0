@@ -9,7 +9,6 @@ import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { useLanguage, tEnglish } from '@/providers/LanguageProvider'
 import { listApplicantApplications } from '@/services/applicantService'
-import ApplicantJourneySteps from '@/components/applicant/ApplicantJourneySteps'
 import type { ApplicantApplication } from '@/types/applicant'
 import '@/styles/applicant.css'
 
@@ -71,7 +70,6 @@ export const ApplicationTrackerPage = () => {
 
     return (
         <DashboardPageShell className="applicant-page">
-            <ApplicantJourneySteps current={2} />
             <Row gutter={[12, 12]} className="applicant-metrics">
                 <Col xs={12} md={6} className="applicant-metric-col"><DashboardMetricCard icon={<AppstoreOutlined />} label={t('applicant.tracker.total')} value={applications.length} /></Col>
                 <Col xs={12} md={6} className="applicant-metric-col"><DashboardMetricCard icon={<ClockCircleOutlined />} label={t('applicant.tracker.pending')} value={counts.pending} /></Col>
@@ -79,9 +77,8 @@ export const ApplicationTrackerPage = () => {
                 <Col xs={12} md={6} className="applicant-metric-col"><DashboardMetricCard icon={<CloseCircleOutlined />} label={t('applicant.tracker.rejected')} value={counts.rejected} /></Col>
             </Row>
             <FilterBar
-                title={t('applicant.tracker.title')}
-                primary={<Select value={status} onChange={setStatus} options={['all', 'pending', 'accepted', 'rejected'].map((value) => ({ value, label: t(`applicant.tracker.${value}`) }))} />}
-                advanced={<Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('applicant.tracker.search')} allowClear />}
+                compact
+                primary={<><Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('applicant.tracker.search')} allowClear /><Select value={status} onChange={setStatus} options={['all', 'pending', 'accepted', 'rejected'].map((value) => ({ value, label: t(`applicant.tracker.${value}`) }))} /></>}
             />
             <ResponsiveDataView
                 rowKey="id"

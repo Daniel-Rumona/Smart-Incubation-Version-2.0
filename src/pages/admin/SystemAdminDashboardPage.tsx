@@ -58,7 +58,7 @@ export const SystemAdminDashboardPage = () => {
   const loading = loadedKey !== requestKey
 
   useEffect(() => {
-    if (!user || !['systemadmin', 'admin'].includes(user.role)) return
+    if (!user || user.role !== 'systemadmin') return
     let active = true
     const prior = previousRange(dateRange)
     // The company picked in the top bar narrows the whole overview.

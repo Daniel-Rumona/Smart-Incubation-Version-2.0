@@ -4,6 +4,7 @@ import { collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '@/firebase'
 import { AGENT_ACTION_EXECUTED_EVENT } from '@/services/agentService'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
+import { workspaceCompanyCode } from '@/services/companiesService'
 import type { AssignedIntervention as BaseAssignedIntervention } from '@/types/interventions'
 
 export type AssigneeType = 'consultant' | 'operations' | 'projectadmin' | 'provider' | 'agent'
@@ -35,14 +36,25 @@ export const AssignedInterventionsProvider = ({ children }: PropsWithChildren) =
   const [loading, setLoading] = useState(false)
 
   const load = useCallback(async () => {
-    if (!user?.companyCode) {
+    // This provider is mounted for the whole application. A newly registered user is
+    // still on Welcome and has not reached an interventions workspace, so querying
+    // this collection at that point can race their selected onboarding role and fail
+    // Firestore's role-based rules.
+    if (!user?.firstLoginComplete) {
+      setAssignments([])
+      setLoading(false)
+      return
+    }
+
+    const companyCode = workspaceCompanyCode(user)
+    if (!companyCode) {
       setAssignments([])
       return
     }
 
     setLoading(true)
     try {
-      const snapshot = await getDocs(query(collection(db, 'assignedInterventions'), where('companyCode', '==', user.companyCode)))
+      const snapshot = await getDocs(query(collection(db, 'assignedInterventions'), where('companyCode', '==', companyCode)))
       setAssignments(snapshot.docs
         .map((document) => ({
           ...(document.data() as AssignedIntervention),
@@ -52,7 +64,7 @@ export const AssignedInterventionsProvider = ({ children }: PropsWithChildren) =
     } finally {
       setLoading(false)
     }
-  }, [user?.companyCode])
+  }, [user?.companyCode, user?.firstLoginComplete, user?.role]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     void load()

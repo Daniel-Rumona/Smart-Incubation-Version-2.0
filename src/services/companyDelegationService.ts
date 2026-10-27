@@ -31,7 +31,7 @@ export const readDelegation = (settings: { delegation?: unknown } | null | undef
 
 /** Directors (and platform admins) always manage; project admins and operations only when delegated to. */
 export const canManageArea = (role: string | undefined, settings: { delegation?: unknown } | null | undefined, area: DelegationArea) => {
-  if (role === 'director' || role === 'admin' || role === 'systemadmin') return true
+  if (role === 'director' || role === 'systemadmin') return true
   return isDelegable(role) && readDelegation(settings)[area].includes(role)
 }
 

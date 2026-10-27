@@ -1,0 +1,70 @@
+/* =========================================================
+   SME ROADMAP
+   Real work under way (with who's helping), AI suggestions for what's next, and finished work. No projections:
+   progress only comes from the consultants and agents doing the work.
+   ========================================================= */
+
+.roadmap-v2 {
+    --roadmap-accent: #6d5dfb;
+    --roadmap-border: rgba(109, 93, 251, 0.12);
+    display: grid;
+    align-content: start;
+    gap: 16px;
+}
+
+html[data-theme='dark'] .roadmap-v2 {
+    --roadmap-accent: #8b7dff;
+    --roadmap-border: rgba(139, 92, 246, 0.18);
+}
+
+.roadmap-head {
+    display: grid;
+    gap: 10px;
+    padding: 14px 18px;
+    border: 1px solid var(--roadmap-border);
+    border-radius: 14px;
+    background: var(--ant-color-bg-container);
+}
+
+.roadmap-head-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.roadmap-head-text { display: grid; flex: 1; min-width: 220px; gap: 2px; }
+.roadmap-title { font-size: 16px; }
+.roadmap-head .ant-progress { margin: 0; }
+
+.roadmap-card.ant-card { border: 1px solid var(--roadmap-border); border-radius: 14px; }
+.roadmap-card-note { font-size: 12.5px; }
+
+.roadmap-row {
+    display: grid;
+    grid-template-columns: 14px minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: start;
+    padding: 12px 0;
+    border-top: 1px solid rgba(100, 116, 139, 0.12);
+}
+.roadmap-row:first-child { border-top: 0; padding-top: 0; }
+.roadmap-row-text { display: grid; min-width: 0; gap: 2px; }
+.roadmap-row-text .ant-typography-secondary { font-size: 12.5px; }
+.roadmap-helper { display: inline-flex; align-items: center; gap: 5px; }
+
+/* The dot says where the work stands; the text beside it says it in words. */
+.roadmap-dot { width: 12px; height: 12px; margin-top: 4px; border-radius: 50%; border: 2px solid rgba(100, 116, 139, 0.45); }
+.roadmap-dot.is-in_progress { border-color: var(--roadmap-accent); background: var(--roadmap-accent); }
+.roadmap-dot.is-waiting_you { border-color: #ca8a04; background: #ca8a04; }
+.roadmap-dot.is-done { border-color: #15803d; background: #15803d; }
+
+.roadmap-suggestions { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.roadmap-suggestion {
+    display: grid;
+    align-content: start;
+    gap: 4px;
+    padding: 14px;
+    border: 1px solid var(--roadmap-border);
+    border-radius: 12px;
+}
+.roadmap-suggestion > .ant-typography-secondary { font-size: 12.5px; }
+.roadmap-suggestion-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+
+.roadmap-or { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(100, 116, 139, 0.12); }
+.roadmap-done-icon { color: #15803d; }
+html[data-theme='dark'] .roadmap-done-icon { color: #34d399; }

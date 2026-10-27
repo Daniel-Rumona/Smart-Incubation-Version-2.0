@@ -1,0 +1,35 @@
+/* Available work (src/pages/consultant/ConsultantAvailableWorkPage.tsx). */
+.available-work-intro.ant-typography {
+  margin-bottom: 12px;
+}
+
+.available-work-title {
+  display: grid;
+  gap: 2px;
+}
+
+.available-work-title .ant-typography-secondary {
+  font-size: 12px;
+}
+
+.available-work-card {
+  display: grid;
+  gap: 6px;
+}
+
+.available-work-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+}
+
+.available-work-meta .ant-tag {
+  margin-inline-end: 0;
+}
+
+.available-work-empty-icon {
+  font-size: 44px;
+  color: var(--ant-color-text-quaternary);
+}
