@@ -45,6 +45,7 @@ import {
 } from '@/services/projectAdminWorkspaceService'
 import { uploadIncubateeComplianceDocument } from '@/services/incubateeComplianceUploadService'
 import { listMyApplications } from '@/services/applicantService'
+import { loadFunderData, type FunderData } from '@/services/funderService'
 import type { AgentChatMessage, AgentPageContext, AgentProposalStatus } from '@/types/agent'
 import { AgentProposalCard } from '@/components/agent/AgentProposalCard'
 import { AgentGuidedAction, type GuidedActionKind } from '@/components/agent/AgentGuidedAction'
@@ -214,6 +215,27 @@ const thisAndLastWeek = (): [[Date, Date], [Date, Date]] => [
     [dayjs().subtract(1, 'week').startOf('week').toDate(), dayjs().subtract(1, 'week').endOf('week').toDate()],
 ]
 
+/** A funded SME is behind with two or more overdue interventions (the funder pages' rule). */
+const isFunderSmeBehind = (sme: FunderData['portfolio'][number]) => sme.execution.overdue >= 2
+
+/** Required interventions completed, across these SMEs. */
+const funderDelivery = (smes: FunderData['portfolio']) => {
+    const required = smes.reduce((sum, row) => sum + row.execution.required, 0)
+    const completed = smes.reduce((sum, row) => sum + Math.min(row.execution.completed, row.execution.required), 0)
+    return { required, completed, rate: required ? Math.round((completed / required) * 100) : null }
+}
+
+/** Revenue growth and net jobs since joining: each SME's first reported figure against its latest. */
+const funderGrowth = (smes: FunderData['portfolio']) => {
+    const withRevenue = smes.filter((row) => row.growth?.revenue)
+    const start = withRevenue.reduce((sum, row) => sum + (row.growth?.revenue?.start || 0), 0)
+    const latest = withRevenue.reduce((sum, row) => sum + (row.growth?.revenue?.latest || 0), 0)
+    return {
+        revenueGrowth: start > 0 ? Math.round(((latest - start) / start) * 100) : null,
+        netJobs: smes.reduce((sum, row) => sum + ((row.growth?.jobs?.latest || 0) - (row.growth?.jobs?.start || 0)), 0),
+    }
+}
+
 /** "+2 vs last week", in the user's language. `unit` is already translated by the caller. */
 const signedDelta = (current: number, previous: number, unit: string) => {
     const difference = current - previous
@@ -293,6 +315,7 @@ export const AgenticHomePage = () => {
     const openWorkspace = useOpenWorkspace()
     const [overview, setOverview] = useState<AgenticOverview>(() => emptyOverview(user?.role))
     const workspaceRef = useRef<Awaited<ReturnType<typeof loadProjectAdminWorkspace>> | undefined>(undefined)
+    const funderRef = useRef<FunderData | undefined>(undefined)
     const [focusedItem, setFocusedItem] = useState<{ metric: MetricKey; row: MetricDetailRow; facts: Record<string, unknown> }>()
     const [scopeFacts, setScopeFacts] = useState<Record<string, unknown> | undefined>()
     const [loading, setLoading] = useState(true)
@@ -443,6 +466,42 @@ export const AgenticHomePage = () => {
                         ],
                         prompts: ['Summarise platform risks', 'Which errors need immediate attention?', 'Show me adoption changes this week'],
                         workspacePath: '/dashboard',
+                    })
+                    return
+                }
+
+                if (user.role === 'funder') {
+                    const data = await loadFunderData(user, activeProgramId)
+                    if (cancelled) return
+                    funderRef.current = data
+                    const behind = data.portfolio.filter(isFunderSmeBehind)
+                    const delivery = funderDelivery(data.portfolio)
+                    const { revenueGrowth, netJobs } = funderGrowth(data.portfolio)
+                    setScopeFacts({
+                        smesSupported: data.totals.smes,
+                        averageProgress: data.totals.avgProgress,
+                        smesBehind: behind.length,
+                        smesBehindList: behind.slice(0, 40).map((row) => ({ name: row.name, overdueInterventions: row.execution.overdue, progress: row.progress })),
+                        deliveryRate: delivery.rate,
+                        revenueGrowthSinceJoining: revenueGrowth,
+                        netJobsSinceJoining: netJobs,
+                        programmes: data.programmes.map((row) => ({ name: row.name, smes: row.smes, delivery: funderDelivery(data.portfolio.filter((sme) => sme.programId === row.id)).rate })),
+                    })
+                    setOverview({
+                        roleLabel: roleNames[user.role],
+                        focus: [t('funding impact'), t('SMEs falling behind'), t('portfolio growth')],
+                        metrics: [
+                            { key: 'smes', label: t('SMEs supported'), value: data.totals.smes, detail: t('Businesses in your funded programmes'), tone: 'violet' },
+                            { key: 'completed', label: t('Support delivered'), value: delivery.rate === null ? '—' : `${delivery.rate}%`, detail: t('{done} of {total} required interventions completed', undefined, { done: delivery.completed, total: delivery.required }), tone: 'blue' },
+                            { key: 'risk', label: t('SMEs falling behind'), value: behind.length, detail: t('Two or more interventions overdue'), tone: 'amber' },
+                        ],
+                        insights: [
+                            { key: 'Revenue growth', label: t('Revenue growth'), value: revenueGrowth === null ? '—' : `${revenueGrowth >= 0 ? '+' : ''}${revenueGrowth}%`, detail: t('Since joining, across SMEs reporting revenue'), positive: (revenueGrowth ?? 0) >= 0 },
+                            { key: 'Net jobs', label: t('Net jobs'), value: `${netJobs >= 0 ? '+' : ''}${netJobs}`, detail: t('Jobs added since joining'), positive: netJobs >= 0 },
+                            { key: 'Average progress', label: t('Average progress'), value: `${data.totals.avgProgress}%`, detail: t('Required support done, per SME'), positive: data.totals.avgProgress >= 50 },
+                        ],
+                        prompts: ['Give me a funding impact brief', 'Which SMEs are falling behind?', 'How are revenue and jobs growing?'],
+                        workspacePath: roleWorkspacePaths[user.role],
                     })
                     return
                 }
@@ -695,6 +754,32 @@ export const AgenticHomePage = () => {
                 return
             }
 
+            if (user.role === 'funder') {
+                const data = funderRef.current || await loadFunderData(user, activeProgramId)
+                const smeRow = (row: FunderData['portfolio'][number]) => ({
+                    id: row.id,
+                    item: row.name,
+                    status: t('{percent}% done', undefined, { percent: row.progress }),
+                    detail: [row.programName, row.execution.overdue ? t('{count} overdue', undefined, { count: row.execution.overdue }) : ''].filter(Boolean).join(' · '),
+                })
+                if (metric.key === 'risk') {
+                    showRows(data.portfolio.filter(isFunderSmeBehind).sort((a, b) => b.execution.overdue - a.execution.overdue).map(smeRow))
+                } else if (metric.key === 'completed') {
+                    showRows(data.programmes.map((row) => {
+                        const done = funderDelivery(data.portfolio.filter((sme) => sme.programId === row.id))
+                        return {
+                            id: row.id,
+                            item: row.name,
+                            status: done.rate === null ? '—' : `${done.rate}%`,
+                            detail: t('{done} of {total} required interventions completed', undefined, { done: done.completed, total: done.required }),
+                        }
+                    }))
+                } else {
+                    showRows(data.portfolio.map(smeRow))
+                }
+                return
+            }
+
             const workspace = await loadProjectAdminWorkspace(user, activeProgramId)
             const participantNameById = new Map(workspace.participants.map((item) => [item.id, item.businessName]))
             if (metric.key === 'ongoing') {
@@ -751,6 +836,16 @@ export const AgenticHomePage = () => {
             facts.progress = intervention.progress
             facts.due = fmt(intervention.dueDate)
             facts.overdue = isOverdueIntervention(intervention)
+        }
+        const funderSme = !workspace && funderRef.current?.portfolio.find((item) => item.id === row.id)
+        if (funderSme) {
+            facts.type = 'SME'
+            facts.programme = funderSme.programName
+            facts.sector = funderSme.sector
+            facts.progress = funderSme.progress
+            facts.interventions = funderSme.execution
+            facts.revenue = funderSme.metrics.revenue
+            facts.employees = funderSme.metrics.employees
         }
         setFocusedItem({ metric, row, facts })
         closeMetric()

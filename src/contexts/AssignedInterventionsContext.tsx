@@ -40,7 +40,7 @@ export const AssignedInterventionsProvider = ({ children }: PropsWithChildren) =
     // still on Welcome and has not reached an interventions workspace, so querying
     // this collection at that point can race their selected onboarding role and fail
     // Firestore's role-based rules.
-    if (!user?.firstLoginComplete) {
+    if (!user?.firstLoginComplete || user.role === 'funder') {
       setAssignments([])
       setLoading(false)
       return
