@@ -278,3 +278,8 @@ html[data-theme='dark'] .admin-form-modal .ant-modal-body::-webkit-scrollbar-thu
   width: 32px;
   height: 32px;
 }
+
+/* The shared note colours its icon WhatsApp green; the fixed-access note is general information. */
+.admin-form-modal-note .anticon-appstore {
+  color: var(--admin-accent);
+}

@@ -259,6 +259,8 @@ export const zuAccount: Record<string, string> = {
   // Funder
   "Funder dashboard": "Ideshibhodi yomxhasi",
   "Programmes they fund": "Izinhlelo abazixhasayo",
+  "Funders always get read-only funder access. What they see is set by the programmes above.": "Abaxhasi bahlala bethola ukufinyelela kokufunda kuphela kwabaxhasi. Lokho abakubonayo kunqunywa yizinhlelo ezingenhla.",
+  "Reception admins always get the reception access for their company.": "Abaphathi bokwamukela bahlala bethola ukufinyelela kokwamukela kwenkampani yabo.",
   "Leave empty for all programmes.": "Shiya kungenalutho ukuze kube yizo zonke izinhlelo.",
   "Choose a company first to pick its programmes.": "Khetha inkampani kuqala ukuze ukhethe izinhlelo zayo.",
   "This company has no programmes yet.": "Le nkampani ayikabi nazo izinhlelo.",

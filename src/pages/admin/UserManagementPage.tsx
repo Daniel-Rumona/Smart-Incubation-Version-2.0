@@ -23,6 +23,11 @@ import '@/styles/user-management.css'
 type UserForm = Omit<ManagedUser, 'id' | 'status'> & { active: boolean }
 /** Roles whose work is tied to programmes (same list as Manage team). */
 const PROGRAMME_SCOPED_ROLES: UserRole[] = [USER_ROLES.PROJECT_ADMIN, USER_ROLES.CONSULTANT, USER_ROLES.FUNDER]
+/**
+ * Roles that always run on their defaults (same list as Manage team): their pages and firestore.rules decide what they
+ * see, so a custom feature list would only mislead. Saving one of them clears any list stored earlier.
+ */
+const FIXED_ACCESS_ROLES: UserRole[] = [USER_ROLES.ADMIN, USER_ROLES.FUNDER]
 
 const initialsOf = (name: string, email: string) =>
     (name || email || '').split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('')
@@ -134,6 +139,8 @@ export const UserManagementPage = () => {
         if (!user) return
         const payload = { ...values, status: values.active ? 'active' : 'inactive' } as Omit<ManagedUser, 'id'>
         delete (payload as Partial<UserForm>).active
+        // null on update removes a stored list (updatePlatformUser); left out on create, they start on the defaults.
+        if (FIXED_ACCESS_ROLES.includes(values.role)) (payload as { permissions?: unknown }).permissions = editing ? null : undefined
         try {
             setLoading(true)
             if (editing) await updateManagedUser(user, editing.id, payload)
@@ -290,15 +297,21 @@ export const UserManagementPage = () => {
                         </Row>
                         <p className="admin-form-modal-note"><WhatsAppOutlined /> {t('Only numbers explicitly marked as WhatsApp can identify this user to the AI. Marking a number confirms it belongs to this person; it does not query WhatsApp automatically.')}</p>
                     </section>
-                    <section className="admin-form-modal-section">
-                        <AdminFormSectionHead
-                            icon={<AppstoreOutlined />}
-                            title={t('permissions.featureAccess')}
-                            hint={t('What this user can open and change')}
-                            extra={<span className="admin-form-modal-count">{t('{count} of {total} enabled', undefined, { count: enabledFeatures, total: FEATURE_PERMISSION_OPTIONS.length })}</span>}
-                        />
-                        <Form.Item name="permissions" noStyle><FeaturePermissionsField /></Form.Item>
-                    </section>
+                    {selectedRole && FIXED_ACCESS_ROLES.includes(selectedRole) ? (
+                        <p className="admin-form-modal-note"><AppstoreOutlined /> {selectedRole === USER_ROLES.FUNDER
+                            ? t('Funders always get read-only funder access. What they see is set by the programmes above.')
+                            : t('Reception admins always get the reception access for their company.')}</p>
+                    ) : (
+                        <section className="admin-form-modal-section">
+                            <AdminFormSectionHead
+                                icon={<AppstoreOutlined />}
+                                title={t('permissions.featureAccess')}
+                                hint={t('What this user can open and change')}
+                                extra={<span className="admin-form-modal-count">{t('{count} of {total} enabled', undefined, { count: enabledFeatures, total: FEATURE_PERMISSION_OPTIONS.length })}</span>}
+                            />
+                            <Form.Item name="permissions" noStyle><FeaturePermissionsField /></Form.Item>
+                        </section>
+                    )}
                 </Form>
             </ResponsiveModal>
             <Modal
