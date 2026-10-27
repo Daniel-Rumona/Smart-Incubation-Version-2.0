@@ -519,3 +519,51 @@ html[data-theme='dark'] .admin-modal {
   color: var(--admin-muted);
 }
 
+
+/* ---------- Compact number card (AdminKpiTile compact): a slimmer row of quick figures ---------- */
+
+.admin-kpi.is-compact.ant-card .ant-card-body {
+    padding: 14px 18px;
+}
+
+.admin-kpi.is-compact .admin-kpi-label.ant-typography {
+    margin-bottom: 8px;
+    overflow: hidden;
+    font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.admin-kpi.is-compact .admin-kpi-icon {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+}
+
+.admin-kpi.is-compact .admin-kpi-value {
+    font-size: 24px;
+}
+
+.admin-kpi.is-compact .admin-kpi-value.is-text {
+    font-size: 19px;
+    -webkit-line-clamp: 1;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.admin-kpi.is-compact .admin-kpi-value-line {
+    gap: 8px;
+}
+
+.admin-kpi.is-compact .admin-kpi-bars {
+    height: 40px;
+    gap: 4px;
+}
+
+.admin-kpi.is-compact .admin-kpi-bar {
+    width: 9px;
+}
+
+.admin-kpi.is-compact .admin-kpi-bar-col small {
+    font-size: 8.5px;
+}

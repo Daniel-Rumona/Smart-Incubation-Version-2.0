@@ -8,7 +8,7 @@ import '@/styles/admin-dashboard.css'
 export type AdminKpiTrend = { amount: string; direction: 'up' | 'down' | 'flat'; tone: 'good' | 'bad' | 'neutral'; text: string }
 
 /** A figure in a soft rounded card: icon disc, large number, optional change badge and a small chart on the right. */
-export function AdminKpiTile({ icon, label, value, trend, loading, visual }: {
+export function AdminKpiTile({ icon, label, value, trend, loading, visual, compact }: {
   icon: ReactNode
   label: string
   /** Numbers get thousands separators; text (a duration, a page name) is shown as is. */
@@ -17,9 +17,11 @@ export function AdminKpiTile({ icon, label, value, trend, loading, visual }: {
   loading?: boolean
   /** Small chart beside the figure, e.g. monthly bars or a share ring. */
   visual?: ReactNode
+  /** A slimmer card for rows of quick figures: less padding, smaller figure, one-line label. */
+  compact?: boolean
 }) {
   return (
-    <Card className="admin-card admin-kpi" bordered={false}>
+    <Card className={compact ? 'admin-card admin-kpi is-compact' : 'admin-card admin-kpi'} bordered={false}>
       {loading ? <Skeleton active paragraph={{ rows: 1 }} /> : (
         <div className="admin-kpi-body">
           <div className="admin-kpi-copy">
@@ -64,8 +66,8 @@ export function AdminRoleTag({ role }: { role: string }) {
 }
 
 /** A value's share of a total, as a small ring beside a KPI. */
-export function AdminShareRing({ value, total, muted }: { value: number; total: number; muted?: boolean }) {
+export function AdminShareRing({ value, total, muted, size = 58 }: { value: number; total: number; muted?: boolean; size?: number }) {
   const percent = total ? Math.min(100, Math.round((value / total) * 100)) : 0
   // A plain span for the label: at 100% antd would otherwise colour its own text green.
-  return <Progress type="circle" size={58} percent={percent} strokeWidth={10} strokeColor={muted ? '#a99ffc' : '#6d5dfb'} trailColor="rgba(109, 93, 251, .14)" format={() => <span className="admin-share-ring-label">{percent}%</span>} />
+  return <Progress type="circle" size={size} percent={percent} strokeWidth={10} strokeColor={muted ? '#a99ffc' : '#6d5dfb'} trailColor="rgba(109, 93, 251, .14)" format={() => <span className="admin-share-ring-label">{percent}%</span>} />
 }
