@@ -52,10 +52,8 @@ import { PlatformKpisPage } from '@/pages/admin/PlatformKpisPage'
 import { UserManagementPage } from '@/pages/admin/UserManagementPage'
 import { EmailOperationsPage } from '@/pages/admin/EmailOperationsPage'
 import { SystemSettingsChangeRequestsPage } from '@/pages/admin/SystemSettingsChangeRequestsPage'
-import AgentAvailabilityPage from '@/pages/admin/AgentAvailabilityPage'
 import AgentRegistryPage from '@/pages/admin/AgentRegistryPage'
 import CompanyPlansPage from '@/pages/admin/CompanyPlansPage'
-import AgentRatingsPage from '@/pages/admin/AgentRatingsPage'
 import ConsultantVerificationPage from '@/pages/admin/ConsultantVerificationPage'
 import SalesPitchPage from '@/pages/admin/SalesPitchPage'
 import DirectorDashboardPage from '@/pages/director/DirectorDashboardPage'
@@ -479,16 +477,10 @@ export const appRoutes: AppRoute[] = [
         allowedRoles: [USER_ROLES.SYSTEM_ADMIN],
         audiences: ['platform'], showInNav: true
     },
-    {
-        path: '/admin/agents',
-        labelKey: 'nav.agentAvailability',
-        icon: <SafetyCertificateOutlined />,
-        element: <AgentAvailabilityPage />,
-        allowedRoles: [USER_ROLES.SYSTEM_ADMIN],
-        audiences: ['platform'], showInNav: true
-    },
+    // Availability and ratings are tabs of the Agents page now; the old links land on them.
+    { path: '/admin/agents', labelKey: 'nav.agentAvailability', icon: <SafetyCertificateOutlined />, element: <Navigate to="/admin/agent-registry?tab=availability" replace />, allowedRoles: [USER_ROLES.SYSTEM_ADMIN], audiences: ['platform'], showInNav: false },
     { path: '/admin/plans', labelKey: 'nav.companyPlans', icon: <DollarOutlined />, element: <CompanyPlansPage />, allowedRoles: adminRoles, requiredPermission: 'manage_users', audiences: ['platform'], showInNav: true },
-    { path: '/admin/agent-ratings', labelKey: 'nav.agentRatings', icon: <StarOutlined />, element: <AgentRatingsPage />, allowedRoles: [USER_ROLES.SYSTEM_ADMIN], audiences: ['platform'], showInNav: true },
+    { path: '/admin/agent-ratings', labelKey: 'nav.agentRatings', icon: <StarOutlined />, element: <Navigate to="/admin/agent-registry?tab=ratings" replace />, allowedRoles: [USER_ROLES.SYSTEM_ADMIN], audiences: ['platform'], showInNav: false },
     { path: '/admin/sales-pitch', labelKey: 'nav.salesPitch', icon: <ExperimentOutlined />, element: <SalesPitchPage />, allowedRoles: adminRoles, audiences: ['platform'], showInNav: true },
     { path: '/notifications', labelKey: 'nav.notifications', icon: <BellOutlined />, element: <NotificationCenterPage />, allowedRoles: [USER_ROLES.INCUBATEE, USER_ROLES.OPERATIONS, USER_ROLES.PROJECT_ADMIN, USER_ROLES.PROJECT_MANAGER, USER_ROLES.CONSULTANT], audiences: ['platform', 'applicant', 'incubatee', 'operations'], showInNav: false },
     { path: '/profile', labelKey: 'nav.profile', icon: <ProfileOutlined />, element: <UserProfilePage />, allowedRoles: allRoles.filter(role => role !== USER_ROLES.INCUBATEE), audiences: ['platform'], showInNav: false },
