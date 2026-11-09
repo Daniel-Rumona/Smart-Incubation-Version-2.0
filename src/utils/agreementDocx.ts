@@ -9,13 +9,13 @@ const FONT = 'Times New Roman'
 const SIZE = 22 // half-points (11pt)
 const BULLETS = 'agreement-bullets'
 
-type AgreementImage = { dataUrl: string; width: number; height: number }
+export type AgreementImage = { dataUrl: string; width: number; height: number }
 
 /**
  * An image as PNG bytes for embedding, or null when it can't be read (for example the storage bucket's CORS settings
  * don't allow this site); the document is still produced without it.
  */
-const loadImage = async (url?: string | null, maxPx = 900): Promise<AgreementImage | null> => {
+export const loadImage = async (url?: string | null, maxPx = 900): Promise<AgreementImage | null> => {
   if (!url) return null
   try {
     const response = await fetch(url)
@@ -44,7 +44,7 @@ const loadImage = async (url?: string | null, maxPx = 900): Promise<AgreementIma
   }
 }
 
-const imageBytes = (image: AgreementImage) => {
+export const imageBytes = (image: AgreementImage) => {
   const binary = atob(image.dataUrl.split(',')[1] || '')
   const bytes = new Uint8Array(binary.length)
   for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index)
@@ -52,7 +52,7 @@ const imageBytes = (image: AgreementImage) => {
 }
 
 // Fit an image inside maxW x maxH pixels, keeping its proportions.
-const fit = (image: AgreementImage, maxW: number, maxH: number) => {
+export const fit = (image: AgreementImage, maxW: number, maxH: number) => {
   const ratio = image.width / image.height
   let width = maxW
   let height = width / ratio

@@ -89,6 +89,11 @@ export const IdentityProvider = ({ children }: PropsWithChildren) => {
           smeJourney: role === 'incubatee' ? resolveSmeJourney(profile, isApplicant) : undefined,
           showProgrammes: profile?.smeShowProgrammes === true,
           pendingProgramId: role === 'incubatee' ? pendingProgramIdFrom(profile) : null,
+          ...(role === 'clientorg' ? {
+            organisationId: typeof profile?.organisationId === 'string' ? profile.organisationId : null,
+            organisationName: typeof profile?.organisationName === 'string' ? profile.organisationName : null,
+            orgRole: profile?.orgRole === 'director' ? 'director' as const : 'coordinator' as const,
+          } : {}),
         })
         setError(undefined)
       } catch {

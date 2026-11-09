@@ -13,6 +13,10 @@ import { AvailableWorkError, claimAvailableWork, listAvailableWork } from './ava
 import { FunderComplianceError, funderComplianceSummary } from './funderCompliance.js'
 import { runSmeCheckbackAsks } from './smeCheckbacks.js'
 import { DirectorSetupError, completeDirectorSetup } from './directorSetup.js'
+import { canCreateLearner, canReuseAccountAsLearner, isLearnerRole, learnerInviteWording } from './trainingLearners.js'
+import { OrganisationResultsError, organisationResults } from './organisationResults.js'
+import { CLIENT_ORG_ROLE, canInviteFunder, canInviteOrganisationMember, canReuseAccountAsFunder, canReuseAccountAsOrgMember, funderInviteWording, orgMemberInviteWording, toOrgRole } from './trainingOrganisations.js'
+import { ClientFunderError, clientFunderSummary } from './clientFunderSummary.js'
 import { JoinError, buildConfirmedSetPlan, enrolInDirectProgram, forcedProgramInterventions, getProgramLinkInfo, joinProgram, type JoinInput } from './programJoin.js'
 import {
   processWhatsAppInboundEvent,
@@ -96,6 +100,8 @@ type PlatformUserPayload = {
   phoneIsWhatsApp?: boolean
   alternativePhoneIsWhatsApp?: boolean
   phoneProvider?: string | null
+  /** Learner invites: the course named in the invitation email. */
+  courseTitle?: string
 }
 
 type DeleteUserPayload = {
@@ -1520,7 +1526,15 @@ export const createPlatformUser = onRequest({ region }, (request, response) => {
         jsonResponse(response, 403, { ok: false, error: 'permission_denied' })
         return
       }
-      if (!canManageProjectStaff(admin, payload.role, payload.companyCode)) {
+      // Awareness training learners: only for a company with the module switched on (see trainingLearners.ts).
+      const learner = isLearnerRole(payload.role)
+      const learnerCompanyCode = String(payload.companyCode || '').trim()
+      const learnerCompany = learner && learnerCompanyCode
+        ? (await getFirestore().collection('companies').doc(learnerCompanyCode).get()).data()
+        : undefined
+      if (learner
+        ? !canCreateLearner(admin, learnerCompanyCode, learnerCompany?.awarenessTrainingEnabled === true)
+        : !canManageProjectStaff(admin, payload.role, payload.companyCode)) {
         jsonResponse(response, 403, { ok: false, error: 'permission_denied' })
         return
       }
@@ -1535,7 +1549,11 @@ export const createPlatformUser = onRequest({ region }, (request, response) => {
       let userRecord
       try {
         userRecord = await getAuth().getUserByEmail(email)
-        if (!payload.allowExisting) {
+        // A learner invite never takes over another kind of account; it only reuses this company's own learner.
+        const allowed = learner
+          ? canReuseAccountAsLearner((await getFirestore().collection('users').doc(userRecord.uid).get()).data(), learnerCompanyCode)
+          : payload.allowExisting
+        if (!allowed) {
           jsonResponse(response, 409, { ok: false, error: 'email_already_exists' })
           return
         }
@@ -1612,17 +1630,18 @@ export const createPlatformUser = onRequest({ region }, (request, response) => {
       ])
 
       if (payload.sendEmail && resetLink) {
+        const wording = learner
+          ? learnerInviteWording({ companyName: learnerCompany?.companyName || learnerCompany?.name, courseTitle: payload.courseTitle })
+          : {
+            title: 'Your Smart Incubation account is ready',
+            intro: 'Your Smart Incubation workspace account has been created. Use the secure link below to set your password and continue.',
+            actionLabel: 'Set your password',
+            expiryNote: 'This account setup link is time-sensitive. Contact your programme administrator if you need a new invitation.',
+          }
         await queueTemplateMail({
           to: email,
           source: 'createPlatformUser',
-          template: buildAuthActionTemplate({
-            title: 'Your Smart Incubation account is ready',
-            name,
-            intro: 'Your Smart Incubation workspace account has been created. Use the secure link below to set your password and continue.',
-            actionLabel: 'Set your password',
-            actionUrl: resetLink,
-            expiryNote: 'This account setup link is time-sensitive. Contact your programme administrator if you need a new invitation.',
-          }),
+          template: buildAuthActionTemplate({ ...wording, name, actionUrl: resetLink }),
         })
       }
 
@@ -3400,6 +3419,184 @@ export const getFunderComplianceSummary = onCall({ region }, async (request) => 
     if (error instanceof FunderComplianceError) throw new HttpsError(error.code, error.message)
     throw error
   }
+})
+
+/** A client-module company's report for its funder: revenue, training delivered and ESG reports, as totals (see clientFunderSummary.ts). */
+export const getClientFunderSummary = onCall({ region }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in to see the report.')
+  try {
+    const requested = (request.data || {}) as { funderId?: unknown }
+    return await clientFunderSummary(getFirestore(), request.auth.uid, new Date(), typeof requested.funderId === 'string' ? requested.funderId : undefined)
+  } catch (error) {
+    if (error instanceof ClientFunderError) throw new HttpsError(error.code, error.message)
+    throw error
+  }
+})
+
+/**
+ * A sign-in for someone at a training company's client company: its director (given by the training company's staff)
+ * or a coordinator (added by that director). See trainingOrganisations.ts for who may give which.
+ */
+export const inviteTrainingOrganisationMember = onCall({ region }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in to add people.')
+  const data = (request.data || {}) as Record<string, unknown>
+  const organisationId = String(data.organisationId || '').trim()
+  const email = normalizeEmail(String(data.email || ''))
+  const name = String(data.name || '').trim() || email
+  const orgRole = toOrgRole(data.orgRole)
+  const jobTitle = String(data.jobTitle || '').trim() || null
+  if (!organisationId || !isValidEmail(email)) throw new HttpsError('invalid-argument', 'A company and a valid email address are needed.')
+
+  const db = getFirestore()
+  const [callerSnapshot, organisationSnapshot] = await Promise.all([
+    db.collection('users').doc(request.auth.uid).get(),
+    db.collection('trainingOrganisations').doc(organisationId).get(),
+  ])
+  if (!organisationSnapshot.exists) throw new HttpsError('not-found', 'That company is not registered.')
+  const organisation = {
+    id: organisationSnapshot.id,
+    companyCode: String(organisationSnapshot.data()?.companyCode || '').trim(),
+    name: String(organisationSnapshot.data()?.name || '').trim(),
+  }
+  const company = organisation.companyCode ? (await db.collection('companies').doc(organisation.companyCode).get()).data() : undefined
+  if (!canInviteOrganisationMember(callerSnapshot.data() || {}, organisation, orgRole, company?.awarenessTrainingEnabled === true)) {
+    throw new HttpsError('permission-denied', 'You cannot give this role.')
+  }
+
+  let userRecord
+  try {
+    userRecord = await getAuth().getUserByEmail(email)
+  } catch {
+    userRecord = await getAuth().createUser({ email, displayName: name, emailVerified: false, disabled: false })
+  }
+  const existing = (await db.collection('users').doc(userRecord.uid).get()).data()
+  if (existing && !canReuseAccountAsOrgMember(existing, organisation)) throw new HttpsError('already-exists', 'email_already_exists')
+
+  const setPasswordLink = buildPasswordActionUrl(await getAuth().generatePasswordResetLink(email), { invite: true, request: request.rawRequest })
+  const profile = {
+    uid: userRecord.uid,
+    email,
+    name,
+    displayName: name,
+    role: CLIENT_ORG_ROLE,
+    companyCode: organisation.companyCode,
+    organisationId: organisation.id,
+    organisationName: organisation.name,
+    orgRole,
+    jobTitle,
+    mustChangePassword: true,
+    active: true,
+    status: 'active',
+    updatedAt: FieldValue.serverTimestamp(),
+  }
+  await Promise.all([
+    db.collection('users').doc(userRecord.uid).set({ ...profile, ...(existing ? {} : { createdAt: FieldValue.serverTimestamp() }), invitedBy: request.auth.uid }, { merge: true }),
+    db.collection('userIdentities').doc(userRecord.uid).set({
+      uid: userRecord.uid,
+      email,
+      name,
+      displayName: name,
+      role: CLIENT_ORG_ROLE,
+      companyCode: organisation.companyCode,
+      mustChangePassword: true,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true }),
+  ])
+  await queueTemplateMail({
+    to: email,
+    source: 'inviteTrainingOrganisationMember',
+    template: buildAuthActionTemplate({
+      ...orgMemberInviteWording({ providerName: company?.companyName || company?.name, organisationName: organisation.name, orgRole }),
+      name,
+      actionUrl: setPasswordLink,
+    }),
+  })
+  return { uid: userRecord.uid, setPasswordLink }
+})
+
+/** A client company's own people's assessment results: scores and what is open, never answers (organisationResults.ts). */
+export const getOrganisationTrainingResults = onCall({ region }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in to see your people\'s results.')
+  try {
+    return await organisationResults(getFirestore(), request.auth.uid)
+  } catch (error) {
+    if (error instanceof OrganisationResultsError) throw new HttpsError(error.code, error.message)
+    throw error
+  }
+})
+
+/**
+ * A sign-in for a training company's funder (trainingFunders/{funderId}): role `funder` with users.funderId, so the
+ * funder report shows only what that funder funded. See trainingOrganisations.ts for who may give it.
+ */
+export const inviteTrainingFunder = onCall({ region }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in to add people.')
+  const data = (request.data || {}) as Record<string, unknown>
+  const funderId = String(data.funderId || '').trim()
+  const email = normalizeEmail(String(data.email || ''))
+  const name = String(data.name || '').trim() || email
+  if (!funderId || !isValidEmail(email)) throw new HttpsError('invalid-argument', 'A funder and a valid email address are needed.')
+
+  const db = getFirestore()
+  const [callerSnapshot, funderSnapshot] = await Promise.all([
+    db.collection('users').doc(request.auth.uid).get(),
+    db.collection('trainingFunders').doc(funderId).get(),
+  ])
+  if (!funderSnapshot.exists) throw new HttpsError('not-found', 'That funder is not registered.')
+  const funder = {
+    id: funderSnapshot.id,
+    companyCode: String(funderSnapshot.data()?.companyCode || '').trim(),
+    name: String(funderSnapshot.data()?.name || '').trim(),
+  }
+  const company = funder.companyCode ? (await db.collection('companies').doc(funder.companyCode).get()).data() : undefined
+  const moduleOn = company?.awarenessTrainingEnabled === true || company?.esgReportingEnabled === true
+  if (!canInviteFunder(callerSnapshot.data() || {}, funder, moduleOn)) throw new HttpsError('permission-denied', 'You cannot give funder access.')
+
+  let userRecord
+  try {
+    userRecord = await getAuth().getUserByEmail(email)
+  } catch {
+    userRecord = await getAuth().createUser({ email, displayName: name, emailVerified: false, disabled: false })
+  }
+  const existing = (await db.collection('users').doc(userRecord.uid).get()).data()
+  if (existing && !canReuseAccountAsFunder(existing, funder)) throw new HttpsError('already-exists', 'email_already_exists')
+
+  const setPasswordLink = buildPasswordActionUrl(await getAuth().generatePasswordResetLink(email), { invite: true, request: request.rawRequest })
+  await Promise.all([
+    db.collection('users').doc(userRecord.uid).set({
+      uid: userRecord.uid,
+      email,
+      name,
+      displayName: name,
+      role: 'funder',
+      companyCode: funder.companyCode,
+      funderId: funder.id,
+      jobTitle: funder.name || null,
+      assignedProgramIds: [],
+      mustChangePassword: true,
+      active: true,
+      status: 'active',
+      invitedBy: request.auth.uid,
+      updatedAt: FieldValue.serverTimestamp(),
+      ...(existing ? {} : { createdAt: FieldValue.serverTimestamp() }),
+    }, { merge: true }),
+    db.collection('userIdentities').doc(userRecord.uid).set({
+      uid: userRecord.uid,
+      email,
+      name,
+      displayName: name,
+      role: 'funder',
+      companyCode: funder.companyCode,
+      mustChangePassword: true,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true }),
+  ])
+  await queueTemplateMail({
+    to: email,
+    source: 'inviteTrainingFunder',
+    template: buildAuthActionTemplate({ ...funderInviteWording({ providerName: company?.companyName || company?.name, funderName: funder.name }), name, actionUrl: setPasswordLink }),
+  })
+  return { uid: userRecord.uid, setPasswordLink }
 })
 
 // Consultant marketplace: plans, alerts and the unanswered-request nudge (see marketplace.ts)

@@ -5,6 +5,8 @@ export const getRoleHomePath = (role?: string, isApplicant = false, smeOnboardin
   if (role === 'director') return '/director'
   if (role === 'admin') return '/reception'
   if (role === 'funder') return '/funder'
+  if (role === 'learner') return '/learner'
+  if (role === 'clientorg') return '/company'
   if (role === 'projectadmin') return '/projectadmin'
   if (role === 'operations') return '/operations'
   if (role === 'consultant') return '/consultant'

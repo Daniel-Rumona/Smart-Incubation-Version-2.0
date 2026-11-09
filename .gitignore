@@ -30,6 +30,8 @@ scripts/*service-account.json
 .env.*
 !.env.example
 !**/.env.example
+# Local emulator settings: demo values only, safe to share (see firebase.emulators.json).
+!.env.emulators
 functions/.env
 functions/.env.*
 __pycache__/
@@ -37,3 +39,6 @@ __pycache__/
 
 # Local scratch output
 tmp/
+
+# Saved local emulator data (npm run emulators:save): test accounts and records, local only
+emulator-data/

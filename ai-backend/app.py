@@ -31,6 +31,8 @@ from appointment_responses import create_appointment_responses_router
 from agent_actions import actions_enabled, build_actor, create_agent_actions_router, run_agent_turn, tools_for
 from survey_import_agent import create_survey_import_router
 from course_builder_agent import create_course_builder_router
+from client_modules import is_training_page, library_context, persona_for
+from esg_report_agent import create_esg_report_router
 from intervention_outcome_agent import create_intervention_outcome_router
 from request_auth import create_request_authenticator
 from entitlements import create_feature_authenticator, identity_has_feature
@@ -338,6 +340,11 @@ def _page_collections(page_key: str) -> list[str]:
 
 def _firestore_context_for_page(page: PageContext) -> dict[str, Any]:
     collections: dict[str, Any] = {}
+
+    # Client-module pages (awareness training) carry their own company-scoped data in the page context;
+    # the shared collection snapshots below would add other companies' records.
+    if is_training_page(page.pageKey):
+        return collections
 
     for collection_name in _page_collections(page.pageKey):
         try:
@@ -1072,6 +1079,8 @@ BASIC_PLAN_NOTE = (
 async def page_agent(payload: AgentRequest, authorization: str | None = Header(default=None)) -> dict[str, Any]:
     identity = _require_auth(authorization)
     agentic = identity_has_feature(db, identity, "agenticSupport")
+    # A company running a client module (awareness training) gets an assistant that speaks for its workspace.
+    base_persona, client_persona = persona_for(db, identity, payload.page.pageKey, AGENT_PERSONA)
 
     firestore_context = _firestore_context_for_page(payload.page)
     actions = [action.model_dump() for action in payload.page.allowedActions or []] if agentic else []
@@ -1088,10 +1097,16 @@ async def page_agent(payload: AgentRequest, authorization: str | None = Header(d
         "recentConversation": [turn.model_dump() for turn in payload.history[-8:]],
         "firestore": firestore_context,
     }
+    # A training company's own library: the passages that match the question (shared items only for learners).
+    if client_persona:
+        library = library_context(db, identity, user_message)
+        if library:
+            model_payload["library"] = library
 
     # Staff who may manage appointments/interventions get the tool-using path. The model can only
-    # propose writes; the user confirms them via /api/agent/actions/{id}/confirm.
-    if agentic and actions_enabled():
+    # propose writes; the user confirms them via /api/agent/actions/{id}/confirm. Client-module
+    # assistants have no tools of their own yet, so they answer from the page context only.
+    if agentic and actions_enabled() and not client_persona:
         actor = build_actor(db, identity)
         if tools_for(actor):
             turn = run_agent_turn(
@@ -1103,7 +1118,7 @@ async def page_agent(payload: AgentRequest, authorization: str | None = Header(d
             )
             return {"reply": turn["reply"], "actionKey": None, "proposal": turn["proposal"]}
 
-    persona = AGENT_PERSONA if agentic else AGENT_PERSONA + BASIC_PLAN_NOTE
+    persona = base_persona if agentic else base_persona + BASIC_PLAN_NOTE
     reply = _call_gemini(persona, model_payload)
 
     action_key = None
@@ -1840,6 +1855,7 @@ app.include_router(create_document_provenance_router(_require_auth))
 app.include_router(create_survey_import_router(_call_gemini, _require_auth))
 app.include_router(create_course_builder_router(_call_gemini, _require_auth))
 app.include_router(create_intervention_outcome_router(_call_gemini, _require_auth))
+app.include_router(create_esg_report_router(db, _call_gemini, _require_auth, _extract_json_object))
 app.include_router(create_report_insights_router(_require_auth, _call_gemini, _extract_json_object, GEMINI_MODEL))
 app.include_router(
     create_pitchfy_router(

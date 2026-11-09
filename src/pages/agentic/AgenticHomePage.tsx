@@ -187,6 +187,8 @@ const roleNames: Record<UserRole, string> = {
     get consultant() { return tr('Consultant') },
     get incubatee() { return tr('Incubatee') },
     get funder() { return tr('Funder') },
+    get learner() { return tr('Learner') },
+    get clientorg() { return tr('Client company') },
 }
 
 const roleWorkspacePaths: Record<UserRole, string> = {
@@ -199,6 +201,8 @@ const roleWorkspacePaths: Record<UserRole, string> = {
     consultant: '/consultant',
     incubatee: '/incubatee',
     funder: '/funder',
+    learner: '/learner',
+    clientorg: '/company',
 }
 
 

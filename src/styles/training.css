@@ -1,0 +1,43 @@
+/* Awareness training (client module). Layout comes from the shared dashboard styles; these are the few local touches. */
+
+.training-class-header {
+    margin-bottom: 14px;
+}
+
+.training-back-link.ant-btn {
+    height: auto;
+    padding-inline: 0;
+    align-self: flex-start;
+}
+
+/* Learner: one row per test, the action on the right (below on phones). */
+.learner-test-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 16px;
+}
+
+.learner-test-header {
+    margin-bottom: 14px;
+}
+
+/* Public certificate check (/verify/:id): no app shell, a single centred card. */
+.verify-certificate-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+    background: var(--ant-color-bg-layout, #f5f7f9);
+}
+
+.verify-certificate-card {
+    width: 100%;
+    max-width: 640px;
+}
+
+.verify-certificate-details {
+    text-align: left;
+}

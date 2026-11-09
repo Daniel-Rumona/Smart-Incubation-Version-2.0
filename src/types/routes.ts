@@ -28,6 +28,11 @@ export type AppRoute = {
   /** Independent SMEs (who chose consultants and agents) only see it in the menu once they ask to see programmes. */
   programmesOptIn?: boolean
   showInNav?: boolean
+  /**
+   * Client modules (config/clientModules.ts): the company setting that must be `true`. Unlike the showInNav* rules
+   * this also blocks the URL, so the page is unreachable for every company the module is not switched on for.
+   */
+  requiredSetting?: string
   showInNavWhenAnySetting?: string[]
   /** Only listed in the menu when each of these company settings has exactly this value. */
   showInNavWhenSettingEquals?: Record<string, string>

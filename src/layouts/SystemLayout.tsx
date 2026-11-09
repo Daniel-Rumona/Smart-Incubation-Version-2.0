@@ -49,6 +49,8 @@ import { AgentFab } from '@/components/agent/AgentFab'
 import { GuideMe } from '@/components/guide/GuideMe'
 import { PageGuideProvider } from '@/components/guide/PageGuideContext'
 import { AgenticHomePage } from '@/pages/agentic/AgenticHomePage'
+import { TrainingAgenticHome } from '@/pages/training/TrainingAgenticHome'
+import { CLIENT_MODULES, clientHomeModuleFor, enabledClientModuleSettings } from '@/config/clientModules'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
 import { useSystemSettings } from '@/contexts/SystemSettingsContext'
@@ -79,6 +81,8 @@ const workspaceDashboardPath = (user?: { role?: UserRole, isApplicant?: boolean,
     if (user?.role === 'director') return '/director'
     if (user?.role === 'admin') return '/reception'
     if (user?.role === 'funder') return '/funder'
+    if (user?.role === 'learner') return '/learner'
+    if (user?.role === 'clientorg') return '/company'
     if (user?.role === 'operations' || user?.role === 'projectmanager') return '/operations'
     return '/dashboard'
 }
@@ -189,6 +193,8 @@ const QUICK_LINK_PATHS: Partial<Record<UserRole, string[]>> = {
     [USER_ROLES.FUNDER]: ['/funder/portfolio', '/funder/sectors', '/funder/analytics'],
     [USER_ROLES.ADMIN]: ['/shared/applications', '/shared/interventions/appointments', '/shared/participants'],
     [USER_ROLES.SYSTEM_ADMIN]: ['/admin/users', '/admin/usage', '/admin/agent-registry'],
+    // A training company's client company: all of its pages (phones show the first three).
+    [USER_ROLES.CLIENT_ORG]: ['/company/certificates', '/company/assessments', '/company/documents', '/company/business', '/company/esg'],
 }
 // Home is Programmes; the profile lives under My profile. Marketplace shows only for independent SMEs (the route's own rules).
 const APPLICANT_QUICK_LINK_PATHS = ['/applicant/marketplace', '/applicant/application-tracker', '/applicant/roadmap']
@@ -203,6 +209,8 @@ const ROLE_LABELS: Partial<Record<UserRole, string>> = {
     [USER_ROLES.ADMIN]: 'Admin',
     [USER_ROLES.SYSTEM_ADMIN]: 'System Admin',
     [USER_ROLES.FUNDER]: 'Funder',
+    [USER_ROLES.LEARNER]: 'Learner',
+    [USER_ROLES.CLIENT_ORG]: 'Client company',
 }
 
 const flattenRoutes = (routes: AppRoute[]): AppRoute[] =>
@@ -281,9 +289,29 @@ export const SystemLayout = () => {
     // ...and programme applicants keep to their programme until they are accepted.
     // Until the company's settings load the plan is unknown, so Agentic waits rather than showing and then vanishing
     // for plans without it.
-    const agenticAllowed = settingsReady && entitlements.has('agenticSupport') && journeyAllowsAgentic(user)
+    // A company whose staff home is a client module (Client modules page) opens it instead of the standard dashboard;
+    // its funder opens the module's read-only funder report.
+    const clientHome = clientHomeModuleFor(settings, user?.role)
+    const clientModule = clientHome ? CLIENT_MODULES[clientHome] : null
+    const isClientFunder = Boolean(clientModule) && user?.role === USER_ROLES.FUNDER
+    const homePath = clientModule
+        ? (isClientFunder ? clientModule.funderHomePath || clientModule.homePath : clientModule.homePath)
+        : workspaceDashboardPath(user)
+    // The funder of a client-module company has only its report, so no Agentic home.
+    // Client company accounts of a training company see only their own company's page: no assistant (it would be
+    // given workspace data beyond their company) and no Agentic home.
+    const showAssistant = user?.role !== USER_ROLES.CLIENT_ORG
+    const agenticAllowed = settingsReady && entitlements.has('agenticSupport') && journeyAllowsAgentic(user) && !isClientFunder && showAssistant
     const agenticPending = !settingsReady && requestedShellMode === 'agentic'
     const shellMode: 'agentic' | 'workspace' = agenticAllowed ? requestedShellMode : 'workspace'
+    // Awareness training companies get an Agentic home about their classes, for their staff and their learners.
+    const trainingAgenticHome = settings[CLIENT_MODULES.awarenessTraining.setting] === true
+        && (user?.role === USER_ROLES.LEARNER || (clientHome === 'awarenessTraining' && !isClientFunder))
+
+    useEffect(() => {
+        if (!clientHome || !user || location.pathname !== workspaceDashboardPath(user)) return
+        navigate(homePath, { replace: true })
+    }, [clientHome, homePath, location.pathname, navigate, user])
     // Phones split the shell in two: identity on top, the controls people tap on the bottom bar,
     // and everything set-and-forget behind the account panel.
     const [accountOpen, setAccountOpen] = useState(false)
@@ -416,6 +444,8 @@ export const SystemLayout = () => {
     const audience = useMemo<WorkspaceAudience>(() => {
         if (user?.role === 'incubatee') return user.isApplicant ? 'applicant' : 'incubatee'
         if (user?.role === 'operations' || user?.role === 'projectadmin' || user?.role === 'consultant' || user?.role === 'admin') return 'operations'
+        if (user?.role === 'learner') return 'learner'
+        if (user?.role === 'clientorg') return 'clientorg'
         return 'platform'
     }, [user])
 
@@ -431,6 +461,7 @@ export const SystemLayout = () => {
     const currentRoleCanDeliver = !user?.role || interventionDeliveryRoles.includes(user.role)
     const visibleRoutes = useMemo(() => {
         const routes = filterRoutesByAudience(appRoutes, audience, user?.role, user?.permissions, user)
+        const clientModuleSettings = enabledClientModuleSettings(settings)
 
         const applyAgentDeliveryAccess = (items: typeof routes): typeof routes =>
             items.flatMap((route) => {
@@ -444,24 +475,31 @@ export const SystemLayout = () => {
                 if (hideHumanDelivery && agentSupportMode === 'fully_agentic' && route.path === '/shared/interventions/appointments' && user?.role !== USER_ROLES.CONSULTANT) return []
                 if (hideHumanDelivery && agentSupportMode === 'fully_agentic' && route.path.startsWith('/operations/interventions/') &&!['/operations/interventions/monitoring', '/operations/interventions/assign'].includes(route.path)) return []
                 if (route.trainingSmesOnly && !isTrainingSme) return []
+                // Client modules exist only for the company they are switched on for.
+                if (route.requiredSetting && settings[route.requiredSetting] !== true) return []
                 const children = route.children ? applyAgentDeliveryAccess(route.children as typeof routes) : undefined
                 // Training SMEs: other pages stay reachable from links (the dashboard's tiles) but leave the menu.
                 const trainingHides = isTrainingSme && (!TRAINING_SME_PATHS.has(route.path) || (route.path === '/incubatee/lms' && !hasCourses))
-                return [{ ...route, children, ...(trainingHides ? { showInNav: false } : {}) }]
+                // A company whose home is a client module keeps only that module and the pages it still uses.
+                const clientHides = Boolean(clientModule)
+                    && !(route.requiredSetting && clientModuleSettings.has(route.requiredSetting))
+                    && !clientModule?.keepPaths.includes(route.path)
+                return [{ ...route, children, ...(trainingHides || clientHides ? { showInNav: false } : {}) }]
             })
 
         return applyAgentDeliveryAccess(routes)
-    }, [agentSupportMode, audience, currentRoleCanDeliver, hasCourses, hideHumanDelivery, isTrainingSme, user])
+    }, [agentSupportMode, audience, clientModule, currentRoleCanDeliver, hasCourses, hideHumanDelivery, isTrainingSme, settings, user])
     const selectedKey = useMemo(() => {
         return findSelectedRouteKey(visibleRoutes, location.pathname) || '/'
     }, [location.pathname, visibleRoutes])
     const baseQuickLinks = useMemo(() => {
         const byPath = new Map(flattenRoutes(visibleRoutes).map((route) => [route.path, route]))
-        const homePath = workspaceDashboardPath(user)
         const homeRoute = byPath.get(homePath)
         const home: QuickLink[] = homeRoute ? [{ path: homeRoute.path, label: t('Home'), icon: homeRoute.icon }] : []
 
-        const candidatePaths = isTrainingSme
+        const candidatePaths = clientModule
+            ? clientModule.quickLinkPaths
+            : isTrainingSme
             ? TRAINING_SME_QUICK_LINK_PATHS.filter((path) => path !== '/incubatee/lms' || hasCourses)
             : user?.role === 'incubatee' && user.isApplicant
                 ? APPLICANT_QUICK_LINK_PATHS
@@ -471,11 +509,12 @@ export const SystemLayout = () => {
             .map((path) => byPath.get(path))
             .filter((route): route is AppRoute => Boolean(route))
             .filter(meetsApplicationsRule)
-            .slice(0, 3)
+            // A client module's top bar may hold all its links; the phone tab bar keeps to three (the rest stay in the Menu).
+            .slice(0, clientModule && !isMobile ? clientModule.quickLinkPaths.length : user?.role === USER_ROLES.CLIENT_ORG && !isMobile ? 5 : 3)
             .map((route) => ({ path: route.path, label: t(route.labelKey), icon: route.icon }))
 
         return [...home, ...rest]
-    }, [t, user, visibleRoutes, hasApplications, checkDocuments, isTrainingSme, hasCourses]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [t, user, visibleRoutes, hasApplications, checkDocuments, isTrainingSme, hasCourses, homePath, clientModule, isMobile]) // eslint-disable-line react-hooks/exhaustive-deps
     /** Section › Page trail for the topbar, so orientation survives the navigation modal closing. */
     const currentLocationLabel = useMemo(() => {
         const trail: string[] = []
@@ -566,7 +605,9 @@ export const SystemLayout = () => {
         ? <Tag className="app-project-tag" title={programs[0].name} icon={<FolderOpenOutlined className="app-scope-icon" />}><span className="app-scope-name">{programs[0].name}</span></Tag>
         : null
 
-    const projectSelector = showCompanySelector ? companySelector : isSmeWorkspace ? null : singleProgramTag ?? (
+    // Learners, client companies and the funders of a training company have no programmes to pick between.
+    const hasNoProgrammes = user?.role === USER_ROLES.LEARNER || user?.role === USER_ROLES.CLIENT_ORG || isClientFunder
+    const projectSelector = showCompanySelector ? companySelector : isSmeWorkspace || hasNoProgrammes ? null : singleProgramTag ?? (
         <Select
             value={activeProgramId}
             onChange={setActiveProgramId}
@@ -596,7 +637,7 @@ export const SystemLayout = () => {
         setShellMode(value)
         // The current URL already names a page, so reveal it with its query string intact.
         // Resetting to the role dashboard here is what used to drop parameters such as ?demo=1.
-        if (value === 'workspace' && location.pathname === '/') navigate(workspaceDashboardPath(user))
+        if (value === 'workspace' && location.pathname === '/') navigate(homePath)
     }
 
     const modeSwitch = !agenticAllowed ? null : (
@@ -752,7 +793,7 @@ export const SystemLayout = () => {
                                             onOpenChange={setGuideOpen}
                                         />
 
-                                        {shellMode === 'workspace' && <AgentFab placement="topbar" />}
+                                        {shellMode === 'workspace' && showAssistant && <AgentFab placement="topbar" />}
 
                                         <NotificationBell />
 
@@ -779,7 +820,7 @@ export const SystemLayout = () => {
 
                                         <NotificationBell />
 
-                                        {shellMode === 'workspace' && <AgentFab placement="topbar" />}
+                                        {shellMode === 'workspace' && showAssistant && <AgentFab placement="topbar" />}
 
                                         <Button
                                             type="text"
@@ -802,7 +843,7 @@ export const SystemLayout = () => {
                                 }}
                             >
                                 <ProgramResumeBanner />
-                                {agenticPending ? <PageSkeleton /> : shellMode === 'agentic' ? <AgenticHomePage /> : <Outlet key={location.pathname} />}
+                                {agenticPending ? <PageSkeleton /> : shellMode === 'agentic' ? (trainingAgenticHome ? <TrainingAgenticHome /> : <AgenticHomePage />) : <Outlet key={location.pathname} />}
                             </Content>
 
                             {hasPhoneBottomBar && (() => {

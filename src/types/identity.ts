@@ -22,7 +22,7 @@ export type IdentityPermission =
   | 'view_usage_analytics'
   | 'view_email_operations'
 
-export type WorkspaceAudience = 'platform' | 'applicant' | 'incubatee' | 'operations'
+export type WorkspaceAudience = 'platform' | 'applicant' | 'incubatee' | 'operations' | 'learner' | 'clientorg'
 
 export type FullIdentity = {
   uid: string
@@ -51,6 +51,10 @@ export type FullIdentity = {
   showProgrammes?: boolean
   /** A programme whose link this person opened but has not joined yet (kept on the account, not just the browser). */
   pendingProgramId?: string | null
+  /** Client company accounts (role clientorg): the company in the training company's records, and their role in it. */
+  organisationId?: string | null
+  organisationName?: string | null
+  orgRole?: 'director' | 'coordinator'
 }
 
 export type SmeJourney = 'programme' | 'independent'

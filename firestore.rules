@@ -430,7 +430,16 @@ service cloud.firestore {
         return (hasRole(operationsRoles()) || isReception()) && resource.data.companyCode == myCompany();
       }
 
-      allow get, list: if signedIn() && (isOwnRecord() || isPlatformAdmin() || isCompanyStaffLookup());
+      // A training company's client company (role clientorg) sees the accounts of its own company only
+      // (trainingOrganisationsService lists them by companyCode and organisationId).
+      function isOwnOrganisationLookup() {
+        return hasRole(['clientorg'])
+          && resource.data.get('organisationId', '') != ''
+          && resource.data.get('organisationId', '') == currentUser().get('organisationId', '')
+          && resource.data.get('companyCode', '') == myCompany();
+      }
+
+      allow get, list: if signedIn() && (isOwnRecord() || isPlatformAdmin() || isCompanyStaffLookup() || isOwnOrganisationLookup());
 
       // Self-registration (signup/OAuth) creates one's own profile with a
       // starter role; only systemadmin/admin can create an account for
@@ -441,10 +450,15 @@ service cloud.firestore {
 
       // Nobody may grant themselves a different role, or pick their own company, by self-editing. A company code
       // scopes what a person can read, so it is only ever set by a Cloud Function that checked the programme.
+      // The client company and the role in it (training client companies) scope what a person reads, the same as the
+      // company code, so they are only ever set by a Cloud Function too.
       allow update: if isPlatformAdmin()
         || (isSelf(uid) && request.resource.data.role == resource.data.role
             && request.resource.data.get('companyCode', '') == resource.data.get('companyCode', '')
-            && request.resource.data.get('permissions', null) == resource.data.get('permissions', null))
+            && request.resource.data.get('permissions', null) == resource.data.get('permissions', null)
+            && request.resource.data.get('organisationId', null) == resource.data.get('organisationId', null)
+            && request.resource.data.get('orgRole', null) == resource.data.get('orgRole', null)
+            && request.resource.data.get('funderId', null) == resource.data.get('funderId', null))
         // The one role choice on the welcome page: every sign-up starts as an SME, and a new account with no
         // company, that hasn't picked a role or finished SME onboarding, may switch once to consultant.
         || (isSelf(uid) && resource.data.role == 'incubatee' && request.resource.data.role == 'consultant'
@@ -1054,6 +1068,431 @@ service cloud.firestore {
     // Denying them here is defense-in-depth against a future client trying,
     // not something the Admin SDK needs.
     // ========================================================================
+
+    // ========================================================================
+    // Awareness training (client module)
+    // ========================================================================
+    // Only for companies a platform admin has switched the module on for (companies/{code}.awarenessTrainingEnabled,
+    // see src/config/clientModules.ts). Every other company - and every other role - is refused, whatever the client
+    // sends. Each query in src/services/training*Service.ts filters on companyCode, so lists can be proven too.
+
+    function trainingEnabled(companyCode) {
+      return get(/databases/$(database)/documents/companies/$(companyCode)).data.get('awarenessTrainingEnabled', false) == true;
+    }
+
+    function isTrainingStaff(companyCode) {
+      return hasRole(['projectadmin', 'operations'])
+        && belongsToCompany(companyCode)
+        && trainingEnabled(companyCode);
+    }
+
+    function canReadTraining(data) {
+      return isPlatformAdmin() || isTrainingStaff(data.companyCode);
+    }
+
+    // A record never moves to another company.
+    function keepsTrainingCompany() {
+      return request.resource.data.companyCode == resource.data.companyCode;
+    }
+
+    // Learner accounts (role `learner`) are created only by the createPlatformUser function, for a company with the
+    // module on. They reach only their own records, and only while the module stays on.
+    function isLearner() {
+      return hasRole(['learner']);
+    }
+
+    // A training company's client company (role clientorg, created only by inviteTrainingOrganisationMember): its own
+    // company's records only (users.organisationId), and only while the module stays on.
+    function isClientOrg() {
+      return hasRole(['clientorg']);
+    }
+
+    function isOwnOrganisation(companyCode, organisationId) {
+      return isClientOrg()
+        && belongsToCompany(companyCode)
+        && organisationId != ''
+        && organisationId == currentUser().get('organisationId', '')
+        && trainingEnabled(companyCode);
+    }
+
+    // The training company's funders. Its staff (either client module) keep the list; a funder reads its own record
+    // (users.funderId, set only by the inviteTrainingFunder function). What each funder sees of the company's work is
+    // worked out on the server (getClientFunderSummary), never read directly.
+    match /trainingFunders/{funderId} {
+      allow read: if isClientModuleStaff(resource.data.companyCode)
+        || (hasRole(['funder']) && belongsToCompany(resource.data.companyCode) && currentUser().get('funderId', '') == funderId);
+      allow create: if isClientModuleStaff(request.resource.data.companyCode);
+      allow update: if isClientModuleStaff(resource.data.companyCode) && keepsTrainingCompany();
+      allow delete: if isClientModuleStaff(resource.data.companyCode);
+    }
+
+    // The details a training company asks of its client companies and learners (src/config/trainingDetails.ts).
+    function companyDetailKeys() {
+      return ['registrationNumber', 'dateOfRegistration', 'sector', 'natureOfBusiness', 'yearsOfTrading', 'beeLevel', 'blackOwnedPercent', 'femaleOwnedPercent', 'youthOwnedPercent', 'businessAddress', 'city', 'province', 'employees', 'baselineRevenue'];
+    }
+
+    function learnerDetailKeys() {
+      return ['gender', 'dateOfBirth', 'populationGroup', 'disabilityStatus', 'educationLevel', 'jobTitle'];
+    }
+
+    // What the training company asks for: its staff choose; its learners and client companies read it.
+    match /trainingSettings/{companyCode} {
+      allow read: if canReadTraining({'companyCode': companyCode})
+        || ((isLearner() || isClientOrg()) && belongsToCompany(companyCode) && trainingEnabled(companyCode));
+      allow write: if isTrainingStaff(companyCode) && request.resource.data.companyCode == companyCode;
+    }
+
+    // A client company's business figures over time (one record per month), against its baseline.
+    match /trainingOrgMetrics/{metricId} {
+      function isOwnMetric(data) {
+        return isOwnOrganisation(data.companyCode, data.get('organisationId', ''));
+      }
+      function isValidMetric() {
+        let data = request.resource.data;
+        return data.keys().hasOnly(['companyCode', 'organisationId', 'period', 'revenue', 'employees', 'recordedAt', 'recordedBy'])
+          && data.period is string && data.period.matches('^[0-9]{4}-[0-9]{2}$')
+          && metricId == data.organisationId + '_' + data.period
+          && data.revenue is number && data.revenue >= 0
+          && (data.get('employees', null) == null || (data.employees is number && data.employees >= 0))
+          && data.recordedBy == request.auth.uid;
+      }
+      allow read: if canReadTraining(resource.data) || isOwnMetric(resource.data);
+      allow create: if (isTrainingStaff(request.resource.data.companyCode) || isOwnMetric(request.resource.data)) && isValidMetric();
+      allow update: if (isTrainingStaff(resource.data.companyCode) || isOwnMetric(resource.data))
+        && isValidMetric() && request.resource.data.organisationId == resource.data.organisationId;
+      allow delete: if isTrainingStaff(resource.data.companyCode) || isOwnMetric(resource.data);
+    }
+
+    // The training company's register of its client companies. A company's own people fill in its business details
+    // and documents (nothing else: not its name, contact or anything that links it to records).
+    match /trainingOrganisations/{organisationId} {
+      function isOwnDetailsUpdate() {
+        let after = request.resource.data;
+        return isOwnOrganisation(resource.data.companyCode, organisationId)
+          && changedKeys().hasOnly(['details', 'documents', 'detailsSubmittedAt', 'updatedAt', 'updatedBy'])
+          && after.get('details', {}).keys().hasOnly(companyDetailKeys())
+          && after.get('updatedBy', '') == request.auth.uid;
+      }
+
+      allow read: if canReadTraining(resource.data) || isOwnOrganisation(resource.data.companyCode, organisationId);
+      allow create: if isTrainingStaff(request.resource.data.companyCode);
+      allow update: if (isTrainingStaff(resource.data.companyCode) && keepsTrainingCompany()) || isOwnDetailsUpdate();
+      allow delete: if isTrainingStaff(resource.data.companyCode);
+    }
+
+    // The training company's library. Shared items are also for its learners and client companies (their lists filter
+    // on audience == 'shared'); staff items stay with its own people.
+    match /trainingLibrary/{itemId} {
+      allow read: if canReadTraining(resource.data)
+        || (resource.data.get('audience', '') == 'shared'
+          && (isLearner() || isClientOrg())
+          && belongsToCompany(resource.data.companyCode)
+          && trainingEnabled(resource.data.companyCode));
+      allow create: if isTrainingStaff(request.resource.data.companyCode);
+      allow update: if isTrainingStaff(resource.data.companyCode) && keepsTrainingCompany();
+      allow delete: if isTrainingStaff(resource.data.companyCode);
+    }
+
+    // The text read out of library files, for the assistant (which reads it on the server). Staff only.
+    match /trainingLibraryTexts/{itemId} {
+      allow read: if canReadTraining(resource.data);
+      allow create: if isTrainingStaff(request.resource.data.companyCode);
+      allow update: if isTrainingStaff(resource.data.companyCode) && keepsTrainingCompany();
+      allow delete: if isTrainingStaff(resource.data.companyCode);
+    }
+
+    // Learners read the classes they are in (staff add each invited learner's account to learnerUids). Client
+    // companies read the company's classes to book their people into them.
+    match /trainingClasses/{classId} {
+      allow read: if canReadTraining(resource.data)
+        || (isLearner() && request.auth.uid in resource.data.get('learnerUids', []) && trainingEnabled(resource.data.companyCode))
+        || (isClientOrg() && belongsToCompany(resource.data.companyCode) && trainingEnabled(resource.data.companyCode));
+      allow create: if isTrainingStaff(request.resource.data.companyCode);
+      allow update: if isTrainingStaff(resource.data.companyCode) && keepsTrainingCompany();
+      allow delete: if isTrainingStaff(resource.data.companyCode);
+    }
+
+    // Learners hold personal information (ID numbers): training staff of the same company, and the learner
+    // themselves. A learner may only sign themselves in for a day and upload their own ID copy.
+    match /trainingLearners/{learnerId} {
+      function isOwnLearnerRecord() {
+        return isLearner() && resource.data.get('uid', '') == request.auth.uid && trainingEnabled(resource.data.companyCode);
+      }
+
+      // In a hybrid class the learner also says how they attended (mode: in person or online).
+      function learnerDayMarkOk(changed, attendance, day) {
+        return !changed.hasAny([day])
+          || (attendance[day].present == true
+            && attendance[day].recordedBy == 'learner'
+            && attendance[day].keys().hasOnly(['present', 'recordedAt', 'recordedBy', 'mode'])
+            && attendance[day].get('mode', 'in_person') in ['in_person', 'online']);
+      }
+
+      // One training day at a time, marked present by the learner themselves.
+      function isLearnerSignIn() {
+        let after = request.resource.data.attendance;
+        let changed = after.diff(resource.data.get('attendance', {})).affectedKeys();
+        return changedKeys().hasOnly(['attendance', 'updatedAt'])
+          && changed.size() == 1
+          && changed.hasOnly(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'])
+          && learnerDayMarkOk(changed, after, '1') && learnerDayMarkOk(changed, after, '2')
+          && learnerDayMarkOk(changed, after, '3') && learnerDayMarkOk(changed, after, '4')
+          && learnerDayMarkOk(changed, after, '5') && learnerDayMarkOk(changed, after, '6')
+          && learnerDayMarkOk(changed, after, '7') && learnerDayMarkOk(changed, after, '8')
+          && learnerDayMarkOk(changed, after, '9') && learnerDayMarkOk(changed, after, '10');
+      }
+
+      // The learner's own ID copy, in their own storage folder, waiting for the facilitator to check it.
+      function isLearnerIdUpload() {
+        let document = request.resource.data.idDocument;
+        return changedKeys().hasOnly(['idDocument', 'updatedAt'])
+          && document.uploadedBy == 'learner'
+          && document.status == 'pending'
+          && document.consentAt is string
+          && document.storagePath.matches('training-id-documents/' + resource.data.companyCode + '/' + learnerId + '/.+');
+      }
+
+      // A client company books one of its own people into one of the training company's classes: details only, under
+      // the company's registered name, with no account, attendance, ID copy or certificate.
+      function isOrganisationBooking() {
+        let data = request.resource.data;
+        let organisationId = data.get('organisationId', '');
+        return isOwnOrganisation(data.companyCode, organisationId)
+          && data.keys().hasOnly(['companyCode', 'classId', 'name', 'email', 'idNumber', 'organisation', 'organisationId', 'phone', 'details', 'attendance', 'bookedBy', 'createdAt', 'updatedAt'])
+          && data.get('details', {}).keys().hasOnly(learnerDetailKeys())
+          && data.bookedBy == request.auth.uid
+          && data.attendance.size() == 0
+          && data.name is string && data.name.size() > 0
+          && get(/databases/$(database)/documents/trainingClasses/$(data.classId)).data.companyCode == data.companyCode
+          && data.organisation == get(/databases/$(database)/documents/trainingOrganisations/$(organisationId)).data.name;
+      }
+
+      // ...and may withdraw a booking it made until the learner has been invited.
+      function isOrganisationBookingWithdrawal() {
+        return isOwnOrganisation(resource.data.companyCode, resource.data.get('organisationId', ''))
+          && resource.data.get('bookedBy', '') != ''
+          && resource.data.get('uid', '') == '';
+      }
+
+      // The learner fills in the details their training provider asks of them (known fields only).
+      function isLearnerDetails() {
+        return changedKeys().hasOnly(['details', 'updatedAt'])
+          && request.resource.data.details.keys().hasOnly(learnerDetailKeys());
+      }
+
+      allow read: if canReadTraining(resource.data) || isOwnLearnerRecord()
+        || isOwnOrganisation(resource.data.companyCode, resource.data.get('organisationId', ''));
+      allow create: if isTrainingStaff(request.resource.data.companyCode) || isOrganisationBooking();
+      allow update: if (isTrainingStaff(resource.data.companyCode) && keepsTrainingCompany())
+        || (isOwnLearnerRecord() && (isLearnerSignIn() || isLearnerIdUpload() || isLearnerDetails()));
+      allow delete: if isTrainingStaff(resource.data.companyCode) || isOrganisationBookingWithdrawal();
+    }
+
+    // Learners read the questions to write the test; the memo lives apart (below) and stays staff-only.
+    match /trainingAssessments/{assessmentId} {
+      allow read: if canReadTraining(resource.data)
+        || (isLearner() && belongsToCompany(resource.data.companyCode) && trainingEnabled(resource.data.companyCode));
+      allow create: if isTrainingStaff(request.resource.data.companyCode);
+      allow update: if isTrainingStaff(resource.data.companyCode) && keepsTrainingCompany();
+      allow delete: if isTrainingStaff(resource.data.companyCode);
+    }
+
+    // The memo answers. Kept apart from the assessment so that learners, once they can read the questions, never
+    // receive the answers with them.
+    match /trainingAssessmentMemos/{assessmentId} {
+      allow read: if canReadTraining(resource.data);
+      allow create: if isTrainingStaff(request.resource.data.companyCode);
+      allow update: if isTrainingStaff(resource.data.companyCode) && keepsTrainingCompany();
+      allow delete: if isTrainingStaff(resource.data.companyCode);
+    }
+
+    // Test attempts. The id is `{learnerId}__{pre|post}__{attempt}`, so one attempt can never be started twice.
+    match /trainingSubmissions/{submissionId} {
+      function isOwnSubmission() {
+        return isLearner() && resource.data.get('learnerUid', '') == request.auth.uid && trainingEnabled(resource.data.companyCode);
+      }
+
+      // A learner starts their own online attempt of a test the facilitator has opened, within the attempts allowed.
+      function isLearnerStart() {
+        let data = request.resource.data;
+        let learner = get(/databases/$(database)/documents/trainingLearners/$(data.learnerId)).data;
+        let trainingClass = get(/databases/$(database)/documents/trainingClasses/$(data.classId)).data;
+        return isLearner()
+          && data.learnerUid == request.auth.uid
+          && learner.get('uid', '') == request.auth.uid
+          && learner.classId == data.classId
+          && trainingClass.companyCode == data.companyCode
+          && trainingEnabled(data.companyCode)
+          && data.kind in ['pre', 'post']
+          && trainingClass.get('testsOpen', {}).get(data.kind, false) == true
+          && data.attempt is int
+          && submissionId == data.learnerId + '__' + data.kind + '__' + string(data.attempt)
+          && (data.kind == 'pre'
+            ? data.attempt == 1
+            : (data.attempt >= 1 && data.attempt <= 1 + trainingClass.get('reassessmentsAllowed', 0)))
+          && data.source == 'online'
+          && data.status == 'in_progress'
+          && data.marks.size() == 0
+          && !data.keys().hasAny(['score', 'scorePct', 'markedAt', 'markedBy']);
+      }
+
+      // While writing: answers only, until handed in. Marks are never the learner's to set.
+      function isLearnerAnswer() {
+        return isOwnSubmission()
+          && resource.data.status == 'in_progress'
+          && changedKeys().hasOnly(['answers', 'status', 'submittedAt', 'updatedAt'])
+          && request.resource.data.status in ['in_progress', 'submitted'];
+      }
+
+      // Checking that an attempt does not exist yet (before starting one) reveals nothing.
+      allow get: if (resource == null && hasRole(['projectadmin', 'operations', 'learner']))
+        || (resource != null && (canReadTraining(resource.data) || isOwnSubmission()));
+      allow list: if canReadTraining(resource.data) || isOwnSubmission();
+      allow create: if isTrainingStaff(request.resource.data.companyCode) || isLearnerStart();
+      allow update: if (isTrainingStaff(resource.data.companyCode) && keepsTrainingCompany()) || isLearnerAnswer();
+      allow delete: if isTrainingStaff(resource.data.companyCode);
+    }
+
+    // Surveys of the training company: feedback forms for learners and questionnaires for client companies. Staff
+    // build, open and close them. Once open (or closed) a survey is read by its audience in the same company.
+    match /trainingSurveys/{surveyId} {
+      function isSurveyAudience(data) {
+        return data.status in ['open', 'closed']
+          && belongsToCompany(data.companyCode)
+          && trainingEnabled(data.companyCode)
+          && ((data.audience == 'learners' && isLearner()) || (data.audience == 'companies' && isClientOrg()));
+      }
+
+      allow read: if canReadTraining(resource.data) || isSurveyAudience(resource.data);
+      allow create: if isTrainingStaff(request.resource.data.companyCode);
+      allow update: if isTrainingStaff(resource.data.companyCode) && keepsTrainingCompany();
+      allow delete: if isTrainingStaff(resource.data.companyCode);
+    }
+
+    // One set of answers per person and survey (id `{surveyId}__{uid}`), written by that person while the survey is
+    // open: a learner for one of the survey's classes they are in, a client company for its own organisation.
+    match /trainingSurveyResponses/{responseId} {
+      function isOwnResponse() {
+        return resource.data.get('respondentUid', '') == request.auth.uid;
+      }
+
+      function isValidResponse(data) {
+        let survey = get(/databases/$(database)/documents/trainingSurveys/$(data.surveyId)).data;
+        return data.keys().hasOnly(['companyCode', 'surveyId', 'respondentUid', 'audience', 'classId', 'organisationId', 'name', 'organisation', 'answers', 'submittedAt', 'updatedAt'])
+          && data.respondentUid == request.auth.uid
+          && responseId == data.surveyId + '__' + request.auth.uid
+          && survey.companyCode == data.companyCode
+          && survey.status == 'open'
+          && survey.audience == data.audience
+          && belongsToCompany(data.companyCode)
+          && trainingEnabled(data.companyCode)
+          && data.answers is map
+          && ((data.audience == 'learners'
+              && isLearner()
+              && request.auth.uid in get(/databases/$(database)/documents/trainingClasses/$(data.classId)).data.get('learnerUids', [])
+              && (survey.get('classIds', []).size() == 0 || data.classId in survey.get('classIds', [])))
+            || (data.audience == 'companies'
+              && isClientOrg()
+              && data.organisationId != ''
+              && data.organisationId == currentUser().get('organisationId', '')));
+      }
+
+      // Checking whether one's own answers exist yet reveals nothing.
+      allow get: if (resource == null && hasRole(['learner', 'clientorg']))
+        || (resource != null && (canReadTraining(resource.data) || isOwnResponse()));
+      allow list: if canReadTraining(resource.data) || isOwnResponse();
+      allow create: if isValidResponse(request.resource.data);
+      allow update: if isOwnResponse() && isValidResponse(request.resource.data) && keepsTrainingCompany();
+      allow delete: if isTrainingStaff(resource.data.companyCode);
+    }
+
+    match /trainingGroups/{groupId} {
+      allow read: if canReadTraining(resource.data);
+      allow create: if isTrainingStaff(request.resource.data.companyCode);
+      allow update: if isTrainingStaff(resource.data.companyCode) && keepsTrainingCompany();
+      allow delete: if isTrainingStaff(resource.data.companyCode);
+    }
+
+    // Certificates of completion. Never deleted: a wrong one is cancelled, and can be reissued under a new number.
+    match /trainingCertificates/{certificateId} {
+      allow read: if canReadTraining(resource.data)
+        || (isLearner() && resource.data.get('learnerUid', '') == request.auth.uid && trainingEnabled(resource.data.companyCode))
+        // A client company: the certificates of its own people.
+        || isOwnOrganisation(resource.data.companyCode, resource.data.get('organisationId', ''));
+      allow create: if isTrainingStaff(request.resource.data.companyCode) && request.resource.data.status == 'valid';
+      allow update: if isTrainingStaff(resource.data.companyCode) && keepsTrainingCompany();
+      allow delete: if false;
+    }
+
+    // What a certificate's link and QR code show anyone, signed in or not: one record at a time (the id is the random
+    // certificate id printed on it), never a list, and only the fields printed on the certificate. It stays readable
+    // even if the module is later switched off, because issued certificates stay checkable.
+    match /certificateVerifications/{certificateId} {
+      function publicFieldsOnly() {
+        return request.resource.data.keys().hasOnly(['companyCode', 'certificateNumber', 'learnerName', 'courseTitle', 'trainingDates', 'providerName', 'issuedOn', 'status', 'cancelledAt']);
+      }
+
+      allow get: if true;
+      allow list: if false;
+      allow create: if isTrainingStaff(request.resource.data.companyCode) && publicFieldsOnly() && request.resource.data.status == 'valid';
+      allow update: if isTrainingStaff(resource.data.companyCode) && keepsTrainingCompany() && publicFieldsOnly();
+      allow delete: if false;
+    }
+
+    // Certificate numbers run per company per year; the counter id is `{companyCode}_{year}`.
+    match /trainingCertificateCounters/{counterId} {
+      function isOwnCounter() {
+        return isTrainingStaff(myCompany()) && counterId.matches(myCompany() + '_[0-9]{4}');
+      }
+
+      allow read: if isOwnCounter();
+      allow create, update: if isOwnCounter() && request.resource.data.companyCode == myCompany() && request.resource.data.next is int;
+      allow delete: if false;
+    }
+
+    // ESG reporting (client module) and the client-module company's own revenue
+    // ========================================================================
+    // ESG reports are switched on per company (companies/{code}.esgReportingEnabled). Revenue belongs to a company
+    // running either client module. Only its own staff read or write these; the company's funder never reads them
+    // directly, only the totals the getClientFunderSummary function works out (functions/src/clientFunderSummary.ts).
+
+    function esgEnabled(companyCode) {
+      return get(/databases/$(database)/documents/companies/$(companyCode)).data.get('esgReportingEnabled', false) == true;
+    }
+
+    function isEsgStaff(companyCode) {
+      return hasRole(['projectadmin', 'operations'])
+        && belongsToCompany(companyCode)
+        && esgEnabled(companyCode);
+    }
+
+    function isClientModuleStaff(companyCode) {
+      return hasRole(['projectadmin', 'operations'])
+        && belongsToCompany(companyCode)
+        && (trainingEnabled(companyCode) || esgEnabled(companyCode));
+    }
+
+    match /esgReports/{reportId} {
+      // A registered client company sees its own report once it is shared for review or final (never a draft).
+      allow read: if isPlatformAdmin() || isEsgStaff(resource.data.companyCode)
+        || (isOwnOrganisation(resource.data.companyCode, resource.data.get('organisationId', '')) && resource.data.status in ['in_review', 'final']);
+      allow create: if isEsgStaff(request.resource.data.companyCode);
+      allow update: if isEsgStaff(resource.data.companyCode) && keepsTrainingCompany();
+      allow delete: if isEsgStaff(resource.data.companyCode);
+    }
+
+    match /clientRevenue/{entryId} {
+      function isEntry() {
+        return request.resource.data.amount is number && request.resource.data.amount >= 0
+          && request.resource.data['service'] in ['training', 'esg_reporting', 'other']
+          && request.resource.data.status in ['invoiced', 'paid'];
+      }
+
+      allow read: if isPlatformAdmin() || isClientModuleStaff(resource.data.companyCode);
+      allow create: if isClientModuleStaff(request.resource.data.companyCode) && isEntry();
+      allow update: if isClientModuleStaff(resource.data.companyCode) && keepsTrainingCompany() && isEntry();
+      allow delete: if isClientModuleStaff(resource.data.companyCode);
+    }
 
     match /adminAuditLogs/{entryId} { allow read, write: if false; }
     match /directorInvites/{entryId} { allow read, write: if false; }

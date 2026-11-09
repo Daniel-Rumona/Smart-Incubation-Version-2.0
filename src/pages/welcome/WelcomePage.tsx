@@ -75,7 +75,7 @@ type PasswordValues = {
 }
 
 /** Roles only staff can give; people with them never choose a role in the welcome flow. */
-const ASSIGNED_ONLY_ROLES: string[] = ['systemadmin', 'admin', 'projectadmin', 'projectmanager', 'operations', 'funder']
+const ASSIGNED_ONLY_ROLES: string[] = ['systemadmin', 'admin', 'projectadmin', 'projectmanager', 'operations', 'funder', 'learner', 'clientorg']
 
 type WelcomeStepKey =
     | 'intro'

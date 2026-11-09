@@ -1,9 +1,16 @@
 import {
     AimOutlined,
     ApartmentOutlined,
+    AppstoreAddOutlined,
+    FundOutlined,
+    GlobalOutlined,
+    FileTextOutlined,
+    FileDoneOutlined,
+    SolutionOutlined,
     BellOutlined,
     DollarOutlined,
     AuditOutlined,
+    BankOutlined,
     ExperimentOutlined,
     AudioOutlined,
     BarChartOutlined,
@@ -15,6 +22,7 @@ import {
     FileWordOutlined,
     FormOutlined,
     HeatMapOutlined,
+    HomeOutlined,
     IdcardOutlined,
     InboxOutlined,
     ExclamationCircleOutlined,
@@ -54,6 +62,31 @@ import { EmailOperationsPage } from '@/pages/admin/EmailOperationsPage'
 import { SystemSettingsChangeRequestsPage } from '@/pages/admin/SystemSettingsChangeRequestsPage'
 import AgentRegistryPage from '@/pages/admin/AgentRegistryPage'
 import CompanyPlansPage from '@/pages/admin/CompanyPlansPage'
+import ClientModulesPage from '@/pages/admin/ClientModulesPage'
+import TrainingHomePage from '@/pages/training/TrainingHomePage'
+import TrainingClassesPage from '@/pages/training/TrainingClassesPage'
+import TrainingCompaniesPage from '@/pages/training/TrainingCompaniesPage'
+import TrainingLibraryPage from '@/pages/training/TrainingLibraryPage'
+import TrainingSurveysPage from '@/pages/training/TrainingSurveysPage'
+import TrainingSurveyPage from '@/pages/training/TrainingSurveyPage'
+import SurveyAnswerPage from '@/pages/training/SurveyAnswerPage'
+import CompanySurveysPage from '@/pages/company/CompanySurveysPage'
+import CompanyTrainingPage from '@/pages/training/CompanyTrainingPage'
+import CompanyCertificatesPage from '@/pages/company/CompanyCertificatesPage'
+import CompanyAssessmentsPage from '@/pages/company/CompanyAssessmentsPage'
+import CompanyDocumentsPage from '@/pages/company/CompanyDocumentsPage'
+import CompanyBusinessPage from '@/pages/company/CompanyBusinessPage'
+import CompanyEsgPage from '@/pages/company/CompanyEsgPage'
+import TrainingClassPage from '@/pages/training/TrainingClassPage'
+import TrainingAssessmentsPage from '@/pages/training/TrainingAssessmentsPage'
+import RevenuePage from '@/pages/training/RevenuePage'
+import FunderReportPage from '@/pages/training/FunderReportPage'
+import EsgReportsPage from '@/pages/esg/EsgReportsPage'
+import EsgReportPage from '@/pages/esg/EsgReportPage'
+import LearnerHomePage from '@/pages/learner/LearnerHomePage'
+import LearnerTestPage from '@/pages/learner/LearnerTestPage'
+import VerifyCertificatePage from '@/pages/verify/VerifyCertificatePage'
+import { CLIENT_MODULES } from '@/config/clientModules'
 import ConsultantVerificationPage from '@/pages/admin/ConsultantVerificationPage'
 import SalesPitchPage from '@/pages/admin/SalesPitchPage'
 import DirectorDashboardPage from '@/pages/director/DirectorDashboardPage'
@@ -145,11 +178,15 @@ export const publicRoutes: PublicRoute[] = [
     { path: '/welcome', labelKey: 'nav.welcome', element: WelcomePage },
     { path: '/consent', labelKey: 'nav.consent', element: ConsentPage },
     { path: '/join/:programId', labelKey: 'nav.join', element: JoinProgramPage },
+    // Public check behind a training certificate's link and QR code (no sign-in).
+    { path: '/verify/:certificateId', labelKey: 'nav.verifyCertificate', element: VerifyCertificatePage },
 ]
 
 const allRoles = Object.values(USER_ROLES)
 // Directors and funders have their own home (/director, /funder), so the generic dashboard isn't theirs.
-const dashboardRoles = allRoles.filter(role => role !== USER_ROLES.DIRECTOR && role !== USER_ROLES.FUNDER)
+const dashboardRoles = allRoles.filter(role => role !== USER_ROLES.DIRECTOR && role !== USER_ROLES.FUNDER && role !== USER_ROLES.LEARNER && role !== USER_ROLES.CLIENT_ORG)
+// Learners and client companies only ever see their own training pages, so the shared all-roles pages leave them out.
+const allRolesExceptLearners = allRoles.filter(role => role !== USER_ROLES.LEARNER && role !== USER_ROLES.CLIENT_ORG)
 const operationsRoles = [
     USER_ROLES.SYSTEM_ADMIN,
     USER_ROLES.DIRECTOR,
@@ -177,6 +214,16 @@ const interventionWorkspaceRoles = [
 const consultantRoles = [USER_ROLES.CONSULTANT]
 const receptionRoles = [USER_ROLES.ADMIN]
 const funderRoles = [USER_ROLES.FUNDER]
+// Awareness training is a client module: only companies it is switched on for see these pages (requiredSetting).
+const trainingStaffRoles = [USER_ROLES.PROJECT_ADMIN, USER_ROLES.OPERATIONS]
+const learnerRoles = [USER_ROLES.LEARNER]
+// A training company's client companies (their director and coordinators): their own company's page only.
+const clientOrgRoles = [USER_ROLES.CLIENT_ORG]
+const awarenessTrainingSetting = CLIENT_MODULES.awarenessTraining.setting
+// ESG reporting is a client module of its own (often switched on with awareness training).
+const esgReportingSetting = CLIENT_MODULES.esgReporting.setting
+// The training company's funder sees a read-only report of its work.
+const funderReportRoles = [...trainingStaffRoles, USER_ROLES.FUNDER]
 const placeholder = <ComingSoonPage />
 
 export const appRoutes: AppRoute[] = [
@@ -447,6 +494,54 @@ export const appRoutes: AppRoute[] = [
     { path: '/operations/lms/builder', labelKey: 'nav.courseBuilder', icon: <ReadOutlined />, element: <CourseBuilderPage />, allowedRoles: operationsRoles, audiences: ['operations'], showInNav: false },
     { path: '/operations/lms/builder/:id', labelKey: 'nav.courseBuilder', icon: <ReadOutlined />, element: <CourseBuilderPage />, allowedRoles: operationsRoles, audiences: ['operations'], showInNav: false },
     { path: '/operations/reports', labelKey: 'nav.reports', icon: <BarChartOutlined />, element: <OperationsReportsPage />, allowedRoles: operationsDashboardRoles, requiredPermission: 'view_reports', audiences: ['operations'], showInNav: true },
+    {
+        path: '/training',
+        labelKey: 'nav.awarenessTraining',
+        icon: <SolutionOutlined />,
+        element: placeholder,
+        allowedRoles: trainingStaffRoles,
+        requiredSetting: awarenessTrainingSetting,
+        audiences: ['operations'],
+        showInNav: true,
+        children: [
+            { path: '/training/home', labelKey: 'nav.trainingHome', icon: <HomeOutlined />, element: <TrainingHomePage />, allowedRoles: trainingStaffRoles, requiredSetting: awarenessTrainingSetting, audiences: ['operations'], showInNav: true, agentEnabled: true },
+            { path: '/training/classes', labelKey: 'nav.trainingClasses', icon: <CalendarOutlined />, element: <TrainingClassesPage />, allowedRoles: trainingStaffRoles, requiredSetting: awarenessTrainingSetting, audiences: ['operations'], showInNav: true, agentEnabled: true },
+            { path: '/training/assessments', labelKey: 'nav.trainingAssessments', icon: <FileDoneOutlined />, element: <TrainingAssessmentsPage />, allowedRoles: trainingStaffRoles, requiredSetting: awarenessTrainingSetting, audiences: ['operations'], showInNav: true, agentEnabled: true },
+            { path: '/training/companies', labelKey: 'nav.trainingCompanies', icon: <BankOutlined />, element: <TrainingCompaniesPage />, allowedRoles: trainingStaffRoles, requiredSetting: awarenessTrainingSetting, audiences: ['operations'], showInNav: true, agentEnabled: true },
+            { path: '/training/surveys', labelKey: 'nav.trainingSurveys', icon: <FormOutlined />, element: <TrainingSurveysPage />, allowedRoles: trainingStaffRoles, requiredSetting: awarenessTrainingSetting, audiences: ['operations'], showInNav: true, agentEnabled: true },
+            { path: '/training/library', labelKey: 'nav.trainingLibrary', icon: <FolderOpenOutlined />, element: <TrainingLibraryPage />, allowedRoles: trainingStaffRoles, requiredSetting: awarenessTrainingSetting, audiences: ['operations'], showInNav: true, agentEnabled: true },
+            { path: '/training/revenue', labelKey: 'nav.revenue', icon: <DollarOutlined />, element: <RevenuePage />, allowedRoles: trainingStaffRoles, requiredSetting: awarenessTrainingSetting, audiences: ['operations'], showInNav: true, agentEnabled: true },
+        ],
+    },
+    { path: '/training/funder', labelKey: 'nav.funderReport', icon: <FundOutlined />, element: <FunderReportPage />, allowedRoles: funderReportRoles, requiredSetting: awarenessTrainingSetting, audiences: ['operations', 'platform'], showInNav: true, agentEnabled: true },
+    {
+        path: '/esg',
+        labelKey: 'nav.esgReporting',
+        icon: <GlobalOutlined />,
+        element: placeholder,
+        allowedRoles: trainingStaffRoles,
+        requiredSetting: esgReportingSetting,
+        audiences: ['operations'],
+        showInNav: true,
+        children: [
+            { path: '/esg/reports', labelKey: 'nav.esgReports', icon: <FileTextOutlined />, element: <EsgReportsPage />, allowedRoles: trainingStaffRoles, requiredSetting: esgReportingSetting, audiences: ['operations'], showInNav: true, agentEnabled: true },
+        ],
+    },
+    { path: '/esg/reports/:reportId', labelKey: 'nav.esgReport', icon: <FileTextOutlined />, element: <EsgReportPage />, allowedRoles: trainingStaffRoles, requiredSetting: esgReportingSetting, audiences: ['operations'], showInNav: false, agentEnabled: true },
+    { path: '/training/surveys/:surveyId', labelKey: 'nav.trainingSurvey', icon: <FormOutlined />, element: <TrainingSurveyPage />, allowedRoles: trainingStaffRoles, requiredSetting: awarenessTrainingSetting, audiences: ['operations'], showInNav: false, agentEnabled: true },
+    { path: '/training/classes/:classId', labelKey: 'nav.trainingClass', icon: <CalendarOutlined />, element: <TrainingClassPage />, allowedRoles: trainingStaffRoles, requiredSetting: awarenessTrainingSetting, audiences: ['operations'], showInNav: false, agentEnabled: true },
+    { path: '/company', labelKey: 'nav.companyTraining', icon: <BankOutlined />, element: <CompanyTrainingPage />, allowedRoles: clientOrgRoles, requiredSetting: awarenessTrainingSetting, audiences: ['clientorg'], showInNav: true },
+    { path: '/company/certificates', labelKey: 'nav.companyCertificates', icon: <SafetyCertificateOutlined />, element: <CompanyCertificatesPage />, allowedRoles: clientOrgRoles, requiredSetting: awarenessTrainingSetting, audiences: ['clientorg'], showInNav: true },
+    { path: '/company/assessments', labelKey: 'nav.companyAssessments', icon: <FileDoneOutlined />, element: <CompanyAssessmentsPage />, allowedRoles: clientOrgRoles, requiredSetting: awarenessTrainingSetting, audiences: ['clientorg'], showInNav: true },
+    { path: '/company/documents', labelKey: 'nav.companyDocuments', icon: <FolderOpenOutlined />, element: <CompanyDocumentsPage />, allowedRoles: clientOrgRoles, requiredSetting: awarenessTrainingSetting, audiences: ['clientorg'], showInNav: true },
+    { path: '/company/business', labelKey: 'nav.companyBusiness', icon: <FundOutlined />, element: <CompanyBusinessPage />, allowedRoles: clientOrgRoles, requiredSetting: awarenessTrainingSetting, audiences: ['clientorg'], showInNav: true },
+    { path: '/company/surveys', labelKey: 'nav.companySurveys', icon: <FormOutlined />, element: <CompanySurveysPage />, allowedRoles: clientOrgRoles, requiredSetting: awarenessTrainingSetting, audiences: ['clientorg'], showInNav: true },
+    { path: '/company/surveys/:surveyId', labelKey: 'nav.companySurvey', icon: <FormOutlined />, element: <SurveyAnswerPage />, allowedRoles: clientOrgRoles, requiredSetting: awarenessTrainingSetting, audiences: ['clientorg'], showInNav: false },
+    { path: '/company/esg', labelKey: 'nav.companyEsg', icon: <FileTextOutlined />, element: <CompanyEsgPage />, allowedRoles: clientOrgRoles, requiredSetting: esgReportingSetting, audiences: ['clientorg'], showInNav: true },
+    // Learners of an awareness training company: their own training only.
+    { path: '/learner', labelKey: 'nav.myTraining', icon: <SolutionOutlined />, element: <LearnerHomePage />, allowedRoles: learnerRoles, requiredSetting: awarenessTrainingSetting, audiences: ['learner'], showInNav: true, agentEnabled: true },
+    { path: '/learner/surveys/:surveyId', labelKey: 'nav.mySurvey', icon: <FormOutlined />, element: <SurveyAnswerPage />, allowedRoles: learnerRoles, requiredSetting: awarenessTrainingSetting, audiences: ['learner'], showInNav: false },
+    { path: '/learner/tests/:submissionId', labelKey: 'nav.myTest', icon: <FileDoneOutlined />, element: <LearnerTestPage />, allowedRoles: learnerRoles, requiredSetting: awarenessTrainingSetting, audiences: ['learner'], showInNav: false, agentEnabled: true },
     // One KPIs page for every role that works with company programme KPIs; editing is limited to operations and directors inside the page (and in firestore.rules).
     // Platform admins use System KPIs (/admin/kpis) instead, so they are left out here.
     { path: '/kpis', labelKey: 'nav.kpis', icon: <AimOutlined />, element: <KpisPage />, allowedRoles: [USER_ROLES.DIRECTOR, USER_ROLES.PROJECT_MANAGER, USER_ROLES.OPERATIONS, USER_ROLES.PROJECT_ADMIN, USER_ROLES.CONSULTANT], audiences: ['operations', 'platform'], hideFromMarketplaceConsultants: true, showInNav: true },
@@ -465,6 +560,7 @@ export const appRoutes: AppRoute[] = [
     { path: '/director/settings', labelKey: 'nav.companySettings', icon: <SettingOutlined />, element: <CompanySettingsPage />, allowedRoles: directorRoles, audiences: ['platform'], showInNav: true },
     { path: '/director/reports', labelKey: 'nav.reports', icon: <BarChartOutlined />, element: <DirectorReportsPage />, allowedRoles: directorRoles, requiredPermission: 'view_reports', audiences: ['platform'], showInNav: true },
     { path: '/admin/users', labelKey: 'nav.users', icon: <UserOutlined />, element: <UserManagementPage />, allowedRoles: adminRoles, requiredPermission: 'manage_users', audiences: ['platform'], showInNav: true },
+    { path: '/admin/client-modules', labelKey: 'nav.clientModules', icon: <AppstoreAddOutlined />, element: <ClientModulesPage />, allowedRoles: adminRoles, requiredPermission: 'manage_users', audiences: ['platform'], showInNav: true },
     { path: '/admin/consultant-verification', labelKey: 'nav.consultantVerification', icon: <SafetyCertificateOutlined />, element: <ConsultantVerificationPage />, allowedRoles: [USER_ROLES.SYSTEM_ADMIN], requiredPermission: 'manage_users', audiences: ['platform'], showInNav: true },
     { path: '/admin/usage', labelKey: 'nav.usageAnalytics', icon: <BarChartOutlined />, element: <UsageAnalyticsPage />, allowedRoles: adminRoles, requiredPermission: 'view_usage_analytics', audiences: ['platform'], showInNav: true },
     { path: '/admin/kpis', labelKey: 'nav.systemKpis', icon: <AimOutlined />, element: <PlatformKpisPage />, allowedRoles: adminRoles, requiredPermission: 'view_usage_analytics', audiences: ['platform'], showInNav: true },
@@ -484,6 +580,6 @@ export const appRoutes: AppRoute[] = [
     { path: '/admin/agent-ratings', labelKey: 'nav.agentRatings', icon: <StarOutlined />, element: <Navigate to="/admin/agent-registry?tab=ratings" replace />, allowedRoles: [USER_ROLES.SYSTEM_ADMIN], audiences: ['platform'], showInNav: false },
     { path: '/admin/sales-pitch', labelKey: 'nav.salesPitch', icon: <ExperimentOutlined />, element: <SalesPitchPage />, allowedRoles: adminRoles, audiences: ['platform'], showInNav: true },
     { path: '/notifications', labelKey: 'nav.notifications', icon: <BellOutlined />, element: <NotificationCenterPage />, allowedRoles: [USER_ROLES.INCUBATEE, USER_ROLES.OPERATIONS, USER_ROLES.PROJECT_ADMIN, USER_ROLES.PROJECT_MANAGER, USER_ROLES.CONSULTANT], audiences: ['platform', 'applicant', 'incubatee', 'operations'], showInNav: false },
-    { path: '/profile', labelKey: 'nav.profile', icon: <ProfileOutlined />, element: <UserProfilePage />, allowedRoles: allRoles.filter(role => role !== USER_ROLES.INCUBATEE), audiences: ['platform'], showInNav: false },
-    { path: '/settings', labelKey: 'nav.companySettings', icon: <SettingOutlined />, element: <CompanySettingsPage />, allowedRoles: allRoles, audiences: ['platform'], showInNav: false },
+    { path: '/profile', labelKey: 'nav.profile', icon: <ProfileOutlined />, element: <UserProfilePage />, allowedRoles: allRolesExceptLearners.filter(role => role !== USER_ROLES.INCUBATEE), audiences: ['platform'], showInNav: false },
+    { path: '/settings', labelKey: 'nav.companySettings', icon: <SettingOutlined />, element: <CompanySettingsPage />, allowedRoles: allRolesExceptLearners, audiences: ['platform'], showInNav: false },
 ]
