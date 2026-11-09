@@ -18,6 +18,16 @@
 .impact-compare-line { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--ant-color-fill-quaternary); font-size: 13px; }
 .impact-band-filter { display: inline-flex; align-items: center; margin-inline-end: 0; padding: 4px 10px; border-radius: 999px; }
 
+/* Paired chart cards share a row height. */
+.operations-impact-analysis-page .impact-chart-card { height: 100%; }
+.impact-chart-card .ant-card-extra { margin-inline-start: 12px; }
+
+.impact-compare-block + .impact-compare-block { margin-top: 12px; }
+.impact-compare-block > .ant-typography { display: block; font-size: 13px; }
+
+.impact-after-support { display: inline-flex; flex-direction: column; gap: 4px; }
+.impact-after-support .ant-tag { margin-inline-end: 0; }
+
 .impact-change { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .impact-change .ant-tag { margin-inline-end: 0; }
 
