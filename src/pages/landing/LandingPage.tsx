@@ -25,13 +25,15 @@ import { workspaceDashboardPath } from '@/utils/workspacePath'
 import { HolidayBanner } from '@/components/shared/HolidayBanner'
 import { LanguageMenu } from '@/components/shared/LanguageMenu'
 import { trackEvent } from '@/lib/analytics'
-import { CONTACT_EMAIL, CONTACT_PHONE, PRIVACY_URL, TERMS_URL } from '@/config/company'
+import { CONTACT_EMAIL, CONTACT_PHONE, DEMO_REQUEST_CC, DEMO_REQUEST_TO, PRIVACY_URL, TERMS_URL } from '@/config/company'
 import LandingProductPreview from './LandingProductPreview'
 import '@/styles/landing/LandingPage.css'
 
 const SIGNUP_PATH = '/auth?mode=signup'
 const SIGNIN_PATH = '/auth'
 const mailto = (subject: string) => `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}`
+// Demo requests go to Daniel with Prince copied.
+const demoMailto = `mailto:${DEMO_REQUEST_TO}?cc=${DEMO_REQUEST_CC}&subject=${encodeURIComponent('Smart Incubation demo request')}`
 
 // Headline numbers shown under the hero. The strip stays hidden while this list is empty.
 // Example: { value: '1,000+', label: 'SMEs supported' }
@@ -136,7 +138,6 @@ const LandingPage: React.FC = () => {
     // Someone already signed in sees a way straight back to their workspace instead of sign-up prompts.
     const { user, loading: identityLoading } = useIdentity()
     const signedIn = !identityLoading && !!user
-    const firstName = String(user?.displayName || user?.name || '').trim().split(/\s+/)[0] || ''
 
     useEffect(() => {
         registerPageContext({
@@ -208,7 +209,7 @@ const LandingPage: React.FC = () => {
                 size="large"
                 className="landing-get-started"
                 icon={<ArrowRightOutlined />}
-                href={mailto('Smart Incubation demo request')}
+                href={demoMailto}
                 onClick={() => track('book_a_demo', source)}
             >
                 {t('Book a demo')}
@@ -305,7 +306,8 @@ const LandingPage: React.FC = () => {
                                 custom={0.2}
                             >
                                 {signedIn
-                                    ? (firstName ? t('Welcome back, {name}.', undefined, { name: firstName }) : t('Welcome back.'))
+                                    // No name: this page is public, and on a shared computer it would show whoever last signed in.
+                                    ? t('Welcome back.')
                                     : t('SMEs: use the link your incubator sent you, or apply here.')}
                             </motion.p>
                         </div>
