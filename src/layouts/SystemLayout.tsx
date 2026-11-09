@@ -105,6 +105,8 @@ const findSelectedRouteKey = (routes: AppRoute[], pathname: string): string | un
 }
 
 const OVERVIEW_SECTION_KEY = '__overview__'
+/** sessionStorage key for the Agentic / Workspace choice, so a refresh keeps the tab where it was. */
+const SHELL_MODE_STORAGE_KEY = 'smart-incubation:shell-mode'
 
 const NAVIGATION_DESCRIPTIONS: Record<string, string> = {
     '/dashboard': 'See the platform-wide snapshot, priority activity, and key performance signals.',
@@ -265,8 +267,20 @@ export const SystemLayout = () => {
      * The shell opens on the agentic home, which covers whatever route the URL names. A URL
      * carrying parameters (`/incubatee?demo=1`, a filtered report link) is a deliberate deep
      * link, so open the page itself instead of hiding it behind the agentic home.
+     * The chosen mode is kept for the tab, so a refresh returns to the page that was open
+     * rather than dropping back to the agentic home.
      */
-    const [requestedShellMode, setShellMode] = useState<'agentic' | 'workspace'>(() => (location.search ? 'workspace' : 'agentic'))
+    const [requestedShellMode, setShellMode] = useState<'agentic' | 'workspace'>(() => {
+        if (location.search) return 'workspace'
+        try {
+            const saved = window.sessionStorage.getItem(SHELL_MODE_STORAGE_KEY)
+            if (saved === 'agentic' || saved === 'workspace') return saved
+        } catch { /* storage blocked: fall back to the default */ }
+        return 'agentic'
+    })
+    useEffect(() => {
+        try { window.sessionStorage.setItem(SHELL_MODE_STORAGE_KEY, requestedShellMode) } catch { /* storage blocked */ }
+    }, [requestedShellMode])
     // Without the agentic support plan feature there is no Agentic home: the workspace is the only mode.
     // ...and programme applicants keep to their programme until they are accepted.
     // Until the company's settings load the plan is unknown, so Agentic waits rather than showing and then vanishing
@@ -641,6 +655,8 @@ export const SystemLayout = () => {
     const handleLogout = async () => {
         try {
             await logoutUser()
+            // The next sign-in opens on the agentic home again, not the last session's mode.
+            try { window.sessionStorage.removeItem(SHELL_MODE_STORAGE_KEY) } catch { /* storage blocked */ }
             setNavigationOpen(false)
             navigate('/auth', { replace: true })
         } catch {
