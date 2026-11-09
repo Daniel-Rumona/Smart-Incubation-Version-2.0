@@ -33,7 +33,26 @@ const SIGNUP_PATH = '/auth?mode=signup'
 const SIGNIN_PATH = '/auth'
 const mailto = (subject: string) => `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}`
 // Demo requests go to Daniel with Prince copied.
-const demoMailto = `mailto:${DEMO_REQUEST_TO}?cc=${DEMO_REQUEST_CC}&subject=${encodeURIComponent('Smart Incubation demo request')}`
+const demoRequestBody = [
+    'Hi Daniel and Prince,',
+    '',
+    'I would like to book a demo of Smart Incubation and learn how it can support our organisation.',
+    '',
+    'My details:',
+    'Name: [Your name]',
+    'Organisation: [Your organisation]',
+    'Role: [Your role]',
+    'Phone number: [Your phone number]',
+    '',
+    'What we would like to explore: [Tell us about your needs]',
+    'Preferred demo date and time (including time zone): [Your availability]',
+    '',
+    'Please let me know a suitable time and share the meeting details.',
+    '',
+    'Kind regards,',
+    '[Your name]',
+].join('\r\n')
+const demoMailto = `mailto:${DEMO_REQUEST_TO}?cc=${encodeURIComponent(DEMO_REQUEST_CC)}&subject=${encodeURIComponent('Request to book a Smart Incubation demo')}&body=${encodeURIComponent(demoRequestBody)}`
 
 // Headline numbers shown under the hero. The strip stays hidden while this list is empty.
 // Example: { value: '1,000+', label: 'SMEs supported' }
