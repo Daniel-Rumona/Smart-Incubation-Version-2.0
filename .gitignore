@@ -37,3 +37,6 @@ __pycache__/
 
 # Local scratch output
 tmp/
+
+# Firebase CLI deploy cache (rewritten on every deploy)
+.firebase/
