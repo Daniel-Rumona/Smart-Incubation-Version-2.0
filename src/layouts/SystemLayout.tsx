@@ -64,6 +64,7 @@ import { listCoursesForParticipant } from '@/services/courseProgressService'
 import { canAccessPlatformOwnerRoute, isPlatformAdmin, listWorkspaceCompanies, type WorkspaceCompany } from '@/services/companiesService'
 import { journeyAllows, journeyAllowsAgentic, marketplaceConsultantAllows } from '@/utils/routeAccess'
 import { hasOwnInterventionDocuments } from '@/services/interventionDocumentsService'
+import { useAssignedInterventions } from '@/contexts/AssignedInterventionsContext'
 import { listMyApplications } from '@/services/applicantService'
 import { ProgramResumeBanner } from '@/components/applicant/ProgramResumeBanner'
 import '@/styles/system-layout.css'
@@ -450,6 +451,11 @@ export const SystemLayout = () => {
         ? settings.interventionDeliveryRoles.map((role) => String(role).toLowerCase())
         : ['consultant', 'projectadmin', 'operations']
     const currentRoleCanDeliver = !user?.role || interventionDeliveryRoles.includes(user.role)
+    // Operations staff mostly assign rather than deliver, so "Assigned to me" only joins their menu once
+    // something is actually assigned to them. Hidden while loading, so it never shows and then vanishes.
+    // The page itself stays reachable by its address.
+    const { assignments: companyAssignments, isMine } = useAssignedInterventions()
+    const hasOwnAssignments = useMemo(() => companyAssignments.some(isMine), [companyAssignments, isMine])
     const visibleRoutes = useMemo(() => {
         const routes = filterRoutesByAudience(appRoutes, audience, user?.role, user?.permissions, user)
 
@@ -468,11 +474,12 @@ export const SystemLayout = () => {
                 const children = route.children ? applyAgentDeliveryAccess(route.children as typeof routes) : undefined
                 // Training SMEs: other pages stay reachable from links (the dashboard's tiles) but leave the menu.
                 const trainingHides = isTrainingSme && (!TRAINING_SME_PATHS.has(route.path) || (route.path === '/incubatee/lms' && !hasCourses))
-                return [{ ...route, children, ...(trainingHides ? { showInNav: false } : {}) }]
+                const nothingAssignedHides = route.path === '/operations/interventions/assigned' && !hasOwnAssignments
+                return [{ ...route, children, ...(trainingHides || nothingAssignedHides ? { showInNav: false } : {}) }]
             })
 
         return applyAgentDeliveryAccess(routes)
-    }, [agentSupportMode, audience, currentRoleCanDeliver, hasCourses, hideHumanDelivery, isTrainingSme, user])
+    }, [agentSupportMode, audience, currentRoleCanDeliver, hasCourses, hasOwnAssignments, hideHumanDelivery, isTrainingSme, user])
     const selectedKey = useMemo(() => {
         return findSelectedRouteKey(visibleRoutes, location.pathname) || '/'
     }, [location.pathname, visibleRoutes])
