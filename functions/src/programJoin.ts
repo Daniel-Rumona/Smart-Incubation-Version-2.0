@@ -133,6 +133,7 @@ export async function joinProgram(db: Firestore, uid: string, input: JoinInput) 
     if (!userSnapshot.exists) throw new JoinError('not_found', 'Your profile could not be found.')
     const user = userSnapshot.data() as Record<string, unknown>
     if (clean(user.role).toLowerCase() !== 'incubatee') throw new JoinError('forbidden', 'Only an SME account can join a programme.')
+    if (user.organisationAccessStatus && user.organisationAccessStatus !== 'approved') throw new JoinError('forbidden', 'Your organisation request is awaiting a decision.')
 
     const currentCode = clean(user.companyCode)
     let companyCode: string
@@ -181,6 +182,8 @@ export async function joinProgram(db: Firestore, uid: string, input: JoinInput) 
     const budget = Number(input.consultingBudget)
     transaction.set(userRef, {
       companyCode,
+      ...(!user.registrationProgramLink && input.path === 'program_link' && programId && user.smeOnboardingComplete !== true
+        ? { registrationProgramLink: { programId, companyCode, validatedAt: FieldValue.serverTimestamp() } } : {}),
       ...(Number.isFinite(budget) && budget >= 0 ? { consultingBudget: budget } : {}),
       ...(programId ? { assignedProgramIds: FieldValue.arrayUnion(programId) } : {}),
       smeOnboarding: {

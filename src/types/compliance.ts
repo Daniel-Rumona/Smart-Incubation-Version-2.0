@@ -1,3 +1,13 @@
+export type ComplianceScanFinding = {
+  reviewKind?: 'content' | 'unavailable'
+  documentId: string
+  url?: string | null
+  expiryDate?: string | null
+  currentStatus?: string
+  verificationStatus?: string
+  message: string
+}
+
 export type ComplianceStatus = 'pending' | 'valid' | 'queried' | 'invalid' | 'expired'
 export type ComplianceVerification = 'pending' | 'verified' | 'queried'
 
@@ -21,6 +31,7 @@ export type ComplianceDocument = {
 }
 
 export type ComplianceParticipant = {
+  scan?: { source?: 'local' | 'server', scannedAt?: string, findings: ComplianceScanFinding[] }
   id: string
   participantId: string
   businessName: string

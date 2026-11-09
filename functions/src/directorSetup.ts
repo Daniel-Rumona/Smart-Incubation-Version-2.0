@@ -4,10 +4,7 @@ import { FieldValue, type Firestore } from 'firebase-admin/firestore'
  * Director first-login setup: claims a company code, stores the company profile and locks its operating
  * settings in `companies/{code}` (the document SystemSettingsProvider reads). Clients cannot write
  * `companies` directly, so this runs server-side and enforces the claim rules:
- *   - the caller must already be a director, OR be a brand-new SME / consultant account that belongs to no
- *     company yet and has not finished first login. That account is promoted here, and can only ever create a
- *     brand-new company (never join or take over an existing one), so self-service never grants access to
- *     another organisation's data;
+ *   - the caller must already be a director, assigned by staff or an approved organisation access request;
  *   - a code that is locked or owned by someone else cannot be taken;
  *   - an admin-provisioned company (no owner yet) can only be claimed by the director whose own profile
  *     already carries that code.
@@ -83,19 +80,16 @@ export async function completeDirectorSetup(db: Firestore, uid: string, email: s
   const companyRef = db.collection('companies').doc(input.companyCode)
 
   return db.runTransaction(async transaction => {
-    const [userSnapshot, companySnapshot] = await Promise.all([transaction.get(userRef), transaction.get(companyRef)])
+    const milestoneRef = db.collection('organisationMilestones').doc(input.companyCode)
+    const [userSnapshot, companySnapshot, milestone] = await Promise.all([transaction.get(userRef), transaction.get(companyRef), transaction.get(milestoneRef)])
     if (!userSnapshot.exists) throw new DirectorSetupError('not_found', 'Your profile could not be found.')
     const user = userSnapshot.data() as Record<string, unknown>
     const isDirector = String(user.role || '').trim().toLowerCase() === 'director'
+    if (user.organisationAccessStatus && user.organisationAccessStatus !== 'approved') {
+      throw new DirectorSetupError('forbidden', 'Your organisation must be approved before setup.')
+    }
     if (!isDirector) {
-      // Only a fresh SME or consultant sign-up may become a director. Staff roles are never changed here.
-      const role = String(user.role || '').trim().toLowerCase()
-      if (!['incubatee', 'consultant'].includes(role)) throw new DirectorSetupError('forbidden', 'This account cannot be changed to a director.')
-      if (user.firstLoginComplete === true || String(user.companyCode || '').trim()) {
-        throw new DirectorSetupError('forbidden', 'This account already belongs to a company, so it cannot be changed to a director.')
-      }
-      // A promoted account may only create a brand-new company, never take over an existing one.
-      if (companySnapshot.exists) throw new DirectorSetupError('conflict', 'This company code is already in use by another organisation.')
+      throw new DirectorSetupError('forbidden', 'Request organisation access and wait for approval before creating an organisation.')
     }
 
     if (companySnapshot.exists) {
@@ -116,6 +110,9 @@ export async function completeDirectorSetup(db: Firestore, uid: string, email: s
     }
 
     const { logoUrl, ...settings } = input
+    if (!companySnapshot.exists && !milestone.exists) {
+      transaction.create(milestoneRef, { status: 'awaiting_first_staff', createdAt: FieldValue.serverTimestamp() })
+    }
     transaction.set(companyRef, {
       ...settings,
       companyCode: input.companyCode,
@@ -130,7 +127,6 @@ export async function completeDirectorSetup(db: Firestore, uid: string, email: s
     }, { merge: true })
 
     transaction.set(userRef, {
-      ...(isDirector ? {} : { role: 'director', directorSelfRegisteredAt: FieldValue.serverTimestamp() }),
       company: input.companyName,
       companyName: input.companyName,
       companyCode: input.companyCode,

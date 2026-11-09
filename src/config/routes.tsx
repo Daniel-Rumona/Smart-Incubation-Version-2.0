@@ -40,6 +40,8 @@ import EmailVerificationPage from '@/pages/auth/EmailVerificationPage'
 import SetPasswordPage from '@/pages/auth/SetPasswordPage'
 import { WelcomePage } from '@/pages/welcome/WelcomePage'
 import { ConsentPage } from '@/pages/consent/ConsentPage'
+import OrganisationAccessPage from '@/pages/auth/OrganisationAccessPage'
+import OrganisationRequestsPage from '@/pages/admin/OrganisationRequestsPage'
 import JoinProgramPage from '@/pages/join/JoinProgramPage'
 import { DashboardPage } from '@/pages/dashboard/DashboardPage'
 import LandingPage from '@/pages/landing/LandingPage'
@@ -55,6 +57,7 @@ import { SystemSettingsChangeRequestsPage } from '@/pages/admin/SystemSettingsCh
 import AgentRegistryPage from '@/pages/admin/AgentRegistryPage'
 import CompanyPlansPage from '@/pages/admin/CompanyPlansPage'
 import ConsultantVerificationPage from '@/pages/admin/ConsultantVerificationPage'
+import StoragePage from '@/pages/admin/StoragePage'
 import SalesPitchPage from '@/pages/admin/SalesPitchPage'
 import DirectorDashboardPage from '@/pages/director/DirectorDashboardPage'
 import { DirectorPortfolioPage } from '@/pages/director/DirectorPortfolioPage'
@@ -144,6 +147,7 @@ export const publicRoutes: PublicRoute[] = [
     { path: '/set-password', labelKey: 'nav.setPassword', element: SetPasswordPage },
     { path: '/welcome', labelKey: 'nav.welcome', element: WelcomePage },
     { path: '/consent', labelKey: 'nav.consent', element: ConsentPage },
+    { path: '/organisation-access', labelKey: 'nav.organisationAccess', element: OrganisationAccessPage },
     { path: '/join/:programId', labelKey: 'nav.join', element: JoinProgramPage },
 ]
 
@@ -464,6 +468,8 @@ export const appRoutes: AppRoute[] = [
     { path: '/operations/structure', labelKey: 'nav.structure', icon: <ApartmentOutlined />, element: <DirectorStructurePage />, allowedRoles: [USER_ROLES.PROJECT_ADMIN, USER_ROLES.OPERATIONS], audiences: ['operations'], showInNav: true, showInNavWhenAnySetting: ['hasDepartments', 'hasBranches'] },
     { path: '/director/settings', labelKey: 'nav.companySettings', icon: <SettingOutlined />, element: <CompanySettingsPage />, allowedRoles: directorRoles, audiences: ['platform'], showInNav: true },
     { path: '/director/reports', labelKey: 'nav.reports', icon: <BarChartOutlined />, element: <DirectorReportsPage />, allowedRoles: directorRoles, requiredPermission: 'view_reports', audiences: ['platform'], showInNav: true },
+    { path: '/admin/storage', labelKey: 'nav.storage', icon: <FolderOpenOutlined />, element: <StoragePage />, allowedRoles: adminRoles, audiences: ['platform'], showInNav: true },
+    { path: '/admin/organisation-requests', labelKey: 'nav.organisationRequests', icon: <SafetyCertificateOutlined />, element: <OrganisationRequestsPage />, allowedRoles: [USER_ROLES.SYSTEM_ADMIN], audiences: ['platform'], showInNav: true },
     { path: '/admin/users', labelKey: 'nav.users', icon: <UserOutlined />, element: <UserManagementPage />, allowedRoles: adminRoles, requiredPermission: 'manage_users', audiences: ['platform'], showInNav: true },
     { path: '/admin/consultant-verification', labelKey: 'nav.consultantVerification', icon: <SafetyCertificateOutlined />, element: <ConsultantVerificationPage />, allowedRoles: [USER_ROLES.SYSTEM_ADMIN], requiredPermission: 'manage_users', audiences: ['platform'], showInNav: true },
     { path: '/admin/usage', labelKey: 'nav.usageAnalytics', icon: <BarChartOutlined />, element: <UsageAnalyticsPage />, allowedRoles: adminRoles, requiredPermission: 'view_usage_analytics', audiences: ['platform'], showInNav: true },

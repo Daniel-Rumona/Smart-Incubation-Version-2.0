@@ -73,6 +73,7 @@ export const IdentityProvider = ({ children }: PropsWithChildren) => {
           role,
           isApplicant,
           firstLoginComplete: profile?.firstLoginComplete === true,
+          organisationAccessStatus: profile?.organisationAccessStatus,
           mustChangePassword: profile?.mustChangePassword === true,
           companyCode: typeof profile?.companyCode === 'string' ? profile.companyCode : null,
           branchId: typeof profile?.branchId === 'string' ? profile.branchId : null,
@@ -134,10 +135,11 @@ export const IdentityProvider = ({ children }: PropsWithChildren) => {
           : {}
         const verificationFields: Partial<FullIdentity> = {
           emailVerified: current.emailVerified || data.emailVerified === true,
+          organisationAccessStatus: data.organisationAccessStatus,
         }
         const roleUnchanged = Object.entries(roleFields).every(([key, value]) => value === current[key as keyof FullIdentity])
         const smeUnchanged = Object.entries(smeFields).every(([key, value]) => JSON.stringify(value) === JSON.stringify(current[key as keyof FullIdentity]))
-        const verificationUnchanged = verificationFields.emailVerified === current.emailVerified
+        const verificationUnchanged = Object.entries(verificationFields).every(([key, value]) => value === current[key as keyof FullIdentity])
 
         return permissionsUnchanged && roleUnchanged && smeUnchanged && verificationUnchanged
           ? current

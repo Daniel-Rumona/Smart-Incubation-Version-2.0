@@ -33,6 +33,7 @@ export type FullIdentity = {
   role: UserRole
   isApplicant: boolean
   firstLoginComplete: boolean
+  organisationAccessStatus?: 'pending' | 'approved' | 'rejected'
   mustChangePassword?: boolean
   companyCode?: string | null
   branchId?: string | null

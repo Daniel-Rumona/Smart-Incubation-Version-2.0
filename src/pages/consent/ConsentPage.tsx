@@ -13,7 +13,6 @@ import { getCompanyOverview } from '@/services/directorSetupService'
 import { saveOnboardingSignature } from '@/services/onboardingService'
 import { captureSignatureStrokes } from '@/utils/signatureStrokes'
 import { getRoleHomePath } from '@/utils/roleRouting'
-import { markAgreementsChecked } from '@/hooks/useAgreementGate'
 import '@/styles/agreements.css'
 
 /**
@@ -91,7 +90,6 @@ export const ConsentPage = () => {
     const next = remaining.filter((item) => item !== key)
     setPending(next)
     if (!next.length) {
-      markAgreementsChecked(user.uid)
       navigate(home, { replace: true })
     }
   }

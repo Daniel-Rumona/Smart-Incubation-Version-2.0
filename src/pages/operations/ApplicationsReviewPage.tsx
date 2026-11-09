@@ -1,13 +1,12 @@
-import { Alert, App, Avatar, Button, Card, Col, DatePicker, Descriptions, Empty, Grid, Input, Modal, Progress, Row, Segmented, Select, Space, Tag, Typography, type TableProps } from 'antd'
-import { AppstoreOutlined, BarChartOutlined, CheckCircleOutlined, ClockCircleOutlined, CloseCircleOutlined, DownloadOutlined, FileOutlined, SearchOutlined } from '@ant-design/icons'
+import { Alert, App, Avatar, Button, Card, Col, DatePicker, Descriptions, Empty, Pagination, Spin, Input, Modal, Progress, Row, Segmented, Select, Space, Tag, Typography } from 'antd'
+import { ArrowLeftOutlined, SortAscendingOutlined, TrophyOutlined, AppstoreOutlined, BarChartOutlined, CheckCircleOutlined, ClockCircleOutlined, CloseCircleOutlined, DownloadOutlined, FileOutlined, SearchOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import isBetween from 'dayjs/plugin/isBetween'
 import { motion, useReducedMotion } from 'framer-motion'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
-import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
 import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { hasRolePermission } from '@/config/permissions'
@@ -17,12 +16,15 @@ import { CHART_COLORS, CHART_PALETTE } from '@/config/chartPalette'
 import { initialsOf } from '@/utils/initials'
 import type { OperationsApplication } from '@/types/operations'
 import { singleActionFooter } from '@/components/shared/modalFooter'
+import '@/styles/operations-compliance.css'
 import '@/styles/applications-review.css'
 
 const { RangePicker } = DatePicker
 dayjs.extend(isBetween)
 type DetailSection = 'overview' | 'ai' | 'documents'
 const STATUSES = ['Pending', 'Accepted', 'Rejected']
+const decisionAction = (status?: string) => status === 'Accepted' ? 'Accept' : status === 'Rejected' ? 'Reject' : 'Move to pending'
+const decisionConfirmation = (status?: string) => status === 'Accepted' ? 'Accept application' : status === 'Rejected' ? 'Reject application' : 'Move to pending'
 const normalizeStatus = (value?: string) => STATUSES.find((status) => status.toLowerCase() === value?.toLowerCase()) || 'Pending'
 const statusColor = (status: string) => status === 'Accepted' ? 'green' : status === 'Rejected' ? 'red' : 'gold'
 const toDate = (value: unknown) => {
@@ -68,18 +70,19 @@ const challengeWordCloud = (rows: OperationsApplication[]) => {
 export const ApplicationsReviewPage = () => {
     const { message } = App.useApp()
     const { t } = useLanguage()
-    const screens = Grid.useBreakpoint()
-    const isCompact = !screens.xl
     const reduceMotion = useReducedMotion()
     const { user } = useFullIdentity()
     // Reception (and anyone without manage_applications) sees the decision but can't change it.
     const canDecide = Boolean(user && hasRolePermission(user.role, 'manage_applications', user.permissions))
+    const detailScrollRef = useRef<HTMLDivElement>(null)
     const [applications, setApplications] = useState<OperationsApplication[]>([])
     const [loading, setLoading] = useState(false)
-    const [selected, setSelected] = useState<OperationsApplication>()
+    const [activeSelection, setSelected] = useState<OperationsApplication>()
     const [detailOpen, setDetailOpen] = useState(false)
     const [section, setSection] = useState<DetailSection>('overview')
     const [search, setSearch] = useState('')
+    const [sort, setSort] = useState('newest')
+    const [listPage, setListPage] = useState({ key: '', page: 1 })
     const [status, setStatus] = useState('All')
     const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null)
     const [province, setProvince] = useState('All')
@@ -121,7 +124,16 @@ export const ApplicationsReviewPage = () => {
             && (province === 'All' || row.province === province)
             && (beeLevel === 'All' || row.beeLevel === beeLevel)
             && (gender === 'All' || row.gender === gender)
-    }), [applications, beeLevel, dateRange, gender, province, search, status])
+    }).sort((a, b) => {
+        if (sort === 'name') return a.businessName.localeCompare(b.businessName)
+        if (sort === 'score') return (Number(b.aiScore) || 0) - (Number(a.aiScore) || 0)
+        return (toDate(b.submittedAt)?.valueOf() || 0) - (toDate(a.submittedAt)?.valueOf() || 0)
+    }), [applications, beeLevel, dateRange, gender, province, search, status, sort])
+    const selected = rows.find((row) => row.id === activeSelection?.id) || rows[0]
+    const pageKey = JSON.stringify([search, status, dateRange, province, beeLevel, gender, sort, selected?.id])
+    const selectedPage = Math.floor(Math.max(0, rows.findIndex((row) => row.id === selected?.id)) / 12) + 1
+    const currentPage = Math.min(listPage.key === pageKey ? listPage.page : selectedPage, Math.max(1, Math.ceil(rows.length / 12)))
+    const pageRows = rows.slice((currentPage - 1) * 12, currentPage * 12)
 
     const genderBreakdown = useMemo(() => breakdown(rows, 'gender'), [rows])
     const beeBreakdown = useMemo(() => breakdown(rows, 'beeLevel'), [rows])
@@ -134,9 +146,10 @@ export const ApplicationsReviewPage = () => {
     useRegisterAgentPageContext({ pageKey: 'operations-applications', pageName: 'Applications', purpose: 'Review project applications and update decisions.', filters: { search, status, dateRange, province, beeLevel, gender }, metrics: { total: applications.length, ...counts }, tables: { visibleApplications: rows.length }, selectedRecord: selected?.businessName })
 
     const chooseApplication = (row: OperationsApplication) => {
+        detailScrollRef.current?.scrollTo({ top: 0 })
         setSelected(row)
         setSection('overview')
-        if (isCompact) setDetailOpen(true)
+        setDetailOpen(true)
     }
     const confirmStatusChange = async () => {
         if (!user || !pendingUpdate) return
@@ -154,13 +167,6 @@ export const ApplicationsReviewPage = () => {
             setLoading(false)
         }
     }
-
-    const columns: TableProps<OperationsApplication>['columns'] = [
-        { title: t('operations.participants.enterprise'), dataIndex: 'businessName', render: (value: string, row) => <Space size={10}><Avatar src={row.imageUrl} size={36}>{initialsOf(value)}</Avatar><Space orientation="vertical" size={0}><Typography.Text strong>{value}</Typography.Text><Typography.Text type="secondary">{row.email}</Typography.Text></Space></Space> },
-        { title: t('operations.applications.applied'), dataIndex: 'submittedAt', render: (value: unknown) => toDate(value)?.format('DD MMM YYYY') || t('N/A') },
-        { title: t('operations.applications.aiScore'), dataIndex: 'aiScore', render: (value?: string | number) => value ?? t('N/A') },
-        { title: t('common.status'), dataIndex: 'applicationStatus', render: (value: string, row) => <Space wrap><Tag color={statusColor(normalizeStatus(value))}>{normalizeStatus(value)}</Tag>{row.supportFitStatus === 'await_review' ? <Tag color="orange">{t('External review')}</Tag> : null}</Space> },
-    ]
 
     const hasAiReview = !!selected && (selected.aiScore !== undefined && selected.aiScore !== null || !!selected.aiRecommendation || !!selected.aiJustification)
 
@@ -198,11 +204,12 @@ export const ApplicationsReviewPage = () => {
                                 <button
                                     key={value}
                                     type="button"
+                                    aria-pressed={isActive}
                                     className={`applications-decision-card is-${value.toLowerCase()}${isActive ? ' is-active' : ''}`}
                                     onClick={() => { if (!isActive) { setRejectionReason(''); setPendingUpdate({ row: selected, status: value }) } }}
                                 >
                                     <span className="applications-decision-icon">{icon}</span>
-                                    <span className="applications-decision-label">{t(`operations.applications.${value.toLowerCase()}`)}</span>
+                                    <span className="applications-decision-label">{t(isActive ? `operations.applications.${value.toLowerCase()}` : decisionAction(value))}</span>
                                 </button>
                             )
                         })}
@@ -238,13 +245,40 @@ export const ApplicationsReviewPage = () => {
             <Col xs={12} md={6}><DashboardMetricCard icon={<CheckCircleOutlined />} label={t('operations.applications.accepted')} value={counts.accepted} clickable active={status === 'Accepted'} onClick={() => setStatus('Accepted')} /></Col>
             <Col xs={12} md={6}><DashboardMetricCard icon={<CloseCircleOutlined />} label={t('operations.applications.rejected')} value={counts.rejected} clickable active={status === 'Rejected'} onClick={() => setStatus('Rejected')} /></Col>
         </Row>
-        <FilterBar primary={<><Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('operations.applications.search')} allowClear /><Select value={status} onChange={setStatus} options={['All', ...STATUSES].map((value) => ({ value, label: t(`operations.applications.${value.toLowerCase()}`) }))} /><RangePicker value={dateRange} onChange={(value) => setDateRange(value as [Dayjs, Dayjs] | null)} /></>} advanced={<><Select value={province} onChange={setProvince} options={[{ value: 'All', label: t('operations.applications.allProvinces') }, ...uniqueOptions(applications, 'province')]} /><Select value={beeLevel} onChange={setBeeLevel} options={[{ value: 'All', label: t('operations.applications.allBeeLevels') }, ...uniqueOptions(applications, 'beeLevel')]} /><Select value={gender} onChange={setGender} options={[{ value: 'All', label: t('operations.applications.allGenders') }, ...uniqueOptions(applications, 'gender')]} /></>} actions={<Button icon={<BarChartOutlined />} onClick={() => setAnalyticsOpen(true)}>{t('operations.applications.analytics')}</Button>} />
-        <Row gutter={[16, 16]} align="top">
-            <Col xs={24} xl={14}><Card className="applications-panel"><ResponsiveDataView rowKey="id" loading={loading} columns={columns} rows={rows} emptyText={t('operations.applications.empty')} onRowClick={chooseApplication} rowClassName={(row) => `applications-row${row.id === selected?.id ? ' applications-selected-row' : ''}`} renderCard={(row) => <Space orientation="vertical" size={8} onClick={() => chooseApplication(row)}><Space size={10}><Avatar src={row.imageUrl} size={36}>{initialsOf(row.businessName)}</Avatar><Space orientation="vertical" size={0}><Typography.Text strong>{row.businessName}</Typography.Text><Typography.Text type="secondary">{row.email}</Typography.Text></Space></Space><Space wrap><Tag color={statusColor(normalizeStatus(row.applicationStatus))}>{normalizeStatus(row.applicationStatus)}</Tag><Typography.Text type="secondary">{toDate(row.submittedAt)?.format('DD MMM YYYY') || t('N/A')}</Typography.Text></Space></Space>} /></Card></Col>
-            {!isCompact && <Col xl={10}><Card className="applications-panel">{details}</Card></Col>}
-        </Row>
-        <Modal open={detailOpen} title={t('operations.applications.details')} footer={null} onCancel={() => setDetailOpen(false)} width={760}>{details}</Modal>
-        <Modal open={canDecide && !!pendingUpdate} title={t('operations.applications.confirmDecision')} onCancel={() => { setPendingUpdate(undefined); setRejectionReason('') }} onOk={() => void confirmStatusChange()} okText={t('operations.applications.updateStatus')} {...singleActionFooter()}>{t('operations.applications.change')} {pendingUpdate?.row.businessName} {t('operations.applications.to')} <strong>{pendingUpdate?.status}</strong>?{pendingUpdate?.status === 'Rejected' && <Input.TextArea style={{ marginTop: 12 }} rows={3} value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} placeholder={t('Reason for rejection')} maxLength={500} showCount />}</Modal>
+        <FilterBar advancedDisplay="dropdown" primary={<><Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('operations.applications.search')} allowClear /><Select value={status} onChange={setStatus} options={['All', ...STATUSES].map((value) => ({ value, label: t(`operations.applications.${value.toLowerCase()}`) }))} /><RangePicker value={dateRange} onChange={(value) => setDateRange(value as [Dayjs, Dayjs] | null)} /></>} advanced={<><Select value={province} onChange={setProvince} options={[{ value: 'All', label: t('operations.applications.allProvinces') }, ...uniqueOptions(applications, 'province')]} /><Select value={beeLevel} onChange={setBeeLevel} options={[{ value: 'All', label: t('operations.applications.allBeeLevels') }, ...uniqueOptions(applications, 'beeLevel')]} /><Select value={gender} onChange={setGender} options={[{ value: 'All', label: t('operations.applications.allGenders') }, ...uniqueOptions(applications, 'gender')]} /></>} actions={<Button icon={<BarChartOutlined />} onClick={() => setAnalyticsOpen(true)}>{t('operations.applications.analytics')}</Button>} />
+        <div className={`compliance-workspace${detailOpen && selected ? ' compliance-workspace--detail' : ''}`}>
+            <Card className="applications-panel compliance-participants">
+                <Select className="compliance-list-sort" aria-label={t('Sort applications')} prefix={<span className="compliance-sort-prefix">{t('Sort by')}</span>} variant="borderless" value={sort} onChange={setSort} options={[
+                    { value: 'newest', label: <Space size={8}><ClockCircleOutlined />{t('Newest first')}</Space> },
+                    { value: 'score', label: <Space size={8}><TrophyOutlined />{t('Highest AI score')}</Space> },
+                    { value: 'name', label: <Space size={8}><SortAscendingOutlined />{t('Name A–Z')}</Space> },
+                ]} />
+                <Spin spinning={loading}>
+                    <nav className="compliance-participant-list" aria-label={t('Applications')}>
+                        {pageRows.map((row) => <button type="button" key={row.id} className={`compliance-participant${row.id === selected?.id ? ' compliance-participant--selected' : ''}`} aria-current={row.id === selected?.id ? 'true' : undefined} onClick={() => chooseApplication(row)}>
+                            <Avatar className="compliance-participant-avatar" src={row.imageUrl} size={36}>{initialsOf(row.businessName)}</Avatar>
+                            <div className="compliance-participant-main">
+                                <div className="compliance-participant-name" title={row.businessName}>{row.businessName}</div>
+                                <div className="compliance-participant-meta" title={row.email}>{row.email || t('common.noEmail')}</div>
+                                <div className="compliance-participant-meta">{toDate(row.submittedAt)?.format('D MMM YYYY') || t('N/A')}</div>
+                            </div>
+                            <div className="compliance-participant-side">
+                                <span className={`compliance-score compliance-score--${Number(row.aiScore) >= 80 ? 'good' : Number(row.aiScore) >= 50 ? 'warning' : 'low'}`} title={t('operations.applications.aiScore')}>{row.aiScore ?? '—'}</span>
+                                <Tag color={statusColor(normalizeStatus(row.applicationStatus))}>{t(normalizeStatus(row.applicationStatus))}</Tag>
+                                {row.supportFitStatus === 'await_review' && <Tag color="orange">{t('External review')}</Tag>}
+                            </div>
+                        </button>)}
+                        {!loading && !rows.length && <Empty description={t('operations.applications.empty')} />}
+                    </nav>
+                    {rows.length > 12 && <div className="compliance-list-pagination"><Pagination size="small" current={currentPage} total={rows.length} pageSize={12} showSizeChanger={false} showLessItems onChange={(page) => setListPage({ key: pageKey, page })} /></div>}
+                </Spin>
+            </Card>
+            <Card className="applications-panel compliance-detail">
+                <Button className="compliance-back" icon={<ArrowLeftOutlined />} onClick={() => setDetailOpen(false)}>{t('Back to applications')}</Button>
+                <div className="applications-detail-scroll" ref={detailScrollRef}>{details}</div>
+            </Card>
+        </div>
+        <Modal open={canDecide && !!pendingUpdate} title={t(decisionConfirmation(pendingUpdate?.status))} onCancel={() => { setPendingUpdate(undefined); setRejectionReason('') }} onOk={() => void confirmStatusChange()} okText={t(decisionConfirmation(pendingUpdate?.status))} {...singleActionFooter()}>{t('operations.applications.change')} {pendingUpdate?.row.businessName} {t('operations.applications.to')} <strong>{pendingUpdate?.status}</strong>?{pendingUpdate?.status === 'Rejected' && <Input.TextArea style={{ marginTop: 12 }} rows={3} value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} placeholder={t('Reason for rejection')} maxLength={500} showCount />}</Modal>
         <Modal open={analyticsOpen} title={t('operations.applications.analytics')} footer={null} centered width={640} onCancel={() => setAnalyticsOpen(false)} className="applications-analytics-modal">
             <div className="applications-analytics-grid">
                 <div className="applications-analytics-card applications-analytics-gauge">

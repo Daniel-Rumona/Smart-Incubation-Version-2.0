@@ -34,7 +34,7 @@ import { useEffect, useRef, useState } from 'react'
 import SignatureCanvas from 'react-signature-canvas'
 import { captureSignatureStrokes, type SignatureStrokes } from '@/utils/signatureStrokes'
 import html2canvas from 'html2canvas'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import { LanguageMenu } from '@/components/shared/LanguageMenu'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
@@ -76,7 +76,7 @@ type PasswordValues = {
 }
 
 /** Roles only staff can give; people with them never choose a role in the welcome flow. */
-const ASSIGNED_ONLY_ROLES: string[] = ['systemadmin', 'admin', 'projectadmin', 'projectmanager', 'operations', 'funder']
+const ASSIGNED_ONLY_ROLES: string[] = ['systemadmin', 'admin', 'director', 'projectadmin', 'projectmanager', 'operations', 'funder']
 
 type WelcomeStepKey =
     | 'intro'
@@ -172,6 +172,7 @@ const TypingMessage = ({ text, speed = 34, startDelay = 220, onComplete }: Typin
 
 
 export const WelcomePage = () => {
+    const navigate = useNavigate()
     const screens = Grid.useBreakpoint()
     const isMobile = !screens.md
     const { message, modal } = App.useApp()
@@ -321,6 +322,7 @@ export const WelcomePage = () => {
     }
     if (!user) return <Navigate to="/auth" replace />
     if (!user.emailVerified) return <Navigate to="/email-verification" replace />
+    if (user.organisationAccessStatus && user.organisationAccessStatus !== 'approved') return <Navigate to="/organisation-access" replace />
     if (user.firstLoginComplete) {
         return <Navigate to={getRoleHomePath(user.role, user.isApplicant, user.smeOnboardingComplete)} replace />
     }
@@ -434,8 +436,7 @@ export const WelcomePage = () => {
         try {
             setSavingRole(true)
             if (selectedRole === 'director') {
-                // The role itself is granted on the server when the company is locked (a new company only).
-                goTo(resolveStepAfterRole('director'))
+                navigate('/organisation-access')
                 return
             }
             await saveOnboardingRole(selectedRole, { name: user.displayName, email: user.email })
@@ -782,16 +783,16 @@ export const WelcomePage = () => {
                                         <BankOutlined />
                                     </span>
                                     <span className="welcome-role-copy">
-                                        <strong>{t('Director')}</strong>
+                                        <strong>{t('Incubation operator')}</strong>
                                         <small>
-                                            {t('I lead an organisation and want to set up and oversee its programmes, teams and SMEs.')}
+                                            {t('I lead an organisation and want to request a demo and approval to manage programmes, teams and SMEs.')}
                                         </small>
                                     </span>
                                     <CheckCircleOutlined className="welcome-role-check" />
                                 </button>
                             </div>
 
-                            <div className="welcome-actions-row"><Button size="large" icon={<ArrowLeftOutlined />} onClick={back}>{t('Back')}</Button><Button type="primary" size="large" icon={<ArrowRightOutlined />} loading={savingRole} disabled={!selectedRole} onClick={() => void saveRole()}>{selectedRole === 'incubatee' ? t('Continue as SME') : selectedRole === 'consultant' ? t('Continue as consultant') : selectedRole === 'director' ? t('Continue as director') : t('Choose how you’ll use Smart Incubation')}</Button></div>
+                            <div className="welcome-actions-row"><Button size="large" icon={<ArrowLeftOutlined />} onClick={back}>{t('Back')}</Button><Button type="primary" size="large" icon={<ArrowRightOutlined />} loading={savingRole} disabled={!selectedRole} onClick={() => void saveRole()}>{selectedRole === 'incubatee' ? t('Continue as SME') : selectedRole === 'consultant' ? t('Continue as consultant') : selectedRole === 'director' ? t('Request organisation access') : t('Choose how you’ll use Smart Incubation')}</Button></div>
                         </div>
                     )}
 

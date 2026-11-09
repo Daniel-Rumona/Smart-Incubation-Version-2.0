@@ -31,7 +31,6 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFitSteps } from '@/hooks/useFitSteps'
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { useAgreementGate } from '@/hooks/useAgreementGate'
 import { doc, getDoc } from 'firebase/firestore'
 import { appRoutes } from '@/config/routes'
 import { hasRolePermission } from '@/config/permissions'
@@ -255,8 +254,6 @@ export const SystemLayout = () => {
     const { t, language, setLanguage } = useLanguage()
     const { mode, toggleTheme } = useThemeMode()
     const { user, loading: identityLoading } = useFullIdentity()
-    // Signed agreements (POPIA consent, SME Code of Conduct) are needed before working in the app.
-    useAgreementGate(user)
     const { settings, ready: settingsReady } = useSystemSettings()
     const entitlements = useEntitlements()
     const { message } = App.useApp()

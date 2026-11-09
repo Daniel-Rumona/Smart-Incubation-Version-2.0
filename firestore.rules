@@ -437,17 +437,21 @@ service cloud.firestore {
       // someone else or hand out any other role.
       allow create: if isPlatformAdmin()
         || (isSelf(uid) && request.resource.data.role in ['incubatee', 'consultant']
-            && !request.resource.data.keys().hasAny(['companyCode']));
+            && !request.resource.data.keys().hasAny(['companyCode', 'permissions', 'organisationAccessStatus', 'registrationProgramLink', 'managedAccount', 'staffJoinedAt']));
 
       // Nobody may grant themselves a different role, or pick their own company, by self-editing. A company code
       // scopes what a person can read, so it is only ever set by a Cloud Function that checked the programme.
       allow update: if isPlatformAdmin()
         || (isSelf(uid) && request.resource.data.role == resource.data.role
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['organisationAccessStatus', 'registrationProgramLink', 'managedAccount', 'staffJoinedAt'])
+            && (resource.data.get('organisationAccessStatus', '') in ['', 'approved'] || request.resource.data.get('firstLoginComplete', false) == resource.data.get('firstLoginComplete', false))
             && request.resource.data.get('companyCode', '') == resource.data.get('companyCode', '')
             && request.resource.data.get('permissions', null) == resource.data.get('permissions', null))
         // The one role choice on the welcome page: every sign-up starts as an SME, and a new account with no
         // company, that hasn't picked a role or finished SME onboarding, may switch once to consultant.
         || (isSelf(uid) && resource.data.role == 'incubatee' && request.resource.data.role == 'consultant'
+            && resource.data.get('organisationAccessStatus', '') == ''
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['organisationAccessStatus', 'registrationProgramLink', 'managedAccount', 'staffJoinedAt'])
             && resource.data.get('onboardingRoleSelectedAt', null) == null
             && resource.data.get('smeOnboardingComplete', false) != true
             && resource.data.get('companyCode', '') == ''
@@ -456,6 +460,13 @@ service cloud.firestore {
 
       allow delete: if isPlatformAdmin() && !isSelf(uid);
     }
+
+    match /organisationAccessRequests/{uid} {
+      allow read: if isSelf(uid) || isSystemAdmin();
+      allow write: if false;
+    }
+    match /organisationMilestones/{companyCode} { allow read, write: if false; }
+    match /registrationNotifications/{uid} { allow read, write: if false; }
 
     // Password-change / e-signature bookkeeping mirrored alongside the
     // users doc; always the signed-in user's own record.

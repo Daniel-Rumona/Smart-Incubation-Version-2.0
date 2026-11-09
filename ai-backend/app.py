@@ -22,6 +22,8 @@ from pydantic import BaseModel, Field
 
 from business_plan_agent import create_business_plan_router
 from strategic_plan_agent import create_strategic_plan_router
+from compliance_content import review_content
+from compliance_scan import create_compliance_scan_router
 from report_insights import create_report_insights_router
 from pitchfy_agent import create_pitchfy_router
 from pitchfy_client import PitchfyClient
@@ -413,10 +415,16 @@ def _date_value(value: Any) -> date | None:
 
 
 def _document_status(document: dict[str, Any]) -> str:
+    if not str(document.get("url") or (document.get("currentFile") or {}).get("url") or "").strip():
+        return "missing"
     expiry = _date_value(document.get("expiryDate") or (document.get("currentFile") or {}).get("expiryDate"))
-    if expiry and expiry < date.today():
+    status = str(document.get("currentStatus") or "pending").strip().lower()
+    verification = str(document.get("verificationStatus") or "pending").strip().lower()
+    if status == "expired" or (expiry and expiry < date.today()):
         return "expired"
-    return str(document.get("currentStatus") or document.get("verificationStatus") or "pending").strip().lower()
+    if status in {"queried", "invalid", "rejected"} or verification == "queried":
+        return "queried"
+    return "valid" if status == "valid" and verification == "verified" else "pending"
 
 
 def _required_docs_for_program(program_id: str | None) -> list[dict[str, Any]]:
@@ -511,6 +519,8 @@ def _scan_participant_compliance(participant: dict[str, Any]) -> dict[str, Any]:
     by_key: dict[str, dict[str, Any]] = {}
 
     for document in documents:
+        if participant.get("companyCode") and document.get("companyCode") and document["companyCode"] != participant["companyCode"]:
+            continue
         key = _clean_key(document.get("key") or document.get("type"))
         if not key:
             continue
@@ -544,6 +554,7 @@ def _scan_participant_compliance(participant: dict[str, Any]) -> dict[str, Any]:
     return {
         "participantId": participant_id,
         "participantDocId": participant.get("id"),
+        "companyCode": participant.get("companyCode"),
         "businessName": participant.get("businessName") or participant.get("participantName") or "Unnamed participant",
         "programId": program_id,
         "summary": {
@@ -561,6 +572,25 @@ def _scan_participant_compliance(participant: dict[str, Any]) -> dict[str, Any]:
             "source": "ai-backend-compliance-scan",
             "scannedAt": datetime.now(timezone.utc).isoformat(),
         },
+        "findings": [
+            {
+                "documentId": document["id"],
+                "url": document.get("url"),
+                "expiryDate": document.get("expiryDate"),
+                "currentStatus": document.get("currentStatus"),
+                "verificationStatus": document.get("verificationStatus"),
+                "message": {
+                    "missing": "No file attached. Upload a document before review.",
+                    "expired": "The recorded expiry date has passed or this document is marked expired. Upload a current copy.",
+                    "queried": "This document needs changes. Resolve the review query and upload a corrected copy.",
+                    "valid": "A file is attached and the document is already verified. No recorded expiry issue found.",
+                    "pending": "A file is attached and no recorded expiry issue was found. Open the document and verify it or raise a query.",
+                }[_document_status(document)] + (" No expiry date is recorded." if not document.get("expiryDate") else ""),
+                **review_content(document, participant, _call_gemini),
+            }
+            for document in documents
+            if str(document.get("url") or "").strip() and (not participant.get("companyCode") or not document.get("companyCode") or document["companyCode"] == participant["companyCode"])
+        ],
         "documents": compliance_documents,
     }
 
@@ -570,6 +600,7 @@ def _persist_compliance_scan(scan: dict[str, Any]) -> None:
         "compliance": {
             "summary": {**scan["summary"], "updatedAt": firestore.SERVER_TIMESTAMP},
             "documents": scan["documents"],
+            "findings": scan.get("findings", []),
         }
     }
     participant_doc_id = scan.get("participantDocId")
@@ -579,6 +610,8 @@ def _persist_compliance_scan(scan: dict[str, Any]) -> None:
     app_query = db.collection("applications").where("participantId", "==", scan["participantId"])
     if scan.get("programId"):
         app_query = app_query.where("programId", "==", scan.get("programId"))
+    if scan.get("companyCode"):
+        app_query = app_query.where("companyCode", "==", scan["companyCode"])
     app_query = app_query.limit(1)
     for app_snap in app_query.stream():
         app_snap.reference.set(payload, merge=True)
@@ -589,6 +622,7 @@ def _call_gemini(
     user_payload: dict[str, Any],
     max_output_tokens: int = 1200,
     response_mime_type: str | None = None,
+    attachments: list[dict[str, Any]] | None = None,
 ) -> str:
     if not GEMINI_API_KEY:
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY is not configured")
@@ -615,7 +649,7 @@ def _call_gemini(
         "contents": [
             {
                 "role": "user",
-                "parts": [{"text": json.dumps(user_payload, default=str)}],
+                "parts": [{"text": json.dumps(user_payload, default=str)}, *(attachments or [])],
             }
         ],
         "generationConfig": generation_config,
@@ -1848,3 +1882,5 @@ app.include_router(
         _require_auth,
     )
 )
+
+app.include_router(create_compliance_scan_router(db, _require_auth, _participant_rows, _compliance_documents_for, _scan_participant_compliance, _persist_compliance_scan))
