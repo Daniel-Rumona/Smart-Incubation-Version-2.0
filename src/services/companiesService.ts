@@ -59,6 +59,9 @@ export const hasConsultantMarketplaceProfile = (user?: CompanyScoped | null) =>
 export const profilePathForUser = (user?: CompanyScoped | null) => {
   // Applicants and accepted SMEs share the incubatee role; `isApplicant` tells them apart.
   if (user?.role === 'incubatee') return user.isApplicant === false ? '/incubatee/profile' : '/applicant/profile'
+  // Learners keep their details on their training page.
+  if (user?.role === 'learner') return '/learner'
+  if (user?.role === 'clientorg') return '/company'
   if (hasConsultantMarketplaceProfile(user)) return '/consultant/profile'
   return '/profile'
 }

@@ -87,6 +87,27 @@ export const AgentFab = ({ placement = 'floating' }: { placement?: 'floating' | 
             return [...base, { prompt: 'Help me complete this profile', label: t('agent.template.profile', 'Help me complete this profile') }]
         }
 
+        // Awareness training and ESG reporting (client modules): the facilitator's, the funder's and the learner's pages.
+        if (context.pageKey === 'training-funder') {
+            return [...base, { prompt: 'Summarise the revenue and the training delivered', label: t('Summarise the revenue and the training delivered') }]
+        }
+
+        if (context.pageKey === 'training-revenue') {
+            return [...base, { prompt: 'Which invoices are still outstanding?', label: t('Which invoices are still outstanding?') }]
+        }
+
+        if (context.pageKey.startsWith('esg-')) {
+            return [...base, { prompt: 'What is missing before this report can go out?', label: t('What is missing before this report can go out?') }]
+        }
+
+        if (context.pageKey.startsWith('training-')) {
+            return [...base, { prompt: 'Which assessments still need marking?', label: t('Which assessments still need marking?') }]
+        }
+
+        if (context.pageKey.startsWith('learner-')) {
+            return [...base, { prompt: 'What do I need to do next?', label: t('What do I need to do next?') }]
+        }
+
         return base
     }, [context.pageKey, context.pageName, t])
 

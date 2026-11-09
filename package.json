@@ -5,6 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:emulators": "vite --mode emulators",
+    "emulators": "node scripts/emulators.mjs",
+    "emulators:seed": "node scripts/seed-emulators.mjs",
+    "emulators:save": "node scripts/emulators-save.mjs",
+    "agent:emulators": "python ai-backend/run_emulators.py",
+    "local": "node scripts/local.mjs",
+    "walkthrough": "node scripts/local.mjs --data keletso-walkthrough-final --today",
+    "walkthrough:today": "node scripts/emulators-today.mjs",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"

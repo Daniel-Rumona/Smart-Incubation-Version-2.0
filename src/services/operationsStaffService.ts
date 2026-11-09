@@ -19,7 +19,10 @@ const functionsBaseUrl = String(
     || (projectId ? `https://us-central1-${projectId}.cloudfunctions.net` : ''),
 ).replace(/\/$/, '')
 
-const callStaffEndpoint = async <T>(path: string, body: Record<string, unknown>) => {
+/** Whether the account Cloud Functions are configured; without them accounts cannot be created. */
+export const hasAccountFunctions = () => Boolean(functionsBaseUrl)
+
+export const callStaffEndpoint = async <T>(path: string, body: Record<string, unknown>) => {
   const token = await getFirebaseAuth().currentUser?.getIdToken()
   if (!token) throw new Error('unauthenticated')
   const response = await fetch(`${functionsBaseUrl}/${path}`, {

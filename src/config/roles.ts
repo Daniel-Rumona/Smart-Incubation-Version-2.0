@@ -9,6 +9,17 @@ export const USER_ROLES = {
   INCUBATEE: 'incubatee',
   /** Read-only view of the programmes they fund (users.assignedProgramIds; empty = all the company's). */
   FUNDER: 'funder',
+  /**
+   * Awareness training learners (client module, config/clientModules.ts): their own classes, tests, attendance and
+   * ID copy, nothing else. Only created by a training company's staff while the module is switched on.
+   */
+  LEARNER: 'learner',
+  /**
+   * A client company of an awareness training company (users.organisationId; orgRole 'director' or 'coordinator'):
+   * its own people's classes, attendance and certificates, and booking them into classes. The training company's
+   * staff give a company its director; the director adds coordinators. Only while the module is switched on.
+   */
+  CLIENT_ORG: 'clientorg',
 } as const
 
 export type UserRole = (typeof USER_ROLES)[keyof typeof USER_ROLES]
@@ -27,4 +38,6 @@ export const USER_ROLE_LABELS: Record<UserRole, string> = {
   consultant: 'Consultant',
   incubatee: 'SME',
   funder: 'Funder',
+  learner: 'Learner',
+  clientorg: 'Client company',
 }

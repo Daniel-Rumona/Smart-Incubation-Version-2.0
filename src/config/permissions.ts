@@ -31,6 +31,10 @@ export const ROLE_PERMISSIONS: Record<UserRole, IdentityPermission[]> = {
   [USER_ROLES.DIRECTOR]: ['view_dashboard', 'view_reports', 'view_applications'],
   // Funders read processed programme results only; firestore.rules keeps them to their linked programmes.
   [USER_ROLES.FUNDER]: ['view_dashboard', 'view_reports'],
+  // Learners use only their own training pages, which need no feature permission.
+  [USER_ROLES.LEARNER]: [],
+  // Client companies of a training company: their own pages only, which need no feature permission.
+  [USER_ROLES.CLIENT_ORG]: [],
   [USER_ROLES.PROJECT_ADMIN]: ['view_dashboard', 'view_reports', 'manage_programs', 'manage_interventions', 'assign_interventions', 'track_interventions', 'view_diagnostic_plans', 'manage_diagnostic_plans', 'view_applications', 'manage_applications', 'view_compliance', 'manage_compliance', 'view_participants', 'view_staff', 'manage_staff'],
   [USER_ROLES.PROJECT_MANAGER]: ['view_dashboard', 'view_reports', 'manage_programs', 'manage_interventions', 'assign_interventions', 'track_interventions', 'view_diagnostic_plans', 'manage_diagnostic_plans', 'view_applications', 'view_participants'],
   [USER_ROLES.OPERATIONS]: ['view_dashboard', 'view_reports', 'manage_programs', 'manage_interventions', 'assign_interventions', 'track_interventions', 'view_diagnostic_plans', 'manage_diagnostic_plans', 'view_applications', 'manage_applications', 'view_compliance', 'manage_compliance', 'view_participants', 'view_staff', 'manage_staff'],

@@ -1,0 +1,82 @@
+rules_version = '2';
+
+// LOCAL EMULATORS ONLY (firebase.emulators.json). The live storage rules are kept in the Firebase Console, not in
+// this repo; never deploy this file. The training block is the one documented in
+// smartv2-agent-docs/13-awareness-training-module.md; everything else is open to any signed-in user so the rest of
+// the app (logos, signatures, documents) works locally.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{folder}/{allPaths=**} {
+      allow read, write: if request.auth != null && folder != 'training-id-documents' && folder != 'training-library' && folder != 'training-org-documents';
+    }
+
+    match /training-id-documents/{companyCode}/{learnerId}/{fileName} {
+      function isTrainingStaff() {
+        let profile = firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+        return request.auth != null
+          && profile.get('role', '') in ['projectadmin', 'operations']
+          && profile.get('companyCode', '') == companyCode;
+      }
+      function isTheLearner() {
+        let learner = firestore.get(/databases/(default)/documents/trainingLearners/$(learnerId)).data;
+        return request.auth != null
+          && learner.get('uid', '') == request.auth.uid
+          && learner.get('companyCode', '') == companyCode;
+      }
+      function isIdFile() {
+        return request.resource.size <= 10 * 1024 * 1024
+          && request.resource.contentType.matches('application/pdf|image/(jpeg|png|webp)');
+      }
+      allow read, delete: if isTrainingStaff() || isTheLearner();
+      allow create: if (isTrainingStaff() || isTheLearner()) && isIdFile();
+      allow update: if false;
+    }
+
+    // A client company's documents (CIPC registration, B-BBEE certificate, ...): the training company's staff and the
+    // client company's own people.
+    match /training-org-documents/{companyCode}/{organisationId}/{fileName} {
+      function profile() {
+        return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+      }
+      function mayUse() {
+        return request.auth != null
+          && profile().get('companyCode', '') == companyCode
+          && (profile().get('role', '') in ['projectadmin', 'operations']
+            || (profile().get('role', '') == 'clientorg' && profile().get('organisationId', '') == organisationId));
+      }
+      allow read, delete: if mayUse();
+      allow create: if mayUse()
+        && request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType.matches('application/pdf|image/(jpeg|png)');
+      allow update: if false;
+    }
+
+    // The training company's library: its staff add and remove files; shared items are also readable by its
+    // learners and client companies (the item's record says which).
+    match /training-library/{companyCode}/{itemId}/{fileName} {
+      function profile() {
+        return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+      }
+      function isTrainingStaff() {
+        return request.auth != null
+          && profile().get('role', '') in ['projectadmin', 'operations']
+          && profile().get('companyCode', '') == companyCode;
+      }
+      function isSharedWithMe() {
+        let item = firestore.get(/databases/(default)/documents/trainingLibrary/$(itemId)).data;
+        return request.auth != null
+          && profile().get('role', '') in ['learner', 'clientorg']
+          && profile().get('companyCode', '') == companyCode
+          && item.get('companyCode', '') == companyCode
+          && item.get('audience', '') == 'shared';
+      }
+      function isLibraryFile() {
+        return request.resource.size <= 25 * 1024 * 1024;
+      }
+      allow read: if isTrainingStaff() || isSharedWithMe();
+      allow create: if isTrainingStaff() && isLibraryFile();
+      allow delete: if isTrainingStaff();
+      allow update: if false;
+    }
+  }
+}

@@ -18,6 +18,7 @@ Read these files in this order before making changes:
 10. `10-recovery-status.md`
 11. `11-agent-orchestration.md`
 12. `12-whatsapp-support-roadmap.md` when changing the WhatsApp channel
+13. `13-awareness-training-module.md` when changing awareness training, ESG reporting, client revenue or the client funder report (client modules that must stay off for other companies)
 
 ## Recovery workflow
 
