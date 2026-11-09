@@ -1,6 +1,7 @@
 import {
     Button,
     App,
+    Dropdown,
     Grid,
     Layout,
     Modal,
@@ -12,6 +13,7 @@ import {
 } from 'antd'
 import {
     CompassOutlined,
+    DownOutlined,
     GlobalOutlined,
     LogoutOutlined,
     MenuOutlined,
@@ -170,13 +172,27 @@ const navigationDescription = (route: AppRoute, label: string) => {
 const TRAINING_SME_PATHS = new Set(['/incubatee', '/incubatee/roadmap', '/incubatee/lms', '/incubatee/compliance', '/incubatee/appointments'])
 const TRAINING_SME_QUICK_LINK_PATHS = ['/incubatee/roadmap', '/incubatee/lms', '/incubatee/appointments', '/incubatee/compliance']
 
+/** A topbar shortcut that opens a small menu of related pages instead of one page. */
+/** `label` (English text) overrides the route's own name, so a shortcut can read shorter than its Menu entry. */
+type QuickLinkPageSpec = string | { path: string, label: string }
+type QuickLinkGroupSpec = { group: string, label?: string, children: QuickLinkPageSpec[] }
+const INCUBATEES_QUICK_GROUP: QuickLinkGroupSpec = {
+    group: '/operations/participants',
+    label: 'Incubatees',
+    children: [{ path: '/shared/participants', label: 'All' }, '/shared/applications', '/operations/participants/compliance'],
+}
+const INTERVENTIONS_QUICK_GROUP: QuickLinkGroupSpec = {
+    group: '/operations/interventions',
+    children: ['/operations/interventions/assign', '/operations/interventions/monitoring', '/shared/interventions/setup'],
+}
+
 /** The 3 highest-value pages per role, surfaced as one-click topbar shortcuts. */
-const QUICK_LINK_PATHS: Partial<Record<UserRole, string[]>> = {
+const QUICK_LINK_PATHS: Partial<Record<UserRole, Array<string | QuickLinkGroupSpec>>> = {
     [USER_ROLES.INCUBATEE]: ['/incubatee/interventions', '/incubatee/diagnostic-plan', '/incubatee/compliance'],
     [USER_ROLES.CONSULTANT]: ['/consultant/interventions', '/shared/interventions/appointments', '/consultant/reports'],
     [USER_ROLES.PROJECT_ADMIN]: ['/shared/applications', '/operations/risk-register', '/projectadmin/reports'],
     [USER_ROLES.PROJECT_MANAGER]: ['/shared/applications', '/operations/risk-register', '/operations/reports'],
-    [USER_ROLES.OPERATIONS]: ['/shared/applications', '/operations/risk-register', '/operations/reports'],
+    [USER_ROLES.OPERATIONS]: [INCUBATEES_QUICK_GROUP, INTERVENTIONS_QUICK_GROUP, '/operations/reports'],
     [USER_ROLES.DIRECTOR]: ['/director/portfolio', '/director/programs', '/director/reports'],
     [USER_ROLES.FUNDER]: ['/funder/portfolio', '/funder/sectors', '/funder/analytics'],
     [USER_ROLES.ADMIN]: ['/shared/applications', '/shared/interventions/appointments', '/shared/participants'],
@@ -200,7 +216,8 @@ const ROLE_LABELS: Partial<Record<UserRole, string>> = {
 const flattenRoutes = (routes: AppRoute[]): AppRoute[] =>
     routes.flatMap((route) => [route, ...(route.children?.length ? flattenRoutes(route.children) : [])])
 
-type QuickLink = { path: string, label: string, icon: AppRoute['icon'] }
+/** `children` makes it a dropdown; `path` is then only its key, never a page to open. */
+type QuickLink = { path: string, label: string, icon: AppRoute['icon'], children?: QuickLink[] }
 
 const filterRoutesByAudience = (
     routes: AppRoute[],
@@ -470,13 +487,24 @@ export const SystemLayout = () => {
             : user?.role === 'incubatee' && user.isApplicant
                 ? APPLICANT_QUICK_LINK_PATHS
                 : (user?.role && QUICK_LINK_PATHS[user.role]) || []
+        const toLink = (spec: QuickLinkPageSpec): QuickLink | null => {
+            const path = typeof spec === 'string' ? spec : spec.path
+            const route = byPath.get(path)
+            if (!route || path === homePath || !meetsApplicationsRule(route)) return null
+            return { path: route.path, label: typeof spec === 'string' ? t(route.labelKey) : t(spec.label), icon: route.icon }
+        }
         const rest = candidatePaths
-            .filter((path) => path !== homePath)
-            .map((path) => byPath.get(path))
-            .filter((route): route is AppRoute => Boolean(route))
-            .filter(meetsApplicationsRule)
+            .map((entry): QuickLink | null => {
+                if (typeof entry === 'string') return toLink(entry)
+                // Only the pages this person can open; a single survivor is just a plain shortcut.
+                const children = entry.children.map(toLink).filter((link): link is QuickLink => Boolean(link))
+                const groupRoute = byPath.get(entry.group)
+                if (!groupRoute || children.length === 0) return null
+                if (children.length === 1) return children[0]
+                return { path: entry.group, label: entry.label ? t(entry.label) : t(groupRoute.labelKey), icon: groupRoute.icon, children }
+            })
+            .filter((link): link is QuickLink => Boolean(link))
             .slice(0, 3)
-            .map((route) => ({ path: route.path, label: t(route.labelKey), icon: route.icon }))
 
         return [...home, ...rest]
     }, [t, user, visibleRoutes, hasApplications, checkDocuments, isTrainingSme, hasCourses]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -511,7 +539,7 @@ export const SystemLayout = () => {
 
         // Pages already one tap away (the desktop quick-link switch, the phone tab bar) are left out of the
         // Menu. Tablets have neither, so they keep every page there.
-        const pinned = new Set(isTablet ? [] : baseQuickLinks.map((link) => link.path))
+        const pinned = new Set(isTablet ? [] : baseQuickLinks.flatMap((link) => link.children ? link.children.map((child) => child.path) : [link.path]))
         const isListed = (route: AppRoute) => route.showInNav && meetsSettingRule(route) && !pinned.has(route.path)
 
         const navRoutes = visibleRoutes.filter((route) => isListed(route) || (route.children?.length && route.showInNav && meetsSettingRule(route)))
@@ -622,17 +650,36 @@ export const SystemLayout = () => {
         navigate(path)
     }
 
-    const quickLinksValue = quickLinkRoutes.some((link) => link.path === selectedKey) ? selectedKey : ''
+    const isQuickLinkActive = (link: QuickLink) => link.children
+        ? link.children.some((child) => child.path === selectedKey)
+        : link.path === selectedKey
+    const quickLinkMenu = (link: QuickLink) => ({
+        selectable: true,
+        selectedKeys: [selectedKey],
+        items: (link.children ?? []).map((child) => ({ key: child.path, label: child.label, icon: child.icon })),
+        onClick: ({ key }: { key: string }) => openWorkspace(key),
+    })
+    const quickLinksValue = quickLinkRoutes.find(isQuickLinkActive)?.path ?? ''
     const quickLinksSwitch = quickLinkRoutes.length > 0 && (
         <Segmented
             className="app-quicklinks-switch"
             value={quickLinksValue}
-            onChange={(value) => openWorkspace(String(value))}
+            // A dropdown shortcut has no page of its own: its menu does the navigating.
+            onChange={(value) => { if (!quickLinkRoutes.find((link) => link.path === value)?.children) openWorkspace(String(value)) }}
             options={quickLinkRoutes.map((link) => ({
                 value: link.path,
-                label: <span className="app-topbar-text">{link.label}</span>,
+                label: link.children ? (
+                    // The icon sits inside the trigger so the menu still opens when the label is squeezed out.
+                    <Dropdown menu={quickLinkMenu(link)} trigger={['hover', 'click']} placement="bottom">
+                        <span className="app-quicklink-dropdown">
+                            {link.icon}
+                            <span className="app-topbar-text">{link.label}</span>
+                            <DownOutlined className="app-quicklink-caret" />
+                        </span>
+                    </Dropdown>
+                ) : <span className="app-topbar-text">{link.label}</span>,
                 title: link.label,
-                icon: link.icon,
+                icon: link.children ? undefined : link.icon,
             }))}
         />
     )
@@ -814,11 +861,25 @@ export const SystemLayout = () => {
                             {hasPhoneBottomBar && (() => {
                                 // Tab bar: Home + the role's shortcuts + Menu. The current tab grows into a
                                 // labelled pill; Menu is current when the open page isn't one of the tabs.
-                                const onShortcut = quickLinkRoutes.some((link) => link.path === selectedKey)
+                                const onShortcut = quickLinkRoutes.some(isQuickLinkActive)
                                 return (
                                     <nav className="app-bottom-bar app-tab-bar" aria-label={t('Primary')}>
                                         {quickLinkRoutes.map((link) => {
-                                            const active = link.path === selectedKey
+                                            const active = isQuickLinkActive(link)
+                                            if (link.children) return (
+                                                <Dropdown key={link.path} menu={quickLinkMenu(link)} trigger={['click']} placement="top">
+                                                    <button
+                                                        type="button"
+                                                        className={`app-tab${active ? ' is-active' : ''}`}
+                                                        aria-current={active ? 'page' : undefined}
+                                                        aria-label={link.label}
+                                                        aria-haspopup="menu"
+                                                    >
+                                                        <span className="app-tab-icon">{link.icon || <AppstoreOutlined />}</span>
+                                                        <span className="app-tab-label">{link.label}</span>
+                                                    </button>
+                                                </Dropdown>
+                                            )
                                             return (
                                                 <button
                                                     key={link.path}
