@@ -1,4 +1,6 @@
 .operations-participants-metrics { margin-bottom: 16px; }
+.operations-participants-page .filter-bar-controls > .ant-space { flex: 0 0 auto; }
+.operations-participants-page .filter-bar-controls > .ant-input-affix-wrapper { flex: 1 1 240px; min-width: 0; }
 .operations-participants-card { border-radius: 18px !important; border: 1px solid rgba(109, 93, 251, .12) !important; }
 .operations-participants-row { cursor: pointer; }
 .operations-participants-row:hover td { background: rgba(109, 93, 251, .08) !important; }

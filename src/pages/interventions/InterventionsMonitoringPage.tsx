@@ -1,11 +1,13 @@
-import { App, Button, Card, Col, Descriptions, Input, Modal, Progress, Rate, Row, Segmented, Select, Space, Tag, Typography, type TableProps } from 'antd'
-import { AlertOutlined, BarChartOutlined, BellOutlined, BulbOutlined, ClockCircleOutlined, EyeOutlined, FieldTimeOutlined, ReloadOutlined, RobotOutlined, SearchOutlined, TeamOutlined } from '@ant-design/icons'
+import { App, Button, Card, Col, Descriptions, Dropdown, Input, Modal, Progress, Rate, Row, Segmented, Select, Space, Tag, Typography, type TableProps } from 'antd'
+import { AlertOutlined, BarChartOutlined, BellOutlined, BulbOutlined, ClockCircleOutlined, EyeOutlined, FieldTimeOutlined, ReloadOutlined, RobotOutlined, SearchOutlined, SlidersOutlined, TeamOutlined } from '@ant-design/icons'
 import type Highcharts from 'highcharts'
 import dayjs from 'dayjs'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { collection, doc, getDocs, query, serverTimestamp, updateDoc, where } from 'firebase/firestore'
 import { db } from '@/firebase'
+import { hasRolePermission } from '@/config/permissions'
+import '@/styles/interventions-monitoring-page.css'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
@@ -25,6 +27,7 @@ import { deriveHoldUp } from '@/services/interventionHoldUp'
 import type { Participant } from '@/types/participant.types'
 import { useLanguage, tr } from '@/providers/LanguageProvider'
 import { hasWorkStarted } from '@/utils/interventionStart'
+import { assignmentDeliveryActor } from '@/utils/assignmentDelivery'
 
 type AssignmentKind = 'all' | 'single' | 'grouped'
 type HealthFilter = 'all' | 'on_track' | 'held_up' | 'overdue' | 'completed'
@@ -208,7 +211,7 @@ export const InterventionsMonitoringPage = () => {
     const { t } = useLanguage()
     const { message } = App.useApp()
     const { assignments, loading, refresh } = useAssignedInterventions()
-    const { activeProgramId, isAllPrograms } = useActiveProgramId()
+    const { activeProgramId } = useActiveProgramId()
     const { user } = useFullIdentity()
     const [view, setView] = useState<AssignmentKind>('all')
     // Links such as the director's "Ask for an update" notification open the page already filtered (?health=overdue).
@@ -217,7 +220,6 @@ export const InterventionsMonitoringPage = () => {
     const [delivery, setDelivery] = useState<DeliveryFilter>('all')
     const [status, setStatus] = useState<StandardStatusFilter>('all')
     const [section, setSection] = useState<MonitorSection>(() => (searchParams.get('health') ? 'assignments' : 'overview'))
-    const [programme, setProgramme] = useState('All')
     const [search, setSearch] = useState('')
     const [selected, setSelected] = useState<MonitorRow>()
     const [selectedGroup, setSelectedGroup] = useState<GroupRow>()
@@ -337,7 +339,7 @@ export const InterventionsMonitoringPage = () => {
                     programId: firstText(assignment.programId, application?.programId),
                     assigneeName: String(assignment.assigneeName || 'Unassigned'),
                     assigneeEmail: String(assignment.assigneeEmail || ''),
-                    deliveryActorType: assignment.deliveryActorType === 'human' || assignment.deliveryActorType === 'agent' ? assignment.deliveryActorType : null,
+                    deliveryActorType: assignmentDeliveryActor(assignmentRecord),
                     deliveryStrategy: String(assignmentRecord.deliveryStrategy || ''),
                     agentName: String(assignmentRecord.agentName || ''),
                     agentWorkStatus: String(assignmentRecord.agentWorkStatus || ''),
@@ -363,7 +365,6 @@ export const InterventionsMonitoringPage = () => {
             .filter((row) => matchesActiveProgram(user, activeProgramId, row.programId))
     }, [activeProgramId, agentRatings, applicationById, applicationByParticipant, assignments, participantMap, user])
 
-    const programmes = useMemo(() => ['All', ...Array.from(new Set(monitorRows.map((row) => row.programName).filter(Boolean))).sort()], [monitorRows])
 
     const filteredRows = useMemo(() => {
         const needle = normalize(search)
@@ -373,10 +374,9 @@ export const InterventionsMonitoringPage = () => {
             const matchesHealth = health === 'all' || row.health === health
             const matchesDelivery = delivery === 'all' || (delivery === 'unmarked' ? !row.deliveryActorType : row.deliveryActorType === delivery)
             const matchesStatus = status === 'all' || row.status === status
-            const matchesProgramme = !isAllPrograms || programme === 'All' || row.programName === programme
-            return matchesSearch && matchesKind && matchesHealth && matchesDelivery && matchesStatus && matchesProgramme
+            return matchesSearch && matchesKind && matchesHealth && matchesDelivery && matchesStatus
         })
-    }, [delivery, health, isAllPrograms, monitorRows, programme, search, status, view])
+    }, [delivery, health, monitorRows, search, status, view])
 
     const groupedRows = useMemo<GroupRow[]>(() => {
         const groups = new Map<string, MonitorRow[]>()
@@ -544,7 +544,7 @@ export const InterventionsMonitoringPage = () => {
 
     const aiPayload = useMemo(() => ({
         companyName: user?.companyCode || null,
-        filters: { search, view, health, status, section, delivery, programme: isAllPrograms ? programme : activeProgramId },
+        filters: { search, view, health, status, section, delivery, programme: activeProgramId },
         metrics,
         statusBreakdown: STANDARD_STATUS_OPTIONS
             .filter((option) => option.value !== 'all')
@@ -583,7 +583,7 @@ export const InterventionsMonitoringPage = () => {
             holdUp: row.holdUp,
             reason: row.reason,
         })),
-    }), [activeProgramId, delivery, filteredRows, groupedRows, health, holdUpCounts, isAllPrograms, metrics, programme, progressBuckets, search, section, status, user?.companyCode, view])
+    }), [activeProgramId, delivery, filteredRows, groupedRows, health, holdUpCounts, metrics, progressBuckets, search, section, status, user?.companyCode, view])
 
     const refreshAiInsights = async (showSuccess = true) => {
         try {
@@ -667,7 +667,7 @@ export const InterventionsMonitoringPage = () => {
         pageKey: 'operations-interventions-monitoring',
         pageName: 'Interventions monitoring',
         purpose: 'Monitor assigned interventions, progress, grouped delivery, overdue work, and hold-up reasons.',
-        filters: { search, view, health, status, delivery, programme: isAllPrograms ? programme : activeProgramId },
+        filters: { search, view, health, status, delivery, programme: activeProgramId },
         metrics,
         tables: { assignments: filteredRows.length, groups: groupedRows.length },
         selectedRecord: selected?.title || selectedGroup?.groupName,
@@ -717,7 +717,7 @@ export const InterventionsMonitoringPage = () => {
         { title: t('Progress'), dataIndex: 'progress', render: (value: number) => <Progress percent={value} size="small" /> },
         { title: t('Hold-up'), dataIndex: 'holdUp', render: (value: string, row) => <Space direction="vertical" size={0}><Tag color={healthColor(row.health)}>{value}</Tag><Typography.Text type="secondary">{row.reason}</Typography.Text></Space> },
         { title: t('Due'), dataIndex: 'dueDate', render: (value: Date | null, row) => <Tag color={row.isOverdue ? 'red' : 'default'}>{dueLabel(value)}</Tag> },
-        { title: t('Actions'), render: (_, row) => <Space><Button icon={<BellOutlined />} loading={remindingId === row.id} disabled={row.isCompleted} onClick={() => void sendReminder(row)}>{t('Remind')}</Button><Button icon={<EyeOutlined />} onClick={() => setSelected(row)}>{t('Drill down')}</Button></Space> },
+        { title: t('Actions'), render: (_, row) => <Space>{!row.isCompleted && <Button icon={<BellOutlined />} loading={remindingId === row.id} onClick={() => void sendReminder(row)}>{t('Remind')}</Button>}<Button icon={<EyeOutlined />} onClick={() => setSelected(row)}>{t('Drill down')}</Button></Space> },
     ]
 
     const groupColumns: TableProps<GroupRow>['columns'] = [
@@ -744,34 +744,51 @@ export const InterventionsMonitoringPage = () => {
             </Row>
 
             <FilterBar
-                title={t('Interventions monitoring')}
                 primary={(
                     <>
                         <Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('Search intervention, SME, assignee, or reason')} allowClear />
-                        {isAllPrograms && <Select value={programme} onChange={setProgramme} options={programmes.map((value) => ({ value, label: value }))} />}
                         <Select value={status} onChange={setStatus} options={STANDARD_STATUS_OPTIONS} />
-                        <Select value={health} onChange={setHealth} options={[
-                            { value: 'all', label: t('All health') },
-                            { value: 'on_track', label: t('On track') },
-                            { value: 'held_up', label: t('Held up') },
-                            { value: 'overdue', label: t('Overdue') },
-                            { value: 'completed', label: t('Completed') },
-                        ]} />
-                        <Select value={delivery} onChange={setDelivery} options={[
-                            { value: 'all', label: t('All delivery') },
-                            { value: 'human', label: t('Human delivery') },
-                            { value: 'agent', label: t('Agent delivery') },
-                            { value: 'unmarked', label: t('Unmarked delivery') },
+                        <Segmented aria-label={t('Assignment type')} value={view} onChange={(value) => setView(value as AssignmentKind)} options={[
+                            { value: 'all', label: t('All') },
+                            { value: 'single', label: t('Single') },
+                            { value: 'grouped', label: t('Grouped') },
                         ]} />
                     </>
                 )}
                 actions={(
                     <>
-                        <Segmented value={view} onChange={(value) => setView(value as AssignmentKind)} options={[
-                            { value: 'all', label: t('All') },
-                            { value: 'single', label: t('Single') },
-                            { value: 'grouped', label: t('Grouped') },
-                        ]} />
+                        <Dropdown
+                            trigger={['click']}
+                            placement="bottomRight"
+                            popupRender={() => (
+                                <Card size="small" style={{ width: 'min(320px, calc(100vw - 32px))' }}>
+                                    <Space orientation="vertical" style={{ width: '100%' }}>
+                                        <Typography.Text>{t('Health')}</Typography.Text>
+                                        <Select aria-label={t('Health')} style={{ width: '100%' }} value={health} onChange={setHealth} options={[
+                                            { value: 'all', label: t('All health') },
+                                            { value: 'on_track', label: t('On track') },
+                                            { value: 'held_up', label: t('Held up') },
+                                            { value: 'overdue', label: t('Overdue') },
+                                            { value: 'completed', label: t('Completed') },
+                                        ]} />
+                                        <Typography.Text>{t('Delivery')}</Typography.Text>
+                                        <Select aria-label={t('Delivery')} style={{ width: '100%' }} value={delivery} onChange={setDelivery} options={[
+                                            { value: 'all', label: t('All delivery') },
+                                            { value: 'human', label: t('Human delivery') },
+                                            { value: 'agent', label: t('Agent delivery') },
+                                            { value: 'unmarked', label: t('Unmarked delivery') },
+                                        ]} />
+                                        <Button block disabled={health === 'all' && delivery === 'all'} onClick={() => { setHealth('all'); setDelivery('all') }}>
+                                            {t('Reset filters')}
+                                        </Button>
+                                    </Space>
+                                </Card>
+                            )}
+                        >
+                            <Button icon={<SlidersOutlined />}>
+                                {t('common.filters')}{[health, delivery].some((value) => value !== 'all') ? ' (' + [health, delivery].filter((value) => value !== 'all').length + ')' : ''}
+                            </Button>
+                        </Dropdown>
                         <Button icon={<ReloadOutlined />} onClick={() => { void refresh(); message.success(t('Monitoring refreshed.')) }}>{t('Refresh')}</Button>
                     </>
                 )}
@@ -887,7 +904,7 @@ export const InterventionsMonitoringPage = () => {
                             columns={assignmentColumns}
                             loading={loading}
                             emptyText={t('No assigned interventions match the selected filters.')}
-                            renderCard={(row) => <Space direction="vertical" size={8}><Typography.Text strong>{row.title}</Typography.Text><Typography.Text type="secondary">{row.participantName}</Typography.Text><Progress percent={row.progress} /><Space wrap>{row.deliveryActorType === 'agent' ? <Tag icon={<RobotOutlined />} color="purple">{t('Agent')}</Tag> : row.deliveryActorType === 'human' ? <Tag icon={<TeamOutlined />} color="blue">{t('Human')}</Tag> : <Tag>{t('Unmarked')}</Tag>}<Tag color={row.kind === 'grouped' ? 'purple' : 'default'}>{row.kind === 'grouped' ? t('Grouped') : t('Single')}</Tag><Tag color={statusColor(row.status)}>{row.status}</Tag><Tag color={healthColor(row.health)}>{row.holdUp}</Tag>{row.isOverdue && <Tag color="red">{t('Overdue')}</Tag>}</Space><Space><Button icon={<BellOutlined />} loading={remindingId === row.id} disabled={row.isCompleted} onClick={() => void sendReminder(row)}>{t('Remind')}</Button><Button onClick={() => setSelected(row)}>{t('Drill down')}</Button></Space></Space>}
+                            renderCard={(row) => <Space direction="vertical" size={8}><Typography.Text strong>{row.title}</Typography.Text><Typography.Text type="secondary">{row.participantName}</Typography.Text><Progress percent={row.progress} /><Space wrap>{row.deliveryActorType === 'agent' ? <Tag icon={<RobotOutlined />} color="purple">{t('Agent')}</Tag> : row.deliveryActorType === 'human' ? <Tag icon={<TeamOutlined />} color="blue">{t('Human')}</Tag> : <Tag>{t('Unmarked')}</Tag>}<Tag color={row.kind === 'grouped' ? 'purple' : 'default'}>{row.kind === 'grouped' ? t('Grouped') : t('Single')}</Tag><Tag color={statusColor(row.status)}>{row.status}</Tag><Tag color={healthColor(row.health)}>{row.holdUp}</Tag>{row.isOverdue && <Tag color="red">{t('Overdue')}</Tag>}</Space><Space>{!row.isCompleted && <Button icon={<BellOutlined />} loading={remindingId === row.id} onClick={() => void sendReminder(row)}>{t('Remind')}</Button>}<Button onClick={() => setSelected(row)}>{t('Drill down')}</Button></Space></Space>}
                         />
                     )}
                 </Card>
@@ -896,24 +913,41 @@ export const InterventionsMonitoringPage = () => {
             <Modal open={!!selected} title={selected?.title} onCancel={() => setSelected(undefined)} footer={null} width={820}>
                 {selected && (
                     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-                        <Descriptions bordered size="small" column={{ xs: 1, md: 2 }} items={[
-                            { key: 'sme', label: t('SME'), children: selected.participantName },
-                            { key: 'email', label: t('SME email'), children: selected.participantEmail || 'No email' },
-                            { key: 'assignee', label: t('Assignee'), children: selected.assigneeName },
-                            { key: 'assigneeEmail', label: t('Assignee email'), children: selected.assigneeEmail || 'No email' },
-                            { key: 'delivery', label: t('Delivery'), children: selected.deliveryActorType === 'agent' ? <Tag icon={<RobotOutlined />} color="purple">{t('Agent')}</Tag> : selected.deliveryActorType === 'human' ? <Tag icon={<TeamOutlined />} color="blue">{t('Human')}</Tag> : <Tag>{t('Unmarked')}</Tag> },
-                            { key: 'agent', label: t('Agent workspace'), children: selected.deliveryActorType === 'agent' ? `${selected.agentName || 'Agent'} · ${selected.agentWorkStatus || 'ready'}` : 'Not applicable' },
-                            { key: 'review', label: t('Review layer'), children: selected.deliveryActorType === 'agent' && selected.reviewerType ? `${selected.reviewerType} · ${selected.reviewStatus || 'not started'}` : 'No review required' },
-                            { key: 'rating', label: t('Agent rating'), children: selected.agentRating ? <Space><Rate disabled allowHalf value={selected.agentRating} /><Typography.Text>{selected.agentRating.toFixed(1)} {t('from')} {plural(selected.agentRatingCount, 'rating')}</Typography.Text></Space> : 'No ratings yet' },
-                            { key: 'type', label: t('Type'), children: <Tag color={selected.kind === 'grouped' ? 'purple' : 'default'}>{selected.kind === 'grouped' ? t('Grouped') : t('Single')}</Tag> },
-                            { key: 'status', label: t('Status'), children: <Tag color={statusColor(selected.status)}>{selected.status}</Tag> },
-                            { key: 'rawStatus', label: t('Firestore status'), children: selected.rawStatus },
-                            { key: 'assigned', label: t('Assigned'), children: selected.assignedAt ? dayjs(selected.assignedAt).format('DD MMM YYYY') : 'No assigned date' },
-                            { key: 'implementation', label: t('Implementation'), children: selected.implementationDate ? dayjs(selected.implementationDate).format('DD MMM YYYY') : 'No implementation date' },
-                            { key: 'due', label: t('Due'), children: <Tag color={selected.isOverdue ? 'red' : 'default'}>{dueLabel(selected.dueDate)}</Tag> },
-                            { key: 'holdUp', label: t('Hold-up'), children: <Tag color={healthColor(selected.health)}>{selected.holdUp}</Tag> },
-                            { key: 'reason', label: t('Reason'), span: 2, children: selected.reason },
-                        ]} />
+                        <div className="monitor-detail-summary">
+                            <Space wrap>
+                                <Tag color={statusColor(selected.status)}>{t(selected.status)}</Tag>
+                                <Tag>{selected.kind === 'grouped' ? t('Grouped') : t('Single')}</Tag>
+                                {selected.deliveryActorType && <Tag icon={selected.deliveryActorType === 'agent' ? <RobotOutlined /> : <TeamOutlined />}>{t(selected.deliveryActorType === 'agent' ? 'Agent' : 'Human')}</Tag>}
+                            </Space>
+                            <Progress percent={selected.progress} />
+                        </div>
+                        <div className="monitor-detail-section">
+                            <Descriptions layout="vertical" size="small" column={{ xs: 1, sm: 2, md: 2 }} items={[
+                                { key: 'sme', label: t('SME'), span: selected.participantEmail ? 1 : 2, children: selected.participantName },
+                                ...(selected.participantEmail ? [{ key: 'email', label: t('SME email'), children: selected.participantEmail }] : []),
+                                { key: 'assignee', label: t('Assignee'), span: selected.assigneeEmail ? 1 : 2, children: selected.assigneeName || t('Unassigned') },
+                                ...(selected.assigneeEmail ? [{ key: 'assigneeEmail', label: t('Assignee email'), children: selected.assigneeEmail }] : []),
+                                ...(selected.assignedAt ? [{ key: 'assigned', label: t('Assigned'), children: dayjs(selected.assignedAt).format('DD MMM YYYY') }] : []),
+                                ...(selected.implementationDate ? [{ key: 'implementation', label: t('Implementation'), children: dayjs(selected.implementationDate).format('DD MMM YYYY') }] : []),
+                                ...(selected.dueDate ? [{ key: 'due', label: t('Due'), children: <Typography.Text type={selected.isOverdue ? 'danger' : undefined}>{dueLabel(selected.dueDate)}</Typography.Text> }] : []),
+                            ]} />
+                        </div>
+                        {selected.deliveryActorType === 'agent' && (selected.agentName || selected.agentWorkStatus || selected.reviewerType || selected.agentRating != null) && (
+                            <div className="monitor-detail-section">
+                                <Descriptions layout="vertical" size="small" column={{ xs: 1, sm: 2, md: 2 }} items={[
+                                    ...(selected.agentName ? [{ key: 'agent', label: t('Agent'), children: selected.agentName }] : []),
+                                    ...(selected.agentWorkStatus ? [{ key: 'work', label: t('Work status'), children: t(selected.agentWorkStatus.replace(/_/g, ' ')) }] : []),
+                                    ...(selected.reviewerType ? [{ key: 'review', label: t('Review'), children: t(selected.reviewerType) + (selected.reviewStatus ? ' · ' + t(selected.reviewStatus.replace(/_/g, ' ')) : '') }] : []),
+                                    ...(selected.agentRating != null ? [{ key: 'rating', label: t('Agent rating'), children: <Space wrap><Rate disabled allowHalf value={selected.agentRating} /><Typography.Text>{selected.agentRating.toFixed(1)} {t('from')} {plural(selected.agentRatingCount, 'rating')}</Typography.Text></Space> }] : []),
+                                ]} />
+                            </div>
+                        )}
+                        {!selected.isCompleted && (selected.health === 'held_up' || selected.isOverdue) && (
+                            <div className="monitor-detail-section">
+                                <Tag color={healthColor(selected.health)}>{t(selected.holdUp)}</Tag>
+                                {selected.reason && <Typography.Paragraph style={{ margin: '8px 0 0' }}>{selected.reason}</Typography.Paragraph>}
+                            </div>
+                        )}
                         {selected.deliveryActorType === 'agent' && selected.reviewerType === 'operations' && selected.agentWorkStatus === 'awaiting_review' && (
                             <Card size="small" title={t('Operations review required')}>
                                 <Space wrap>
@@ -922,14 +956,21 @@ export const InterventionsMonitoringPage = () => {
                                 </Space>
                             </Card>
                         )}
-                        <InterventionOpsActions
-                            assignment={{ id: selected.id, companyCode: selected.raw.companyCode, assigneeId: selected.raw.assigneeId, assigneeName: selected.raw.assigneeName, changeRequest: (selected.raw as { changeRequest?: unknown }).changeRequest }}
-                            title={selected.title}
-                            participantName={selected.participantName}
-                            isCompleted={selected.isCompleted}
-                            onChanged={() => { setSelected(undefined); void refresh() }}
-                        />
-                        <Progress percent={selected.progress} />
+                        {user && hasRolePermission(user.role, 'assign_interventions', user.permissions) && (
+                            <div className="monitor-detail-actions">
+                                <Typography.Text strong>{selected.raw.assignedStepTitle || selected.title} · {selected.assigneeName || t('Unassigned')}</Typography.Text>
+                                <div>
+                                    <InterventionOpsActions
+                                        embedded
+                                        assignment={{ id: selected.id, companyCode: selected.raw.companyCode, assigneeId: selected.raw.assigneeId, assigneeName: selected.raw.assigneeName, changeRequest: (selected.raw as { changeRequest?: unknown }).changeRequest }}
+                                        title={selected.title}
+                                        participantName={selected.participantName}
+                                        isCompleted={selected.isCompleted}
+                                        onChanged={() => { setSelected(undefined); void refresh() }}
+                                    />
+                                </div>
+                            </div>
+                        )}
                         <Space style={{ justifyContent: 'flex-end', width: '100%' }}>
                             <Button icon={<BellOutlined />} loading={remindingId === selected.id} disabled={selected.isCompleted} onClick={() => void sendReminder(selected)}>{t('Create reminder')}</Button>
                         </Space>
@@ -951,7 +992,7 @@ export const InterventionsMonitoringPage = () => {
                             rows={selectedGroup.assignments}
                             columns={assignmentColumns}
                             emptyText={t('This group has no assignments.')}
-                            renderCard={(row) => <Space direction="vertical" size={8}><Typography.Text strong>{row.participantName}</Typography.Text><Progress percent={row.progress} /><Tag color={healthColor(row.health)}>{row.holdUp}</Tag><Space><Button icon={<BellOutlined />} loading={remindingId === row.id} disabled={row.isCompleted} onClick={() => void sendReminder(row)}>{t('Remind')}</Button><Button onClick={() => setSelected(row)}>{t('Open assignment')}</Button></Space></Space>}
+                            renderCard={(row) => <Space direction="vertical" size={8}><Typography.Text strong>{row.participantName}</Typography.Text><Progress percent={row.progress} /><Tag color={healthColor(row.health)}>{row.holdUp}</Tag><Space>{!row.isCompleted && <Button icon={<BellOutlined />} loading={remindingId === row.id} onClick={() => void sendReminder(row)}>{t('Remind')}</Button>}<Button onClick={() => setSelected(row)}>{t('Open assignment')}</Button></Space></Space>}
                         />
                     </Space>
                 )}

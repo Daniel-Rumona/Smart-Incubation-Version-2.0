@@ -26,6 +26,7 @@ type Props = {
   title: string
   participantName: string
   isCompleted: boolean
+  embedded?: boolean
   /** Called after any successful action so the page can reload its data and close its own modal. */
   onChanged: () => void
 }
@@ -33,7 +34,7 @@ type Props = {
 type ActiveModal = 'takeover' | 'reassign' | 'complete' | null
 
 /** Operations' take over / reassign / complete-with-evidence controls for one assigned intervention. */
-export const InterventionOpsActions = ({ assignment, title, participantName, isCompleted, onChanged }: Props) => {
+export const InterventionOpsActions = ({ assignment, title, participantName, isCompleted, onChanged, embedded = false }: Props) => {
   const { message } = App.useApp()
   const { user } = useFullIdentity()
   const [active, setActive] = useState<ActiveModal>(null)
@@ -83,6 +84,16 @@ export const InterventionOpsActions = ({ assignment, title, participantName, isC
 
   const selectedCandidate = candidates.find((candidate) => candidate.id === candidateId)
 
+  const controls = (
+    <div style={embedded ? { textAlign: 'right' } : undefined}>
+        {isCompleted ? <Text type="success" style={{ whiteSpace: 'nowrap' }}><CheckCircleOutlined /> Completed</Text> : <Space wrap>
+          <Button icon={<UserSwitchOutlined />} disabled={isCompleted || isMine} onClick={() => setActive('takeover')}>Take over</Button>
+          <Button icon={<SwapOutlined />} disabled={isCompleted} onClick={() => setActive('reassign')}>Reassign</Button>
+          <Button type="primary" icon={<CheckCircleOutlined />} disabled={isCompleted} onClick={() => setActive('complete')}>Complete</Button>
+        </Space>}
+    </div>
+  )
+
   return (
     <>
       {request && (
@@ -100,14 +111,11 @@ export const InterventionOpsActions = ({ assignment, title, participantName, isC
           </Space>
         </Card>
       )}
-      <Card size="small" title="Operations actions" extra={<Text type="secondary">Recorded in the intervention's history</Text>}>
-        <Space wrap>
-          <Button icon={<UserSwitchOutlined />} disabled={isCompleted || isMine} onClick={() => setActive('takeover')}>Take over</Button>
-          <Button icon={<SwapOutlined />} disabled={isCompleted} onClick={() => setActive('reassign')}>Reassign</Button>
-          <Button type="primary" icon={<CheckCircleOutlined />} disabled={isCompleted} onClick={() => setActive('complete')}>Complete</Button>
-        </Space>
-        {isCompleted && <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>This intervention is already completed.</Text>}
-      </Card>
+      {embedded ? controls : (
+        <Card size="small" title="Operations actions" extra={<Text type="secondary">Recorded in the intervention's history</Text>}>
+          {controls}
+        </Card>
+      )}
 
       <Modal
         open={active === 'takeover'}

@@ -42,6 +42,7 @@ import {
     RadarChartOutlined,
     EllipsisOutlined,
     SearchOutlined,
+    SlidersOutlined,
     FileExcelOutlined,
     PhoneOutlined,
 } from '@ant-design/icons'
@@ -174,11 +175,6 @@ type ViewData = {
     programName?: string
     programId?: string
     auditTrail: AnyDoc[]
-}
-
-const calculateProgress = (required: number, completed: number) => {
-    if (!required || required === 0) return 0
-    return Math.round((completed / required) * 100)
 }
 
 const formatDateOnly = (v: any) => {
@@ -518,6 +514,10 @@ export const ParticipantsPage: React.FC = () => {
 
     const [participants, setParticipants] = useState<ParticipantRow[]>([])
     const [searchText, setSearchText] = useState('')
+    const [participantFilters, setParticipantFilters] = useState({ sector: '', stage: '', riskLevel: '' })
+    useEffect(() => {
+        setParticipantFilters({ sector: '', stage: '', riskLevel: '' })
+    }, [activeProgramId])
     const [quickFilter, setQuickFilter] = useState<'all' | 'needs-assignment'>('all')
     const [loading, setLoading] = useState(true)
     const [savingEdit, setSavingEdit] = useState(false)
@@ -688,16 +688,18 @@ export const ParticipantsPage: React.FC = () => {
                 })
             }
 
-            const completedByParticipantId: Record<string, number> = {}
-            // Reception can't read delivery records, so its directory shows no progress rather than failing to load.
-            const completionDocs = isReception ? [] : (await getDocs(
-                query(collection(db, 'interventionCompletions'), where('companyCode', '==', companyCode))
+            // Use delivery records, as the detail view does, instead of legacy completion totals.
+            const assignmentDocs = isReception ? [] : (await getDocs(
+                query(collection(db, 'assignedInterventions'), where('companyCode', '==', companyCode))
             )).docs
-            completionDocs.forEach(completion => {
-                const pid = String((completion.data() as AnyDoc).participantId || '').trim()
-                if (!pid) return
-                completedByParticipantId[pid] = (completedByParticipantId[pid] || 0) + 1
-            })
+            const liveAssignments: AnyDoc[] = assignmentDocs.map(snapshot => ({ ...snapshot.data(), id: snapshot.id }))
+            const requiredFor = (participant: AnyDoc) => {
+                const application = applicationDocs[String(participant.applicationId || '').trim()] || {}
+                const plan = diagnosticPlansByApplication[String(participant.applicationId || '').trim()] || {}
+                return firstNonEmpty(plan.interventions, application.interventions?.required, application.requiredInterventions, participant.requiredInterventions)
+            }
+            const definitions = await loadDefinitions(db, isReception ? [] : participantRows.flatMap(participant =>
+                requiredFor(participant).map(item => ({ interventionId: String(item?.interventionId || item?.id || ''), companyCode }))))
 
             const names: Record<string, string> = {}
             for (const chunk of chunkArray(programIds, 10)) {
@@ -725,10 +727,23 @@ export const ParticipantsPage: React.FC = () => {
                     application.requiredInterventions,
                     participant.requiredInterventions
                 )
-                const completed = Array.from({ length: completedByParticipantId[participantId] || 0 })
-                const assigned = asArray(participant.assignedInterventions || application.assignedInterventions)
-
-                const progress = calculateProgress(required.length, completed.length)
+                const rowProgramId = String(participant.programId || application.programId || businessProfile.programId || '').trim()
+                const participantAliases = new Set([participantId, participant.uid, application.participantId].filter(Boolean).map(String))
+                const assigned = liveAssignments.filter(assignment => participantAliases.has(String(assignment.participantId || ''))
+                    && (!assignment.programId || String(assignment.programId) === rowProgramId))
+                const planItems = required.map(item => {
+                    const interventionId = String(item?.interventionId || item?.id || '')
+                    const definition = definitions.get(interventionId, companyCode) || {}
+                    return {
+                        ...item, interventionId,
+                        title: String(item?.title || item?.interventionTitle || definition.interventionTitle || 'Intervention'),
+                        executionMode: item?.executionMode || definition.executionMode,
+                        steps: Array.isArray(item?.steps) ? item.steps : definition.steps,
+                    }
+                })
+                const livePlan = buildLivePlanItems(planItems, assigned)
+                const completed = livePlan.filter(item => item.status === 'Completed')
+                const progress = livePlanProgress(livePlan)
                 const reg = participant.acceptedBy || application.reviewedBy || application.createdBy || null
                 const registeredByLabel = reg?.name || reg?.email || reg?.uid || ''
                 const programId = String(participant.programId || application.programId || businessProfile.programId || '').trim()
@@ -754,7 +769,8 @@ export const ParticipantsPage: React.FC = () => {
                     interventions: {
                         required,
                         completed,
-                        assigned,
+                        assigned: assigned.filter(item => !['cancelled', 'canceled', 'declined', 'superseded'].includes(normalizedStatus(item.status))
+                            && normalizedStatus(item.assigneeStatus) !== 'declined' && normalizedStatus(item.participantStatus) !== 'declined'),
                         participationRate: application.interventions?.participationRate || participant.interventions?.participationRate || 0
                     },
                     progress,
@@ -833,8 +849,18 @@ export const ParticipantsPage: React.FC = () => {
         })
     }, [participants])
 
+    const participantFilterFields = { sector: 'Sector', stage: 'Business stage', riskLevel: 'Risk level' } as const
+    const participantFilterOptions = useMemo(() => {
+        const options = (field: 'sector' | 'stage' | 'riskLevel') =>
+            [...new Set(participants.map(p => String(p[field] || '').trim()).filter(Boolean))]
+                .sort((a, b) => a.localeCompare(b)).map(value => ({ value, label: value }))
+        return { sector: options('sector'), stage: options('stage'), riskLevel: options('riskLevel') }
+    }, [participants])
+    const activeParticipantFilters = Object.values(participantFilters).filter(Boolean).length + (quickFilter === 'all' ? 0 : 1)
     const filteredParticipants = useMemo(() => {
-        let filtered = participants
+        let filtered = participants.filter(p =>
+            (['sector', 'stage', 'riskLevel'] as const).every(field =>
+                !participantFilters[field] || String(p[field] || '').trim() === participantFilters[field]))
 
         if (quickFilter === 'needs-assignment') {
             filtered = filtered.filter(p => (p.interventions?.assigned?.length || 0) === 0)
@@ -848,12 +874,12 @@ export const ParticipantsPage: React.FC = () => {
                     String(p.participantName || '').toLowerCase().includes(s) ||
                     String(p.sector || '').toLowerCase().includes(s) ||
                     String(p.email || '').toLowerCase().includes(s) ||
-                    String(p.programName || '').toLowerCase().includes(s)
+                    (isAllPrograms && String(p.programName || '').toLowerCase().includes(s))
             )
         }
 
         return filtered
-    }, [participants, searchText, quickFilter])
+    }, [participants, searchText, quickFilter, participantFilters, isAllPrograms])
 
     const loadAuditTrail = async (participantId: string, applicationId?: string | null) => {
         try {
@@ -1975,11 +2001,7 @@ export const ParticipantsPage: React.FC = () => {
                 primary={
                     <Input
                         prefix={<SearchOutlined />}
-                        placeholder={
-                            isAllPrograms
-                                ? t('Search by SME name, program, sector, or email')
-                                : t('Search by SME name, sector, or email')
-                        }
+                        placeholder={t('Search by SME name, sector, or email')}
                         value={searchText}
                         onChange={e => setSearchText(e.target.value)}
                         allowClear
@@ -1987,6 +2009,40 @@ export const ParticipantsPage: React.FC = () => {
                 }
                 actions={
                     <Space wrap>
+                        <Dropdown
+                            trigger={['click']}
+                            placement="bottomRight"
+                            popupRender={() => (
+                                <Card size="small" style={{ width: 'min(320px, calc(100vw - 32px))' }}>
+                                    <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+                                        {(['sector', 'stage', 'riskLevel'] as const).map(field => (
+                                            <div key={field}>
+                                                <Text style={{ display: 'block', marginBottom: 4 }}>{t(participantFilterFields[field])}</Text>
+                                                <Select
+                                                    aria-label={t(participantFilterFields[field])}
+                                                    style={{ width: '100%' }}
+                                                    allowClear showSearch optionFilterProp="label"
+                                                    placeholder={t('All')}
+                                                    value={participantFilters[field] || undefined}
+                                                    options={participantFilterOptions[field]}
+                                                    onChange={value => setParticipantFilters(current => ({ ...current, [field]: value || '' }))}
+                                                />
+                                            </div>
+                                        ))}
+                                        <div>
+                                            <Text style={{ display: 'block', marginBottom: 4 }}>{t('Assignment status')}</Text>
+                                            <Select aria-label={t('Assignment status')} style={{ width: '100%' }} value={quickFilter} onChange={setQuickFilter} options={[
+                                                { value: 'all', label: t('All') },
+                                                { value: 'needs-assignment', label: t('Need Assignment') },
+                                            ]} />
+                                        </div>
+                                        <Button block disabled={!activeParticipantFilters} onClick={() => { setParticipantFilters({ sector: '', stage: '', riskLevel: '' }); setQuickFilter('all') }}>{t('Reset filters')}</Button>
+                                    </Space>
+                                </Card>
+                            )}
+                        >
+                            <Button icon={<SlidersOutlined />}>{t('common.filters')}{activeParticipantFilters ? ' (' + activeParticipantFilters + ')' : ''}</Button>
+                        </Dropdown>
                         {!isReception && (
                             <Button
                                 icon={<FileExcelOutlined />}
@@ -2024,8 +2080,9 @@ export const ParticipantsPage: React.FC = () => {
 
             <Card className="operations-participants-card">
                 <ResponsiveDataView
+                    key={activeProgramId}
                     rows={filteredParticipants}
-                    columns={columns}
+                    columns={isAllPrograms ? columns : columns.filter(column => column.key !== 'programName')}
                     rowKey={record => `${record.id}-${record.programId || 'na'}`}
                     loading={loading}
                     emptyText={t('No SMEs found')}
@@ -2034,7 +2091,7 @@ export const ParticipantsPage: React.FC = () => {
                             <Text strong>{record.businessName || t('Unnamed SME')}</Text>
                             <Text type="secondary">{record.email || t('No email')}</Text>
                             <Space wrap>
-                                <Tag>{record.programName || t('Unassigned')}</Tag>
+                                {isAllPrograms && <Tag>{record.programName || t('Unassigned')}</Tag>}
                                 {record.stage ? <Tag>{record.stage}</Tag> : null}
                             </Space>
                             <Progress percent={record.progress || 0} size="small" />

@@ -364,7 +364,10 @@ export const SystemLayout = () => {
                 if (cancelled) return
                 setPrograms(rows)
 
-                if (activeProgramId !== ALL_PROGRAMS && !rows.some((program) => program.id === activeProgramId)) {
+                // The single-programme tag must represent the actual scope used by pages.
+                if (rows.length === 1 && activeProgramId !== rows[0].id) {
+                    setActiveProgramId(rows[0].id)
+                } else if (activeProgramId !== ALL_PROGRAMS && !rows.some((program) => program.id === activeProgramId)) {
                     setActiveProgramId(ALL_PROGRAMS)
                 }
             } catch {

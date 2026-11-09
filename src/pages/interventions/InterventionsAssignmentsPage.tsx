@@ -21,7 +21,8 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import InterventionDetailPanel from '@/components/interventions/InterventionDetailPanel'
-import { buildLivePlanItems, type LivePlanItem } from '@/utils/liveDiagnosticPlan'
+import { InterventionOpsActions } from '@/components/interventions/InterventionOpsActions'
+import { assignmentPlanLabel, buildLivePlanItems, type LivePlanItem } from '@/utils/liveDiagnosticPlan'
 import { initialsOf } from '@/utils/initials'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
@@ -455,10 +456,10 @@ export const InterventionsAssignemnts = () => {
     const rows = useMemo(() => {
         const needle = search.trim().toLowerCase()
         return visibleParticipants.filter((participant) => {
-            const matchesSearch = !needle || `${participant.beneficiaryName} ${participant.email} ${participant.programName}`.toLowerCase().includes(needle)
+            const matchesSearch = !needle || `${participant.beneficiaryName} ${participant.email} ${isAllPrograms ? participant.programName : ''}`.toLowerCase().includes(needle)
             return matchesSearch
         })
-    }, [search, visibleParticipants])
+    }, [isAllPrograms, search, visibleParticipants])
 
     const metrics = useMemo(() => {
         const required = visibleParticipants.reduce((total, participant) => total + participant.requiredInterventions.length, 0)
@@ -961,6 +962,12 @@ export const InterventionsAssignemnts = () => {
     const detailAssignments = detailRow && selected
         ? (assignmentsByParticipant.get(selected.id) || []).filter((assignment) => assignmentMatches(assignment, { interventionId: detailRow.id, title: detailRow.title }))
         : []
+    const detailAssignmentOrder = (assignment: AssignedIntervention) => {
+        const index = detailRow?.live?.stepRows.findIndex((step) => step.assignmentId === assignment.id) ?? -1
+        if (index >= 0) return index
+        return assignment.stepIndex != null ? Number(assignment.stepIndex) : Number.MAX_SAFE_INTEGER
+    }
+    detailAssignments.sort((a, b) => detailAssignmentOrder(a) - detailAssignmentOrder(b))
 
     const canAssignNow = (row: ManageInterventionRow) => canAssign && !row.activeStep && !(row.executionMode === 'multi_step' && !row.nextStep)
 
@@ -983,7 +990,7 @@ export const InterventionsAssignemnts = () => {
             </Row>
 
             <FilterBar
-                primary={<><Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('Search SME name, email, or program')} allowClear /></>}
+                primary={<><Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={isAllPrograms ? t('Search SME name, email, or program') : t('Search SME name or email')} allowClear /></>}
                 actions={<><Button type="primary" icon={<PlusOutlined />} disabled={!canAssign || !participants.length} onClick={startGlobalAssign}>{t('Assign intervention')}</Button><Button icon={<ReloadOutlined />} onClick={() => { void loadParticipants(); void refresh() }}>{t('Refresh')}</Button></>}
             />
 
@@ -1012,6 +1019,27 @@ export const InterventionsAssignemnts = () => {
                             appointments={appointments.filter((appointment) => detailAssignments.some((assignment) => assignment.id === appointment.assignedInterventionId))}
                             onBack={() => setDetailKey(null)}
                             backLabel={t('All interventions')}
+                            actions={canAssign && detailAssignments.some(assignmentIsActive) && (
+                                <div className="id-operations-list">
+                                    {detailAssignments.filter(assignmentIsActive).map((assignment) => (
+                                        <div key={assignment.id} className="id-operations-row">
+                                            <Typography.Text strong>
+                                                {assignmentPlanLabel(assignment as unknown as Record<string, unknown>, detailRow.live) || detailRow.title} · {assignment.assigneeName || t('Unassigned')}
+                                            </Typography.Text>
+                                            <div>
+                                                <InterventionOpsActions
+                                                    embedded
+                                                    assignment={assignment}
+                                                    title={assignmentPlanLabel(assignment as unknown as Record<string, unknown>, detailRow.live) || detailRow.title}
+                                                    participantName={selected.beneficiaryName}
+                                                    isCompleted={assignmentStepComplete(assignment)}
+                                                    onChanged={() => { void refresh() }}
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         />
                     ) : (
                     <motion.div key="list" initial={{ opacity: 0, x: -24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.2, ease: 'easeOut' }}>
