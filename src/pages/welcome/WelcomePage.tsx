@@ -1,4 +1,4 @@
-import { Alert, App, Button, Card, Checkbox, Col, Dropdown, Form, Grid, Input, Radio, Row, Select, Space, Typography, Upload } from 'antd'
+import { Alert, App, Button, Card, Checkbox, Col, Form, Grid, Input, Radio, Row, Select, Space, Typography, Upload } from 'antd'
 import type { UploadProps } from 'antd'
 import {
     ArrowLeftOutlined,
@@ -36,10 +36,11 @@ import { captureSignatureStrokes, type SignatureStrokes } from '@/utils/signatur
 import html2canvas from 'html2canvas'
 import { Navigate } from 'react-router-dom'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
+import { LanguageMenu } from '@/components/shared/LanguageMenu'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { useLanguage } from '@/providers/LanguageProvider'
 import { useThemeMode } from '@/providers/ThemeProvider'
-import { LANGUAGES, type LanguageCode } from '@/config/languages'
+import { LANGUAGES } from '@/config/languages'
 import {
     completeFirstLogin,
     saveOnboardingRole,
@@ -174,7 +175,7 @@ export const WelcomePage = () => {
     const screens = Grid.useBreakpoint()
     const isMobile = !screens.md
     const { message, modal } = App.useApp()
-    const { t, language, setLanguage } = useLanguage()
+    const { t, language } = useLanguage()
     const { mode: themeMode, toggleTheme } = useThemeMode()
     const { user, loading, updateIdentity } = useFullIdentity()
     const [passwordForm] = Form.useForm<PasswordValues>()
@@ -332,11 +333,6 @@ export const WelcomePage = () => {
     const hasSignature = Boolean(signatureComplete || user.signatureURL || signatureURL)
     // Everyone signs: the agreements below are signed with it.
     const needsSignature = !hasSignature
-    const languageItems = Object.entries(LANGUAGES).map(([value, label]) => ({
-        key: value,
-        label,
-        onClick: () => setLanguage(value as LanguageCode),
-    }))
 
     const goTo = (nextStep: WelcomeStepKey) => {
         setHistory((currentHistory) => [...currentHistory, activeStep])
@@ -712,9 +708,9 @@ export const WelcomePage = () => {
     return (
         <main className={`welcome-page welcome-step-${activeStep} welcome-mode-${signatureMode}`}>
             <div className="welcome-floating-actions">
-                <Dropdown trigger={['click']} placement="bottomRight" menu={{ items: languageItems, selectable: true, selectedKeys: [language] }}>
+                <LanguageMenu>
                     <Button aria-label={t('Change language')} title={LANGUAGES[language]} className="welcome-floating-btn" icon={<GlobalOutlined />}><span className="welcome-control-label">{LANGUAGES[language]}</span></Button>
-                </Dropdown>
+                </LanguageMenu>
                 <Button className="welcome-floating-btn" onClick={toggleTheme} icon={themeMode === 'dark' ? <SunOutlined /> : <MoonOutlined />}>
                     <span className="welcome-control-label">{themeMode === 'dark' ? t('common.lightMode', 'Light') : t('common.darkMode', 'Dark')}</span>
                 </Button>

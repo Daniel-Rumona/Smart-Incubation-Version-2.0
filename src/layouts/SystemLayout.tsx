@@ -67,21 +67,11 @@ import { ProgramResumeBanner } from '@/components/applicant/ProgramResumeBanner'
 import '@/styles/system-layout.css'
 // Page fade-in and skeleton styles; the full LoadingOverlay is only used for this first load now.
 import '@/styles/page-loading.css'
+import { workspaceDashboardPath } from '@/utils/workspacePath'
 
 const { Content } = Layout
 const { useBreakpoint } = Grid
 
-const workspaceDashboardPath = (user?: { role?: UserRole, isApplicant?: boolean, smeJourney?: string } | null) => {
-    // Applicants who chose consultants and agents get their own dashboard; programme applicants start at Programmes.
-    if (user?.role === 'incubatee') return user.isApplicant ? (user.smeJourney === 'independent' ? '/applicant/dashboard' : '/applicant/programs') : '/incubatee'
-    if (user?.role === 'consultant') return '/consultant'
-    if (user?.role === 'projectadmin') return '/projectadmin'
-    if (user?.role === 'director') return '/director'
-    if (user?.role === 'admin') return '/reception'
-    if (user?.role === 'funder') return '/funder'
-    if (user?.role === 'operations' || user?.role === 'projectmanager') return '/operations'
-    return '/dashboard'
-}
 
 const isPathMatch = (base: string, path: string) => {
     if (base === '/') return path === '/'

@@ -1,0 +1,35 @@
+/* =========================================================
+   SIGNATURE CARD — the signature on file, on the profile pages
+   ========================================================= */
+
+.signature-card { display: grid; gap: 10px; }
+.signature-card-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.signature-card-head strong { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Always white, like the paper it lands on: the ink is dark in both themes. */
+.signature-card-paper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    box-sizing: border-box;
+    height: 110px;
+    padding: 10px 16px;
+    border: 1px solid rgba(100, 116, 139, 0.2);
+    border-radius: 12px;
+    background: #fff;
+    background-image: linear-gradient(to top, transparent 22px, rgba(100, 116, 139, 0.28) 22px, rgba(100, 116, 139, 0.28) 23px, transparent 23px);
+}
+.signature-card-paper img { display: block; width: 100%; height: 100%; min-height: 0; object-fit: contain; }
+
+.signature-card-paper.is-empty {
+    border-style: dashed;
+    background: var(--ant-color-fill-quaternary);
+    text-align: center;
+}
+
+.signature-card-note { font-size: 12.5px; }
+
+/* Consultant profile: a section of the identity card rather than a card of its own. */
+.consultant-profile-signature { padding-top: 14px; border-top: 1px solid rgba(100, 116, 139, 0.14); text-align: left; }
+.consultant-profile-signature .signature-card-paper { height: 90px; }

@@ -1,11 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { Button, Dropdown, Space, Typography } from 'antd'
-import type { MenuProps } from 'antd'
+import React, { useEffect } from 'react'
+import { Button, Space, Typography } from 'antd'
 import {
     ArrowRightOutlined,
     BarChartOutlined,
     BulbOutlined,
-    CheckCircleOutlined,
     FileSearchOutlined,
     FormOutlined,
     GlobalOutlined,
@@ -19,11 +17,13 @@ import {
 } from '@ant-design/icons'
 import { MotionConfig, motion, type Variants } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
-import { LANGUAGES, type LanguageCode } from '@/config/languages'
 import { useLanguage, tEnglish } from '@/providers/LanguageProvider'
 import { useThemeMode } from '@/providers/ThemeProvider'
 import { useAgent } from '@/providers/AgentProvider'
+import { useIdentity } from '@/contexts/IdentityProvider'
+import { workspaceDashboardPath } from '@/utils/workspacePath'
 import { HolidayBanner } from '@/components/shared/HolidayBanner'
+import { LanguageMenu } from '@/components/shared/LanguageMenu'
 import { trackEvent } from '@/lib/analytics'
 import { CONTACT_EMAIL, CONTACT_PHONE, PRIVACY_URL, TERMS_URL } from '@/config/company'
 import LandingProductPreview from './LandingProductPreview'
@@ -129,11 +129,14 @@ const fadeUp: Variants = {
 const LandingPage: React.FC = () => {
     const navigate = useNavigate()
 
-    const { t, language, setLanguage } = useLanguage()
+    const { t, language } = useLanguage()
     const { mode, toggleTheme } = useThemeMode()
     const { registerPageContext } = useAgent()
 
-    const [languageOpen, setLanguageOpen] = useState(false)
+    // Someone already signed in sees a way straight back to their workspace instead of sign-up prompts.
+    const { user, loading: identityLoading } = useIdentity()
+    const signedIn = !identityLoading && !!user
+    const firstName = String(user?.displayName || user?.name || '').trim().split(/\s+/)[0] || ''
 
     useEffect(() => {
         registerPageContext({
@@ -158,23 +161,6 @@ const LandingPage: React.FC = () => {
         })
     }, [registerPageContext])
 
-    const languageMenuItems = useMemo<MenuProps['items']>(
-        () =>
-            Object.entries(LANGUAGES).map(([value, label]) => ({
-                key: value,
-                label: (
-                    <span className="landing-language-item">
-                        <span>{label}</span>
-                        {language === value && <CheckCircleOutlined />}
-                    </span>
-                ),
-                onClick: () => {
-                    setLanguage(value as LanguageCode)
-                    setLanguageOpen(false)
-                },
-            })),
-        [language, setLanguage],
-    )
 
     // Every landing call to action goes through here so clicks show up in analytics (when it is switched on).
     const track = (cta: string, source: string) => trackEvent('landing_cta_click', { cta, source })
@@ -189,8 +175,33 @@ const LandingPage: React.FC = () => {
         navigate(SIGNIN_PATH)
     }
 
-    // The same two actions sit in the hero and the closing section.
-    const renderCtas = (source: string) => (
+    const goWorkspace = (source: string) => {
+        track('open_workspace', source)
+        navigate(workspaceDashboardPath(user))
+    }
+
+    // Returning users: one quiet line under the actions, so signing in is never only the small top-right button.
+    const renderReturning = (source: string) => !signedIn && (
+        // In the hero it joins the staggered entrance, right after the buttons.
+        <motion.p className="landing-returning" initial="hidden" animate="show" variants={fadeUp} custom={source === 'hero' ? 0.2 : 0}>
+            {t('Already registered?')}{' '}
+            <button type="button" className="landing-returning-link" onClick={() => goSignin(source)}>{t('Sign in')}</button>
+        </motion.p>
+    )
+
+    // The same actions sit in the hero and the closing section.
+    const renderCtas = (source: string) => signedIn ? (
+        <Button
+            type="primary"
+            size="large"
+            className="landing-get-started"
+            icon={<ArrowRightOutlined />}
+            iconPosition="end"
+            onClick={() => goWorkspace(source)}
+        >
+            {t('Continue to your workspace')}
+        </Button>
+    ) : (
         <>
             <Button
                 type="primary"
@@ -237,13 +248,7 @@ const LandingPage: React.FC = () => {
                             aria-label={t('Toggle theme')}
                         />
 
-                        <Dropdown
-                            open={languageOpen}
-                            onOpenChange={setLanguageOpen}
-                            trigger={['click']}
-                            placement="bottomRight"
-                            menu={{ items: languageMenuItems }}
-                        >
+                        <LanguageMenu>
                             <Button
                                 type="text"
                                 className="landing-icon-button landing-language-button"
@@ -252,14 +257,14 @@ const LandingPage: React.FC = () => {
                             >
                                 {language.toUpperCase()}
                             </Button>
-                        </Dropdown>
+                        </LanguageMenu>
 
                         <Button
                             type="text"
                             className="landing-signin"
-                            onClick={() => goSignin('topbar')}
+                            onClick={() => (signedIn ? goWorkspace('topbar') : goSignin('topbar'))}
                         >
-                            {t('Sign in')}
+                            {signedIn ? t('Open workspace') : t('Sign in')}
                         </Button>
                     </Space>
                 </header>
@@ -290,6 +295,8 @@ const LandingPage: React.FC = () => {
                                 {renderCtas('hero')}
                             </motion.div>
 
+                            {renderReturning('hero')}
+
                             <motion.p
                                 className="landing-cta-hint"
                                 initial="hidden"
@@ -297,7 +304,9 @@ const LandingPage: React.FC = () => {
                                 variants={fadeUp}
                                 custom={0.2}
                             >
-                                {t('SMEs: use the link your incubator sent you, or apply here.')}
+                                {signedIn
+                                    ? (firstName ? t('Welcome back, {name}.', undefined, { name: firstName }) : t('Welcome back.'))
+                                    : t('SMEs: use the link your incubator sent you, or apply here.')}
                             </motion.p>
                         </div>
 
@@ -392,6 +401,7 @@ const LandingPage: React.FC = () => {
                     <Typography.Title level={2}>{t('See it with your own programme')}</Typography.Title>
                     <Typography.Paragraph>{t('We\'ll walk you through setup, delivery and reporting.')}</Typography.Paragraph>
                     <div className="landing-final-actions">{renderCtas('final')}</div>
+                    {renderReturning('final')}
                 </motion.section>
 
                 <footer className="landing-footer">

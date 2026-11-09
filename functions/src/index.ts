@@ -34,6 +34,8 @@ export const processWhatsAppInbound = onDocumentCreated(
     document: 'whatsappInboundEvents/{eventId}',
     region: 'us-central1',
     retry: true,
+    // Room for a few ai-backend calls of up to 45 seconds each (see callAiBackend).
+    timeoutSeconds: 180,
     secrets: [
       'LPH_WHATSAPP_GATEWAY_SECRET',
       'LPH_WHATSAPP_ROUTER_SECRET',

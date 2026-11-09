@@ -506,3 +506,9 @@ html[data-theme='dark'] .landing-preview-toast { box-shadow: 0 18px 40px rgba(0,
 
   .landing-footer { flex-direction: column; align-items: flex-start; }
 }
+
+/* Returning users: "Already registered? Sign in" under the hero and closing actions. */
+.landing-returning { margin: 12px 0 0; font-size: 14px; color: var(--landing-muted); }
+.landing-final-cta .landing-returning { text-align: center; }
+.landing-returning-link { padding: 0; border: 0; background: none; font: inherit; font-weight: 700; color: var(--landing-accent); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+.landing-returning-link:hover { text-decoration-thickness: 2px; }

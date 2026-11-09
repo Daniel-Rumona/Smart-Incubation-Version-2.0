@@ -20,7 +20,6 @@ import {
   App,
   Button,
   Divider,
-  Dropdown,
   Form,
   Input,
   Modal,
@@ -43,9 +42,9 @@ import { getAuthErrorCode, getAuthFriendlyError, isAuthCancelled } from '@/utils
 import { getRoleHomePath } from '@/utils/roleRouting'
 import { readPendingProgramLink, rememberProgramLinkOnAccount } from '@/services/programLinkService'
 import { getFirebaseAuth } from '@/config/firebase'
-import { LANGUAGES, type LanguageCode } from '@/config/languages'
 import { PRIVACY_URL, TERMS_URL } from '@/config/company'
 import { HolidayBanner } from '@/components/shared/HolidayBanner'
+import { LanguageMenu } from '@/components/shared/LanguageMenu'
 // Photo: Unsplash (unsplash.com/photos/8kMbEUF8kIQ), free Unsplash licence.
 import authPanelPhoto from '@/assets/auth-panel.jpg'
 import { singleActionFooter } from '@/components/shared/modalFooter'
@@ -86,7 +85,7 @@ export default function AuthPage() {
   const navigate = useNavigate()
   const { message } = App.useApp()
   const { mode: themeMode, toggleTheme } = useThemeMode()
-  const { t, language, setLanguage } = useLanguage()
+  const { t, language } = useLanguage()
 
   const [searchParams] = useSearchParams()
   // A programme link lands on the register side; everyone else starts on login as before.
@@ -100,11 +99,6 @@ export default function AuthPage() {
   const [resetForm] = Form.useForm<ResetPasswordValues>()
 
   const isLogin = authMode === 'login'
-  const languageItems = Object.entries(LANGUAGES).map(([value, label]) => ({
-    key: value,
-    label,
-    onClick: () => setLanguage(value as LanguageCode),
-  }))
 
   const copy = useMemo(() => {
     if (isLogin) {
@@ -318,11 +312,7 @@ export default function AuthPage() {
             onClick={toggleTheme}
             aria-label={t('Toggle theme')}
           />
-          <Dropdown
-            trigger={['click']}
-            placement="bottomRight"
-            menu={{ items: languageItems, selectable: true, selectedKeys: [language] }}
-          >
+          <LanguageMenu>
             <Button
               type="text"
               className="auth-icon-btn auth-language-btn"
@@ -331,7 +321,7 @@ export default function AuthPage() {
             >
               {language.toUpperCase()}
             </Button>
-          </Dropdown>
+          </LanguageMenu>
         </Space>
       </header>
 

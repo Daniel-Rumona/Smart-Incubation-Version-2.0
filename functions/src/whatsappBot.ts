@@ -116,6 +116,8 @@ const verifySignature = (request: Request) => {
 
 const waitForRetry = (attempt: number) => new Promise(resolve => setTimeout(resolve, 250 * (2 ** (attempt - 1))))
 
+const lphLoginCodeTemplate = () => String(process.env.LPH_LOGIN_CODE_TEMPLATE || 'lph_login_code')
+
 async function sendPayload(to: string, payload: Record<string, unknown>) {
   const token = String(process.env.WHATSAPP_ACCESS_TOKEN || '')
   const phoneNumberId = String(process.env.WHATSAPP_PHONE_NUMBER_ID || '')
@@ -133,11 +135,20 @@ async function sendPayload(to: string, payload: Record<string, unknown>) {
   }
 
   const messageType = String(payload.type || 'unknown')
+  // A document link opens the file for anyone holding it (e.g. a signed POPIA notice), so the
+  // log keeps the file name and caption but not the link. A Lepharo sign-in code is never logged.
+  const isLoginCode = messageType === 'template' &&
+    (payload.template as Record<string, unknown> | undefined)?.name === lphLoginCodeTemplate()
+  const loggedPayload = messageType === 'document'
+    ? { ...payload, document: { ...(payload.document as Record<string, unknown>), link: '[not stored]' } }
+    : isLoginCode
+      ? { ...payload, template: { ...(payload.template as Record<string, unknown>), components: '[not stored]' } }
+      : payload
   await outboundRef.set({
     recipient: normalizePhone(to),
     phoneNumberId,
     messageType,
-    payload,
+    payload: loggedPayload,
     status: 'queued',
     sourceEventId: context?.sourceEventId || null,
     sourceMessageId: context?.sourceMessageId || null,
@@ -271,10 +282,12 @@ async function markIncomingMessageRead(phoneNumberId: string, messageId: string)
   const senderId = String(phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID || '')
   if (!token || !senderId || !messageId) throw new Error('WhatsApp read-receipt credentials are incomplete.')
 
+  // The typing indicator shows "typing..." until the reply is sent (WhatsApp clears it after ~25 seconds).
   const requestBody = JSON.stringify({
     messaging_product: 'whatsapp',
     status: 'read',
     message_id: messageId,
+    typing_indicator: { type: 'text' },
   })
   let lastError = 'WhatsApp read receipt failed.'
   for (let attempt = 1; attempt <= graphSendMaxAttempts; attempt += 1) {
@@ -917,7 +930,11 @@ type IncomingMessage = {
   /** Quick-reply buttons on a TEMPLATE message arrive as type "button", not "interactive". */
   button?: { payload?: string, text?: string }
   text?: { body?: string }
+  image?: IncomingMedia
+  document?: IncomingMedia
 }
+
+type IncomingMedia = { id?: string, mime_type?: string, filename?: string, caption?: string }
 
 type WhatsAppInboundEvent = {
   messageId?: string
@@ -958,7 +975,30 @@ const messageInput = (message: IncomingMessage) => {
   if (message.type === 'interactive') {
     return String(message.interactive?.button_reply?.id || message.interactive?.list_reply?.id || '')
   }
+  if (message.type === 'image' || message.type === 'document') {
+    const media = message[message.type]
+    if (!media?.id) return ''
+    // Only the text input travels through processing, so the file's details ride along in it.
+    const details = { fileName: media.filename || '', caption: media.caption || '', mimeType: media.mime_type || '' }
+    return `media:${media.id}:${Buffer.from(JSON.stringify(details)).toString('base64url')}`
+  }
   return String(message.text?.body || '').trim()
+}
+
+const parseMediaInput = (input: string) => {
+  const match = /^media:([^:]+):([A-Za-z0-9_-]*)$/.exec(input)
+  if (!match) return null
+  try {
+    const details = JSON.parse(Buffer.from(match[2], 'base64url').toString('utf8')) as Record<string, unknown>
+    return {
+      mediaId: match[1],
+      fileName: String(details.fileName || ''),
+      caption: String(details.caption || ''),
+      mimeType: String(details.mimeType || ''),
+    }
+  } catch {
+    return { mediaId: match[1], fileName: '', caption: '', mimeType: '' }
+  }
 }
 
 const inboundEventId = (phoneNumberId: string, message: IncomingMessage) => {
@@ -1181,11 +1221,14 @@ type AiResponse = {
   toolCall?: AiToolCall | null
   conversation?: AiConversationState | null
   interactive?: AiInteractive | null
+  /** A file to send as a WhatsApp document, with `reply` as its caption. */
+  document?: { url?: string; filename?: string } | null
   error?: { code?: string } | null
 }
 
 type LphGatewayIdentity = {
   id: string
+  kind?: string
   participantIds?: string[]
   participantName?: string
   phoneNumber?: string
@@ -1243,7 +1286,8 @@ async function callAiBackend(
         ...(toolResults && toolResults.length ? { toolResults } : {}),
       },
     }),
-    signal: AbortSignal.timeout(20000),
+    // A staff question can take two model calls plus gateway look-ups; this runs in the background.
+    signal: AbortSignal.timeout(45000),
   })
   const text = await response.text()
   let body: AiResponse
@@ -1772,6 +1816,15 @@ async function processAiMessage(
 
   const fallback = String(response.reply || 'I could not determine what you need. Please try rephrasing your message.')
   const ui = response.interactive
+  const file = response.document
+  if (engine === 'LPH' && file?.url && /^https:\/\//i.test(file.url)) {
+    // WhatsApp fetches the file from the link; captions are capped at 1024 characters.
+    await sendPayload(to, {
+      type: 'document',
+      document: { link: file.url, filename: String(file.filename || 'document.pdf').slice(0, 240), caption: fallback.slice(0, 1024) },
+    })
+    return
+  }
   if (engine === 'LPH' && ui?.type === 'buttons' && ui.buttons?.length) {
     await sendButtons(to, ui.body || fallback, ui.buttons.map(button => ({ id: button.id, title: button.title })))
     return
@@ -1888,7 +1941,71 @@ async function processLphMessage(to: string, input: string) {
   const snapshot = await stateRef(phone).get()
   const state = (snapshot.data() || {}) as BotState
   await saveState(phone, { engine: 'LPH', participantId: identity.id })
-  await processAiMessage('LPH', to, phone, input, { ...state, engine: 'LPH', participantId: identity.id })
+  let message = input
+  const media = parseMediaInput(input)
+  if (media) {
+    const staged = await stageLphMedia(to, phone, identity, media)
+    if (!staged) return
+    message = `lph:upload:${staged}`
+  }
+  await processAiMessage('LPH', to, phone, message, { ...state, engine: 'LPH', participantId: identity.id })
+}
+
+// Matches the gateway's limit (whatsappUploads.ts in the Lepharo project).
+const maxLphUploadBytes = 10 * 1024 * 1024
+
+/** Downloads a photo or document the SME sent and stages it with the Lepharo gateway; returns its upload id. */
+async function stageLphMedia(
+  to: string,
+  phone: string,
+  identity: LphGatewayIdentity,
+  media: NonNullable<ReturnType<typeof parseMediaInput>>,
+) {
+  if (identity.kind === 'staff') {
+    await sendText(to, 'I can only receive documents from SMEs on WhatsApp. Please upload it on the Lepharo platform.')
+    return null
+  }
+  const token = String(process.env.WHATSAPP_ACCESS_TOKEN || '')
+  if (!token) throw new Error('WhatsApp media credentials are incomplete.')
+  const metaResponse = await fetch(`https://graph.facebook.com/${graphVersion()}/${media.mediaId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(15000),
+  })
+  if (!metaResponse.ok) throw new Error(`WhatsApp media lookup failed (${metaResponse.status}).`)
+  const meta = await metaResponse.json() as { url?: string, mime_type?: string, file_size?: number }
+  if (Number(meta.file_size || 0) > maxLphUploadBytes) {
+    await sendText(to, 'That file is too large for me (the limit is 10 MB). Please send a smaller photo or PDF, or upload it on the Lepharo platform.')
+    return null
+  }
+  if (!meta.url) throw new Error('WhatsApp media lookup returned no download link.')
+  const fileResponse = await fetch(meta.url, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(30000),
+  })
+  if (!fileResponse.ok) throw new Error(`WhatsApp media download failed (${fileResponse.status}).`)
+  const bytes = Buffer.from(await fileResponse.arrayBuffer())
+  if (bytes.length > maxLphUploadBytes) {
+    await sendText(to, 'That file is too large for me (the limit is 10 MB). Please send a smaller photo or PDF, or upload it on the Lepharo platform.')
+    return null
+  }
+  try {
+    const result = await callLphGateway({
+      action: 'stage_upload',
+      phoneNumber: `+${phone}`,
+      mimeType: media.mimeType || meta.mime_type || '',
+      fileName: media.fileName,
+      caption: media.caption,
+      dataBase64: bytes.toString('base64'),
+    }) as LphGatewayResponse & { uploadId?: string, page?: number }
+    // "<uploadId>:<page>": photos sent together become pages of one upload, and only page 1 asks which document it is.
+    return result.uploadId ? `${result.uploadId}:${Number(result.page || 1)}` : null
+  } catch (error) {
+    if (String(error).includes('unsupported_file_type')) {
+      await sendText(to, 'I can only accept PDFs and photos (JPG or PNG). Please send the document in one of those formats.')
+      return null
+    }
+    throw error
+  }
 }
 
 async function processQtxMessage(to: string, input: string, sourceMessageId: string) {
@@ -2168,6 +2285,10 @@ async function processMessage(to: string, input: string, sourceMessageId: string
   if (!engine) return
   if (engine === 'LPH') {
     await processLphMessage(to, input)
+    return
+  }
+  if (parseMediaInput(input)) {
+    await sendText(to, 'I can only read text messages here. Please upload documents on the Smart Incubation platform.')
     return
   }
   await processQtxMessage(to, input, sourceMessageId)
@@ -2471,6 +2592,111 @@ export async function sendSmeCheckbackTemplate(phone: string, input: { firstName
 // Only these approved templates may be sent through dispatch, so the endpoint cannot be used as a general sender.
 const CHECKBACK_TEMPLATES = new Set(['lph_checkback_facilitator', 'lph_checkback_sme'])
 
+/**
+ * A Lepharo proactive alert (functions/src/whatsappAlerts.ts there): the approved lph_alert template with three body
+ * variables (first name, headline, details) and an "Open menu" quick reply that opens the Lepharo menu. The template
+ * is fixed here, so the endpoint can only send this one message shape. A repeat with the same dedupeKey is a no-op.
+ */
+async function dispatchLphAlert(body: Record<string, unknown>, to: string, response: HttpResponse) {
+  const template = String(process.env.LPH_ALERT_TEMPLATE || 'lph_alert')
+  const variables = Array.isArray(body.variables)
+    ? body.variables.map(value => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, 600) || '-')
+    : []
+  const dedupeKey = String(body.dedupeKey || '').slice(0, 200)
+  if (to.length < 8 || variables.length !== 3 || !dedupeKey) {
+    response.status(400).json({ error: 'invalid_request' })
+    return
+  }
+  try {
+    // The reply to "Open menu" must reach the Lepharo assistant.
+    await saveState(to, { engine: 'LPH' })
+    await sendQuickReplyTemplate(to, {
+      template,
+      language: String(process.env.LPH_ALERT_TEMPLATE_LANG || 'en'),
+      variables,
+      payloads: ['lph:menu'],
+      dedupeKey: `lphalert:${dedupeKey}`,
+      messageKey: `lphalert:${dedupeKey}`,
+    })
+    response.status(200).json({ ok: true })
+  } catch (error) {
+    console.error('Lepharo WhatsApp alert dispatch failed', { error: String(error) })
+    response.status(502).json({ error: 'send_failed' })
+  }
+}
+
+/**
+ * A Lepharo sign-in code (functions/src/phoneLogin.ts there): the approved authentication template named in
+ * LPH_LOGIN_CODE_TEMPLATE (default lph_login_code, language LPH_LOGIN_CODE_TEMPLATE_LANG) with the six-digit code
+ * as its body variable and copy-code button. The code is not kept in the outbound log. A repeat with the same
+ * dedupeKey is a no-op.
+ */
+async function dispatchLphLoginCode(body: Record<string, unknown>, to: string, response: HttpResponse) {
+  const code = String(body.code || '')
+  const dedupeKey = String(body.dedupeKey || '').slice(0, 200)
+  if (to.length < 8 || !/^\d{6}$/.test(code) || !dedupeKey) {
+    response.status(400).json({ error: 'invalid_request' })
+    return
+  }
+  try {
+    await outboundMessageContext.run({
+      sourceEventId: `dispatch:lphlogin:${dedupeKey}`,
+      sourceMessageId: `dispatch:lphlogin:${dedupeKey}`,
+      sequence: 0,
+    }, async () => {
+      await sendPayload(to, {
+        type: 'template',
+        template: {
+          name: lphLoginCodeTemplate(),
+          language: { code: String(process.env.LPH_LOGIN_CODE_TEMPLATE_LANG || 'en') },
+          components: [
+            { type: 'body', parameters: [{ type: 'text', text: code }] },
+            { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: code }] },
+          ],
+        },
+      })
+    })
+    response.status(200).json({ ok: true })
+  } catch (error) {
+    console.error('Lepharo login code dispatch failed', { error: String(error) })
+    response.status(502).json({ error: 'send_failed' })
+  }
+}
+
+/**
+ * A Lepharo reply that arrives after the chat turn ended, such as a report built in the background
+ * (functions/src/reports there): a file (type "document") or a short text (type "notice"). Free-form messages are
+ * only delivered within 24 hours of the person's last message, which is when these are sent. Files must be in
+ * Firebase Storage, so the endpoint can't be used to send arbitrary links. A repeat with the same dedupeKey is a no-op.
+ */
+async function dispatchLphReply(type: 'document' | 'notice', body: Record<string, unknown>, to: string, response: HttpResponse) {
+  const dedupeKey = String(body.dedupeKey || '').slice(0, 200)
+  const url = String(body.url || '')
+  const text = String(type === 'document' ? body.caption || '' : body.text || '').trim()
+  const valid = to.length >= 8 && !!dedupeKey && (type === 'document'
+    ? url.startsWith('https://firebasestorage.googleapis.com/') && url.length <= 2000
+    : text.length > 0 && text.length <= 1000)
+  if (!valid) {
+    response.status(400).json({ error: 'invalid_request' })
+    return
+  }
+  try {
+    await outboundMessageContext.run({
+      sourceEventId: `dispatch:lphreply:${dedupeKey}`,
+      sourceMessageId: `dispatch:lphreply:${dedupeKey}`,
+      sequence: 0,
+    }, async () => {
+      await sendPayload(to, type === 'document'
+        ? { type: 'document', document: { link: url, filename: String(body.filename || 'report.pptx').slice(0, 240), caption: text.slice(0, 1024) } }
+        : { type: 'text', text: { body: text, preview_url: false } })
+    })
+    response.status(200).json({ ok: true })
+  } catch (error) {
+    console.error('Lepharo WhatsApp reply dispatch failed', { type, error: String(error) })
+    response.status(502).json({ error: 'send_failed' })
+  }
+}
+
 async function dispatchOutcomeFollowUp(body: Record<string, unknown>, to: string, response: HttpResponse) {
   const template = String(body.template || '')
   const language = String(body.language || 'en')
@@ -2535,6 +2761,33 @@ export async function whatsappDispatchHandler(request: Request, response: HttpRe
       return
     }
     await dispatchOutcomeFollowUp(request.body || {}, to, response)
+    return
+  }
+
+  if (type === 'alert') {
+    if (engine !== 'LPH') {
+      response.status(400).json({ error: 'invalid_request' })
+      return
+    }
+    await dispatchLphAlert(request.body || {}, to, response)
+    return
+  }
+
+  if (type === 'login_code') {
+    if (engine !== 'LPH') {
+      response.status(400).json({ error: 'invalid_request' })
+      return
+    }
+    await dispatchLphLoginCode(request.body || {}, to, response)
+    return
+  }
+
+  if (type === 'document' || type === 'notice') {
+    if (engine !== 'LPH') {
+      response.status(400).json({ error: 'invalid_request' })
+      return
+    }
+    await dispatchLphReply(type, request.body || {}, to, response)
     return
   }
 

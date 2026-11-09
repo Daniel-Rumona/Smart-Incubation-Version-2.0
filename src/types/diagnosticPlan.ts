@@ -43,6 +43,8 @@ export type DiagnosticPlan = {
     sme?: DiagnosticConfirmationMeta
   }
   confirmedAt?: string
+  /** Changed after it was first confirmed (saveDiagnosticPlan sets amendedAt and clears the SME's signature). */
+  amended?: boolean
 }
 
 export type DiagnosticApplicationSummary = {
