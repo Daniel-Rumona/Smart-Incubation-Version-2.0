@@ -34,7 +34,8 @@ class FakeDb:
 
 
 DB = FakeDb({
-    "TNS": {"name": "Tau Namagadi Sustainable Solutions", "awarenessTrainingEnabled": True, "clientHomeModule": "awarenessTraining"},
+    "TNS": {"name": "Tau Namagadi Sustainable Solutions", "awarenessTrainingEnabled": True, "esgReportingEnabled": True, "clientHomeModule": "awarenessTraining"},
+    "TRAIN": {"name": "Training Only Academy", "awarenessTrainingEnabled": True, "clientHomeModule": "awarenessTraining"},
     "MIXED": {"name": "Incubator With Training", "awarenessTrainingEnabled": True},
     "QTX": {"name": "Quantilytix"},
     "OFF": {"name": "Switched Off", "awarenessTrainingEnabled": False, "clientHomeModule": "awarenessTraining"},
@@ -70,6 +71,23 @@ class PersonaTests(unittest.TestCase):
         persona, client = persona_for(DB, who("operations", "MIXED"), "training-classes", DEFAULT)
         self.assertTrue(client)
         self.assertIn("Incubator With Training", persona)
+
+    def test_a_training_company_with_esg_reporting_gets_the_esg_help(self):
+        persona, _ = persona_for(DB, who("projectadmin", "TNS"), "workspace", DEFAULT)
+        self.assertIn("prepares ESG reports for client companies", persona)
+        self.assertIn("FOR ESG REPORTING", persona)
+        self.assertIn("the ESG reports produced", persona)
+
+    def test_a_training_company_without_esg_reporting_hears_nothing_of_it(self):
+        for role, page in (("projectadmin", "workspace"), ("learner", "learner-test"), ("funder", "training-funder")):
+            persona, client = persona_for(DB, who(role, "TRAIN"), page, DEFAULT)
+            self.assertTrue(client)
+            self.assertIn("Training Only Academy runs awareness trainings", persona)
+            self.assertNotIn("FOR ESG REPORTING", persona)
+            self.assertNotIn("GRI", persona)
+            self.assertNotIn("carbon", persona)
+            self.assertNotIn("ESG awareness", persona)
+            self.assertIn("does not offer ESG reporting", persona)
 
     def test_training_pages_are_recognised(self):
         self.assertTrue(is_training_page("training-class"))

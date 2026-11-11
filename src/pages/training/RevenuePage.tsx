@@ -27,11 +27,20 @@ const SERVICE_COLOURS: Record<RevenueService, string> = { training: 'blue', esg_
 
 type FormValues = Omit<ClientRevenueValues, 'date' | 'paidOn'> & { date: Dayjs, paidOn?: Dayjs }
 
-const RevenueFormModal = ({ entry, classes, reports, organisations, onClose, onSaved }: {
+/** The income types: ESG reporting only where the company offers it (or has ESG income on record). */
+const serviceOptions = (t: ReturnType<typeof useLanguage>['t'], showEsg: boolean) => [
+    { value: 'training', label: t('Training') },
+    ...(showEsg ? [{ value: 'esg_reporting', label: t('ESG reporting') }] : []),
+    { value: 'other', label: t('Other') },
+]
+
+const RevenueFormModal = ({ entry, classes, reports, organisations, showEsg, onClose, onSaved }: {
     entry?: ClientRevenueEntry
     classes: TrainingClass[]
     reports: EsgReport[]
     organisations: string[]
+    /** ESG reporting is offered as an income type (see RevenuePage). */
+    showEsg: boolean
     onClose: () => void
     onSaved: () => void
 }) => {
@@ -82,7 +91,7 @@ const RevenueFormModal = ({ entry, classes, reports, organisations, onClose, onS
                     <Col xs={24} sm={12}><Form.Item name="date" label={t('Invoice date')} rules={[{ required: true }]}><DatePicker style={{ width: '100%' }} format="D MMM YYYY" /></Form.Item></Col>
                     <Col xs={24} sm={12}>
                         <Form.Item name="service" label={t('For')}>
-                            <Select options={[{ value: 'training', label: t('Training') }, { value: 'esg_reporting', label: t('ESG reporting') }, { value: 'other', label: t('Other') }]} />
+                            <Select options={serviceOptions(t, showEsg)} />
                         </Form.Item>
                     </Col>
                 </Row>
@@ -102,7 +111,7 @@ const RevenueFormModal = ({ entry, classes, reports, organisations, onClose, onS
                 <Form.Item name="funderId" label={t('Funded by (optional)')} extra={t('Leave empty to follow the class or report it is for.')}>
                     <FunderSelect placeholder={t('From its class or report')} />
                 </Form.Item>
-                <Form.Item name="description" label={t('Description')}><Input maxLength={200} placeholder={t('e.g. 5 learners, ESG Awareness Training')} /></Form.Item>
+                <Form.Item name="description" label={t('Description')}><Input maxLength={200} placeholder={showEsg ? t('e.g. 5 learners, ESG Awareness Training') : t('e.g. 5 learners, one-day course')} /></Form.Item>
                 <Row gutter={12}>
                     <Col xs={24} sm={12}>
                         <Form.Item name="amount" label={t('Amount (ZAR)')} rules={[{ required: true }, { type: 'number', min: 0.01, message: t('Enter the amount.') }]}>
@@ -159,6 +168,8 @@ export default function RevenuePage() {
     }, [load])
 
     const all = useMemo(() => entries || [], [entries])
+    // A company without ESG reporting sees no ESG income type, unless it has ESG income from when it had the add-on.
+    const showEsg = esgOn || all.some((entry) => entry.service === 'esg_reporting')
     const visible = all.filter((entry) => serviceFilter === 'all' || entry.service === serviceFilter)
     const months = useMemo(() => Array.from({ length: 12 }, (_, index) => dayjs().startOf('month').subtract(11 - index, 'month').format('YYYY-MM')), [])
     const sum = (rows: ClientRevenueEntry[]) => rows.reduce((total, row) => total + row.amount, 0)
@@ -174,17 +185,19 @@ export default function RevenuePage() {
         yAxis: { title: { text: 'ZAR' }, min: 0 },
         tooltip: { shared: true, valuePrefix: 'R ' },
         plotOptions: { column: { stacking: 'normal' } },
-        series: (['training', 'esg_reporting', 'other'] as RevenueService[]).map((service) => ({
+        series: (showEsg ? ['training', 'esg_reporting', 'other'] as RevenueService[] : ['training', 'other'] as RevenueService[]).map((service) => ({
             type: 'column' as const,
             name: { training: t('Training'), esg_reporting: t('ESG reporting'), other: t('Other') }[service],
             data: months.map((month) => sum(all.filter((row) => row.service === service && row.date.startsWith(month)))),
         })),
-    }), [all, months, t])
+    }), [all, months, showEsg, t])
 
     useRegisterAgentPageContext({
         pageKey: 'training-revenue',
         pageName: 'Revenue',
-        purpose: 'The company\'s own income from training and ESG reporting: invoices, payments, what is outstanding, and revenue per month. Its funder sees these totals on the funder report.',
+        purpose: showEsg
+            ? 'The company\'s own income from training and ESG reporting: invoices, payments, what is outstanding, and revenue per month. Its funder sees these totals on the funder report.'
+            : 'The company\'s own income from training: invoices, payments, what is outstanding, and revenue per month. Its funder sees these totals on the funder report. The company does not offer ESG reporting.',
         currentFilters: { service: serviceFilter },
         metrics: { thisMonthZar: thisMonth, last12MonthsZar: last12, paidLast12MonthsZar: paid, outstandingZar: outstanding, entries: all.length },
         dataSummary: { byMonth: months.map((month) => ({ month, zar: sum(all.filter((row) => row.date.startsWith(month))) })) },
@@ -243,7 +256,7 @@ export default function RevenuePage() {
             <FilterBar
                 compact
                 primary={(
-                    <Select value={serviceFilter} onChange={setServiceFilter} options={[{ value: 'all', label: t('All income') }, { value: 'training', label: t('Training') }, { value: 'esg_reporting', label: t('ESG reporting') }, { value: 'other', label: t('Other') }]} />
+                    <Select value={serviceFilter} onChange={setServiceFilter} options={[{ value: 'all', label: t('All income') }, ...serviceOptions(t, showEsg)]} />
                 )}
                 actions={<Button type="primary" icon={<PlusOutlined />} onClick={() => setEditing('new')}>{t('Record income')}</Button>}
             />
@@ -269,6 +282,7 @@ export default function RevenuePage() {
                     entry={editing === 'new' ? undefined : editing}
                     classes={classes}
                     reports={reports}
+                    showEsg={showEsg}
                     organisations={organisations}
                     onClose={() => setEditing(null)}
                     onSaved={() => { setEditing(null); void load() }}

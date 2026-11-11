@@ -1,6 +1,6 @@
 import { collection, deleteField, doc, getDocs, serverTimestamp, updateDoc } from 'firebase/firestore'
 import { getFirebaseDb } from '@/config/firebase'
-import { CLIENT_HOME_SETTING, CLIENT_MODULE_KEYS, CLIENT_MODULES, isClientModuleKey, type ClientModuleKey } from '@/config/clientModules'
+import { CLIENT_HOME_SETTING, CLIENT_MODULE_KEYS, CLIENT_MODULES, isClientModuleKey, workspaceTypeFields, workspaceTypeOf, type ClientModuleKey, type WorkspaceType } from '@/config/clientModules'
 import { isPlatformAdmin } from '@/services/companiesService'
 import type { FullIdentity } from '@/types/identity'
 
@@ -10,6 +10,7 @@ export type CompanyModulesRow = {
     modules: Record<ClientModuleKey, boolean>
     /** The module that opens as the staff home, if any. */
     homeModule: ClientModuleKey | null
+    workspaceType: WorkspaceType
 }
 
 const modulesOf = (data: Record<string, unknown>) => Object.fromEntries(
@@ -26,7 +27,7 @@ export const listCompanyModules = async (user: FullIdentity): Promise<CompanyMod
             const code = String(data.companyCode || row.id).trim()
             const name = String(data.companyName || data.name || data.displayName || code).trim()
             const home = data[CLIENT_HOME_SETTING]
-            return { code, name: name || code, modules: modulesOf(data), homeModule: isClientModuleKey(home) ? home : null }
+            return { code, name: name || code, modules: modulesOf(data), homeModule: isClientModuleKey(home) ? home : null, workspaceType: workspaceTypeOf(data) }
         })
         .filter((row) => row.code)
         .sort((left, right) => left.name.localeCompare(right.name))
@@ -38,6 +39,17 @@ export const setCompanyModule = async (user: FullIdentity, row: CompanyModulesRo
     await updateDoc(doc(getFirebaseDb(), 'companies', row.code), {
         [CLIENT_MODULES[key].setting]: enabled,
         ...(!enabled && row.homeModule === key ? { [CLIENT_HOME_SETTING]: deleteField() } : {}),
+        updatedAt: serverTimestamp(),
+        updatedByUid: user.uid,
+    })
+}
+
+/** Platform admins only: makes the company an Incubation or a Training workspace (see workspaceTypeFields). */
+export const setCompanyWorkspaceType = async (user: FullIdentity, companyCode: string, type: WorkspaceType) => {
+    if (!isPlatformAdmin(user)) throw new Error('forbidden')
+    const fields = Object.fromEntries(Object.entries(workspaceTypeFields(type)).map(([field, value]) => [field, value === null ? deleteField() : value]))
+    await updateDoc(doc(getFirebaseDb(), 'companies', companyCode), {
+        ...fields,
         updatedAt: serverTimestamp(),
         updatedByUid: user.uid,
     })

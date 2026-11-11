@@ -16,6 +16,7 @@ import { seedIncubators } from './seed-emulators-incubators.mjs'
 import { seedEsgAndRevenue } from './seed-emulators-esg.mjs'
 import { seedCompaniesAndLibrary } from './seed-emulators-companies.mjs'
 import { seedSurveys } from './seed-emulators-surveys.mjs'
+import { seedTrainingOnly } from './seed-emulators-training-only.mjs'
 
 const PROJECT_ID = 'demo-smartinc'
 const BUCKET = `${PROJECT_ID}.appspot.com`
@@ -217,7 +218,8 @@ await db.doc(`companies/${TNS}`).set({
 })
 
 const accounts = [
-    { uid: 'qtx-systemadmin', email: 'admin@smartinc.test', name: 'Quantilytix Admin', role: 'systemadmin', signature: sharedSignature, note: 'Platform: Admin > Client modules' },
+    { uid: 'qtx-systemadmin', email: 'admin@smartinc.test', name: 'Quantilytix Admin', role: 'systemadmin', signature: sharedSignature, note: 'Platform: Admin > Workspace types' },
+    { uid: 'qtx-prince', email: 'prince@quantilytix.co.za', name: 'Prince', role: 'systemadmin', signature: sharedSignature, note: 'Platform admin (Prince): Admin > Workspace types' },
     { uid: keletsoUid, email: 'keletso@taunamagadi.co.za', name: 'Keletso', role: 'projectadmin', companyCode: TNS, companyName: TNS_NAME, signature, note: `${TNS_NAME}: the facilitator` },
 ]
 
@@ -499,6 +501,9 @@ const companies = await seedCompaniesAndLibrary({ db, bucket, seedPerson, sample
 // Surveys: the feedback form from her training pack (answered by the finished class, open for the running one) and one for client companies.
 const surveys = await seedSurveys({ db, day, companyCode: TNS, keletsoUid, classIds: { now: 'tns-class-now', done: 'tns-class-done' } })
 
+// A second training provider: a Training workspace without the ESG reporting add-on.
+const trainingOnly = await seedTrainingOnly({ db, seedPerson, signature: sharedSignature, day, at, companyDefaults })
+
 // Ordinary incubator companies (no training module), to check the rest of the app next to it.
 const incubators = await seedIncubators({ db, Timestamp, FieldValue, seedPerson, signature: sharedSignature, day })
 
@@ -509,9 +514,10 @@ const signIns = [
     ...companies.people.map((person) => (person.orgRole === 'funder'
         ? { email: person.email, role: 'funder', note: `${TNS_NAME}: Mining Skills Fund (sees only what it funded)` }
         : { email: person.email, role: 'clientorg', note: `Kgalagadi Mining (Pty) Ltd ${person.orgRole}: ${person.name}` })),
+    ...trainingOnly.signIns,
     ...incubators.signIns,
 ]
-console.log(`\nSeeded ${writes.length} training records, ${esg.records} ESG and revenue records, ${companies.records} company and library records, ${surveys.records} survey records, ${incubators.records} incubator records and ${signIns.length} sign-ins. Password for every account: ${PASSWORD}\n`)
+console.log(`\nSeeded ${writes.length} training records, ${esg.records} ESG and revenue records, ${companies.records} company and library records, ${surveys.records} survey records, ${trainingOnly.records} training-only records, ${incubators.records} incubator records and ${signIns.length} sign-ins. Password for every account: ${PASSWORD}\n`)
 console.table(signIns)
 console.log(`App:                 ${APP_URL}   (npm run dev:emulators)`)
 console.log(`Certificate check:   ${APP_URL}/verify/${certificateId}`)

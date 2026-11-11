@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { App, Col, DatePicker, Form, Input, InputNumber, Modal, Row, Segmented, Select, Space, Switch, Tag, TimePicker, Typography } from 'antd'
 import { EnvironmentOutlined, SwapOutlined, VideoCameraOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
+import { esgReportingOn } from '@/config/clientModules'
+import { useSystemSettings } from '@/contexts/SystemSettingsContext'
 import { FunderSelect } from '@/components/training/FunderSelect'
 import { MEETING_PLATFORM_LABELS, detectMeetingPlatform, isMeetingUrl } from '@/utils/meetingLinks'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
@@ -43,6 +45,7 @@ const toHours = (range?: TimeRange): TrainingClassHours | undefined =>
 
 export const TrainingClassFormModal = ({ open, trainingClass, template, assessments, onCancel, onSaved }: Props) => {
     const { t } = useLanguage()
+    const { settings } = useSystemSettings()
     const { message } = App.useApp()
     const { user } = useFullIdentity()
     const [form] = Form.useForm<FormValues>()
@@ -139,7 +142,7 @@ export const TrainingClassFormModal = ({ open, trainingClass, template, assessme
         >
             <Form form={form} layout="vertical" requiredMark={false}>
                 <Form.Item name="courseTitle" label={t('Course')} rules={[{ required: true, whitespace: true, message: t('Enter the course name.') }]}>
-                    <Input placeholder={t('e.g. ESG Awareness Training')} maxLength={120} />
+                    <Input placeholder={esgReportingOn(settings) ? t('e.g. ESG Awareness Training') : t('e.g. Fire Safety Awareness Training')} maxLength={120} />
                 </Form.Item>
                 <Form.Item
                     name="deliveryMode"
