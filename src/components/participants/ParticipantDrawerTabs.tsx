@@ -159,7 +159,7 @@ export function InterventionsPanel({ items }: { items: LivePlanItem[] }) {
               {item.stepRows.length > 1 ? (
                 <div className="pd-steps">
                   {item.stepRows.map(step => (
-                    <Tooltip key={step.key} title={`${step.label} · ${step.share}%`}>
+                    <Tooltip key={step.key} title={`${t(step.label)} · ${step.share}% ${t('of total')}`}>
                       <Tag color={stepStateColor(step.state)}>{step.title}</Tag>
                     </Tooltip>
                   ))}

@@ -14,6 +14,7 @@ import {
     UserOutlined,
 } from '@ant-design/icons'
 import DashboardPageShell from '@/components/shared/DashboardPage'
+import SignatureCard from '@/components/profile/SignatureCard'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import ResponsiveModal from '@/components/shared/ResponsiveModal'
 import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
@@ -466,6 +467,8 @@ export const ApplicantProfilePage = ({ mode = 'applicant' }: ApplicantProfilePag
                     onSave={handleSave}
                     saving={saving}
                 />
+
+                {!editingSection && <SignatureCard />}
 
                 {/* An SME who came to finish their details: everything is in, back to the workspace. */}
                 {finishing && missingRequired.length === 0 && !editingSection && !aiPending && (

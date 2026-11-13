@@ -1,0 +1,15 @@
+node_modules
+dist
+.DS_Store
+.env
+
+# Ignore the output video from Git but not videos you import into src/.
+out
+
+# Secrets, the saved sign-in, and anything generated
+.env
+auth/
+recordings/
+audio/
+out/
+node_modules/

@@ -1,1 +1,9 @@
 .interventions-monitor-page { min-width: 0; }
+.monitor-detail-summary { display: flex; flex-direction: column; gap: 12px; }
+.monitor-detail-section, .monitor-detail-actions { padding: 16px; border: 1px solid var(--ant-color-border-secondary, rgba(128, 128, 128, .2)); border-radius: 14px; background: transparent; }
+.monitor-detail-section .ant-descriptions-item-content { overflow-wrap: anywhere; }
+.monitor-detail-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px 24px; }
+.monitor-detail-actions > .ant-typography { overflow-wrap: anywhere; }
+@media (max-width: 767px) {
+  .monitor-detail-actions { grid-template-columns: minmax(0, 1fr); }
+}

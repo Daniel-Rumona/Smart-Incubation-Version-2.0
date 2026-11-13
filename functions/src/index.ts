@@ -17,6 +17,7 @@ import { canCreateLearner, canReuseAccountAsLearner, isLearnerRole, learnerInvit
 import { OrganisationResultsError, organisationResults } from './organisationResults.js'
 import { CLIENT_ORG_ROLE, canInviteFunder, canInviteOrganisationMember, canReuseAccountAsFunder, canReuseAccountAsOrgMember, funderInviteWording, orgMemberInviteWording, toOrgRole } from './trainingOrganisations.js'
 import { ClientFunderError, clientFunderSummary } from './clientFunderSummary.js'
+import { isOrganisationStaff, notifyCompletedRegistration, notifyFirstOrganisationStaff, requestOrganisationAccess, reviewOrganisationAccess } from './organisationAccess.js'
 import { JoinError, buildConfirmedSetPlan, enrolInDirectProgram, forcedProgramInterventions, getProgramLinkInfo, joinProgram, type JoinInput } from './programJoin.js'
 import {
   processWhatsAppInboundEvent,
@@ -38,6 +39,8 @@ export const processWhatsAppInbound = onDocumentCreated(
     document: 'whatsappInboundEvents/{eventId}',
     region: 'us-central1',
     retry: true,
+    // Room for a few ai-backend calls of up to 45 seconds each (see callAiBackend).
+    timeoutSeconds: 180,
     secrets: [
       'LPH_WHATSAPP_GATEWAY_SECRET',
       'LPH_WHATSAPP_ROUTER_SECRET',
@@ -721,15 +724,23 @@ const ensureCompanyRecord = async (
   updatedBy: string,
 ) => {
   const ref = db.collection('companies').doc(companyCode)
-  const existing = await ref.get()
-  const hasName = Boolean(existing.exists && (existing.data()?.name || existing.data()?.companyName))
-  await ref.set({
-    companyCode,
-    ...(hasName ? {} : { name: companyCode }),
-    status: 'active',
-    updatedAt: FieldValue.serverTimestamp(),
-    updatedBy,
-  }, { merge: true })
+  await db.runTransaction(async tx => {
+    const milestoneRef = db.collection('organisationMilestones').doc(companyCode)
+    const [existing, milestone] = await Promise.all([tx.get(ref), tx.get(milestoneRef)])
+    const members = !milestone.exists ? await tx.get(db.collection('users').where('companyCode', '==', companyCode)) : null
+    const hasName = Boolean(existing.exists && (existing.data()?.name || existing.data()?.companyName))
+    if (!milestone.exists) {
+      const hasStaff = members?.docs.some(member => isOrganisationStaff(member.data()))
+      tx.create(milestoneRef, { status: hasStaff ? 'recorded' : 'awaiting_first_staff', notificationQueued: false, createdAt: FieldValue.serverTimestamp() })
+    }
+    tx.set(ref, {
+      companyCode,
+      ...(hasName ? {} : { name: companyCode }),
+      status: 'active',
+      updatedAt: FieldValue.serverTimestamp(),
+      updatedBy,
+    }, { merge: true })
+  })
 }
 const projectStaffPermissions = [
   'view_dashboard',
@@ -1571,6 +1582,8 @@ export const createPlatformUser = onRequest({ region }, (request, response) => {
         : null
 
       const userDoc = {
+        managedAccount: true,
+        staffJoinedAt: FieldValue.serverTimestamp(),
         uid: userRecord.uid,
         email,
         name,
@@ -1596,6 +1609,8 @@ export const createPlatformUser = onRequest({ region }, (request, response) => {
       }
 
       const db = getFirestore()
+      // Reserve the company's first-staff milestone before the new user can trigger notifications.
+      if (payload.companyCode) await ensureCompanyRecord(db, payload.companyCode, admin.decoded.uid)
       await Promise.all([
         db.collection('users').doc(userRecord.uid).set(
           {
@@ -1626,7 +1641,6 @@ export const createPlatformUser = onRequest({ region }, (request, response) => {
           },
           { merge: true },
         ),
-        ...(payload.companyCode ? [ensureCompanyRecord(db, payload.companyCode, admin.decoded.uid)] : []),
       ])
 
       if (payload.sendEmail && resetLink) {
@@ -1768,6 +1782,7 @@ export const createParticipantAccount = onRequest({ region }, (request, response
           name: participantName,
           displayName: participantName,
           role: 'incubatee',
+          managedAccount: true,
           companyCode: manager.companyCode || null,
           mustChangePassword: true,
           active: true,
@@ -2364,6 +2379,8 @@ async function createManagedUserCallable(request: LegacyCallableRequest<Platform
     ? buildPasswordActionUrl(await getAuth().generatePasswordResetLink(email), { invite: true })
     : null
   const userDoc = {
+    managedAccount: true,
+    staffJoinedAt: FieldValue.serverTimestamp(),
     uid: userRecord.uid,
     email,
     name,
@@ -2382,6 +2399,7 @@ async function createManagedUserCallable(request: LegacyCallableRequest<Platform
     updatedAt: FieldValue.serverTimestamp(),
   }
   const db = getFirestore()
+  if (payload.companyCode) await ensureCompanyRecord(db, payload.companyCode, admin.decoded.uid)
   await Promise.all([
     db.collection('users').doc(userRecord.uid).set({
       ...userDoc,
@@ -2751,6 +2769,33 @@ export const completeDirectorCompanySetup = onCall({ region }, async request => 
       throw new HttpsError(map[error.code], error.message)
     }
     throw error
+  }
+})
+
+export const submitOrganisationAccessRequest = onCall({ region }, async request => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first.')
+  const user = await getAuth().getUser(request.auth.uid)
+  const profile = await getFirestore().collection('users').doc(request.auth.uid).get()
+  if (!user.emailVerified && profile.get('emailVerified') !== true) throw new HttpsError('permission-denied', 'Verify your email first.')
+  return requestOrganisationAccess(getFirestore(), request.auth.uid, user.email || '', request.data || {}, getAppBaseUrl())
+})
+
+export const decideOrganisationAccessRequest = onCall({ region }, async request => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first.')
+  return reviewOrganisationAccess(getFirestore(), request.auth.uid, String(request.data?.uid || ''), String(request.data?.decision || ''), String(request.data?.reason || '').trim())
+})
+
+export const notifyNewRegistration = onDocumentWritten({ document: 'users/{uid}', region, retry: true }, async event => {
+  const before = event.data?.before.data()
+  const after = event.data?.after.data()
+  if (!after) return
+  const onboardingFinished = after.firstLoginComplete === true && before?.firstLoginComplete !== true
+  const smeFinished = after.smeOnboardingComplete === true && before?.smeOnboardingComplete !== true
+  if (!before || onboardingFinished || smeFinished) {
+    await notifyCompletedRegistration(getFirestore(), event.params.uid, getAppBaseUrl())
+  }
+  if (isOrganisationStaff(after) && (!before || !isOrganisationStaff(before) || before.companyCode !== after.companyCode)) {
+    await notifyFirstOrganisationStaff(getFirestore(), event.params.uid, String(after.companyCode), getAppBaseUrl())
   }
 })
 
@@ -3642,3 +3687,5 @@ export const nudgeUnansweredConnectionRequests = onSchedule(
     await nudgeUnanswered(buildMarketplaceDeps())
   },
 )
+
+export { adminStorageList, adminStorageOverview, adminStorageMeasure, adminStorageFileUrl, adminStorageDelete } from './storageBrowser.js'

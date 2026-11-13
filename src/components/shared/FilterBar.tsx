@@ -1,4 +1,4 @@
-import { Badge, Button, Dropdown, Grid, Input, Popconfirm, Segmented, Select, Space, Tooltip, Typography, Upload } from 'antd'
+import { Badge, Button, Dropdown, Grid, Input, Popconfirm, Popover, Segmented, Select, Space, Tooltip, Typography, Upload } from 'antd'
 import { SlidersOutlined } from '@ant-design/icons'
 import { Children, Fragment, isValidElement, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import { MotionCard, SunkenPanel } from '@/components/shared/MotionCard'
@@ -7,6 +7,8 @@ import { useLanguage } from '@/providers/LanguageProvider'
 import { useFitSteps } from '@/hooks/useFitSteps'
 
 type FilterBarProps = {
+    advancedDisplay?: 'modal' | 'dropdown'
+    onReset?: () => void
     title?: ReactNode
     primary: ReactNode
     advanced?: ReactNode
@@ -73,7 +75,7 @@ const isNarrowed = (node: ReactNode) => {
     return true
 }
 
-export const FilterBar = ({ title, primary, advanced, actions, compact = false, activeFilters }: FilterBarProps) => {
+export const FilterBar = ({ advancedDisplay = 'modal', onReset, title, primary, advanced, actions, compact = false, activeFilters }: FilterBarProps) => {
     const { t } = useLanguage()
     const screens = Grid.useBreakpoint()
     const isMobile = !screens.md
@@ -113,7 +115,16 @@ export const FilterBar = ({ title, primary, advanced, actions, compact = false, 
     const searchLayout = isMobile && (!!search || (!inline && views.length > 0))
     const narrowed = activeFilters ?? sheetFilters.filter(isNarrowed).length
 
-    const filtersButton = (block: boolean) => (
+    const filterTrigger = (trigger: ReactNode) => advancedDisplay === 'dropdown' ? (
+        <Popover trigger="click" placement="bottomRight" open={advancedOpen} onOpenChange={setAdvancedOpen} content={
+            <div style={{ width: 300, maxWidth: 'calc(100vw - 48px)', maxHeight: '65vh', overflowY: 'auto', display: 'grid', gap: 12 }}>
+                <div className="filter-modal-grid">{sheetContent}</div>
+                <Space style={{ display: 'flex' }}><>{onReset && <Button onClick={onReset}>{t('Reset')}</Button>}</><Button type="primary" onClick={() => setAdvancedOpen(false)}>{t('common.applyFilters')}</Button></Space>
+            </div>
+        }>{trigger}</Popover>
+    ) : trigger
+
+    const filtersButton = (block: boolean) => filterTrigger(
         <Badge count={narrowed} size="small" offset={[-4, 4]} className={block ? 'filter-bar-filters-block' : undefined}>
             {block
                 ? <Button block icon={<SlidersOutlined />} onClick={() => setAdvancedOpen(true)}>{t('common.filters')}</Button>
@@ -144,14 +155,14 @@ export const FilterBar = ({ title, primary, advanced, actions, compact = false, 
                 </div>
             )
         }
-        if (isMobile && !inline) return <Button block icon={<SlidersOutlined />} onClick={() => setAdvancedOpen(true)}>{t('common.filters')}</Button>
+        if (isMobile && !inline) return filtersButton(true)
         return (
             <div className={`filter-bar-primary${isMobile ? ' is-stacked' : ''}`}>
                 <div className="filter-bar-controls" ref={rowRef}>
                     {advancedSearch}
                     {primary}
                     {actions}
-                    {advancedRest.length > 0 && <Button icon={<SlidersOutlined />} onClick={() => setAdvancedOpen(true)}>{t('common.moreFilters')}</Button>}
+                    {advancedRest.length > 0 && filterTrigger(<Badge count={advancedRest.filter(isNarrowed).length} size="small"><Button icon={<SlidersOutlined />} onClick={() => setAdvancedOpen(true)}>{t(advancedDisplay === 'dropdown' ? 'common.filters' : 'common.moreFilters')}</Button></Badge>)}
                 </div>
             </div>
         )
@@ -169,7 +180,7 @@ export const FilterBar = ({ title, primary, advanced, actions, compact = false, 
                 </SunkenPanel>
             </MotionCard>
 
-            {hasSheet && (
+            {hasSheet && advancedDisplay === 'modal' && (
                 <ResponsiveModal
                     open={advancedOpen}
                     title={t('common.filters')}

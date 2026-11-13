@@ -1,0 +1,537 @@
+/* =========================================================
+   System admin Storage page (routes/admin/storage).
+   Builds on the admin-overview tokens (--admin-*).
+   ========================================================= */
+
+.storage-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 4px 0 16px;
+}
+
+.storage-head h2 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 650;
+    color: var(--admin-ink);
+}
+
+.storage-head p {
+    margin: 2px 0 0;
+    font-size: 13px;
+    color: var(--admin-muted);
+}
+
+.storage-section-title {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 24px 0 12px;
+}
+
+.storage-section-title h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--admin-ink);
+}
+
+.storage-section-title span {
+    font-size: 12px;
+    color: var(--admin-muted);
+}
+
+/* ---------- Area cards (bucket root) ---------- */
+
+.storage-areas {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+}
+
+.storage-area {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 18px;
+    border-radius: 20px;
+    border: 1px solid var(--admin-card-border);
+    background: var(--admin-card-bg);
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+    font: inherit;
+    color: inherit;
+}
+
+.storage-area:hover,
+.storage-area:focus-visible {
+    border-color: var(--admin-accent);
+    box-shadow: 0 10px 28px -16px var(--admin-accent);
+    transform: translateY(-1px);
+    outline: none;
+}
+
+.storage-area-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.storage-icon-disc {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: var(--admin-accent-soft);
+    color: var(--admin-accent);
+    font-size: 18px;
+}
+
+.storage-icon-disc.is-small {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    font-size: 15px;
+}
+
+.storage-icon-disc.is-folder {
+    background: rgba(250, 173, 20, 0.14);
+    color: #d48806;
+}
+
+.storage-icon-disc.is-image {
+    background: rgba(19, 168, 168, 0.14);
+    color: #13a8a8;
+}
+
+.storage-icon-disc.is-pdf {
+    background: rgba(207, 19, 34, 0.12);
+    color: #cf1322;
+}
+
+.storage-icon-disc.is-file {
+    background: var(--admin-track);
+    color: var(--admin-muted);
+}
+
+.storage-area-name {
+    display: block;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--admin-ink);
+    line-height: 1.3;
+}
+
+.storage-area-desc {
+    display: block;
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--admin-muted);
+    line-height: 1.4;
+}
+
+.storage-mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11.5px;
+    color: var(--admin-muted);
+    word-break: break-all;
+}
+
+.storage-area-stats {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin-top: auto;
+}
+
+.storage-area-stats strong {
+    font-size: 20px;
+    font-weight: 650;
+    color: var(--admin-ink);
+}
+
+.storage-area-stats span {
+    font-size: 12px;
+    color: var(--admin-muted);
+}
+
+.storage-area-bar {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--admin-track);
+    overflow: hidden;
+}
+
+.storage-area-bar i {
+    display: block;
+    height: 100%;
+    min-width: 4px;
+    border-radius: inherit;
+    background: var(--admin-accent);
+}
+
+.storage-area-foot {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--admin-muted);
+}
+
+/* ---------- Folder view ---------- */
+
+.storage-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.storage-crumbs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    flex: 1 1 320px;
+    min-width: 0;
+}
+
+.storage-crumb {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 260px;
+    padding: 4px 10px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--admin-muted);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.storage-crumb span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.storage-crumb:hover {
+    background: var(--admin-track);
+    color: var(--admin-ink);
+}
+
+.storage-crumb.is-current {
+    background: var(--admin-accent-soft);
+    color: var(--admin-accent);
+    font-weight: 600;
+    cursor: default;
+}
+
+.storage-crumb-sep {
+    color: var(--admin-muted);
+    font-size: 10px;
+}
+
+.storage-filter.ant-input-affix-wrapper {
+    width: 240px;
+    max-width: 100%;
+}
+
+.storage-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    margin-bottom: 10px;
+    font-size: 12.5px;
+    color: var(--admin-muted);
+}
+
+.storage-summary strong {
+    color: var(--admin-ink);
+    font-weight: 600;
+}
+
+.storage-group-label {
+    margin: 6px 0 10px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--admin-muted);
+}
+
+.storage-folders {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 18px;
+}
+
+.storage-folder.is-skeleton {
+    cursor: default;
+    pointer-events: none;
+}
+
+.storage-folder.is-skeleton .ant-skeleton-input {
+    min-width: 0 !important;
+    border-radius: 6px;
+}
+
+.storage-folder.is-skeleton .ant-skeleton-avatar {
+    border-radius: 10px;
+}
+
+.storage-folder .storage-kind-tag {
+    flex: none;
+}
+
+.storage-folder {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    padding: 12px 14px;
+    border: 1px solid var(--admin-card-border);
+    border-radius: 14px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.storage-folder:hover,
+.storage-folder:focus-visible {
+    border-color: var(--admin-accent);
+    background: var(--admin-accent-soft);
+    outline: none;
+}
+
+.storage-folder .ant-avatar {
+    flex: none;
+    background: var(--admin-accent-soft);
+    color: var(--admin-accent);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.storage-folder .storage-name-copy {
+    flex: 1;
+}
+
+.storage-folder-chevron {
+    flex: none;
+    font-size: 11px;
+    color: var(--admin-muted);
+}
+
+.storage-folder:hover .storage-name-copy strong {
+    color: var(--admin-accent);
+}
+
+.storage-name-cell {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    cursor: pointer;
+}
+
+.storage-name-copy {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.storage-name-copy strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 550;
+    color: var(--admin-ink);
+}
+
+.storage-name-cell:hover .storage-name-copy strong {
+    color: var(--admin-accent);
+}
+
+.storage-name-copy small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11.5px;
+    color: var(--admin-muted);
+}
+
+.storage-kind-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 8px;
+    border-radius: 999px;
+    background: var(--admin-track);
+    color: var(--admin-muted);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 18px;
+    white-space: nowrap;
+}
+
+.storage-owner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.storage-owner .ant-avatar {
+    flex: none;
+    background: var(--admin-accent-soft);
+    color: var(--admin-accent);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.storage-owner-copy {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    line-height: 1.25;
+}
+
+.storage-owner-copy strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+    font-weight: 550;
+    color: var(--admin-ink);
+}
+
+.storage-owner-copy small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11.5px;
+    color: var(--admin-muted);
+}
+
+.storage-type-tag {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 6px;
+    background: var(--admin-track);
+    color: var(--admin-ink);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.storage-table .ant-table {
+    background: transparent;
+}
+
+/* ---------- Details drawer ---------- */
+
+.storage-preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 160px;
+    padding: 12px;
+    border-radius: 16px;
+    background: var(--admin-track);
+    overflow: hidden;
+}
+
+.storage-preview img {
+    max-width: 100%;
+    max-height: 340px;
+    object-fit: contain;
+    border-radius: 10px;
+}
+
+.storage-preview iframe {
+    width: 100%;
+    height: 420px;
+    border: 0;
+    border-radius: 10px;
+    background: #fff;
+}
+
+.storage-owner-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px;
+    border-radius: 16px;
+    border: 1px solid var(--admin-card-border);
+}
+
+.storage-owner-card .ant-avatar {
+    flex: none;
+    background: var(--admin-accent-soft);
+    color: var(--admin-accent);
+    font-weight: 600;
+}
+
+.storage-trail {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.storage-trail-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--admin-track);
+    font-size: 12px;
+    color: var(--admin-ink);
+}
+
+.storage-trail-chip em {
+    font-style: normal;
+    color: var(--admin-muted);
+}
+
+.storage-facts {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 8px 12px;
+    margin: 0;
+    font-size: 13px;
+}
+
+.storage-facts dt {
+    color: var(--admin-muted);
+}
+
+.storage-facts dd {
+    margin: 0;
+    color: var(--admin-ink);
+    word-break: break-all;
+}
+
+@media (max-width: 767px) {
+    .storage-filter.ant-input-affix-wrapper {
+        width: 100%;
+    }
+
+    .storage-areas {
+        grid-template-columns: 1fr;
+    }
+}

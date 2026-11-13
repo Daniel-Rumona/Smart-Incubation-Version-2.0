@@ -6,9 +6,13 @@
  *   node scripts/whatsapp-account.cjs --waba-id <id> --subscribe              subscribes our app so replies reach the webhook
  *   node scripts/whatsapp-account.cjs --waba-id <new> --copy-template <name> --from <old waba id>
  *                                                                             copies one approved template to this account
+ *   node scripts/whatsapp-account.cjs --waba-id <id> --create-login-template <name> [--lang en]
+ *                                                                             submits an authentication (one-time code)
+ *                                                                             template: copy-code button, security note,
+ *                                                                             5-minute expiry (Lepharo's lph_login_code)
  *
- * Reading is safe. --subscribe and --copy-template change the account, so run them only for the account you mean to
- * go live with.
+ * Reading is safe. --subscribe, --copy-template and --create-login-template change the account, so run them only for
+ * the account you mean to go live with.
  */
 const fs = require('fs')
 const path = require('path')
@@ -54,6 +58,22 @@ const show = (title, { status, json }, pick) => {
       const created = await call('POST', `${wabaId}/message_templates`, { name: original.name, language: original.language, category: original.category, components: original.components })
       console.log(created.json.error ? `Copy failed (HTTP ${created.status}): ${created.json.error.message}${created.json.error.error_user_msg ? ` - ${created.json.error.error_user_msg}` : ''}` : `Template ${original.name} submitted for review: ${JSON.stringify(created.json)}`)
     }
+  }
+
+  // Authentication templates have Meta's fixed wording ("<code> is your verification code."); only the options are ours.
+  const loginTemplate = value('create-login-template')
+  if (loginTemplate) {
+    const created = await call('POST', `${wabaId}/message_templates`, {
+      name: loginTemplate,
+      language: value('lang') || 'en',
+      category: 'AUTHENTICATION',
+      components: [
+        { type: 'BODY', add_security_recommendation: true },
+        { type: 'FOOTER', code_expiration_minutes: 5 },
+        { type: 'BUTTONS', buttons: [{ type: 'OTP', otp_type: 'COPY_CODE', text: 'Copy code' }] },
+      ],
+    })
+    console.log(created.json.error ? `Create failed (HTTP ${created.status}): ${created.json.error.message}${created.json.error.error_user_msg ? ` - ${created.json.error.error_user_msg}` : ''}` : `Template ${loginTemplate} submitted: ${JSON.stringify(created.json)}`)
   }
 
   show('Account', await call('GET', `${wabaId}?fields=name,currency,timezone_id,account_review_status,business_verification_status`))

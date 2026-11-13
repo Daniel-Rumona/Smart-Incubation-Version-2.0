@@ -20,6 +20,7 @@ export type StepState = 'completed' | 'delivered' | 'in_progress' | 'assigned' |
 
 export type LivePlanStep = {
   key: string
+  assignmentId?: string
   title: string
   state: StepState
   /** Plain-language state for the screen. */
@@ -52,6 +53,7 @@ export type LivePlanItem = {
   status: LivePlanStatus
   progress: number
   totalSteps: number
+  isMultiStep?: boolean
   completedSteps: number
   remainingSteps: number
   stepRows: LivePlanStep[]
@@ -59,6 +61,16 @@ export type LivePlanItem = {
 }
 
 type Row = Record<string, unknown>
+
+/** Use the same assignment-to-step mapping as the progress calculation. */
+export const assignmentPlanLabel = (assignment: Row, live?: LivePlanItem): string => {
+  const index = live?.stepRows.findIndex(step => step.assignmentId === String(assignment.id)) ?? -1
+  if (live && index >= 0) {
+    const title = live.stepRows[index].title
+    return live.isMultiStep && title !== `Step ${index + 1}` ? `Step ${index + 1}: ${title}` : title
+  }
+  return String(assignment.assignedStepTitle || assignment.stepTitle || '')
+}
 
 export const STEP_STATE_LABEL: Record<StepState, string> = {
   completed: 'Completed',
@@ -212,12 +224,13 @@ export const buildLivePlanItems = <T extends { interventionId?: string, id?: str
   const definitionId = String(item.interventionId || item.id || '')
   const matches = assignments.filter(row => String(row.interventionId || '') === definitionId)
   const live = matches.filter(row => !isDead(row))
-  const { slots } = buildSlots(item, matches)
+  const { slots, multi } = buildSlots(item, matches)
 
   const states = slots.map(slot => stateOf(slot.row))
   const totalWeight = slots.reduce((sum, slot) => sum + slot.weight, 0) || 1
   const stepRows: LivePlanStep[] = slots.map((slot, index) => ({
     key: `${definitionId || item.title}-${index}`,
+    assignmentId: slot.row?.id ? String(slot.row.id) : undefined,
     title: slot.title,
     state: states[index],
     label: STEP_STATE_LABEL[states[index]],
@@ -247,6 +260,7 @@ export const buildLivePlanItems = <T extends { interventionId?: string, id?: str
     completedSteps,
     remainingSteps: Math.max(0, slots.length - completedSteps),
     stepRows,
+    isMultiStep: multi,
     outcome: outcomeOf(matches),
   }
 })

@@ -1,0 +1,28 @@
+.intervention-setup-section { margin-top: 16px; overflow-wrap: anywhere; }
+.intervention-setup-workspace .compliance-detail .ant-segmented-group { flex-wrap: wrap; }
+@media (min-width: 992px) {
+  .intervention-setup-workspace .compliance-participants { position: sticky; top: 16px; }
+  .intervention-setup-workspace .compliance-participant-list { max-height: max(180px, calc(100dvh - 250px)); overflow-y: auto; align-content: start; scrollbar-gutter: stable; overscroll-behavior-y: contain; }
+  .intervention-setup-workspace .compliance-detail { position: sticky; top: 16px; }
+}
+
+.operations-interventions-page .filter-bar-controls { width: 100%; }
+.operations-interventions-page .filter-bar-controls > .ant-input-affix-wrapper,
+.operations-interventions-page .filter-bar-controls > .ant-select { flex: 2 1 180px; width: auto; max-width: none; }
+.operations-interventions-page .filter-bar-controls > .ant-btn,
+.operations-interventions-page .filter-bar-controls > .ant-badge { flex: 1 1 auto; }
+.operations-interventions-page .filter-bar-controls > .ant-badge > .ant-btn { width: 100%; }
+
+.intervention-schedule { display: grid; gap: 14px; }
+.intervention-schedule-summary { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: var(--ant-color-fill-quaternary, #f8fafc); }
+.intervention-schedule-summary > .anticon { color: var(--ant-color-primary, #6d5dfb); }
+.intervention-schedule-summary > div { display: flex; flex: 1; min-width: 0; flex-direction: column; }
+.intervention-schedule-summary .ant-tag { margin: 0; }
+.intervention-step-list { display: grid; gap: 10px; list-style: none; margin: 0; padding: 0; }
+.intervention-step-card { display: flex; align-items: flex-start; gap: 12px; padding: 14px; border: 1px solid var(--ant-color-border-secondary, #e5e7eb); border-radius: 12px; background: var(--ant-color-bg-container, #fff); }
+.intervention-step-number { display: grid; place-items: center; flex: 0 0 30px; height: 30px; border-radius: 9px; color: var(--ant-color-primary, #6d5dfb); background: var(--ant-color-primary-bg, #f3f0ff); font-size: 13px; font-weight: 700; }
+.intervention-step-content { flex: 1; min-width: 0; }
+.intervention-step-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 12px; }
+.intervention-step-heading > .ant-typography { flex: 1 1 180px; }
+.intervention-step-weight { flex-shrink: 0; font-size: 12px; color: var(--ant-color-text-secondary, #667085); background: var(--ant-color-fill-tertiary, #f2f4f7); padding: 2px 8px; border-radius: 6px; }
+.intervention-step-content > .ant-typography { margin: 4px 0 0; font-size: 13px; line-height: 1.5; }

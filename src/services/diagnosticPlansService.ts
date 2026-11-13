@@ -278,6 +278,7 @@ export const listDiagnosticPlanParticipants = async (
           sme: asRecord(confirmedMeta.sme),
         },
         confirmedAt: stored.confirmedAt ? String(stored.confirmedAt) : undefined,
+        amended: Boolean(stored.amendedAt),
       },
       swot: getSwot(application),
       swotItems: readSwotItems(application),

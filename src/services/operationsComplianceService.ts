@@ -1,5 +1,6 @@
-import { collection, deleteDoc, doc, getDocs, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore'
+import { collection, deleteDoc, doc, getDocs, runTransaction, serverTimestamp } from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { getAgentAuthHeaders } from '@/services/agentAuth'
 import { agentApiBaseUrl, isAgentApiConfigured } from '@/config/agent'
 import { getFirebaseDb, getFirebaseStorage } from '@/config/firebase'
 import { programDocumentRequirements } from '@/config/complianceDocuments'
@@ -45,6 +46,7 @@ export const listComplianceParticipants = async (user: FullIdentity, activeProgr
       phone: data.phone,
       programId: data.programId,
       companyCode: data.companyCode,
+      scan: data.compliance?.summary?.scannedAt ? { scannedAt: data.compliance.summary.scannedAt, findings: data.compliance.findings || [] } : undefined,
       documents: documentsByParticipant.get(participantId) || [],
       requirements: requirementsByProgram.get(String(data.programId || '')) || programDocumentRequirements(null),
     } satisfies ComplianceParticipant]
@@ -60,9 +62,11 @@ export const saveComplianceDocument = async (user: FullIdentity, values: SaveCom
     const existing = await transaction.get(target)
     if (existing.exists() && previousId !== targetId) throw new Error('duplicate-document-type')
     transaction.set(target, {
-      ...values,
+      ...Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value === undefined ? null : value])),
       key: cleanKey(values.type),
+      currentStatus: 'pending',
       verificationStatus: 'pending',
+      verificationComment: '',
       updatedAt: serverTimestamp(),
       updatedBy: user.uid,
       ...(existing.exists() ? {} : { createdAt: serverTimestamp(), createdBy: user.uid }),
@@ -73,12 +77,19 @@ export const saveComplianceDocument = async (user: FullIdentity, values: SaveCom
 
 export const verifyComplianceDocument = async (user: FullIdentity, id: string, verificationStatus: ComplianceVerification, comment?: string) => {
   assertPermission(user, 'manage_compliance')
-  await updateDoc(doc(getFirebaseDb(), 'complianceDocuments', id), {
-    verificationStatus,
-    verificationComment: comment || '',
-    currentStatus: verificationStatus === 'verified' ? 'valid' : 'queried',
-    updatedAt: serverTimestamp(),
-    updatedBy: user.uid,
+  if (verificationStatus === 'queried' && !comment?.trim()) throw new Error('query-reason-required')
+  const db = getFirebaseDb()
+  const target = doc(db, 'complianceDocuments', id)
+  await runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(target)
+    if (!snapshot.exists() || !String(snapshot.data().url || '').trim()) throw new Error('document-file-required')
+    transaction.update(target, {
+      verificationStatus,
+      verificationComment: comment || '',
+      currentStatus: verificationStatus === 'verified' ? 'valid' : 'queried',
+      updatedAt: serverTimestamp(),
+      updatedBy: user.uid,
+    })
   })
 }
 
@@ -95,6 +106,7 @@ export const uploadComplianceFile = async (participantId: string, type: string, 
 
 export type ComplianceScanResult = {
   updated: boolean
+  results?: Array<{ participantId: string, summary: { scannedAt: string }, findings?: import('@/types/compliance').ComplianceScanFinding[] }>
   totals: {
     participants: number
     documents: number
@@ -116,7 +128,7 @@ export const scanComplianceDocuments = async (options: {
 
   const response = await fetch(`${agentApiBaseUrl}/api/compliance/scan`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(await getAgentAuthHeaders()) },
     body: JSON.stringify({
       participantId: options.participantId,
       programId: options.programId && options.programId !== 'all' ? options.programId : undefined,
@@ -125,7 +137,7 @@ export const scanComplianceDocuments = async (options: {
   })
 
   if (!response.ok) {
-    throw new Error('compliance-scan-failed')
+    throw new Error(response.status === 404 ? 'The compliance scan endpoint is unavailable. The AI backend needs the compliance scan update deployed.' : 'compliance-scan-failed')
   }
 
   return response.json() as Promise<ComplianceScanResult>

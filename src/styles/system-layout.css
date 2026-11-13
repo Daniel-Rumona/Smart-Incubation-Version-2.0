@@ -504,6 +504,18 @@ html[data-theme='dark'] .workspace-navigation-card:hover, html[data-theme='dark'
     gap: 6px;
 }
 
+/* A shortcut that opens a menu of pages (Interventions: Assign, Monitoring, Setup). */
+.app-quicklink-dropdown {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.app-quicklink-caret {
+    font-size: 10px;
+    opacity: 0.7;
+}
+
 /* Light mode: the active mode and the active page get the same filled pill dark mode uses,
    instead of a white pill that barely stands out from the track. */
 html:not([data-theme='dark']) .app-mode-switch .ant-segmented-item-selected,

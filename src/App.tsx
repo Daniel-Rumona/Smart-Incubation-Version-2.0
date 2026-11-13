@@ -5,6 +5,7 @@ import { NotFoundPage } from '@/pages/system/NotFoundPage'
 import type { AppRoute } from '@/types/routes'
 import type { ReactElement } from 'react'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
+import { AgreementGate } from '@/components/auth/AgreementGate'
 
 const flattenRoutes = (routes: AppRoute[]): AppRoute[] =>
   routes.flatMap((route) => [route, ...(route.children ? flattenRoutes(route.children) : [])])
@@ -24,7 +25,7 @@ function App() {
       {publicRoutes.map((route) => (
         <Route key={route.path} path={route.path} element={<route.element />} />
       ))}
-      <Route element={<SystemLayout />}>
+      <Route element={<AgreementGate><SystemLayout /></AgreementGate>}>
         {renderRoutes(appRoutes)}
       </Route>
       <Route path="*" element={<NotFoundPage />} />

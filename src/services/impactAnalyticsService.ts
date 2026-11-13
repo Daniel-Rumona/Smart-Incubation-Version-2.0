@@ -10,8 +10,9 @@ import type { FullIdentity } from '@/types/identity'
 /**
  * Impact analytics: did the SMEs we supported grow, and did the interventions achieve what they set out to?
  *
- *  - Growth since joining: each SME's first and latest recorded revenue and headcount (revenueHistory /
- *    headcountHistory on the participant, as captured on the metrics pages).
+ *  - Growth since joining: each SME's first and latest recorded revenue and headcount. Figures come from the SME's
+ *    own monthly reports (monthlyPerformance/{id}/history, the incubatee metrics page) merged over revenueHistory /
+ *    headcountHistory on the participant (older and imported figures); a monthly report wins for the same month.
  *  - Before and after support: average monthly revenue in the six months before the SME's first completed
  *    intervention against the six months after. Monthly figures only, and only where both sides exist.
  *  - Outcomes: the latest facilitator follow-up result on each completed intervention (achieved / partially /
@@ -19,7 +20,11 @@ import type { FullIdentity } from '@/types/identity'
  *    never set up. Check-backs themselves (answers, WhatsApp share, overdue, re-checks) are summarised too.
  *    Answers come from the facilitator or operations staff (web or WhatsApp, functions/src/followUps.ts); SMEs
  *    aren't asked. The LPH| check-back buttons on WhatsApp belong to the separate Lepharo platform and never reach here.
- *  - Served or not yet: growth of SMEs with at least one completed intervention against those with none.
+ *  - Jobs before and after: headcount at the last report in the six months before the first completed intervention
+ *    against the last report in the six months after.
+ *  - Portfolio trend: total reported revenue per month, and headcount per month with each SME's latest figure carried
+ *    forward (headcount is a stock, so a month without a report keeps the last known figure).
+ *  - Served or not yet: growth and jobs of SMEs with at least one completed intervention against those with none.
  * Figures stay English; the page translates labels when it shows them.
  */
 
@@ -99,6 +104,21 @@ export type SmeImpact = {
   before: number | null
   after: number | null
   beforeAfterChange: number | null
+  /** Headcount at the last report either side of the first completed intervention, and the change in people. */
+  jobsBefore: number | null
+  jobsAfter: number | null
+  jobsBeforeAfterChange: number | null
+}
+
+/** One month of the portfolio trend. Headcount splits into permanent, temporary and figures recorded without a split. */
+export type TrendMonth = {
+  period: string
+  revenue: number
+  revenueSmes: number
+  permanent: number
+  temporary: number
+  unsplit: number
+  jobsSmes: number
 }
 
 /** Outcome counts for one area of support; achievedConfirmed is the part of achieved the SME also said Yes to. */
@@ -113,6 +133,8 @@ export type ImpactAnalytics = {
   revenueGrowth: number | null
   netJobs: number
   smesWithJobs: number
+  /** Net change split by job type, across the SMEs whose first and latest headcount both carry the split. */
+  jobsSplit: { smes: number, permanent: number, temporary: number } | null
   growingSmes: number
   completedInterventions: number
   outcomes: Record<OutcomeBucket, number>
@@ -121,8 +143,14 @@ export type ImpactAnalytics = {
   achievedRate: number | null
   areas: AreaOutcome[]
   beforeAfter: { count: number, medianChange: number | null, improved: number }
+  jobsBeforeAfter: { count: number, netChange: number, improved: number }
+  trend: TrendMonth[]
+  supportedSmes: number
   servedGrowth: number | null
   notServedGrowth: number | null
+  /** Average jobs added per SME since joining, supported against not yet supported. */
+  servedJobs: number | null
+  notServedJobs: number | null
   servedCount: number
   notServedCount: number
 }
@@ -198,9 +226,95 @@ const beforeAndAfter = (row: PerformanceSourceRow, pivot: Dayjs) => {
   return { before: average(before), after: average(after) }
 }
 
+const TREND_MONTHS = 12
+const MONTH_NAMES = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december']
+
+const figure = (value: unknown) => {
+  if (value === undefined || value === null || value === '') return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+type JobSplit = { permanent: number, temporary: number }
+
+/** A report's month as YYYY-MM: "January 2026" (the metrics page's key) or "2026-01"; null when it can't be dated. */
+const reportPeriod = (row: AnyDoc, id: string): string | null => {
+  const raw = text(row.month || id)
+  const iso = raw.match(/^(\d{4})-(\d{1,2})$/)
+  if (iso) return `${iso[1]}-${iso[2].padStart(2, '0')}`
+  const [name = '', yearText] = raw.toLowerCase().split(/\s+/)
+  const index = MONTH_NAMES.findIndex((month) => month === name || (name.length >= 3 && month.startsWith(name)))
+  if (index < 0) return null
+  const year = Number(yearText) || toDayjsValue(row.createdAt as FirestoreDateLike)?.year()
+  return year ? `${year}-${String(index + 1).padStart(2, '0')}` : null
+}
+
+/** The SME's own monthly reports, by YYYY-MM. Reports that can't be read count as none. */
+const loadMonthlyReports = async (participantId: string) => {
+  const revenue: Record<string, number> = {}
+  const headcount: Record<string, number> = {}
+  const splits: Record<string, JobSplit> = {}
+  try {
+    const snapshot = await getDocs(collection(db, 'monthlyPerformance', participantId, 'history'))
+    snapshot.docs.forEach((record) => {
+      const row = record.data() as AnyDoc
+      const period = reportPeriod(row, record.id)
+      if (!period) return
+      const amount = figure(row.revenue)
+      if (amount !== null && amount > 0) revenue[period] = amount
+      const permanent = figure(row.headPermanent)
+      const temporary = figure(row.headTemporary)
+      if (permanent === null && temporary === null) return
+      headcount[period] = (permanent || 0) + (temporary || 0)
+      splits[period] = { permanent: permanent || 0, temporary: temporary || 0 }
+    })
+  } catch (error) {
+    console.warn('[IMPACT] Monthly reports could not be read for', participantId, error)
+  }
+  return { revenue, headcount, splits }
+}
+
+type MonthlyReports = Awaited<ReturnType<typeof loadMonthlyReports>>
+
+/** The participant's stored history with the SME's monthly reports laid over it. */
+const mergedSource = (row: AnyDoc, reports: MonthlyReports): PerformanceSourceRow => {
+  const source = row as PerformanceSourceRow
+  return {
+    ...source,
+    revenueHistory: { annual: source.revenueHistory?.annual, monthly: { ...(source.revenueHistory?.monthly || {}), ...reports.revenue } },
+    headcountHistory: { annual: source.headcountHistory?.annual, monthly: { ...(source.headcountHistory?.monthly || {}), ...reports.headcount } },
+  }
+}
+
+/** Permanent and temporary split per period: from the reports, or stored history saved as { permanent, temporary }. */
+const splitsFor = (row: AnyDoc, reports: MonthlyReports) => {
+  const stored = ((row as PerformanceSourceRow).headcountHistory?.monthly || {}) as Record<string, unknown>
+  const splits: Record<string, JobSplit> = {}
+  Object.entries(stored).forEach(([period, raw]) => {
+    if (!raw || typeof raw !== 'object') return
+    const value = raw as AnyDoc
+    if (value.permanent === undefined && value.temporary === undefined) return
+    splits[period] = { permanent: Number(value.permanent) || 0, temporary: Number(value.temporary) || 0 }
+  })
+  return { ...splits, ...reports.splits }
+}
+
+/** Headcount at the last monthly figure either side of a date, within the before-and-after window. */
+const jobsBeforeAndAfter = (row: PerformanceSourceRow, pivot: Dayjs) => {
+  const monthly = (row.headcountHistory?.monthly || {}) as Record<string, unknown>
+  const entries = metricHistory({ headcountHistory: { monthly } }, 'headcount')
+  const start = pivot.startOf('month')
+  const before = entries.filter((entry) => entry.date.isBefore(start) && !entry.date.isBefore(start.subtract(BEFORE_AFTER_MONTHS, 'month')))
+  const after = entries.filter((entry) => !entry.date.isBefore(start) && entry.date.isBefore(start.add(BEFORE_AFTER_MONTHS, 'month')))
+  return { before: before.length ? before[before.length - 1].value : null, after: after.length ? after[after.length - 1].value : null }
+}
+
+const mean = (values: number[]) => (values.length ? Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 10) / 10 : null)
+
 export const loadImpactAnalytics = async (
   user: FullIdentity,
-  options: { activeProgramId?: string | null, isAllPrograms?: boolean } = {},
+  /** skipMonthlyReports: leave out the per-SME monthly report reads when only the outcome figures are needed. */
+  options: { activeProgramId?: string | null, isAllPrograms?: boolean, skipMonthlyReports?: boolean } = {},
 ): Promise<ImpactAnalytics> => {
   const now = dayjs()
   const companyCode = text(user.companyCode)
@@ -222,11 +336,21 @@ export const loadImpactAnalytics = async (
     .filter(({ data }) => !isDiscontinuedRecord(data as { participantDiscontinuedAt?: unknown }) && matchesActiveProgram(user, options.activeProgramId ?? null, text(data.programId)))
     .map(({ record, data }) => toAssignment(record.id, data, now))
 
+  const noReports: MonthlyReports = { revenue: {}, headcount: {}, splits: {} }
+  const reports = options.skipMonthlyReports
+    ? participants.map(() => noReports)
+    : await Promise.all(participants.map((row) => loadMonthlyReports(row.id)))
+  const sources = participants.map((row, index) => mergedSource(row, reports[index]))
+  const splitMaps = participants.map((row, index) => splitsFor(row, reports[index]))
+
   const byParticipant = new Map<string, Assignment[]>()
   assignments.forEach((assignment) => byParticipant.set(assignment.participantId, [...(byParticipant.get(assignment.participantId) || []), assignment]))
 
-  const smes: SmeImpact[] = participants.map((row) => {
-    const source = row as PerformanceSourceRow
+  // Net jobs by type, from SMEs whose first and latest headcount both carry the split.
+  const jobsSplit = { smes: 0, permanent: 0, temporary: 0 }
+
+  const smes: SmeImpact[] = participants.map((row, index) => {
+    const source = sources[index]
     const revenue = firstAndLatest(source, 'revenue')
     const jobs = firstAndLatest(source, 'headcount')
     const completed = (byParticipant.get(row.id) || []).filter((assignment) => assignment.completed)
@@ -236,6 +360,15 @@ export const loadImpactAnalytics = async (
       .filter((date): date is Dayjs => Boolean(date))
       .sort((left, right) => left.valueOf() - right.valueOf())[0]
     const split = firstCompletion ? beforeAndAfter(source, firstCompletion) : { before: null, after: null }
+    const jobsPair = firstCompletion ? jobsBeforeAndAfter(source, firstCompletion) : { before: null, after: null }
+    const headcountEntries = metricHistory(source, 'headcount')
+    const firstSplit = headcountEntries.length > 1 ? splitMaps[index][headcountEntries[0].period] : undefined
+    const latestSplit = headcountEntries.length > 1 ? splitMaps[index][headcountEntries[headcountEntries.length - 1].period] : undefined
+    if (firstSplit && latestSplit) {
+      jobsSplit.smes += 1
+      jobsSplit.permanent += latestSplit.permanent - firstSplit.permanent
+      jobsSplit.temporary += latestSplit.temporary - firstSplit.temporary
+    }
     return {
       id: row.id,
       name: text(row.businessName || row.participantName) || 'Unnamed SME',
@@ -252,6 +385,9 @@ export const loadImpactAnalytics = async (
       before: split.before,
       after: split.after,
       beforeAfterChange: split.before !== null && split.after !== null ? percentChange(split.before, split.after) : null,
+      jobsBefore: jobsPair.before,
+      jobsAfter: jobsPair.after,
+      jobsBeforeAfterChange: jobsPair.before !== null && jobsPair.after !== null ? jobsPair.after - jobsPair.before : null,
     }
   })
 
@@ -323,6 +459,44 @@ export const loadImpactAnalytics = async (
   const served = withRevenue.filter((sme) => sme.completedInterventions > 0)
   const notServed = withRevenue.filter((sme) => sme.completedInterventions === 0)
 
+  // Portfolio trend: twelve months up to the latest month anyone reported (never past this month).
+  const revenueEntries = sources.map((source) => metricHistory({ revenueHistory: { monthly: source.revenueHistory?.monthly } }, 'revenue'))
+  const headcountEntries = sources.map((source) => metricHistory(source, 'headcount'))
+  const latestDate = [...revenueEntries, ...headcountEntries].flat()
+    .map((entry) => entry.date)
+    .filter((date) => !date.isAfter(now, 'month'))
+    .sort((left, right) => right.valueOf() - left.valueOf())[0]
+  const trend: TrendMonth[] = !latestDate ? [] : Array.from({ length: TREND_MONTHS }, (_, offset) => {
+    const month = latestDate.startOf('month').subtract(TREND_MONTHS - 1 - offset, 'month')
+    const point: TrendMonth = { period: month.format('YYYY-MM'), revenue: 0, revenueSmes: 0, permanent: 0, temporary: 0, unsplit: 0, jobsSmes: 0 }
+    revenueEntries.forEach((entries) => {
+      const entry = entries.find((item) => item.date.isSame(month, 'month'))
+      if (!entry) return
+      point.revenue += entry.value
+      point.revenueSmes += 1
+    })
+    headcountEntries.forEach((entries, index) => {
+      const known = entries.filter((item) => !item.date.isAfter(month.endOf('month')))
+      const entry = known[known.length - 1]
+      if (!entry) return
+      point.jobsSmes += 1
+      const split = splitMaps[index][entry.period]
+      if (split) {
+        point.permanent += split.permanent
+        point.temporary += split.temporary
+      } else {
+        point.unsplit += entry.value
+      }
+    })
+    return point
+  })
+  // Leading months before anyone reported are left off.
+  const firstWithData = trend.findIndex((point) => point.revenueSmes || point.jobsSmes)
+
+  const jobsCompared = smes.filter((sme) => sme.jobsBeforeAfterChange !== null)
+  const servedWithJobs = withJobs.filter((sme) => sme.completedInterventions > 0)
+  const notServedWithJobs = withJobs.filter((sme) => sme.completedInterventions === 0)
+
   return {
     smes: smes.sort((left, right) => (right.revenueChange ?? -Infinity) - (left.revenueChange ?? -Infinity) || left.name.localeCompare(right.name)),
     totalSmes: smes.length,
@@ -332,6 +506,7 @@ export const loadImpactAnalytics = async (
     revenueGrowth: percentChange(revenueStart, revenueLatest),
     netJobs: withJobs.reduce((sum, sme) => sum + (sme.jobsChange || 0), 0),
     smesWithJobs: withJobs.length,
+    jobsSplit: jobsSplit.smes ? jobsSplit : null,
     growingSmes: withRevenue.filter((sme) => (sme.revenueChange || 0) > 0).length,
     completedInterventions: completedAssignments.length,
     outcomes,
@@ -345,10 +520,19 @@ export const loadImpactAnalytics = async (
       medianChange: median(compared.map((sme) => sme.beforeAfterChange as number)),
       improved: compared.filter((sme) => (sme.beforeAfterChange || 0) > 0).length,
     },
+    jobsBeforeAfter: {
+      count: jobsCompared.length,
+      netChange: jobsCompared.reduce((sum, sme) => sum + (sme.jobsBeforeAfterChange || 0), 0),
+      improved: jobsCompared.filter((sme) => (sme.jobsBeforeAfterChange || 0) > 0).length,
+    },
+    trend: firstWithData < 0 ? [] : trend.slice(firstWithData),
+    supportedSmes: smes.filter((sme) => sme.completedInterventions > 0).length,
     servedGrowth: median(served.map((sme) => sme.revenueChange as number)),
     notServedGrowth: median(notServed.map((sme) => sme.revenueChange as number)),
     servedCount: served.length,
     notServedCount: notServed.length,
+    servedJobs: mean(servedWithJobs.map((sme) => sme.jobsChange as number)),
+    notServedJobs: mean(notServedWithJobs.map((sme) => sme.jobsChange as number)),
   }
 }
 

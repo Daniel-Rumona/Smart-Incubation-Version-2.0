@@ -5,6 +5,7 @@ import { Navigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { ConsultantMarketplaceCard } from '@/components/consultant/ConsultantMarketplaceCard'
 import DashboardPage from '@/components/shared/DashboardPage'
+import SignatureCard from '@/components/profile/SignatureCard'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import ResponsiveModal from '@/components/shared/ResponsiveModal'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
@@ -316,6 +317,8 @@ function ConsultantMarketplaceProfileForm() {
                             ))}
                         </ul>
                     </div>
+
+                    <div className="consultant-profile-signature"><SignatureCard bare /></div>
 
                     <div className="consultant-profile-actions">
                         <Button block icon={<EyeOutlined />} onClick={() => setPreviewOpen(true)}>{t('Preview as SME')}</Button>

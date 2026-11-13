@@ -721,4 +721,9 @@ export const zuAccount: Record<string, string> = {
   "Support and growth": "Usizo nokukhula",
   "{growth} overall": "{growth} sekukonke",
   "Each dot is an SME: support done against revenue change since joining": "Ichashaza ngalinye yi-SME: usizo olwenziwe uma kuqhathaniswa noshintsho lwemali engenayo kusukela kujoyinwa",
+  "Signature": "Isiginesha",
+  "On file": "Ikhona",
+  "Not added yet": "Ayikengezwa",
+  "No signature yet. You will be asked to add one the first time you sign an agreement or document.": "Ayikho isiginesha okwamanje. Uzocelwa ukuthi uyengeze okokuqala lapho usayina isivumelwano noma idokhumenti.",
+  "This goes on the agreements and documents you sign.": "Le isiginesha ifakwa ezivumelwaneni nasemadokhumentini owasayinayo.",
 }

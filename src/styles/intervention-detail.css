@@ -41,5 +41,11 @@
 }
 
 /* Rows in the intervention list open that intervention's detail. */
+.id-operations-list { display: flex; flex-direction: column; gap: 12px; margin-top: 4px; }
+.id-operations-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px 24px; padding: 16px; border: 1px solid var(--ant-color-border-secondary, rgba(128, 128, 128, .2)); border-radius: 14px; background: transparent; }
+.id-operations-row > .ant-typography { overflow-wrap: anywhere; }
+@media (max-width: 767px) {
+  .id-operations-row { grid-template-columns: minmax(0, 1fr); }
+}
 .id-row-clickable { cursor: pointer; }
 .id-row-clickable:hover > td { background: color-mix(in srgb, var(--ant-color-primary, #6d5dfb) 6%, transparent) !important; }

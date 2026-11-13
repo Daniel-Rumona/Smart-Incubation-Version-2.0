@@ -200,6 +200,10 @@ def respond_to_appointment(
     current = _norm(appointment.get("status")) or "pending"
     if current in CLOSED_STATUSES:
         raise ActionError(f"That appointment is already {current}, so it can no longer be changed here.")
+    start = _as_utc(appointment.get("startTime"))
+    if response == "accept" and current != "accepted" and start and start <= _now():
+        raise ActionError("The scheduled start time has passed, so this invitation can no longer be accepted. "
+                          "Please contact the organiser to confirm what happened or arrange a new time.")
 
     title = str(appointment.get("interventionTitle") or "appointment")
     who = str(appointment.get("participantName") or "The SME")

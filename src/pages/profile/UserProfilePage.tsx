@@ -7,18 +7,15 @@ import {
   MessageOutlined,
   SafetyCertificateOutlined,
   SaveOutlined,
-  SafetyOutlined,
   UserOutlined,
 } from '@ant-design/icons'
 import { ConsultantWorkCard } from '@/components/consultant/ConsultantWorkCard'
+import SignatureCard from '@/components/profile/SignatureCard'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
-import { FEATURE_PERMISSION_OPTIONS, getRolePermissions } from '@/config/permissions'
-import type { UserRole } from '@/config/roles'
 import { useIdentity } from '@/contexts/IdentityProvider'
 import { getCompanyName, getUserProfile, saveUserProfile, uploadUserProfileImage, type UserProfileValues, type WhatsAppConsentStatus } from '@/services/userProfileService'
 import { isValidWhatsAppNumber, saveWhatsAppConsent } from '@/services/onboardingService'
-import { listWorkspacePrograms } from '@/services/workspaceProgramsService'
 import { useLanguage, tr } from '@/providers/LanguageProvider'
 import '@/styles/profile.css'
 
@@ -55,7 +52,6 @@ export const UserProfilePage = () => {
   const [saved, setSaved] = useState(false)
   const [showErrors, setShowErrors] = useState(false)
   const [companyName, setCompanyName] = useState('')
-  const [programmeNames, setProgrammeNames] = useState<string[]>([])
   const [whatsappConsent, setWhatsappConsent] = useState<WhatsAppConsentStatus>(null)
   const [savingWhatsapp, setSavingWhatsapp] = useState(false)
 
@@ -70,8 +66,6 @@ export const UserProfilePage = () => {
       })
       .catch(() => load({ name: user.displayName, bio: '', phone: '', phoneIsWhatsApp: false, alternativePhone: '', alternativePhoneIsWhatsApp: false, profileImageUrl: '' }))
     if (user.companyCode) void getCompanyName(user.companyCode).then(setCompanyName)
-    // Programme names for "Your access"; with no assigned programmes the person works across all of them.
-    if (user.role !== 'consultant' && user.assignedProgramIds?.length) void listWorkspacePrograms(user).then((programs) => setProgrammeNames(programs.map((program) => program.name))).catch(() => setProgrammeNames([]))
   }, [user])
 
   const dirty = !!values && !!savedValues && !sameValues(values, savedValues)
@@ -178,17 +172,6 @@ export const UserProfilePage = () => {
     { key: 'whatsapp', label: t('WhatsApp updates'), done: whatsappOn, required: false, action: t('Turn on'), onAction: () => void changeWhatsapp(true) },
   ]
   const doneCount = checklist.filter((item) => item.done).length
-
-  // What this person can do and where, read-only: set by their director or on Manage team.
-  const permissions = user.permissions?.length ? user.permissions : getRolePermissions(user.role as UserRole)
-  const featureLabels = FEATURE_PERMISSION_OPTIONS.filter((option) => permissions.includes(option.value)).map((option) => t(option.labelKey))
-  // Who can change it, matching the staff Cloud Function: a company's project admins and operations manage its
-  // consultants and project admins on Manage team; every other role is changed only by a platform administrator.
-  const accessSource = ['consultant', 'projectadmin'].includes(user.role)
-    ? t('Set on Manage team by your project admins and operations team. Ask them if you need more access.')
-    : user.role === 'systemadmin'
-      ? t('Your access comes with your role.')
-      : t('Your access comes with your role. A platform administrator can change it.')
 
   return (
     <DashboardPage>
@@ -305,27 +288,10 @@ export const UserProfilePage = () => {
               </div>
             </Card>
 
-            {/* Company consultants (marketplace ones have their own profile page): areas and hours, set by operations.
-                Everyone else sees what they can do and where. */}
-            {user.role === 'consultant'
-              ? <ConsultantWorkCard uid={user.uid} companyCode={user.companyCode} />
-              : (
-                <Card className="dashboard-section-card motion-card" title={<Space><SafetyOutlined /> {t('Your access')}</Space>}>
-                  <div className="profile-access-group">
-                    <span>{t('Programmes')}</span>
-                    {user.assignedProgramIds?.length
-                      ? <Space size={[6, 6]} wrap>{(programmeNames.length ? programmeNames : user.assignedProgramIds).map((name) => <Tag key={name}>{name}</Tag>)}</Space>
-                      : <Text>{t('All programmes')}</Text>}
-                  </div>
-                  <div className="profile-access-group">
-                    <span>{t('What you can do')}</span>
-                    {featureLabels.length
-                      ? <Space size={[6, 6]} wrap>{featureLabels.map((label) => <Tag key={label}>{label}</Tag>)}</Space>
-                      : <Text type="secondary">{t('No features assigned.')}</Text>}
-                  </div>
-                  <Text type="secondary" style={{ display: 'block', marginTop: 12, fontSize: 12.5 }}>{accessSource}</Text>
-                </Card>
-              )}
+            <SignatureCard />
+
+            {/* Company consultants (marketplace ones have their own profile page): areas and hours, set by operations. */}
+            {user.role === 'consultant' && <ConsultantWorkCard uid={user.uid} companyCode={user.companyCode} />}
 
             <div className="profile-save-bar">
               {dirty && <span className="profile-unsaved">{t('Unsaved changes')}</span>}

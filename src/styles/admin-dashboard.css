@@ -106,7 +106,9 @@ html[data-theme='dark'] .admin-modal {
     gap: 12px;
 }
 
+/* The copy takes the room the chart leaves, so every tile keeps its figure and change on one line at the same height. */
 .admin-kpi-copy {
+    flex: 1 1 auto;
     min-width: 0;
 }
 
@@ -122,7 +124,7 @@ html[data-theme='dark'] .admin-modal {
     display: flex;
     align-items: center;
     gap: 10px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
 }
 
 .admin-kpi-note {
@@ -156,8 +158,10 @@ html[data-theme='dark'] .admin-modal {
 
 .admin-kpi-trend {
     display: inline-flex;
+    flex: none;
     align-items: center;
     gap: 2px;
+    white-space: nowrap;
     font-size: 12px;
     font-weight: 600;
     color: var(--admin-muted);

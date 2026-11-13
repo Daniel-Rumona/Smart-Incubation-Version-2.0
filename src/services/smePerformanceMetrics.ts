@@ -90,6 +90,12 @@ export const toMetricNumber = (...values: unknown[]): number => {
   for (const value of values) {
     if (value === null || value === undefined || value === '') continue
     if (typeof value === 'object') {
+      // Headcount saved as { permanent, temporary } (the SME metrics form) counts as their sum.
+      const split = value as AnyDoc
+      if (split.permanent !== undefined || split.temporary !== undefined) {
+        const sum = (Number(split.permanent) || 0) + (Number(split.temporary) || 0)
+        if (sum > 0) return sum
+      }
       const nested: number = toMetricNumber(
         (value as AnyDoc).value,
         (value as AnyDoc).total,

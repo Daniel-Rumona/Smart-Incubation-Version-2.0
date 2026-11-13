@@ -4,7 +4,7 @@ import { ArrowLeftOutlined, CheckCircleFilled, ClockCircleFilled, EnvironmentOut
 import { motion, useReducedMotion } from 'framer-motion'
 import PlanOutcomeChips from '@/components/interventions/PlanOutcomeChips'
 import { useLanguage } from '@/providers/LanguageProvider'
-import { planStatusColor, type LivePlanItem } from '@/utils/liveDiagnosticPlan'
+import { assignmentPlanLabel, planStatusColor, type LivePlanItem } from '@/utils/liveDiagnosticPlan'
 import '@/styles/intervention-detail.css'
 
 const { Text, Title } = Typography
@@ -25,6 +25,7 @@ export type InterventionDetailProps = {
   appointments?: Assignment[]
   onBack: () => void
   backLabel: string
+  actions?: ReactNode
 }
 
 const toDate = (value: unknown): Date | null => {
@@ -40,7 +41,7 @@ const isDone = (row: Assignment) => norm(row.status) === 'completed' || norm(row
 const byCreated = (a: Assignment, b: Assignment) => (toDate(a.createdAt)?.getTime() || 0) - (toDate(b.createdAt)?.getTime() || 0)
 
 const APPOINTMENT_STATUS: Record<string, { label: string; color: string }> = {
-  pending: { label: 'Awaiting SME', color: 'gold' },
+  pending: { label: 'Awaiting RSVP', color: 'gold' },
   accepted: { label: 'Accepted', color: 'blue' },
   completed: { label: 'Completed', color: 'green' },
   cancelled: { label: 'Cancelled', color: 'red' },
@@ -90,9 +91,9 @@ const buildTimeline = (props: InterventionDetailProps, now: Date): TimelineEntry
   const history = [...props.assignments].sort(byCreated)
   const entries: TimelineEntry[] = []
 
-  if (props.executionMode === 'multi_step' && props.live?.stepRows.length) {
+  if ((props.live?.isMultiStep ?? props.executionMode === 'multi_step') && props.live?.stepRows.length) {
     props.live.stepRows.forEach((step, index) => {
-      const row = history.filter(item => !isCancelled(item)).find(item => Number(item.stepIndex) === index || text(item.assignedStepTitle) === step.title)
+      const row = history.filter(item => !isCancelled(item)).find(item => text(item.id) === step.assignmentId)
       const lines = row ? [`${text(row.assigneeName) || 'Unassigned'}`, `Due ${formatDate(toDate(row.dueDate))}`] : ['Not assigned yet']
       const state: EntryState = step.state === 'completed' ? 'done' : step.state === 'delivered' || step.state === 'in_progress' ? 'active' : 'upcoming'
       entries.push({
@@ -127,20 +128,23 @@ export default function InterventionDetailPanel(props: InterventionDetailProps) 
   const reduced = useReducedMotion()
   const now = new Date()
   const { live, assignments } = props
+  const isMultiStep = live?.isMultiStep ?? props.executionMode === 'multi_step'
   const timeline = buildTimeline(props, now)
-  const stepOfAssignment = new Map(assignments.map(row => [text(row.id), text(row.assignedStepTitle)]))
+  const stepOfAssignment = new Map(assignments.map(row => [text(row.id), assignmentPlanLabel(row, live)]))
   const appointments = [...(props.appointments || [])].sort((a, b) => (toDate(a.startTime)?.getTime() || 0) - (toDate(b.startTime)?.getTime() || 0))
 
   const live_ = assignments.filter(item => !isCancelled(item)).sort(byCreated)
   const current = live_.find(item => !isDone(item)) || live_[live_.length - 1]
   const actor = norm(current?.deliveryActorType) === 'agent' ? t('Agent') : t('Human')
   const hours = Number(current?.timeSpent) || 0
+  const isHoursTarget = ['hours', 'hour', 'hrs', 'hr', 'h'].includes(norm(current?.targetMetric))
   const details: Array<[string, string]> = current ? [
     [t('Assignee'), `${text(current.assigneeName) || t('Unnamed')} (${actor})`],
     [t('Implementation date'), formatDate(toDate(current.implementationDate))],
     [t('Due date'), formatDate(toDate(current.dueDate))],
-    [t('Target'), current.targetMetric ? `${Number(current.targetActual) || 0} / ${Number(current.targetValue) || 0} ${text(current.targetMetric)}` : '—'],
-    [t('Time spent'), hours ? `${hours} h` : '—'],
+    [t('Target'), current.targetMetric ? `${Number(current.targetValue) || 0} ${text(current.targetMetric)}` : '—'],
+    [t(isHoursTarget ? 'Hours recorded' : 'Actual recorded'), current.targetMetric && current.targetActual != null ? `${Number(current.targetActual) || 0} ${text(current.targetMetric)}` : '—'],
+    ...(!isHoursTarget ? [[t('Time spent'), hours ? `${hours} h` : '—'] as [string, string]] : []),
     [t('Notes'), text(current.notes) || '—'],
   ] : []
 
@@ -153,7 +157,7 @@ export default function InterventionDetailPanel(props: InterventionDetailProps) 
           <Title level={4} className="id-title">{props.title}</Title>
           <div className="id-tags">
             {props.area ? <Tag>{props.area}</Tag> : null}
-            <Tag color={props.executionMode === 'multi_step' ? 'purple' : 'default'}>{props.executionMode === 'multi_step' ? `${t('Multi-step')} (${live?.totalSteps || 0})` : t('Single session')}</Tag>
+            <Tag color={isMultiStep ? 'purple' : 'default'}>{isMultiStep ? `${t('Multi-step')} (${live?.totalSteps || 0})` : (live?.totalSteps || 0) > 1 ? `${live?.totalSteps} ${t('sessions')}` : t('Single session')}</Tag>
             {live ? <Tag color={planStatusColor(live.status)}>{t(live.status)}</Tag> : null}
           </div>
         </div>
@@ -163,8 +167,9 @@ export default function InterventionDetailPanel(props: InterventionDetailProps) 
         </div>
       </div>
       <Progress percent={live?.progress ?? 0} status={live?.status === 'Completed' ? 'success' : 'active'} showInfo={false} />
-      {live?.totalSteps && live.totalSteps > 1 ? <Text type="secondary">{live.completedSteps} {t('of')} {live.totalSteps} {t('steps completed')}</Text> : null}
+      {live?.totalSteps && live.totalSteps > 1 ? <Text type="secondary">{live.completedSteps} {t('of')} {live.totalSteps} {t(isMultiStep ? 'steps completed' : 'sessions completed')}</Text> : null}
       <PlanOutcomeChips outcome={live?.outcome} showIntended />
+      {props.actions}
 
       <div className="id-grid">
         <section className="id-section">
@@ -214,7 +219,9 @@ export default function InterventionDetailPanel(props: InterventionDetailProps) 
               {appointments.map((appointment, index) => {
                 const start = toDate(appointment.startTime)
                 const end = toDate(appointment.endTime)
-                const status = APPOINTMENT_STATUS[norm(appointment.status)] || { label: text(appointment.status) || 'Unknown', color: 'default' }
+                const status = norm(appointment.status) === 'pending' && start && start <= now
+                  ? { label: 'No RSVP received', color: 'default' }
+                  : APPOINTMENT_STATUS[norm(appointment.status)] || { label: text(appointment.status) || 'Unknown', color: 'default' }
                 const kind = norm(appointment.meetingType)
                 const step = stepOfAssignment.get(text(appointment.assignedInterventionId))
                 const where = kind === 'online' ? text(appointment.meetingLink) : kind === 'in_person' ? text(appointment.location) : ''
@@ -234,7 +241,7 @@ export default function InterventionDetailPanel(props: InterventionDetailProps) 
                         <Tag color={status.color} style={{ marginInlineEnd: 0 }}>{t(status.label)}</Tag>
                       </div>
                       <Text type="secondary" className="id-entry-sub">
-                        {[t(MEETING_LABEL[kind] || 'Meeting'), step ? `${t('Step')}: ${step}` : '', where].filter(Boolean).join(' · ')}
+                        {[t(MEETING_LABEL[kind] || 'Meeting'), step, where].filter(Boolean).join(' · ')}
                       </Text>
                       {summary ? <Text className="id-entry-sub">{summary}</Text> : null}
                     </div>

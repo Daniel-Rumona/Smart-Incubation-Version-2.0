@@ -143,6 +143,7 @@ export const zuCore: Record<string, string> = {
   "Explore your workspace": "Hlola indawo yakho yokusebenza",
   "Go back": "Buyela emuva",
   "Home": "Ikhaya",
+  "Incubatees": "Ama-incubatee",
   "Language": "Ulimi",
   "Light mode": "Imodi ekhanyayo",
   "Loading workspace": "Iyalayisha indawo yokusebenza",

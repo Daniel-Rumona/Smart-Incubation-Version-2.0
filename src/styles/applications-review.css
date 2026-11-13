@@ -48,3 +48,44 @@ html[data-theme='dark'] .applications-analytics-bar-value { color: #94a3b8; }
 .applications-document-row { display: flex; align-items: center; gap: 10px; }
 .applications-document-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .applications-document-row .ant-btn { flex: none; margin-left: auto; }
+
+/* Decision choices use their outcome colour for both selection and interaction. */
+.applications-decision-card.is-pending { --decision-color: var(--ant-color-warning, #d4b106); --decision-bg: var(--ant-color-warning-bg, #fffbe6); }
+.applications-decision-card.is-accepted { --decision-color: var(--ant-color-success, #389e0d); --decision-bg: var(--ant-color-success-bg, #f6ffed); }
+.applications-decision-card.is-rejected { --decision-color: var(--ant-color-error, #cf1322); --decision-bg: var(--ant-color-error-bg, #fff1f0); }
+.applications-decision-card:not(:disabled):hover,
+html[data-theme='dark'] .applications-decision-card:not(:disabled):hover {
+  border-color: var(--decision-color);
+  background: var(--decision-bg);
+  box-shadow: inset 0 0 0 1px var(--decision-color);
+}
+.applications-decision-card:not(:disabled):hover .applications-decision-icon,
+.applications-decision-card:not(:disabled):hover .applications-decision-label { color: var(--decision-color); }
+.applications-decision-card:focus-visible { outline: 2px solid var(--decision-color); outline-offset: 3px; }
+.applications-decision-card:disabled { cursor: default; }
+.applications-detail-heading > .ant-space { min-width: 0; }
+.applications-detail-heading .ant-typography { overflow-wrap: anywhere; }
+
+/* Only the list scrolls internally. Details keep their natural content height. */
+@media (min-width: 992px) {
+  .applications-review-page .compliance-workspace { align-items: start; }
+  .applications-review-page .compliance-participants {
+    position: sticky;
+    top: 16px;
+    align-self: start;
+  }
+  .applications-review-page .compliance-participant-list {
+    max-height: max(180px, calc(100dvh - 250px));
+    overflow-y: auto;
+    align-content: start;
+    scrollbar-gutter: stable;
+    overscroll-behavior-y: contain;
+  }
+  .applications-review-page .compliance-list-pagination { margin-top: 12px; }
+  .applications-review-page .compliance-detail {
+    position: sticky;
+    top: 16px;
+    align-self: start;
+  }
+  .applications-detail-scroll { overflow: visible; }
+}

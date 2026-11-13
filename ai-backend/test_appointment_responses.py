@@ -53,6 +53,26 @@ class CoreTests(unittest.TestCase):
     def kinds(self):
         return [n["type"] for n in self.db.data.get("notifications", {}).values()]
 
+    def test_late_acceptance_is_blocked_for_web_and_whatsapp_without_writes(self):
+        now = datetime(2026, 11, 9, 12, tzinfo=timezone.utc)
+        for via in ("web", "whatsapp"):
+            for offset in (-60, 0):
+                with self.subTest(via=via, offset=offset), mock.patch.object(ar, "_now", return_value=now):
+                    self.apt["startTime"] = now + timedelta(seconds=offset)
+                    with self.assertRaisesRegex(ActionError, "start time has passed"):
+                        ar.respond_to_appointment(self.db, self.sme, "apt1", {"response": "accept"}, via=via)
+                    self.assertEqual(self.apt["status"], "pending")
+                    self.assertEqual(self.db.data["assignedInterventions"]["as1"]["participantStatus"], "pending")
+                    self.assertEqual(self.kinds(), [])
+
+    def test_future_acceptance_and_past_accepted_retry(self):
+        now = datetime(2026, 11, 9, 12, tzinfo=timezone.utc)
+        with mock.patch.object(ar, "_now", return_value=now):
+            self.apt["startTime"] = now + timedelta(seconds=1)
+            self.assertTrue(self.respond(response="accept")["changed"])
+            self.apt["startTime"] = now - timedelta(hours=1)
+            self.assertFalse(self.respond(response="accept")["changed"])
+
     # ---- ownership / context ---------------------------------------------------------------
 
     def test_sme_resolves_all_their_ids(self):

@@ -21,7 +21,7 @@ export const FollowUpsToChaseCard = () => {
         if (identityLoading || !user) return
         // Starts out loading; when the programme changes, the previous figures stay until the new ones arrive.
         let cancelled = false
-        loadImpactAnalytics(user, { activeProgramId, isAllPrograms })
+        loadImpactAnalytics(user, { activeProgramId, isAllPrograms, skipMonthlyReports: true })
             .then((result) => { if (!cancelled) setData(result) })
             .catch((error) => {
                 console.error('[FOLLOW-UPS] Failed to load check-backs:', error)

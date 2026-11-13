@@ -1,12 +1,10 @@
-import { Alert, App, Button, Card, Col, ConfigProvider, Descriptions, Input, Modal, Row, Space, Tag, theme as antdTheme, Typography, type TableProps } from 'antd'
-import { CheckCircleOutlined, DownloadOutlined, FileAddOutlined, PlusOutlined, SearchOutlined, TeamOutlined } from '@ant-design/icons'
-import { doc, getDoc } from 'firebase/firestore'
+import { Alert, App, Button, Col, ConfigProvider, Descriptions, Dropdown, Empty, Grid, Input, Row, Segmented, Select, Skeleton, Tag, theme as antdTheme, Tooltip, Typography } from 'antd'
+import { ArrowLeftOutlined, CloseOutlined, DownloadOutlined, EditOutlined, FallOutlined, LockOutlined, PlusOutlined, RiseOutlined, SearchOutlined, SortAscendingOutlined, SortDescendingOutlined, UnorderedListOutlined } from '@ant-design/icons'
+import { collection, doc, getDoc, onSnapshot, query, where } from 'firebase/firestore'
+import { isDiscontinuedRecord } from '@/services/discontinuedSmes'
 import { useEffect, useMemo, useState } from 'react'
-import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
 import SignDocumentModal from '@/components/shared/SignDocumentModal'
-import { FilterBar } from '@/components/shared/FilterBar'
-import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
 import { getFirebaseDb, isFirebaseConfigured } from '@/config/firebase'
 import { hasRolePermission } from '@/config/permissions'
 import { lightTheme } from '@/config/theme'
@@ -25,10 +23,11 @@ import { useAssignedInterventions } from '@/contexts/AssignedInterventionsContex
 import { buildLivePlanItems, livePlanProgress, planStatusColor, type LivePlanItem } from '@/utils/liveDiagnosticPlan'
 import SwotOutcomeCard from '@/components/interventions/SwotOutcomeCard'
 import PlanOutcomeChips from '@/components/interventions/PlanOutcomeChips'
-import { ModalActions } from '@/components/shared/ModalActions'
 import '@/styles/operations-diagnostics.css'
 
-type StatusFilter = 'All' | 'Draft' | 'Confirmed'
+type StatusFilter = 'Draft' | 'Confirmed' | 'All'
+type PanelTab = 'build' | 'document'
+type QueueSort = 'name' | 'name-desc' | 'progress-asc' | 'progress-desc' | 'interventions' | 'signature'
 
 type AiSuggestedIntervention = {
     area: string
@@ -38,6 +37,7 @@ type AiSuggestedIntervention = {
 
 const statusColor = (status: DiagnosticPlanParticipant['plan']['status']) => status === 'Confirmed' ? 'green' : 'orange'
 const emptyValue = 'N/A'
+const keyOf = (participant: DiagnosticPlanParticipant) => `${participant.applicationId}-${participant.id}`
 
 const cleanFileName = (value: string) =>
     value.replace(/[^\w.-]+/g, '-').replace(/(^-|-$)/g, '').toLowerCase() || 'diagnostic-plan'
@@ -96,25 +96,17 @@ const getRecordValue = (record: Record<string, unknown> | undefined, aliases: st
 
 const getAiRecommendation = (participant: DiagnosticPlanParticipant): Record<string, unknown> => {
     const raw = participant as unknown as Record<string, unknown>
-
-    return (
-        raw.aiRecommendation as Record<string, unknown> | undefined
-        || {}
-    )
+    return (raw.aiRecommendation as Record<string, unknown> | undefined) || {}
 }
 
-const getAiField = (participant: DiagnosticPlanParticipant, aliases: string[]) => {
-    const recommendation = getAiRecommendation(participant)
-    return getRecordValue(recommendation, aliases)
-}
+const getAiField = (participant: DiagnosticPlanParticipant, aliases: string[]) =>
+    getRecordValue(getAiRecommendation(participant), aliases)
 
 const getAiRecommendedInterventions = (
     participant: DiagnosticPlanParticipant,
     catalogue: DiagnosticInterventionOption[],
 ): AiSuggestedIntervention[] => {
-    const recommendation = getAiRecommendation(participant)
-
-    const recommended = getRecordValue(recommendation, [
+    const recommended = getRecordValue(getAiRecommendation(participant), [
         'Recommended Interventions',
         'RecommendedInterventions',
         'recommendedInterventions',
@@ -122,9 +114,7 @@ const getAiRecommendedInterventions = (
 
     if (!recommended || typeof recommended !== 'object' || Array.isArray(recommended)) return []
 
-    const catalogueByTitle = new Map(
-        catalogue.map((item) => [normalizeText(item.title), item]),
-    )
+    const catalogueByTitle = new Map(catalogue.map((item) => [normalizeText(item.title), item]))
 
     return Object.entries(recommended as Record<string, unknown>).flatMap(([area, value]) => {
         if (normalizeText(area) === 'error') return []
@@ -133,15 +123,13 @@ const getAiRecommendedInterventions = (
         return value.flatMap((titleValue) => {
             const title = String(titleValue ?? '').trim()
             if (!title || normalizeText(title) === 'error') return []
-
-            return [{
-                area,
-                title,
-                matchedOption: catalogueByTitle.get(normalizeText(title)),
-            }]
+            return [{ area, title, matchedOption: catalogueByTitle.get(normalizeText(title)) }]
         })
     })
 }
+
+const sameInterventions = (left: DiagnosticInterventionOption[], right: DiagnosticInterventionOption[]) =>
+    left.length === right.length && left.every((item, index) => item.interventionId === right[index]?.interventionId)
 
 const DividerTitle = ({ children }: { children: string }) => (
     <div className="diagnostic-document-divider">
@@ -149,12 +137,20 @@ const DividerTitle = ({ children }: { children: string }) => (
     </div>
 )
 
+/**
+ * Growth plans, reviewed one SME after another: the queue on the left, the selected plan on the right. A draft is
+ * worked on in Build (the SWOT, the plan's interventions and the AI suggestions, in ordinary app UI); Document is
+ * the read-only paper exactly as it is signed and downloaded. Signing always happens on the Document, so what is
+ * signed is what was just seen, and confirming moves on to the next draft. A confirmed plan opens on its Document.
+ */
 export const DiagnosticPlansPage = () => {
-    const { message } = App.useApp()
+    const { message, modal } = App.useApp()
     const { t } = useLanguage()
     const { user } = useFullIdentity()
-    const { activeProgramId } = useActiveProgramId()
-    const { assignments } = useAssignedInterventions()
+    const { activeProgramId, isAllPrograms } = useActiveProgramId()
+    const { assignments: loadedAssignments } = useAssignedInterventions()
+    const screens = Grid.useBreakpoint()
+    const stacked = !screens.lg
 
     const [participants, setParticipants] = useState<DiagnosticPlanParticipant[]>([])
     const [catalogue, setCatalogue] = useState<DiagnosticInterventionOption[]>([])
@@ -162,97 +158,143 @@ export const DiagnosticPlansPage = () => {
     const [saving, setSaving] = useState(false)
     const [signing, setSigning] = useState(false)
     const [search, setSearch] = useState('')
-    const [status, setStatus] = useState<StatusFilter>('All')
-    const [selected, setSelected] = useState<DiagnosticPlanParticipant>()
+    const [status, setStatus] = useState<StatusFilter>('Draft')
+    const [sort, setSort] = useState<QueueSort>('name')
+    const [selectedKey, setSelectedKey] = useState<string>()
     const [selectedInterventions, setSelectedInterventions] = useState<DiagnosticInterventionOption[]>([])
+    const [tab, setTab] = useState<PanelTab>('build')
+    // Phones and small tablets show one panel at a time: the queue, or the plan with a way back.
+    const [planOpen, setPlanOpen] = useState(false)
+    // Changing a confirmed plan: Build opens on its interventions, and the change is signed again by both sides.
+    const [changing, setChanging] = useState(false)
     const [companyLogoUrl, setCompanyLogoUrl] = useState('')
+    // The company's assignments as they change (a step confirmed, a session delivered), so progress is live.
+    const [liveAssignments, setLiveAssignments] = useState<Array<Record<string, unknown>> | null>(null)
 
     const companyCode = String(user?.companyCode || '').trim()
     const canManage = !!user && hasRolePermission(user.role, 'manage_diagnostic_plans', user.permissions)
+    const selected = participants.find((participant) => keyOf(participant) === selectedKey)
+    const isDraft = selected?.plan.status === 'Draft'
+    const editable = canManage && (isDraft || changing)
+    const panel: PanelTab = editable ? tab : 'document'
+    const assignments = liveAssignments ?? (loadedAssignments as unknown as Array<Record<string, unknown>>)
 
-    const tt = (key: string, fallback: string) => {
-        const value = t(key)
-        return value === key ? fallback : value
-    }
+    useEffect(() => {
+        if (!companyCode) return
+        return onSnapshot(
+            query(collection(getFirebaseDb(), 'assignedInterventions'), where('companyCode', '==', companyCode)),
+            (snapshot) => setLiveAssignments(snapshot.docs
+                .map((record) => ({ ...record.data(), id: record.id }) as Record<string, unknown>)
+                .filter((row) => !isDiscontinuedRecord(row as { participantDiscontinuedAt?: unknown }))),
+            (error) => console.error('[DIAGNOSTIC PLANS] Live assignments failed:', error),
+        )
+    }, [companyCode])
 
     const load = async () => {
-        if (!user) return
-
+        if (!user) return []
         try {
             setLoading(true)
-
             const [participantRows, interventionRows] = await Promise.all([
                 listDiagnosticPlanParticipants(user, activeProgramId),
                 listDiagnosticInterventionOptions(companyCode),
             ])
-
             setParticipants(participantRows)
             setCatalogue(interventionRows)
-
-            console.log('[DiagnosticPlansPage] loaded', {
-                companyCode,
-                participants: participantRows.length,
-                interventions: interventionRows.length,
-                firstIntervention: interventionRows[0],
-                selectedAiRecommendation: participantRows[0]?.aiRecommendation,
-            })
+            return participantRows
         } catch {
             message.error(t('operations.diagnostics.loadError'))
+            return []
         } finally {
             setLoading(false)
         }
     }
 
     useEffect(() => {
-        const timeout = window.setTimeout(() => void load(), 0)
+        // Drafts are the work, so the queue opens on them; with none waiting it opens on every plan instead of an empty list.
+        const timeout = window.setTimeout(() => void load().then((rows) => {
+            if (rows.length && !rows.some((row) => row.plan.status === 'Draft')) setStatus('All')
+        }), 0)
         return () => window.clearTimeout(timeout)
-    }, [activeProgramId, user?.uid, companyCode])
+    }, [activeProgramId, user?.uid, companyCode]) // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
         let cancelled = false
-
         const loadCompanyLogo = async () => {
             if (!isFirebaseConfigured || !companyCode) {
                 setCompanyLogoUrl('')
                 return
             }
-
             try {
                 const snapshot = await getDoc(doc(getFirebaseDb(), 'companies', companyCode))
-                if (!cancelled) {
-                    setCompanyLogoUrl(String(snapshot.exists() ? snapshot.data()?.logoUrl || '' : '').trim())
-                }
+                if (!cancelled) setCompanyLogoUrl(String(snapshot.exists() ? snapshot.data()?.logoUrl || '' : '').trim())
             } catch {
                 if (!cancelled) setCompanyLogoUrl('')
             }
         }
-
         void loadCompanyLogo()
-
-        return () => {
-            cancelled = true
-        }
+        return () => { cancelled = true }
     }, [companyCode])
 
-    const companyCatalogue = useMemo(() => catalogue, [catalogue])
+    const filteredRows = useMemo(() => participants.filter((participant) => {
+        const needle = search.trim().toLowerCase()
+        return (
+            (!needle || `${participant.businessName} ${participant.participantName || ''} ${participant.email || ''}`.toLowerCase().includes(needle))
+            && (status === 'All' || participant.plan.status === status)
+        )
+    }), [participants, search, status])
 
-    const openPlan = (participant: DiagnosticPlanParticipant) => {
-        const known = new Map(companyCatalogue.map((item) => [item.interventionId, item]))
-        const openedAiSuggestions = getAiRecommendedInterventions(participant, companyCatalogue)
+    // The programme only tells rows apart under All programmes, and only when the plans span more than one.
+    const showProgramme = isAllPrograms && new Set(participants.map((participant) => participant.programId || '')).size > 1
 
-        console.log('[DiagnosticPlansPage] opened SME', {
-            businessName: participant.businessName,
-            applicationId: participant.applicationId,
-            catalogueCount: companyCatalogue.length,
-            aiRecommendation: (participant as unknown as Record<string, unknown>).aiRecommendation,
-            aiSuggestionCount: openedAiSuggestions.length,
-            aiSuggestions: openedAiSuggestions,
-            currentPlanInterventions: participant.plan.interventions,
-        })
+    const counts = useMemo(() => ({
+        draft: participants.filter((item) => item.plan.status === 'Draft').length,
+        confirmed: participants.filter((item) => item.plan.status === 'Confirmed').length,
+    }), [participants])
 
-        setSelected(participant)
-        setSelectedInterventions(participant.plan.interventions.map((item) => known.get(item.interventionId) || item))
+    const select = (participant: DiagnosticPlanParticipant | undefined, catalogueRows = catalogue) => {
+        const known = new Map(catalogueRows.map((item) => [item.interventionId, item]))
+        setSelectedKey(participant ? keyOf(participant) : undefined)
+        setSelectedInterventions(participant ? participant.plan.interventions.map((item) => known.get(item.interventionId) || item) : [])
+        setTab('build')
+        setChanging(false)
     }
+
+    const dirty = !!selected && !sameInterventions(selectedInterventions, selected.plan.interventions)
+
+    const startChange = () => {
+        if (!selected) return
+        select(selected)
+        setChanging(true)
+    }
+
+    const cancelChange = () => {
+        if (selected) select(selected)
+    }
+
+    // Signing happens on the Document, so what is signed is what was seen. From Build, the bar's button switches to the
+    // Document and brings its signing banner into view; on the Document already, it opens the signature step straight away.
+    const startSigning = () => {
+        if (panel === 'document') {
+            setSigning(true)
+            return
+        }
+        setTab('document')
+        window.setTimeout(() => document.querySelector('.diagnostic-plan')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
+    }
+
+    // Switching SME with unsaved changes asks first, so a half-built plan isn't lost by a stray click.
+    const open = (participant: DiagnosticPlanParticipant) => {
+        const go = () => { select(participant); setPlanOpen(true) }
+        if (!dirty || keyOf(participant) === selectedKey) return go()
+        modal.confirm({
+            title: t('Leave without saving?'),
+            content: t('Your changes to {name} are not saved.', undefined, { name: selected?.businessName || '' }),
+            okText: t('Leave'),
+            cancelText: t('Stay'),
+            onOk: go,
+        })
+    }
+
 
     const saveErrorText = (error: unknown) => {
         const detail = error instanceof Error ? error.message : ''
@@ -267,8 +309,9 @@ export const DiagnosticPlansPage = () => {
             setSaving(true)
             await saveDiagnosticPlan(user, selected, selectedInterventions)
             message.success(t('operations.diagnostics.saved'))
-            await load()
-            setSelected(undefined)
+            const fresh = await load()
+            const again = fresh.find((row) => keyOf(row) === selectedKey)
+            if (again) setSelectedInterventions(again.plan.interventions.map((item) => catalogue.find((option) => option.interventionId === item.interventionId) || item))
         } catch (error) {
             console.error('[DIAGNOSTIC PLANS] Save failed:', error)
             message.error(saveErrorText(error))
@@ -289,93 +332,121 @@ export const DiagnosticPlansPage = () => {
         }
     }
 
-    const rows = useMemo(() => participants.filter((participant) => {
-        const needle = search.trim().toLowerCase()
+    // After signing, the next draft in the queue opens, so a reviewer can work straight through. A signed change
+    // stays on its plan: the SME now has to sign it too.
+    const afterSigned = async () => {
+        const done = selectedKey
+        if (changing) {
+            const fresh = await load()
+            const again = fresh.find((row) => keyOf(row) === done)
+            select(again)
+            message.success(t('Change signed. {name} is asked to sign the changed plan.', undefined, { name: again?.businessName || '' }))
+            return
+        }
+        const fresh = await load()
+        const next = fresh.find((row) => row.plan.status === 'Draft' && keyOf(row) !== done
+            && (!search.trim() || `${row.businessName} ${row.participantName || ''} ${row.email || ''}`.toLowerCase().includes(search.trim().toLowerCase())))
+        select(next)
+        if (!next) setPlanOpen(false)
+        message.success(next ? t('Plan confirmed. Next: {name}', undefined, { name: next.businessName }) : t('Plan confirmed. No drafts left.'))
+    }
 
-        return (
-            (!needle || `${participant.businessName} ${participant.participantName || ''} ${participant.email || ''}`.toLowerCase().includes(needle))
-            && (status === 'All' || participant.plan.status === status)
-        )
-    }), [participants, search, status])
+    // Progress follows each intervention's current definition in the catalogue (its steps and their weights), even
+    // when the definition changed after the plan was signed.
+    const definitions = useMemo(() => new Map(catalogue.map((item) => [item.interventionId, item])), [catalogue])
+    const withDefinitions = (items: DiagnosticInterventionOption[]) => items.map((item) => {
+        const definition = definitions.get(item.interventionId)
+        return definition ? { ...item, executionMode: definition.executionMode, steps: definition.steps } : item
+    })
+    const liveForParticipant = (participant: DiagnosticPlanParticipant, interventions = participant.plan.interventions) =>
+        buildLivePlanItems(withDefinitions(interventions), assignments.filter((assignment) => String(assignment.participantId || '') === participant.id))
+    const selectedLiveInterventions = useMemo(() => selected ? liveForParticipant(selected, selectedInterventions) : [], [assignments, definitions, selected, selectedInterventions]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    const liveForParticipant = (participant: DiagnosticPlanParticipant, interventions = participant.plan.interventions) => buildLivePlanItems(interventions, assignments.filter(assignment => String(assignment.participantId || '') === participant.id) as unknown as Array<Record<string, unknown>>)
-    const selectedLiveInterventions = useMemo(() => selected ? liveForParticipant(selected, selectedInterventions) : [], [assignments, selected, selectedInterventions]) // eslint-disable-line react-hooks/exhaustive-deps
+    // Once work on an intervention has started (assigned, in progress or done), it can't be taken out of a signed plan:
+    // its assignments and progress would be left pointing at nothing.
+    const lockedIds = useMemo(() => {
+        if (!changing || !selected) return new Set<string>()
+        return new Set(liveForParticipant(selected)
+            .filter((item) => item.status !== 'Not assigned' && item.status !== 'Declined')
+            .map((item) => String(item.interventionId || '')))
+    }, [assignments, changing, definitions, selected]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    const aiSuggestions = useMemo(() => {
-        if (!selected) return []
-        return getAiRecommendedInterventions(selected, companyCatalogue)
-    }, [selected, companyCatalogue])
+    const progressOf = (participant: DiagnosticPlanParticipant) => livePlanProgress(liveForParticipant(participant))
+    const smeHasSigned = (participant: DiagnosticPlanParticipant) => {
+        const meta = participant.plan.confirmedMeta
+        return [meta?.participant, meta?.incubatee, meta?.sme].some((entry) => !!entry?.signatureURL || !!entry?.automatic || !!entry?.confirmedAt)
+    }
 
-    const matchedAiSuggestions = useMemo(
-        () => aiSuggestions.filter((item) => item.matchedOption),
-        [aiSuggestions],
-    )
+    // The queue in the chosen order; ties fall back to the name so the order is stable. Drafts have no progress yet,
+    // so progress sorts put them after confirmed plans.
+    const progressKey = (participant: DiagnosticPlanParticipant) => (participant.plan.status === 'Confirmed' ? progressOf(participant) : null)
+    const byName = (left: DiagnosticPlanParticipant, right: DiagnosticPlanParticipant) => left.businessName.localeCompare(right.businessName)
+    const compare = (left: DiagnosticPlanParticipant, right: DiagnosticPlanParticipant) => {
+        if (sort === 'name-desc') return byName(right, left)
+        if (sort === 'progress-asc' || sort === 'progress-desc') {
+            const a = progressKey(left)
+            const b = progressKey(right)
+            if (a === null || b === null) return a === b ? byName(left, right) : a === null ? 1 : -1
+            return (sort === 'progress-asc' ? a - b : b - a) || byName(left, right)
+        }
+        if (sort === 'interventions') return right.plan.interventions.length - left.plan.interventions.length || byName(left, right)
+        if (sort === 'signature') {
+            const waiting = (participant: DiagnosticPlanParticipant) => (participant.plan.status === 'Confirmed' && !smeHasSigned(participant) ? 0 : 1)
+            return waiting(left) - waiting(right) || byName(left, right)
+        }
+        return byName(left, right)
+    }
+    const rows = [...filteredRows].sort(compare)
+    const rowKeys = rows.map(keyOf).join('|')
 
-    const metrics = useMemo(() => ({
-        participants: participants.length,
-        confirmed: participants.filter((item) => item.plan.status === 'Confirmed').length,
-        draft: participants.filter((item) => item.plan.status === 'Draft').length,
-        interventions: participants.reduce((total, item) => total + item.plan.interventions.length, 0),
-    }), [participants])
+    // Keep a plan on screen on wide screens: the first in the queue when nothing (or something filtered out) is chosen.
+    useEffect(() => {
+        if (stacked || loading) return
+        if (selected && rows.some((row) => keyOf(row) === selectedKey)) return
+        const timeout = window.setTimeout(() => select(rows[0]), 0)
+        return () => window.clearTimeout(timeout)
+    }, [rowKeys, stacked, loading]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    const SORTS: Array<{ key: QueueSort, label: string, icon: React.ReactNode }> = [
+        { key: 'name', label: t('Name, A to Z'), icon: <SortAscendingOutlined /> },
+        { key: 'name-desc', label: t('Name, Z to A'), icon: <SortDescendingOutlined /> },
+        { key: 'progress-asc', label: t('Progress, lowest first'), icon: <RiseOutlined /> },
+        { key: 'progress-desc', label: t('Progress, highest first'), icon: <FallOutlined /> },
+        { key: 'interventions', label: t('Most interventions'), icon: <UnorderedListOutlined /> },
+        { key: 'signature', label: t('SME to sign first'), icon: <EditOutlined /> },
+    ]
+    const currentSort = SORTS.find((item) => item.key === sort) || SORTS[0]
+
+    const aiSuggestions = selected ? getAiRecommendedInterventions(selected, catalogue) : []
+    const inPlan = useMemo(() => new Set(selectedInterventions.map((item) => item.interventionId)), [selectedInterventions])
+    const addable = useMemo(() => {
+        const byArea = new Map<string, DiagnosticInterventionOption[]>()
+        catalogue.filter((item) => !inPlan.has(item.interventionId)).forEach((item) => {
+            const area = item.areaOfSupport || t('Other')
+            byArea.set(area, [...(byArea.get(area) || []), item])
+        })
+        return Array.from(byArea.entries()).sort(([left], [right]) => left.localeCompare(right))
+            .map(([area, items]) => ({ label: area, title: area, options: items.map((item) => ({ value: item.interventionId, label: item.title })) }))
+    }, [catalogue, inPlan, t])
+
+    const add = (option?: DiagnosticInterventionOption) => {
+        if (!option || inPlan.has(option.interventionId)) return
+        setSelectedInterventions((current) => [...current, option])
+    }
+    const remove = (interventionId: string) => {
+        if (lockedIds.has(interventionId)) return
+        setSelectedInterventions((current) => current.filter((item) => item.interventionId !== interventionId))
+    }
 
     useRegisterAgentPageContext({
         pageKey: 'operations-diagnostic-plans',
         pageName: tEnglish('nav.diagnosticPlans'),
         purpose: tEnglish('operations.diagnostics.subtitle'),
         filters: { search, status, activeProgramId, companyCode },
-        metrics,
+        metrics: { participants: participants.length, confirmed: counts.confirmed, draft: counts.draft },
         tables: { visiblePlans: rows.length },
         selectedRecord: selected?.businessName,
     })
-
-    const columns: TableProps<DiagnosticPlanParticipant>['columns'] = [
-        {
-            title: t('operations.participants.enterprise'),
-            dataIndex: 'businessName',
-            render: (value: string, row) => (
-                <Space orientation="vertical" size={0}>
-                    <Typography.Text strong>{value}</Typography.Text>
-                    <Typography.Text type="secondary">{row.email || t('common.noEmail')}</Typography.Text>
-                </Space>
-            ),
-        },
-        {
-            title: t('operations.participants.programme'),
-            dataIndex: 'programName',
-            render: (value?: string) => value || t('common.unassigned'),
-        },
-        {
-            title: t('operations.diagnostics.interventions'),
-            render: (_, row) => row.plan.interventions.length,
-        },
-        {
-            title: t('common.status'),
-            render: (_, row) => (
-                <Tag color={statusColor(row.plan.status)}>
-                    {t(`operations.diagnostics.${row.plan.status.toLowerCase()}`)}
-                </Tag>
-            ),
-        },
-        {
-            title: t('common.actions'),
-            render: (_, row) => (
-                <Button onClick={() => openPlan(row)}>
-                    {tt('common.view', 'View')}
-                </Button>
-            ),
-        },
-    ]
-
-    const addMatchedAiSuggestions = () => {
-        setSelectedInterventions((current) => {
-            const existing = new Set(current.map((item) => item.interventionId))
-            const additions = matchedAiSuggestions
-                .map((item) => item.matchedOption)
-                .filter((item): item is DiagnosticInterventionOption => !!item && !existing.has(item.interventionId))
-
-            return [...current, ...additions]
-        })
-    }
 
     const operationsSignature = (participant: DiagnosticPlanParticipant) => participant.plan.confirmedMeta?.operations
     const smeSignature = (participant: DiagnosticPlanParticipant) =>
@@ -393,22 +464,16 @@ export const DiagnosticPlansPage = () => {
     `
 
     const buildDocumentHtml = (participant: DiagnosticPlanParticipant) => {
-        const interventions = selectedInterventions.length ? selectedInterventions : participant.plan.interventions
+        const interventions = keyOf(participant) === selectedKey ? selectedInterventions : participant.plan.interventions
         const opsMeta = operationsSignature(participant)
         const smeMeta = smeSignature(participant)
-        const participantAiSuggestions = getAiRecommendedInterventions(participant, companyCatalogue)
+        const participantAiSuggestions = getAiRecommendedInterventions(participant, catalogue)
         const participantAiScore = getAiField(participant, ['AI Score', 'aiScore'])
         const participantAiRecommendation = getAiField(participant, ['AI Recommendation', 'aiRecommendation'])
         const participantAiJustification = getAiField(participant, ['Justification', 'justification'])
 
         const swotRows = Array.from({
-            length: Math.max(
-                participant.swot.strengths.length,
-                participant.swot.weaknesses.length,
-                participant.swot.opportunities.length,
-                participant.swot.threats.length,
-                1,
-            ),
+            length: Math.max(participant.swot.strengths.length, participant.swot.weaknesses.length, participant.swot.opportunities.length, participant.swot.threats.length, 1),
         }).map((_, index) => `
             <tr>
                 <td>${escapeHtml(participant.swot.strengths[index] || emptyValue)}</td>
@@ -519,320 +584,346 @@ export const DiagnosticPlansPage = () => {
         const blob = new Blob([buildDocumentHtml(participant)], { type: 'application/msword;charset=utf-8' })
         const url = URL.createObjectURL(blob)
         const link = document.createElement('a')
-
         link.href = url
         link.download = `${cleanFileName(participant.businessName)}-diagnostic-growth-plan.doc`
-
         document.body.appendChild(link)
         link.click()
         link.remove()
-
         URL.revokeObjectURL(url)
     }
 
+    const statusLabel = (value: DiagnosticPlanParticipant['plan']['status']) => t(`operations.diagnostics.${value.toLowerCase()}`)
+
+    const signatureBox = (title: string, meta?: { name?: string, email?: string, signatureURL?: string, confirmedAt?: string, automatic?: boolean }) => (
+        <div className="diagnostic-signature-box">
+            <Typography.Text strong>{title}</Typography.Text>
+            {meta?.signatureURL
+                ? <img src={meta.signatureURL} alt={title} />
+                : <div className="diagnostic-signature-empty">{t(meta?.automatic ? 'Confirmed automatically' : 'To be signed')}</div>}
+            <Typography.Text>{displayValue(meta?.name || meta?.email)}</Typography.Text>
+            <Typography.Text type="secondary">{meta?.confirmedAt ? new Date(meta.confirmedAt).toLocaleString() : emptyValue}</Typography.Text>
+        </div>
+    )
+
+    const queue = (
+        <aside className="diagnostic-queue">
+            <Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('operations.diagnostics.search')} allowClear />
+            <div className="diagnostic-queue-tools">
+                <Dropdown
+                    trigger={['click']}
+                    menu={{
+                        selectable: true,
+                        selectedKeys: [sort],
+                        items: SORTS.map((item) => ({ key: item.key, label: item.label, icon: item.icon })),
+                        onClick: ({ key }) => setSort(key as QueueSort),
+                    }}
+                >
+                    <Tooltip title={t('Sort: {order}', undefined, { order: currentSort.label })}>
+                        <Button icon={currentSort.icon} aria-label={t('Sort: {order}', undefined, { order: currentSort.label })} />
+                    </Tooltip>
+                </Dropdown>
+                <Segmented<StatusFilter>
+                    className="diagnostic-queue-filter"
+                    value={status}
+                    onChange={setStatus}
+                    options={[
+                        { value: 'Draft', label: `${t('operations.diagnostics.draft')} ${counts.draft}` },
+                        { value: 'Confirmed', label: `${t('operations.diagnostics.confirmed')} ${counts.confirmed}` },
+                        { value: 'All', label: t('All') },
+                    ]}
+                />
+            </div>
+            <div className="diagnostic-queue-head">
+                <span>{t('{count} SMEs', undefined, { count: rows.length })}</span>
+                <span>{status === 'Draft' ? t('operations.diagnostics.interventions') : t('Progress')}</span>
+            </div>
+            <div className="diagnostic-queue-rows">
+                {loading && !participants.length ? <Skeleton active paragraph={{ rows: 4 }} /> : rows.length ? rows.map((row) => {
+                    const confirmed = row.plan.status === 'Confirmed'
+                    // A confirmed plan shows its live progress; a draft, how many interventions it holds so far.
+                    const figure = confirmed ? `${progressOf(row)}%` : String(row.plan.interventions.length)
+                    const awaitingSme = confirmed && !smeHasSigned(row)
+                    return (
+                        <button key={keyOf(row)} type="button" className={`diagnostic-queue-row${keyOf(row) === selectedKey && !stacked ? ' is-current' : ''}${showProgramme ? '' : ' is-compact'}`} onClick={() => open(row)}>
+                            <strong>{row.businessName}</strong>
+                            <strong className="diagnostic-queue-count" title={confirmed ? t('Plan progress') : t('Interventions')}>{figure}</strong>
+                            {/* With one programme chosen every row would repeat it, so it only shows under All programmes. */}
+                            {showProgramme && <span>{row.programName || t('common.unassigned')}</span>}
+                            {awaitingSme
+                                ? <Tag color="gold">{row.plan.amended ? t('Changed · SME to sign') : t('SME to sign')}</Tag>
+                                : <Tag color={statusColor(row.plan.status)}>{statusLabel(row.plan.status)}</Tag>}
+                        </button>
+                    )
+                }) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={status === 'Draft' && !search ? t('No drafts waiting.') : t('operations.diagnostics.empty')} />}
+            </div>
+        </aside>
+    )
+
+    const buildView = selected && (
+        <div className="diagnostic-build">
+            <section className="diagnostic-build-card">
+                <h3>{t('SWOT')}</h3>
+                <div className="diagnostic-swot">
+                    {([
+                        ['strengths', 'is-good'],
+                        ['weaknesses', 'is-bad'],
+                        ['opportunities', 'is-info'],
+                        ['threats', 'is-warn'],
+                    ] as const).map(([key, tone]) => (
+                        <div key={key} className={`diagnostic-swot-quad ${tone}`}>
+                            <strong>{t(`operations.diagnostics.${key}`)}</strong>
+                            {selected.swot[key].length
+                                ? <ul>{selected.swot[key].map((item) => <li key={item}>{item}</li>)}</ul>
+                                : <span className="diagnostic-muted">{t('None captured')}</span>}
+                        </div>
+                    ))}
+                </div>
+            </section>
+
+            <div className="diagnostic-build-columns">
+                <section className="diagnostic-build-card">
+                    <h3>{t('Interventions in this plan')} <span className="diagnostic-muted">{selectedInterventions.length}</span></h3>
+                    <div className="diagnostic-picks">
+                        {selectedInterventions.length ? selectedInterventions.map((item) => {
+                            const locked = lockedIds.has(item.interventionId)
+                            return (
+                                <div key={item.interventionId} className={`diagnostic-pick${locked ? ' is-locked' : ''}`}>
+                                    <span>
+                                        {item.title}
+                                        {locked && <small>{t('Work has started, so it stays in the plan')}</small>}
+                                    </span>
+                                    {item.areaOfSupport && <Tag bordered={false}>{item.areaOfSupport}</Tag>}
+                                    {locked
+                                        ? <Tooltip title={t('Work has started, so it stays in the plan')}><LockOutlined className="diagnostic-lock" aria-label={t('Locked')} /></Tooltip>
+                                        : <Button type="text" size="small" icon={<CloseOutlined />} aria-label={t('Remove {title}', undefined, { title: item.title })} onClick={() => remove(item.interventionId)} />}
+                                </div>
+                            )
+                        }) : <span className="diagnostic-muted">{t('Nothing in the plan yet. Add from the suggestions or the catalogue.')}</span>}
+                    </div>
+                    <Select
+                        className="diagnostic-adder"
+                        showSearch
+                        value={null}
+                        placeholder={<><PlusOutlined /> {t('Add from catalogue')}</>}
+                        options={addable}
+                        optionFilterProp="label"
+                        onChange={(value: string | null) => add(catalogue.find((item) => item.interventionId === value))}
+                        notFoundContent={t('Everything in the catalogue is already in the plan.')}
+                    />
+                </section>
+
+                <section className="diagnostic-build-card">
+                    <h3>{t('AI suggestions')}</h3>
+                    {aiSuggestions.length ? (
+                        <div className="diagnostic-suggestions">
+                            {aiSuggestions.map((item) => {
+                                const added = !!item.matchedOption && inPlan.has(item.matchedOption.interventionId)
+                                return (
+                                    <div key={`${item.area}-${item.title}`} className="diagnostic-suggestion">
+                                        <span>
+                                            {item.title}
+                                            <small className={item.matchedOption ? '' : 'is-missing'}>{item.matchedOption ? item.area : t('Not in the catalogue')}</small>
+                                        </span>
+                                        <Button size="small" disabled={!item.matchedOption || added} onClick={() => add(item.matchedOption)}>
+                                            {added ? t('Added') : t('Add')}
+                                        </Button>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    ) : <span className="diagnostic-muted">{t('No suggestions for this SME.')}</span>}
+                </section>
+            </div>
+        </div>
+    )
+
+    const documentView = selected && (
+        // The paper is always a light page, so the antd components inside it need light-theme tokens even in dark
+        // mode, or their text renders in colours meant for a dark background.
+        <ConfigProvider theme={{ ...lightTheme, algorithm: antdTheme.defaultAlgorithm }}>
+            <article className="diagnostic-document">
+                <header className="diagnostic-document-header">
+                    <div className="diagnostic-document-logo">
+                        {companyLogoUrl ? <img src={companyLogoUrl} alt={t('Company logo')} /> : <Typography.Text strong>{t('Company Logo')}</Typography.Text>}
+                    </div>
+                    <div className="diagnostic-document-title">
+                        <Typography.Text>{selected.businessName || t('SME')}</Typography.Text>
+                        <Typography.Title level={2}>{t('Diagnostic Growth Plan')}</Typography.Title>
+                    </div>
+                </header>
+
+                <DividerTitle>{t('Business Overview')}</DividerTitle>
+                <Descriptions
+                    bordered
+                    size="small"
+                    column={{ xs: 1, md: 2 }}
+                    className="diagnostic-clean-descriptions"
+                    items={[
+                        { key: 'owner', label: t('Business Owner'), children: displayValue(selected.participantName) },
+                        { key: 'program', label: t('operations.participants.programme'), children: selected.programName || t('common.unassigned') },
+                        { key: 'sector', label: t('common.sector'), children: displayValue(selected.sector) },
+                        { key: 'province', label: t('common.province'), children: displayValue(selected.province) },
+                    ]}
+                />
+
+                <DividerTitle>{t('SWOT Analysis')}</DividerTitle>
+                <div className="diagnostic-table-wrap">
+                    <table className="diagnostic-document-table">
+                        <thead>
+                            <tr>
+                                <th>{t('operations.diagnostics.strengths')}</th>
+                                <th>{t('operations.diagnostics.weaknesses')}</th>
+                                <th>{t('operations.diagnostics.opportunities')}</th>
+                                <th>{t('operations.diagnostics.threats')}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {Array.from({ length: Math.max(selected.swot.strengths.length, selected.swot.weaknesses.length, selected.swot.opportunities.length, selected.swot.threats.length, 1) }).map((_, index) => (
+                                <tr key={index}>
+                                    <td>{selected.swot.strengths[index] || emptyValue}</td>
+                                    <td>{selected.swot.weaknesses[index] || emptyValue}</td>
+                                    <td>{selected.swot.opportunities[index] || emptyValue}</td>
+                                    <td>{selected.swot.threats[index] || emptyValue}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+                {selected.plan.status === 'Confirmed' && <SwotOutcomeCard items={selected.swotItems} planItems={liveForParticipant(selected) as unknown as LivePlanItem[]} />}
+
+                <DividerTitle>{selected.plan.status === 'Confirmed' ? t('Interventions and progress') : t('operations.diagnostics.interventions')}</DividerTitle>
+                <div className="diagnostic-table-wrap">
+                    <table className="diagnostic-document-table">
+                        <thead>
+                            <tr>
+                                <th style={{ width: 40 }}>#</th>
+                                <th>{t('incubatee.tracker.intervention')}</th>
+                                <th>{t('incubatee.tracker.area')}</th>
+                                {selected.plan.status === 'Confirmed' && <><th>{t('Status')}</th><th>{t('Progress')}</th><th>{t('Outcome')}</th></>}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {selectedLiveInterventions.length ? selectedLiveInterventions.map((item, index) => (
+                                <tr key={item.interventionId || item.title}>
+                                    <td>{index + 1}</td>
+                                    <td>{item.title}</td>
+                                    <td>{item.areaOfSupport || emptyValue}</td>
+                                    {selected.plan.status === 'Confirmed' && (
+                                        <>
+                                            <td><Tag color={planStatusColor(item.status)}>{item.status}</Tag>{item.totalSteps > 1 && <span className="diagnostic-steps">{item.completedSteps}/{item.totalSteps} {t('steps confirmed')}</span>}</td>
+                                            <td>{item.progress}%</td>
+                                            <td><PlanOutcomeChips outcome={item.outcome} /></td>
+                                        </>
+                                    )}
+                                </tr>
+                            )) : (
+                                <tr><td colSpan={selected.plan.status === 'Confirmed' ? 6 : 3}>{t('operations.diagnostics.noSelectedInterventions')}</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+
+                <DividerTitle>{t('Signatures')}</DividerTitle>
+                <Row gutter={[12, 12]}>
+                    <Col xs={24} md={12}>{signatureBox(t('Operations Signature'), operationsSignature(selected))}</Col>
+                    <Col xs={24} md={12}>{signatureBox(t('SME Signature'), smeSignature(selected))}</Col>
+                </Row>
+            </article>
+        </ConfigProvider>
+    )
+
+    // Build: the button takes you to the Document to read what you sign. Document: it opens the signature step.
+    const signLabel = panel === 'build' ? t('Review and sign') : changing ? t('Sign the change') : t('Sign and confirm')
+
+    const planPanel = selected ? (
+        <section className="diagnostic-plan">
+            <div className="diagnostic-actionbar">
+                {stacked && <Button className="diagnostic-back" icon={<ArrowLeftOutlined />} aria-label={t('Back to SMEs')} title={t('Back to SMEs')} onClick={() => setPlanOpen(false)} />}
+                <div className="diagnostic-actionbar-who">
+                    <strong>{selected.businessName}</strong>
+                    <span>
+                        {[selected.participantName, t('{count} interventions', undefined, { count: selectedInterventions.length })].filter(Boolean).join(' · ')}
+                        {dirty && <> · <span className="diagnostic-unsaved">{t('Unsaved changes')}</span></>}
+                    </span>
+                </div>
+                {!editable && <Tag className="diagnostic-actionbar-status" color={statusColor(selected.plan.status)}>{statusLabel(selected.plan.status)}</Tag>}
+                {/* Phones: back, name and status share the first line; the actions take the next. */}
+                {stacked && <span className="diagnostic-actionbar-break" aria-hidden="true" />}
+                {editable && (
+                    <Segmented<PanelTab>
+                        value={panel}
+                        onChange={setTab}
+                        options={[{ value: 'build', label: t('Build') }, { value: 'document', label: t('Document') }]}
+                    />
+                )}
+                <Button icon={<DownloadOutlined />} onClick={() => downloadDocument(selected)}>{t('common.download')}</Button>
+                {editable && changing ? (
+                    // A change to a signed plan is only saved by signing it again: saving clears the SME's signature.
+                    <>
+                        <Button onClick={cancelChange}>{t('Cancel change')}</Button>
+                        <Button
+                            type="primary"
+                            disabled={!dirty || !selectedInterventions.length || !user?.signatureURL}
+                            onClick={startSigning}
+                        >
+                            {signLabel}
+                        </Button>
+                    </>
+                ) : editable ? (
+                    <>
+                        <Button loading={saving} disabled={!dirty} onClick={() => void persist()}>{t('common.save')}</Button>
+                        <Button
+                            type="primary"
+                            disabled={!selectedInterventions.length || !user?.signatureURL}
+                            onClick={startSigning}
+                        >
+                            {signLabel}
+                        </Button>
+                    </>
+                ) : (
+                    canManage && !isDraft && <Button onClick={startChange}>{t('Change plan')}</Button>
+                )}
+            </div>
+
+            {changing && panel === 'build' && (
+                <Alert
+                    type="info"
+                    showIcon
+                    message={t('Changing a signed plan')}
+                    description={t('Add interventions, or remove ones no work has started on. You sign the change, then {name} is asked to sign the changed plan.', undefined, { name: selected.businessName })}
+                />
+            )}
+            {editable && !user?.signatureURL && <Alert type="warning" showIcon message={t('Set up your signature before confirming the growth plan.')} />}
+            {!editable && !isDraft && !smeHasSigned(selected) && (
+                <Alert type="warning" showIcon message={selected.plan.amended ? t('The plan was changed. Waiting for {name} to sign the changed plan.', undefined, { name: selected.businessName }) : t('Waiting for {name} to sign the plan.', undefined, { name: selected.businessName })} />
+            )}
+
+            {panel === 'build' ? buildView : documentView}
+        </section>
+    ) : (
+        <div className="diagnostic-plan-empty">
+            {loading ? <Skeleton active /> : <Empty description={status === 'Draft' && counts.confirmed && !counts.draft ? t('Every plan is confirmed.') : t('Choose an SME to see their plan.')} />}
+        </div>
+    )
+
     return (
         <DashboardPage className="operations-diagnostics-page">
-            <Row gutter={[12, 12]} className="dashboard-metrics-row">
-                <Col xs={12} lg={6}>
-                    <DashboardMetricCard icon={<TeamOutlined />} label={t('nav.participants')} value={metrics.participants} />
-                </Col>
-                <Col xs={12} lg={6}>
-                    <DashboardMetricCard
-                        icon={<CheckCircleOutlined />}
-                        label={t('operations.diagnostics.confirmedPlans')}
-                        value={metrics.confirmed}
-                        hint={status === 'Confirmed' ? tt('operations.diagnostics.filterActive', 'Filter active — click to clear') : tt('operations.diagnostics.clickToFilter', 'Click to filter')}
-                        clickable
-                        onClick={() => setStatus((current) => current === 'Confirmed' ? 'All' : 'Confirmed')}
-                    />
-                </Col>
-                <Col xs={12} lg={6}>
-                    <DashboardMetricCard
-                        icon={<FileAddOutlined />}
-                        label={t('operations.diagnostics.draftPlans')}
-                        value={metrics.draft}
-                        hint={status === 'Draft' ? tt('operations.diagnostics.filterActive', 'Filter active — click to clear') : tt('operations.diagnostics.clickToFilter', 'Click to filter')}
-                        clickable
-                        onClick={() => setStatus((current) => current === 'Draft' ? 'All' : 'Draft')}
-                    />
-                </Col>
-                <Col xs={12} lg={6}>
-                    <DashboardMetricCard icon={<FileAddOutlined />} label={t('operations.diagnostics.interventions')} value={metrics.interventions} />
-                </Col>
-            </Row>
-
-            <FilterBar
-                primary={(
-                    <Input
-                        prefix={<SearchOutlined />}
-                        value={search}
-                        onChange={(event) => setSearch(event.target.value)}
-                        placeholder={t('operations.diagnostics.search')}
-                        allowClear
-                    />
-                )}
-            />
-
-            <Card>
-                <ResponsiveDataView
-                    rowKey={(row) => `${row.applicationId}-${row.id}`}
-                    rows={rows}
-                    columns={columns}
-                    loading={loading}
-                    emptyText={t('operations.diagnostics.empty')}
-                    renderCard={(row) => (
-                        <Space orientation="vertical" size={8}>
-                            <Typography.Text strong>{row.businessName}</Typography.Text>
-                            <Typography.Text type="secondary">{row.email || t('common.noEmail')}</Typography.Text>
-                            <Space wrap>
-                                <Tag>{row.programName || t('common.unassigned')}</Tag>
-                                <Tag color={statusColor(row.plan.status)}>
-                                    {t(`operations.diagnostics.${row.plan.status.toLowerCase()}`)}
-                                </Tag>
-                            </Space>
-                            <Typography.Text>
-                                {row.plan.interventions.length} {t('operations.diagnostics.interventions').toLowerCase()}
-                            </Typography.Text>
-                            <Button onClick={() => openPlan(row)}>
-                                {tt('common.view', 'View')}
-                            </Button>
-                        </Space>
-                    )}
-                />
-            </Card>
-
-            <Modal
-                open={!!selected}
-                onCancel={() => setSelected(undefined)}
-                title={selected?.businessName}
-                footer={selected ? (
-                    <ModalActions>
-                        <Button icon={<DownloadOutlined />} onClick={() => downloadDocument(selected)}>{t('common.download')}</Button>
-
-                        {canManage && selected.plan.status !== 'Confirmed' && (
-                            <>
-                                <Button loading={saving} onClick={() => void persist()}>
-                                    {t('common.save')}
-                                </Button>
-                                <Button
-                                    type="primary"
-                                    loading={saving}
-                                    disabled={!selectedInterventions.length || !user?.signatureURL}
-                                    onClick={() => setSigning(true)}
-                                >
-                                    {t('operations.diagnostics.confirmPlan')}
-                                </Button>
-                            </>
-                        )}
-                    </ModalActions>
-                ) : null}
-                width={1040}
-                centered
-                className="diagnostic-plan-modal"
-            >
-                {selected && (
-                    <Space orientation="vertical" size={16} className="operations-diagnostic-detail">
-                        {selected.plan.status !== 'Confirmed' && (
-                            <Alert type="info" showIcon message={t('operations.diagnostics.reviewHint')} />
-                        )}
-
-                        {selected.plan.status !== 'Confirmed' && !user?.signatureURL && (
-                            <Alert type="warning" showIcon message={t('Set up your signature before confirming the growth plan.')} />
-                        )}
-
-                        {/* The paper is always a light page, so the antd components rendered inside it (Descriptions,
-                            Card, Tag...) need light-theme tokens even when the app is in dark mode, or their text
-                            renders in dark-mode-appropriate light colors that are invisible on the white paper. */}
-                        <ConfigProvider theme={{ ...lightTheme, algorithm: antdTheme.defaultAlgorithm }}>
-                        <article className="diagnostic-document">
-                            <header className="diagnostic-document-header">
-                                <div className="diagnostic-document-logo">
-                                    {companyLogoUrl
-                                        ? <img src={companyLogoUrl} alt={t('Company logo')} />
-                                        : <Typography.Text strong>{t('Company Logo')}</Typography.Text>}
-                                </div>
-
-                                <div className="diagnostic-document-title">
-                                    <Typography.Text>{selected.businessName || t('SME')}</Typography.Text>
-                                    <Typography.Title level={2}>{t('Diagnostic Growth Plan')}</Typography.Title>
-                                </div>
-                            </header>
-
-                            <DividerTitle>{t('Business Overview')}</DividerTitle>
-
-                            <Descriptions
-                                bordered
-                                size="small"
-                                column={{ xs: 1, md: 2 }}
-                                className="diagnostic-clean-descriptions"
-                                items={[
-                                    { key: 'owner', label: t('Business Owner'), children: displayValue(selected.participantName) },
-                                    { key: 'business', label: t('SME Name'), children: displayValue(selected.businessName) },
-                                    { key: 'program', label: t('operations.participants.programme'), children: selected.programName || t('common.unassigned') },
-                                    { key: 'email', label: t('common.email'), children: selected.email || t('common.noEmail') },
-                                    { key: 'sector', label: t('common.sector'), children: displayValue(selected.sector) },
-                                    { key: 'stage', label: t('common.stage'), children: displayValue(selected.stage) },
-                                    { key: 'province', label: t('common.province'), children: displayValue(selected.province) },
-                                    {
-                                        key: 'status',
-                                        label: t('common.status'),
-                                        children: (
-                                            <Tag color={statusColor(selected.plan.status)}>
-                                                {t(`operations.diagnostics.${selected.plan.status.toLowerCase()}`)}
-                                            </Tag>
-                                        ),
-                                    },
-                                ]}
-                            />
-
-                            <DividerTitle>{t('SWOT Analysis')}</DividerTitle>
-
-                            <div className="diagnostic-table-wrap">
-                                <table className="diagnostic-document-table">
-                                    <thead>
-                                        <tr>
-                                            <th>{t('operations.diagnostics.strengths')}</th>
-                                            <th>{t('operations.diagnostics.weaknesses')}</th>
-                                            <th>{t('operations.diagnostics.opportunities')}</th>
-                                            <th>{t('operations.diagnostics.threats')}</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {Array.from({
-                                            length: Math.max(
-                                                selected.swot.strengths.length,
-                                                selected.swot.weaknesses.length,
-                                                selected.swot.opportunities.length,
-                                                selected.swot.threats.length,
-                                                1,
-                                            ),
-                                        }).map((_, index) => (
-                                            <tr key={index}>
-                                                <td>{selected.swot.strengths[index] || emptyValue}</td>
-                                                <td>{selected.swot.weaknesses[index] || emptyValue}</td>
-                                                <td>{selected.swot.opportunities[index] || emptyValue}</td>
-                                                <td>{selected.swot.threats[index] || emptyValue}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            <SwotOutcomeCard items={selected.swotItems} planItems={liveForParticipant(selected) as unknown as LivePlanItem[]} />
-
-                            {aiSuggestions.length > 0 && (
-                                <>
-                                    <DividerTitle>{tt('operations.diagnostics.aiSuggestedInterventions', 'AI Suggested Interventions')}</DividerTitle>
-
-                                    <Card
-                                        size="small"
-                                        className="diagnostic-ai-suggestions-card"
-                                        extra={canManage && selected.plan.status !== 'Confirmed' && matchedAiSuggestions.length > 0 ? (
-                                            <Button size="small" icon={<PlusOutlined />} onClick={addMatchedAiSuggestions}>
-                                                {tt('operations.diagnostics.addMatchedSuggestions', 'Add matched')}
-                                            </Button>
-                                        ) : null}
-                                    >
-                                        <Space direction="vertical" size={10} className="diagnostic-ai-suggestions-list">
-                                            {aiSuggestions.map((item) => (
-                                                <div key={`${item.area}-${item.title}`} className="diagnostic-ai-suggestion-item">
-                                                    <div>
-                                                        <Typography.Text strong>{item.title}</Typography.Text>
-                                                        <Typography.Text type="secondary">{item.area}</Typography.Text>
-                                                    </div>
-                                                    <Tag color={item.matchedOption ? 'blue' : 'orange'}>
-                                                        {item.matchedOption
-                                                            ? tt('operations.diagnostics.catalogueMatch', 'Catalogue match')
-                                                            : tt('operations.diagnostics.notInCatalogue', 'Not in catalogue')}
-                                                    </Tag>
-                                                </div>
-                                            ))}
-                                        </Space>
-                                    </Card>
-                                </>
-                            )}
-
-                            <DividerTitle>{t('operations.diagnostics.requiredInterventions')}</DividerTitle>
-
-                            <div className="diagnostic-table-wrap">
-                                <table className="diagnostic-document-table">
-                                    <thead>
-                                        <tr>
-                                            <th>#</th>
-                                            <th>{t('incubatee.tracker.intervention')}</th>
-                                            <th>{t('incubatee.tracker.area')}</th>
-                                            <th>{t('Status')}</th>
-                                            <th>{t('Progress')}</th>
-                                            <th>{t('Outcome')}</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {selectedLiveInterventions.length ? selectedLiveInterventions.map((item, index) => (
-                                            <tr key={item.interventionId || item.title}>
-                                                <td>{index + 1}</td>
-                                                <td>{item.title}</td>
-                                                <td>{item.areaOfSupport || emptyValue}</td>
-                                                <td><Tag color={planStatusColor(item.status)}>{item.status}</Tag>{item.totalSteps > 1 && <span style={{ display: 'block', fontSize: 12, opacity: 0.65 }}>{item.completedSteps}/{item.totalSteps} {t('steps confirmed')}</span>}</td>
-                                                <td>{item.progress}%</td>
-                                                <td><PlanOutcomeChips outcome={item.outcome} /></td>
-                                            </tr>
-                                        )) : (
-                                            <tr>
-                                                <td colSpan={6}>{t('operations.diagnostics.noSelectedInterventions')}</td>
-                                            </tr>
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            <DividerTitle>{t('Signatures')}</DividerTitle>
-
-                            <Row gutter={[12, 12]}>
-                                <Col xs={24} md={12}>
-                                    <div className="diagnostic-signature-box">
-                                        <Typography.Text strong>{t('Operations Signature')}</Typography.Text>
-                                        {operationsSignature(selected)?.signatureURL
-                                            ? <img src={operationsSignature(selected)?.signatureURL} alt={t('Operations signature')} />
-                                            : <div className="diagnostic-signature-empty">{t(operationsSignature(selected)?.automatic ? 'Confirmed automatically' : 'Pending signature')}</div>}
-                                        <Typography.Text>{displayValue(operationsSignature(selected)?.name || operationsSignature(selected)?.email)}</Typography.Text>
-                                        <Typography.Text type="secondary">
-                                            {operationsSignature(selected)?.confirmedAt
-                                                ? new Date(operationsSignature(selected)?.confirmedAt || '').toLocaleString()
-                                                : emptyValue}
-                                        </Typography.Text>
-                                    </div>
-                                </Col>
-
-                                <Col xs={24} md={12}>
-                                    <div className="diagnostic-signature-box">
-                                        <Typography.Text strong>{t('SME Signature')}</Typography.Text>
-                                        {smeSignature(selected)?.signatureURL
-                                            ? <img src={smeSignature(selected)?.signatureURL} alt={t('SME signature')} />
-                                            : <div className="diagnostic-signature-empty">{t(smeSignature(selected)?.automatic ? 'Confirmed automatically' : 'Pending signature')}</div>}
-                                        <Typography.Text>{displayValue(smeSignature(selected)?.name || smeSignature(selected)?.email)}</Typography.Text>
-                                        <Typography.Text type="secondary">
-                                            {smeSignature(selected)?.confirmedAt
-                                                ? new Date(smeSignature(selected)?.confirmedAt || '').toLocaleString()
-                                                : emptyValue}
-                                        </Typography.Text>
-                                    </div>
-                                </Col>
-                            </Row>
-                        </article>
-                        </ConfigProvider>
-                    </Space>
-                )}
-            </Modal>
+            <div className={`diagnostic-split${stacked ? ' is-stacked' : ''}`}>
+                {(!stacked || !planOpen) && queue}
+                {(!stacked || planOpen) && planPanel}
+            </div>
 
             <SignDocumentModal
                 open={signing}
                 onClose={() => setSigning(false)}
-                title={t('Sign the growth plan')}
-                description={selected ? t('This applies your saved signature and approves the plan for {name}.', undefined, { name: selected.businessName }) : undefined}
-                signLabel={t('Sign and confirm')}
+                title={changing ? t('Sign the changed plan') : t('Sign the growth plan')}
+                description={selected ? (changing
+                    ? t('This applies your saved signature to the changed plan for {name}. They are then asked to sign it too.', undefined, { name: selected.businessName })
+                    : t('This applies your saved signature and approves the plan for {name}.', undefined, { name: selected.businessName })) : undefined}
+                signLabel={changing ? t('Sign the change') : t('Sign and confirm')}
                 onSign={signAndConfirm}
-                onSigned={() => { setSelected(undefined); void load() }}
-                signedText={t('operations.diagnostics.confirmedMessage')}
+                onSigned={() => void afterSigned()}
+                signedText={changing ? t('Change signed.') : t('operations.diagnostics.confirmedMessage')}
                 errorText={saveErrorText}
             />
         </DashboardPage>

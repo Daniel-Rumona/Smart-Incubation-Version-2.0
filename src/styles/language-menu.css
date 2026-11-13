@@ -1,0 +1,122 @@
+/* =========================================================
+   Language menu (LanguageMenu): a small titled panel, one row per
+   language with its code, own name and English name, and a tick on
+   the current one.
+   ========================================================= */
+
+.language-menu-panel {
+    min-width: 220px;
+    padding: 8px;
+    border: 1px solid rgba(109, 93, 251, 0.14);
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 18px 44px rgba(15, 23, 42, 0.14);
+}
+
+.language-menu-title {
+    display: block;
+    padding: 4px 8px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+/* The panel draws the surface; the inner menu is just the list. */
+.language-menu .language-menu-panel .ant-dropdown-menu {
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.language-menu .ant-dropdown-menu-item {
+    padding: 8px 10px !important;
+    border-radius: 12px !important;
+    transition: background-color 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.language-menu .ant-dropdown-menu-item + .ant-dropdown-menu-item {
+    margin-top: 2px;
+}
+
+.language-menu .ant-dropdown-menu-item-selected {
+    background: rgba(109, 93, 251, 0.1) !important;
+}
+
+.language-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.language-option-code {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    color: #5b4fd6;
+    background: rgba(109, 93, 251, 0.1);
+}
+
+.language-menu .ant-dropdown-menu-item-selected .language-option-code {
+    color: #fff;
+    background: linear-gradient(135deg, #6d5dfb, #4f7df3);
+}
+
+.language-option-names {
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    line-height: 1.25;
+}
+
+.language-option-names strong {
+    font-size: 14px;
+    font-weight: 650;
+}
+
+.language-option-names small {
+    font-size: 12px;
+    color: #64748b;
+}
+
+.language-option-check {
+    flex: none;
+    font-size: 13px;
+    color: #6d5dfb;
+}
+
+html[data-theme='dark'] .language-menu-panel {
+    border-color: rgba(139, 92, 246, 0.24);
+    background: #1b1e2a;
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
+}
+
+html[data-theme='dark'] .language-menu-title,
+html[data-theme='dark'] .language-option-names small {
+    color: #a1a9bd;
+}
+
+html[data-theme='dark'] .language-option-code {
+    color: #c4bcff;
+    background: rgba(165, 155, 255, 0.14);
+}
+
+html[data-theme='dark'] .language-menu .ant-dropdown-menu-item-selected {
+    background: rgba(139, 92, 246, 0.18) !important;
+}
+
+html[data-theme='dark'] .language-option-check {
+    color: #a59bff;
+}
+
+/* Readable names whatever the page's menu colours are. */
+.language-menu .ant-dropdown-menu-item { color: #172033 !important; }
+html[data-theme='dark'] .language-menu .ant-dropdown-menu-item { color: #eef0f6 !important; }
+html[data-theme='dark'] .language-menu .ant-dropdown-menu-item:not(.ant-dropdown-menu-item-selected):hover { background: rgba(255, 255, 255, 0.06) !important; }

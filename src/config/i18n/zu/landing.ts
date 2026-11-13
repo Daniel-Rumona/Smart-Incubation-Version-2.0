@@ -91,4 +91,10 @@ export const zuLanding: Record<string, string> = {
   "Celebrating unity across our rainbow nation.": "Sibungaza ubunye kuso sonke isizwe sethu sothingo lwenkosazana.",
   "Wishing you joy, love and a wonderful festive season!": "Sikufisela injabulo, uthando nesikhathi esihle semikhosi!",
   "Spread kindness and enjoy the festive spirit.": "Sabalalisa umusa futhi ujabulele umoya wemikhosi.",
+  // Returning and signed-in visitors.
+  "Already registered?": "Usubhalisile?",
+  "Continue to your workspace": "Qhubeka uye endaweni yakho yokusebenza",
+  "Open workspace": "Vula indawo yokusebenza",
+  "Welcome back, {name}.": "Siyakwamukela futhi, {name}.",
+  "Welcome back.": "Siyakwamukela futhi.",
 }

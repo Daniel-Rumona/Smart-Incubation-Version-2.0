@@ -1,12 +1,11 @@
-import { Alert, App, Button, Card, Checkbox, Col, Collapse, Divider, Empty, Form, Input, InputNumber, Modal, Popconfirm, Row, Select, Space, Switch, Tag, theme, Typography, type TableProps } from 'antd'
-import { BulbOutlined, CheckCircleOutlined, CloseCircleOutlined, DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, RobotOutlined, SearchOutlined, SettingOutlined, StopOutlined, SyncOutlined, ToolOutlined } from '@ant-design/icons'
+import { Alert, App, Button, Card, Checkbox, Col, Collapse, Divider, Descriptions, Empty, Pagination, Segmented, Spin, Form, Input, InputNumber, Modal, Popconfirm, Row, Select, Space, Switch, Tag, theme, Typography } from 'antd'
+import { ArrowLeftOutlined, SortAscendingOutlined, BulbOutlined, CheckCircleOutlined, CloseCircleOutlined, DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, RobotOutlined, SearchOutlined, SettingOutlined, StopOutlined, SyncOutlined, ToolOutlined } from '@ant-design/icons'
 import { addDoc, collection, deleteDoc, deleteField, doc, getDocs, query, updateDoc, where } from 'firebase/firestore'
 import dayjs from 'dayjs'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
-import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
 import { db } from '@/firebase'
 import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
@@ -21,6 +20,8 @@ import { hasOutcomeCheckBack, suggestOutcomeCheckBacks, type OutcomeMigrationSug
 import { isAgentApiConfigured } from '@/config/agent'
 import { useLanguage, tr } from '@/providers/LanguageProvider'
 import { ModalActions } from '@/components/shared/ModalActions'
+import '@/styles/operations-compliance.css'
+import '@/styles/interventions-setup.css'
 
 type RecurrenceUnit = 'day' | 'week' | 'month' | 'year'
 type RecurrencePreset = 'weekly' | 'monthly' | 'quarterly' | 'yearly' | 'custom'
@@ -165,7 +166,7 @@ const defaultInterventionValues = {
 
 export const InterventionsSetupPage = () => {
     const { t } = useLanguage()
-    const { message } = App.useApp()
+    const { message, modal } = App.useApp()
     const { user, loading: identityLoading } = useFullIdentity()
     const { settings, getSetting } = useSystemSettings()
     const agenticAllowed = useEntitlements().has('agenticSupport')
@@ -174,6 +175,12 @@ export const InterventionsSetupPage = () => {
     const [form] = Form.useForm()
     const [interventions, setInterventions] = useState<InterventionRow[]>([])
     const [loading, setLoading] = useState(false)
+    const [selectedId, setSelectedId] = useState<string>()
+    const [detailOpen, setDetailOpen] = useState(false)
+    const [section, setSection] = useState('overview')
+    const [sort, setSort] = useState('name')
+    const [pageState, setPageState] = useState({ key: '', page: 1 })
+    const baseline = useRef('')
     const [modalOpen, setModalOpen] = useState(false)
     const [editingRecord, setEditingRecord] = useState<InterventionRow>()
     const [filters, setFilters] = useState<InterventionFilters>(emptyFilters)
@@ -250,8 +257,27 @@ export const InterventionsSetupPage = () => {
             const matchesTerm = filters.durationTerm ? String(item.durationTerm || 'short_term') === filters.durationTerm : true
             const matchesExecution = filters.executionMode ? String(item.executionMode || 'single_session') === filters.executionMode : true
             return matchesArea && matchesTitle && matchesCompulsory && matchesRecurring && matchesTerm && matchesExecution
-        })
-    }, [filters, interventions])
+        }).sort((a, b) => sort === 'area' ? String(a.areaOfSupport || '').localeCompare(String(b.areaOfSupport || '')) || String(a.interventionTitle || '').localeCompare(String(b.interventionTitle || '')) : String(a.interventionTitle || '').localeCompare(String(b.interventionTitle || '')))
+    }, [filters, interventions, sort])
+
+    const selected = rows.find((row) => row.id === selectedId) || rows[0]
+    const pageKey = JSON.stringify([filters, sort, selected?.id])
+    const selectedPage = Math.floor(Math.max(0, rows.findIndex((row) => row.id === selected?.id)) / 12) + 1
+    const page = Math.min(pageState.key === pageKey ? pageState.page : selectedPage, Math.max(1, Math.ceil(rows.length / 12)))
+    const changeView = (action: () => void) => {
+        if (loading || draftingOutcome) return
+        if (modalOpen && JSON.stringify(form.getFieldsValue(true)) !== baseline.current) {
+            modal.confirm({ title: t('Discard unsaved changes?'), content: t('Your intervention edits have not been saved.'), okText: t('Discard changes'), cancelText: t('Keep editing'), onOk: action })
+        } else action()
+    }
+    useEffect(() => {
+        if (!modalOpen) return
+        const warn = (event: BeforeUnloadEvent) => {
+            if (JSON.stringify(form.getFieldsValue(true)) !== baseline.current) { event.preventDefault(); event.returnValue = '' }
+        }
+        window.addEventListener('beforeunload', warn)
+        return () => window.removeEventListener('beforeunload', warn)
+    }, [modalOpen, form])
 
     const metrics = useMemo(() => ({
         total: rows.length,
@@ -278,6 +304,8 @@ export const InterventionsSetupPage = () => {
         setNewAreaText('')
         form.resetFields()
         form.setFieldsValue(defaultInterventionValues)
+        baseline.current = JSON.stringify(form.getFieldsValue(true))
+        setDetailOpen(true)
         setModalOpen(true)
     }
 
@@ -294,7 +322,10 @@ export const InterventionsSetupPage = () => {
         }
         setEditingRecord(record)
         setNewAreaText('')
+        form.resetFields()
         form.setFieldsValue(safe)
+        baseline.current = JSON.stringify(form.getFieldsValue(true))
+        setDetailOpen(true)
         setModalOpen(true)
     }
 
@@ -466,7 +497,8 @@ export const InterventionsSetupPage = () => {
                 await syncRequiredInterventionSnapshots(editingRecord.id, payload)
                 message.success(t('Intervention updated.'))
             } else {
-                await addDoc(collection(db, 'interventions'), payload)
+                const created = await addDoc(collection(db, 'interventions'), payload)
+                setSelectedId(created.id)
                 message.success(t('Intervention created.'))
             }
 
@@ -588,73 +620,6 @@ export const InterventionsSetupPage = () => {
         }
     }
 
-    const columns: TableProps<InterventionRow>['columns'] = [
-        {
-            title: t('Intervention'),
-            dataIndex: 'interventionTitle',
-            render: (value: string, row) => (
-                <Space direction="vertical" size={0}>
-                    <Typography.Text strong>{value || t('Untitled intervention')}</Typography.Text>
-                    <Typography.Text type="secondary">{row.areaOfSupport || t('No support area')}</Typography.Text>
-                </Space>
-            ),
-        },
-        {
-            title: t('Term'),
-            dataIndex: 'durationTerm',
-            render: (value?: string) => {
-                const option = durationTermOption(value)
-                return <Tag color={option.color}>{option.label}</Tag>
-            },
-        },
-        {
-            title: t('Execution'),
-            dataIndex: 'executionMode',
-            render: (value?: ExecutionMode) => value === 'multi_step' ? <Tag color="purple">{t('Multi-step')}</Tag> : <Tag>{t('Single session')}</Tag>,
-        },
-        {
-            title: t('Delivery'),
-            dataIndex: 'deliveryStrategy',
-            render: (value: InterventionDeliveryStrategy | undefined, row) => {
-                const strategy = DELIVERY_STRATEGY_OPTIONS.find((option) => option.value === (value || 'human_only'))
-                const agent = allAgents.find((item) => item.id === row.agentId)
-                return <Space direction="vertical" size={0}><Tag icon={isAgentStrategy(value) ? <RobotOutlined /> : undefined} color={isAgentStrategy(value) ? 'purple' : 'blue'}>{strategy?.label || t('Human delivery')}</Tag>{agent && <Typography.Text type="secondary">{agent.name}</Typography.Text>}</Space>
-            },
-        },
-        {
-            title: t('Recurrence'),
-            render: (_, row) => row.isRecurring === 'yes'
-                ? <Space direction="vertical" size={0}><Tag color="blue" icon={<SyncOutlined />}>{recurrenceLabel(row.recurrence)}</Tag><Typography.Text type="secondary">{endRuleLabel(row)}</Typography.Text></Space>
-                : <Tag>{t('Not recurring')}</Tag>,
-        },
-        {
-            title: t('Compulsory'),
-            dataIndex: 'isCompulsory',
-            render: (value?: string) => value === 'yes' ? <Tag color="green">{t('Yes')}</Tag> : <Tag>{t('No')}</Tag>,
-        },
-        {
-            title: t('Steps'),
-            render: (_, row) => <Tag>{Array.isArray(row.steps) ? row.steps.length : 0}</Tag>,
-        },
-        {
-            title: t('Check-back'),
-            render: (_, row) => hasOutcomeCheckBack(row.outcomeDefinition)
-                ? <Tag color="green">{t('After {days} days', undefined, { days: Number(row.outcomeDefinition?.followUpDays) })}</Tag>
-                : <Tag color="orange">{t('Not set')}</Tag>,
-        },
-        {
-            title: t('Actions'),
-            render: (_, row) => (
-                <Space>
-                    <Button icon={<EditOutlined />} onClick={() => openEdit(row)}>{t('Edit')}</Button>
-                    <Popconfirm title={t('Delete this intervention?')} okText={t('Delete')} okButtonProps={{ danger: true }} onConfirm={() => void deleteIntervention(row.id)}>
-                        <Button icon={<DeleteOutlined />} danger />
-                    </Popconfirm>
-                </Space>
-            ),
-        },
-    ]
-
     return (
         <DashboardPage className="operations-interventions-page">
             <Row gutter={[12, 12]} className="dashboard-metrics-row">
@@ -665,60 +630,49 @@ export const InterventionsSetupPage = () => {
             </Row>
 
             <FilterBar
+                advancedDisplay="dropdown"
+                onReset={() => setFilters(emptyFilters)}
                 primary={(
                     <>
                         <Input prefix={<SearchOutlined />} value={filters.title} onChange={(event) => setFilters((prev) => ({ ...prev, title: event.target.value }))} placeholder={t('Search interventions')} allowClear />
                         <Select allowClear placeholder={t('Support area')} value={filters.area || undefined} onChange={(value) => setFilters((prev) => ({ ...prev, area: value || '' }))} options={areaOptions.map((value) => ({ value, label: value }))} />
-                        <Select allowClear placeholder={t('Term')} value={filters.durationTerm || undefined} onChange={(value) => setFilters((prev) => ({ ...prev, durationTerm: value || '' }))} options={DURATION_TERMS.map(({ value, label }) => ({ value, label }))} />
-                        <Select allowClear placeholder={t('Execution')} value={filters.executionMode || undefined} onChange={(value) => setFilters((prev) => ({ ...prev, executionMode: value || '' }))} options={[{ value: 'single_session', label: t('Single session') }, { value: 'multi_step', label: t('Multi-step') }]} />
                     </>
                 )}
+                advanced={<>
+                        <Select allowClear placeholder={t('Term')} value={filters.durationTerm || undefined} onChange={(value) => setFilters((prev) => ({ ...prev, durationTerm: value || '' }))} options={DURATION_TERMS.map(({ value, label }) => ({ value, label }))} />
+                        <Select allowClear placeholder={t('Execution')} value={filters.executionMode || undefined} onChange={(value) => setFilters((prev) => ({ ...prev, executionMode: value || '' }))} options={[{ value: 'single_session', label: t('Single session') }, { value: 'multi_step', label: t('Multi-step') }]} />
+                    <Select allowClear placeholder={t('Compulsory')} value={filters.compulsory || undefined} onChange={(value) => setFilters((prev) => ({ ...prev, compulsory: value || '' }))} options={[{ value: 'yes', label: t('Compulsory') }, { value: 'no', label: t('Optional') }]} />
+                    <Select allowClear placeholder={t('Recurrence')} value={filters.recurring || undefined} onChange={(value) => setFilters((prev) => ({ ...prev, recurring: value || '' }))} options={[{ value: 'yes', label: t('Recurring') }, { value: 'no', label: t('Not recurring') }]} />
+                </>}
                 actions={(
                     <>
-                        <Button icon={<ReloadOutlined />} onClick={() => setFilters(emptyFilters)}>{t('Reset')}</Button>
                         <Button icon={<ReloadOutlined />} onClick={() => void fetchInterventions()}>{t('Refresh')}</Button>
                         {isAgentApiConfigured && withoutCheckBack.length > 0 && (
                             <Button icon={<RobotOutlined />} onClick={openMigration}>{t('Add check-backs with AI ({count})', undefined, { count: withoutCheckBack.length })}</Button>
                         )}
-                        <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>{t('Add intervention')}</Button>
+                        <Button type="primary" icon={<PlusOutlined />} onClick={() => changeView(openAdd)}>{t('Add intervention')}</Button>
                     </>
                 )}
             />
 
-            <Card>
-                <ResponsiveDataView
-                    rowKey="id"
-                    rows={rows}
-                    columns={columns}
-                    loading={loading}
-                    emptyText={t('No interventions match the selected filters.')}
-                    renderCard={(row) => {
-                        const option = durationTermOption(row.durationTerm)
-                        return (
-                            <Space direction="vertical" size={8}>
-                                <Typography.Text strong>{row.interventionTitle || t('Untitled intervention')}</Typography.Text>
-                                <Typography.Text type="secondary">{row.areaOfSupport || t('No support area')}</Typography.Text>
-                                <Space wrap>
-                                    <Tag color={option.color}>{option.label}</Tag>
-                                    <Tag>{row.executionMode === 'multi_step' ? t('Multi-step') : t('Single session')}</Tag>
-                                    <Tag>{row.isRecurring === 'yes' ? t('Recurring') : t('Not recurring')}</Tag>
-                                    {!hasOutcomeCheckBack(row.outcomeDefinition) && <Tag color="orange">{t('No check-back')}</Tag>}
-                                    <Tag icon={isAgentStrategy(row.deliveryStrategy) ? <RobotOutlined /> : undefined} color={isAgentStrategy(row.deliveryStrategy) ? 'purple' : 'blue'}>{DELIVERY_STRATEGY_OPTIONS.find((item) => item.value === (row.deliveryStrategy || 'human_only'))?.label}</Tag>
-                                </Space>
-                                <Space>
-                                    <Button icon={<EditOutlined />} onClick={() => openEdit(row)}>{t('Edit')}</Button>
-                                    <Popconfirm title={t('Delete this intervention?')} okText={t('Delete')} okButtonProps={{ danger: true }} onConfirm={() => void deleteIntervention(row.id)}>
-                                        <Button icon={<DeleteOutlined />} danger />
-                                    </Popconfirm>
-                                </Space>
-                            </Space>
-                        )
-                    }}
-                />
-            </Card>
-
-            <Modal open={modalOpen} onCancel={() => setModalOpen(false)} footer={null} destroyOnClose width={820} title={editingRecord ? t('Edit intervention') : t('Add intervention')}>
-                <Form form={form} layout="vertical" onFinish={handleFinish}>
+            <div className={`compliance-workspace intervention-setup-workspace${detailOpen ? ' compliance-workspace--detail' : ''}`}>
+                <Card className="operations-compliance-card compliance-participants">
+                    <Select className="compliance-list-sort" aria-label={t('Sort interventions')} prefix={<SortAscendingOutlined />} value={sort} onChange={setSort} options={[{ value: 'name', label: t('Name A–Z') }, { value: 'area', label: t('Support area') }]} />
+                    <Spin spinning={loading}><nav className="compliance-participant-list" aria-label={t('Interventions')}>
+                        {rows.slice((page - 1) * 12, page * 12).map((row) => <button key={row.id} type="button" className={`compliance-participant${selected?.id === row.id ? ' compliance-participant--selected' : ''}`} aria-current={selected?.id === row.id ? 'true' : undefined} onClick={() => changeView(() => { setSelectedId(row.id); setModalOpen(false); setDetailOpen(true); setSection('overview') })}>
+                            <ToolOutlined />
+                            <div className="compliance-participant-main"><div className="compliance-participant-name" title={row.interventionTitle}>{row.interventionTitle || t('Untitled intervention')}</div><div className="compliance-participant-meta">{row.areaOfSupport || t('No support area')}</div><div className="compliance-participant-meta">{DELIVERY_STRATEGY_OPTIONS.find((item) => item.value === (row.deliveryStrategy || 'human_only'))?.label}</div></div>
+                            <Tag color={durationTermOption(row.durationTerm).color}>{durationTermOption(row.durationTerm).label}</Tag>
+                        </button>)}
+                        {!loading && !rows.length && <Empty description={t('No interventions match the selected filters.')} />}
+                    </nav></Spin>
+                    {rows.length > 12 && <div className="compliance-list-pagination"><Pagination size="small" current={page} pageSize={12} total={rows.length} showSizeChanger={false} onChange={(next) => setPageState({ key: pageKey, page: next })} /></div>}
+                </Card>
+                <Card className="operations-compliance-card compliance-detail">
+                    <Button className="compliance-back" icon={<ArrowLeftOutlined />} onClick={() => changeView(() => { setModalOpen(false); setDetailOpen(false) })}>{t('Back to interventions')}</Button>
+                    {modalOpen ? <>
+                    <Typography.Title level={4}>{t(editingRecord ? 'Edit intervention' : 'Add intervention')}</Typography.Title>
+                <Form form={form} disabled={loading} layout="vertical" onFinish={handleFinish}>
                     <Form.Item name="areaOfSupport" label={t('Area of support')} rules={[{ required: true, message: tr('Area of support is required.') }]}>
                         <Select
                             allowClear
@@ -993,10 +947,46 @@ export const InterventionsSetupPage = () => {
                     />
 
                     <ModalActions>
+                        <Button onClick={() => changeView(() => setModalOpen(false))}>{t('Cancel')}</Button>
                         <Button type="primary" htmlType="submit" loading={loading}>{t('Save intervention')}</Button>
                     </ModalActions>
                 </Form>
-            </Modal>
+                    </> : selected ? <>
+                        <div className="compliance-detail-header"><div><Typography.Title level={4}>{selected.interventionTitle || t('Untitled intervention')}</Typography.Title><Typography.Text type="secondary">{selected.areaOfSupport}</Typography.Text></div><Space><Button icon={<EditOutlined />} onClick={() => openEdit(selected)}>{t('Edit')}</Button><Popconfirm title={t('Delete this intervention?')} okText={t('Delete')} okButtonProps={{ danger: true }} onConfirm={() => void deleteIntervention(selected.id)}><Button danger icon={<DeleteOutlined />} aria-label={t('Delete intervention')} /></Popconfirm></Space></div>
+                        <Segmented block value={section} onChange={setSection} options={[{ value: 'overview', label: t('Overview') }, { value: 'delivery', label: t('Delivery') }, { value: 'schedule', label: t('Schedule & steps') }, { value: 'outcomes', label: t('Outcomes') }]} />
+                        <div className="intervention-setup-section">
+                        {section === 'overview' && <Descriptions bordered column={1} size="small" items={[
+                            { key: 'area', label: t('Support area'), children: selected.areaOfSupport || t('Not set') },
+                            { key: 'term', label: t('Term'), children: durationTermOption(selected.durationTerm).label },
+                            { key: 'required', label: t('Compulsory'), children: t(selected.isCompulsory === 'yes' ? 'Yes' : 'No') },
+                            { key: 'execution', label: t('Execution'), children: t(selected.executionMode === 'multi_step' ? 'Multi-step' : 'Single session') },
+                        ]} />}
+                        {section === 'delivery' && <Descriptions bordered column={1} size="small" items={[
+                            { key: 'delivery', label: t('Delivery strategy'), children: DELIVERY_STRATEGY_OPTIONS.find((item) => item.value === (selected.deliveryStrategy || 'human_only'))?.label },
+                            ...(isAgentStrategy(selected.deliveryStrategy) ? [{ key: 'agent', label: t('Assigned agent'), children: allAgents.find((item) => item.id === selected.agentId)?.name || t('Not assigned') }] : []),
+                            { key: 'review', label: t('Review required'), children: t(selected.reviewRequired ? 'Yes' : 'No') },
+                            ...(selected.reviewRequired ? [{ key: 'reviewer', label: t('Reviewer'), children: selected.reviewerType ? t(selected.reviewerType === 'operations' ? 'Operations' : 'Consultant') : t('Not set') }] : []),
+                        ]} />}
+                        {section === 'schedule' && <div className="intervention-schedule">
+                            <div className="intervention-schedule-summary"><SyncOutlined /><div><Typography.Text strong>{selected.isRecurring === 'yes' ? recurrenceLabel(selected.recurrence) : t('One-time intervention')}</Typography.Text>{selected.isRecurring === 'yes' && <Typography.Text type="secondary">{endRuleLabel(selected)}</Typography.Text>}</div><Tag>{selected.steps?.length || 0} {t('steps')}</Tag></div>
+                            {selected.steps?.length ? <ol className="intervention-step-list">{selected.steps.map((step, index) => <li className="intervention-step-card" key={step.id || index}>
+                                <span className="intervention-step-number" aria-hidden="true">{index + 1}</span>
+                                <div className="intervention-step-content"><div className="intervention-step-heading"><Typography.Text strong>{step.title || t('Step')}</Typography.Text><span className="intervention-step-weight">{t('Weight')}: {step.weight ?? 0}</span></div>
+                                {step.description && <Typography.Paragraph type="secondary">{step.description}</Typography.Paragraph>}</div>
+                            </li>)}</ol> : <Empty description={t('No steps configured')} />}
+                        </div>}
+                        {section === 'outcomes' && <Descriptions bordered column={1} size="small" items={[
+                            { key: 'outcome', label: t('Intended outcome'), children: selected.outcomeDefinition?.intendedOutcome || t('Not set') },
+                            { key: 'type', label: t('Outcome type'), children: OUTCOME_TYPE_OPTIONS.find((item) => item.value === selected.outcomeDefinition?.outcomeType)?.label || t('Not set') },
+                            { key: 'deliverable', label: t('Deliverable'), children: selected.outcomeDefinition?.deliverableName || t('Not set') },
+                            { key: 'description', label: t('Description'), children: selected.outcomeDefinition?.deliverableDescription || t('Not set') },
+                            { key: 'required', label: t('Deliverable required'), children: t(selected.outcomeDefinition?.deliverableRequired ? 'Yes' : 'No') },
+                            { key: 'followup', label: t('Check-back'), children: hasOutcomeCheckBack(selected.outcomeDefinition) ? t('After {days} days', undefined, { days: Number(selected.outcomeDefinition?.followUpDays) }) : t('Not set') },
+                        ]} />}
+                        </div>
+                    </> : <Empty description={t('Select an intervention')} />}
+                </Card>
+            </div>
 
             <Modal
                 open={migrationOpen}
