@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, App, Button, Input, Popconfirm, Result, Space, Tag, Typography } from 'antd'
+import { Alert, App, Button, Input, Popconfirm, Radio, Result, Space, Tag, Typography } from 'antd'
 import { ArrowLeftOutlined, ClockCircleOutlined, SendOutlined } from '@ant-design/icons'
 import { useNavigate, useParams } from 'react-router-dom'
 import dayjs from 'dayjs'
@@ -84,6 +84,12 @@ export default function LearnerTestPage() {
         setSaveState('unsaved')
         window.clearTimeout(saveTimer.current)
         saveTimer.current = window.setTimeout(() => void flush(), AUTOSAVE_MS)
+    }
+
+    /** A chosen option saves at once rather than after the typing pause. */
+    const flushSoon = () => {
+        window.clearTimeout(saveTimer.current)
+        saveTimer.current = window.setTimeout(() => void flush(), 0)
     }
 
     const handIn = useCallback(async (automatic = false) => {
@@ -188,15 +194,32 @@ export default function LearnerTestPage() {
                                 <Typography.Text strong>{index + 1}. {question.text}</Typography.Text>
                                 <Tag>{question.marks === 1 ? t('1 mark') : t('{count} marks', undefined, { count: question.marks })}</Tag>
                             </Space>
-                            <Input.TextArea
-                                value={answers[question.id] || ''}
-                                onChange={(event) => change(question.id, event.target.value)}
-                                onBlur={() => { if (saveState === 'unsaved') void flush() }}
-                                autoSize={{ minRows: 2, maxRows: 8 }}
-                                maxLength={2000}
-                                placeholder={t('Your answer')}
-                                aria-label={t('Answer to question {n}', undefined, { n: index + 1 })}
-                            />
+                            {question.type === 'choice' && question.options?.length ? (
+                                // Multiple choice: one option, saved straight away (no typing to wait for).
+                                <Radio.Group
+                                    value={answers[question.id] || undefined}
+                                    onChange={(event) => { change(question.id, event.target.value); void flushSoon() }}
+                                    aria-label={t('Answer to question {n}', undefined, { n: index + 1 })}
+                                >
+                                    <Space orientation="vertical" size={6}>
+                                        {question.options.map((option, position) => (
+                                            <Radio key={`${position}-${option}`} value={option}>
+                                                <Typography.Text type="secondary">{'abcdefghij'[position] || position + 1})</Typography.Text> {option}
+                                            </Radio>
+                                        ))}
+                                    </Space>
+                                </Radio.Group>
+                            ) : (
+                                <Input.TextArea
+                                    value={answers[question.id] || ''}
+                                    onChange={(event) => change(question.id, event.target.value)}
+                                    onBlur={() => { if (saveState === 'unsaved') void flush() }}
+                                    autoSize={{ minRows: 2, maxRows: 8 }}
+                                    maxLength={2000}
+                                    placeholder={t('Your answer')}
+                                    aria-label={t('Answer to question {n}', undefined, { n: index + 1 })}
+                                />
+                            )}
                         </Space>
                     </MotionCard>
                 ))}

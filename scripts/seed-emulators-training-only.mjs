@@ -29,15 +29,16 @@ export const seedTrainingOnly = async ({ db, seedPerson, signature, day, at, com
         clientHomeModule: 'awarenessTraining',
     })
 
+    // All multiple choice: a learner's post-assessment is marked the moment they hand it in.
     const questions = [
-        { id: 'q1', marks: 4, text: 'Name the three things a fire needs to burn.' },
-        { id: 'q2', marks: 4, text: 'Which extinguisher would you use on an electrical fire, and why?' },
-        { id: 'q3', marks: 4, text: 'What are the first three things you do when the fire alarm goes off?' },
+        { id: 'q1', marks: 2, type: 'choice', text: 'Which three things does a fire need to burn?', options: ['Heat, fuel and oxygen', 'Heat, water and smoke', 'Fuel, wind and dust', 'Oxygen, water and heat'] },
+        { id: 'q2', marks: 2, type: 'choice', text: 'Which extinguisher is safe on an electrical fire?', options: ['Water', 'Foam', 'CO2 (carbon dioxide)', 'A wet blanket'] },
+        { id: 'q3', marks: 2, type: 'choice', text: 'What do you do first when the fire alarm goes off?', options: ['Finish your work', 'Leave by the nearest safe exit', 'Use the lift', 'Collect your belongings'] },
     ]
     put('trainingAssessments/ssa-fire-test', {
         companyCode: CODE,
-        title: 'Fire Safety Awareness Assessment (sample)',
-        instructions: 'Answer every question in your own words.',
+        title: 'Fire Safety Awareness Quiz (multiple choice)',
+        instructions: 'Choose one answer per question.',
         durationMinutes: 20,
         questions,
         rubric: [],
@@ -45,11 +46,8 @@ export const seedTrainingOnly = async ({ db, seedPerson, signature, day, at, com
     })
     put('trainingAssessmentMemos/ssa-fire-test', {
         companyCode: CODE,
-        answers: {
-            q1: 'Heat, fuel and oxygen (the fire triangle).',
-            q2: 'A CO2 (or dry powder) extinguisher: it does not conduct electricity. Never water.',
-            q3: 'Raise the alarm, leave by the nearest safe exit, go to the assembly point and report to the marshal.',
-        },
+        // The correct option of each multiple-choice question.
+        answers: { q1: 'Heat, fuel and oxygen', q2: 'CO2 (carbon dioxide)', q3: 'Leave by the nearest safe exit' },
     })
 
     const classBase = {

@@ -15,6 +15,7 @@ import { runSmeCheckbackAsks } from './smeCheckbacks.js'
 import { DirectorSetupError, completeDirectorSetup } from './directorSetup.js'
 import { canCreateLearner, canReuseAccountAsLearner, isLearnerRole, learnerInviteWording } from './trainingLearners.js'
 import { OrganisationResultsError, organisationResults } from './organisationResults.js'
+import { autoMarkSubmission, isNewlyHandedIn } from './trainingMarking.js'
 import { CLIENT_ORG_ROLE, canInviteFunder, canInviteOrganisationMember, canReuseAccountAsFunder, canReuseAccountAsOrgMember, funderInviteWording, orgMemberInviteWording, toOrgRole } from './trainingOrganisations.js'
 import { ClientFunderError, clientFunderSummary } from './clientFunderSummary.js'
 import { isOrganisationStaff, notifyCompletedRegistration, notifyFirstOrganisationStaff, requestOrganisationAccess, reviewOrganisationAccess } from './organisationAccess.js'
@@ -3558,6 +3559,34 @@ export const inviteTrainingOrganisationMember = onCall({ region }, async (reques
   })
   return { uid: userRecord.uid, setPasswordLink }
 })
+
+/**
+ * Marks the multiple-choice questions of a training test as soon as the learner hands it in, from the memo the learner
+ * cannot read (trainingMarking.ts). A test of only multiple-choice questions is marked completely; written questions
+ * stay for the facilitator. Runs once per hand-in and only writes inside a transaction that sees it still submitted.
+ */
+export const markTrainingSubmission = onDocumentWritten(
+  { document: 'trainingSubmissions/{submissionId}', region },
+  async (event) => {
+    const before = event.data?.before.data()
+    const after = event.data?.after.data()
+    if (!isNewlyHandedIn(before, after) || !after) return
+    const db = getFirestore()
+    const memo = await db.collection('trainingAssessmentMemos').doc(String(after.assessmentId || '')).get()
+    if (!memo.exists || memo.data()?.companyCode !== after.companyCode) return
+    const ref = db.collection('trainingSubmissions').doc(event.params.submissionId)
+    await db.runTransaction(async (transaction) => {
+      const current = await transaction.get(ref)
+      const data = current.data()
+      if (!data || data.status !== 'submitted') return
+      const result = autoMarkSubmission(data.questions, data.answers, memo.data()?.answers, data.marks)
+      if (!result) return
+      transaction.update(ref, result.complete
+        ? { marks: result.marks, score: result.score, totalMarks: result.totalMarks, scorePct: result.scorePct, status: 'marked', markedAt: new Date().toISOString(), markedBy: 'automatic' }
+        : { marks: result.marks })
+    })
+  },
+)
 
 /** A client company's own people's assessment results: scores and what is open, never answers (organisationResults.ts). */
 export const getOrganisationTrainingResults = onCall({ region }, async (request) => {

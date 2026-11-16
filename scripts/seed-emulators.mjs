@@ -265,6 +265,29 @@ put(`trainingAssessments/${ASSESSMENT_ID}`, {
 })
 put(`trainingAssessmentMemos/${ASSESSMENT_ID}`, { companyCode: TNS, answers: memo })
 
+// A quick quiz that mixes multiple choice (marked automatically) with one written question (marked by her).
+put('trainingAssessments/tns-quick-quiz', {
+    companyCode: TNS,
+    title: 'ESG Quick Quiz (multiple choice and written)',
+    use: 'both',
+    instructions: 'Choose one answer for questions 1 to 3, and answer question 4 in your own words.',
+    durationMinutes: 15,
+    questions: [
+        { id: 'm1', marks: 1, type: 'choice', text: 'What does the G in ESG stand for?', options: ['Growth', 'Governance', 'Green', 'Goals'] },
+        { id: 'm2', marks: 1, type: 'choice', text: 'Which GRI Standard applies to all reporting organisations?', options: ['GRI 14 Mining', 'GRI 305 Emissions', 'The Universal Standards (GRI 1, 2 and 3)', 'GRI 403 Health and safety'] },
+        { id: 'm3', marks: 1, type: 'choice', text: 'Burning diesel in a company’s own generator is which scope of emissions?', options: ['Scope 1', 'Scope 2', 'Scope 3'] },
+        { id: 'w4', marks: 3, text: 'Name one material ESG topic for a mining company and explain why it matters.' },
+    ],
+    rubric: [],
+    createdAt: now(),
+    updatedAt: now(),
+    updatedBy: keletsoUid,
+})
+put('trainingAssessmentMemos/tns-quick-quiz', {
+    companyCode: TNS,
+    answers: { m1: 'Governance', m2: 'The Universal Standards (GRI 1, 2 and 3)', m3: 'Scope 1', w4: 'e.g. water use, tailings safety, community relations or worker health and safety, with a reason.' },
+})
+
 const classBase = {
     companyCode: TNS,
     courseTitle: 'ESG Awareness Training',

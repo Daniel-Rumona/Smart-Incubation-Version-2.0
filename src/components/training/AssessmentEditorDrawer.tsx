@@ -1,14 +1,18 @@
 import { useEffect, useState } from 'react'
-import { Alert, App, Button, Col, Drawer, Form, Grid, Input, InputNumber, Row, Segmented, Space, Typography, Upload } from 'antd'
-import { DeleteOutlined, FileWordOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons'
+import { Alert, App, Button, Col, Drawer, Form, Grid, Input, InputNumber, Radio, Row, Segmented, Space, Tooltip, Typography, Upload } from 'antd'
+import { CloseOutlined, DeleteOutlined, FileWordOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons'
 import { MotionCard } from '@/components/shared/MotionCard'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { getTrainingAssessmentMemo, saveTrainingAssessment } from '@/services/trainingAssessmentService'
 import { useLanguage } from '@/providers/LanguageProvider'
 import { importAssessmentFromDocx } from '@/utils/trainingAssessmentImport'
-import type { TrainingAssessment, TrainingAssessmentUse } from '@/types/training'
+import type { TrainingAssessment, TrainingAssessmentUse, TrainingQuestionType } from '@/types/training'
 
-type QuestionRow = { id: string, text: string, marks: number, memo: string }
+/**
+ * One question in the editor. A written question has a memo answer; a multiple-choice question has options and the
+ * index of the correct one (saved as that option's text in the memo, so learners never receive it).
+ */
+type QuestionRow = { id: string, type: TrainingQuestionType, text: string, marks: number, memo: string, options: string[], correct?: number }
 type CriterionRow = { id: string, label: string, maxMarks: number, guidance?: string }
 type EditorValues = {
     title: string
@@ -30,6 +34,18 @@ type Props = {
 }
 
 const newId = () => crypto.randomUUID()
+const LETTERS = 'abcdefghij'
+/** A new multiple-choice question starts with four empty options (a to d); empty ones are dropped on saving. */
+const EMPTY_OPTIONS = ['', '', '', '']
+const sameText = (left?: string, right?: string) => (left || '').trim().toLowerCase() === (right || '').trim().toLowerCase()
+
+/** The editor row for a saved or imported question, with the correct option found from the memo. */
+const toRow = (question: { id: string, text: string, marks: number, type?: TrainingQuestionType, options?: string[] }, memo: string): QuestionRow => {
+    if (question.type !== 'choice') return { id: question.id, type: 'written', text: question.text, marks: question.marks, memo, options: [] }
+    const options = question.options || []
+    const correct = options.findIndex((option) => memo.trim() && sameText(option, memo))
+    return { id: question.id, type: 'choice', text: question.text, marks: question.marks, memo: '', options, correct: correct >= 0 ? correct : undefined }
+}
 
 export const AssessmentEditorDrawer = ({ open, assessment, usedByClasses, onClose, onSaved }: Props) => {
     const { t } = useLanguage()
@@ -49,7 +65,7 @@ export const AssessmentEditorDrawer = ({ open, assessment, usedByClasses, onClos
             use: assessment?.use || 'both',
             instructions: assessment?.instructions || '',
             durationMinutes: assessment?.durationMinutes,
-            questions: (assessment?.questions || []).map((question) => ({ ...question, memo: memo[question.id] || '' })),
+            questions: (assessment?.questions || []).map((question) => toRow(question, memo[question.id] || '')),
             caseBrief: assessment?.caseBrief || '',
             rubric: (assessment?.rubric || []).map((criterion) => ({ ...criterion })),
         })
@@ -86,13 +102,15 @@ export const AssessmentEditorDrawer = ({ open, assessment, usedByClasses, onClos
             form.setFieldsValue({
                 title: current.title?.trim() ? current.title : imported.title || '',
                 durationMinutes: current.durationMinutes || imported.durationMinutes,
-                questions: imported.questions.map((question) => ({ id: newId(), ...question })),
+                questions: imported.questions.map((question) => toRow({ id: newId(), ...question }, question.memo)),
                 caseBrief: imported.caseBrief || current.caseBrief || '',
                 rubric: imported.rubric.length ? imported.rubric.map((criterion) => ({ id: newId(), ...criterion })) : current.rubric || [],
             })
             const memoCount = imported.questions.filter((question) => question.memo).length
-            message.success(t('Imported {questions} questions, {memo} memo answers and {rubric} rubric criteria. Check them before saving.', undefined, {
+            const choiceCount = imported.questions.filter((question) => question.type === 'choice').length
+            message.success(t('Imported {questions} questions ({choice} multiple choice), {memo} memo answers and {rubric} rubric criteria. Check them before saving.', undefined, {
                 questions: imported.questions.length,
+                choice: choiceCount,
                 memo: memoCount,
                 rubric: imported.rubric.length,
             }))
@@ -105,7 +123,9 @@ export const AssessmentEditorDrawer = ({ open, assessment, usedByClasses, onClos
 
     const save = async () => {
         if (!user) return
-        const values = await form.validateFields()
+        // The form shows what is missing (e.g. no option ticked as correct); nothing more to do until it is fixed.
+        const values = await form.validateFields().catch(() => null)
+        if (!values) return
         setSaving(true)
         try {
             await saveTrainingAssessment(user, {
@@ -113,10 +133,14 @@ export const AssessmentEditorDrawer = ({ open, assessment, usedByClasses, onClos
                 use: values.use,
                 instructions: values.instructions,
                 durationMinutes: values.durationMinutes,
-                questions: values.questions.map(({ id, text, marks }) => ({ id, text, marks })),
+                questions: values.questions.map(({ id, type, text, marks, options }) => (type === 'choice' ? { id, type, text, marks, options } : { id, text, marks })),
                 caseBrief: values.caseBrief,
                 rubric: values.rubric,
-                memo: Object.fromEntries(values.questions.map((question) => [question.id, question.memo || ''])),
+                // A multiple-choice question's memo is its correct option's text.
+                memo: Object.fromEntries(values.questions.map((question) => [
+                    question.id,
+                    question.type === 'choice' ? (question.options[question.correct ?? -1] || '').trim() : question.memo || '',
+                ])),
             }, assessment?.id)
             message.success(t('Assessment saved.'))
             onSaved()
@@ -127,8 +151,26 @@ export const AssessmentEditorDrawer = ({ open, assessment, usedByClasses, onClos
         }
     }
 
-    const questionCount = Form.useWatch('questions', form)?.length ?? 0
-    const totalMarks = (Form.useWatch('questions', form) || []).reduce((sum: number, question?: QuestionRow) => sum + (Number(question?.marks) || 0), 0)
+    const watchedQuestions: Array<QuestionRow | undefined> = Form.useWatch('questions', form) || []
+    const questionCount = watchedQuestions.length
+    const choiceCount = watchedQuestions.filter((question) => question?.type === 'choice').length
+    const totalMarks = watchedQuestions.reduce((sum: number, question?: QuestionRow) => sum + (Number(question?.marks) || 0), 0)
+
+    /** Switching a question to multiple choice gives it empty options; switching back keeps them in case of a mistake. */
+    const changeType = (index: number, type: TrainingQuestionType) => {
+        const row = form.getFieldValue(['questions', index]) as QuestionRow
+        form.setFieldValue(['questions', index], { ...row, type, options: type === 'choice' && !row.options?.filter((option) => option.trim()).length ? [...EMPTY_OPTIONS] : row.options || [] })
+    }
+    const setCorrect = (index: number, option: number) => form.setFieldValue(['questions', index, 'correct'], option)
+    const removeOption = (index: number, option: number) => {
+        const row = form.getFieldValue(['questions', index]) as QuestionRow
+        const correct = row.correct === option ? undefined : row.correct !== undefined && row.correct > option ? row.correct - 1 : row.correct
+        form.setFieldValue(['questions', index], { ...row, options: row.options.filter((_, position) => position !== option), correct })
+    }
+    const addOption = (index: number) => {
+        const row = form.getFieldValue(['questions', index]) as QuestionRow
+        form.setFieldValue(['questions', index, 'options'], [...(row.options || []), ''])
+    }
     const rubricTotal = (Form.useWatch('rubric', form) || []).reduce((sum: number, criterion?: CriterionRow) => sum + (Number(criterion?.maxMarks) || 0), 0)
 
     return (
@@ -146,7 +188,9 @@ export const AssessmentEditorDrawer = ({ open, assessment, usedByClasses, onClos
             footer={(
                 <Space style={{ justifyContent: 'space-between', width: '100%' }} wrap>
                     <Typography.Text type="secondary">
-                        {t('{count} questions · {marks} marks · group rubric out of {rubric}', undefined, { count: questionCount, marks: totalMarks, rubric: rubricTotal })}
+                        {choiceCount
+                            ? t('{count} questions ({choice} multiple choice) · {marks} marks · group rubric out of {rubric}', undefined, { count: questionCount, choice: choiceCount, marks: totalMarks, rubric: rubricTotal })
+                            : t('{count} questions · {marks} marks · group rubric out of {rubric}', undefined, { count: questionCount, marks: totalMarks, rubric: rubricTotal })}
                     </Typography.Text>
                     <Button type="primary" icon={<SaveOutlined />} loading={saving} disabled={loadingMemo} onClick={() => void save()}>{t('Save assessment')}</Button>
                 </Space>
@@ -192,22 +236,59 @@ export const AssessmentEditorDrawer = ({ open, assessment, usedByClasses, onClos
                 </Form.Item>
 
                 <Typography.Title level={5}>{t('Knowledge questions')}</Typography.Title>
-                <Typography.Paragraph type="secondary">{t('Learners see the questions. The memo answers are for marking and are never shown to learners.')}</Typography.Paragraph>
+                <Typography.Paragraph type="secondary">
+                    {t('Each question is written (marked by you against the memo) or multiple choice (learners pick one option and it is marked automatically). Learners never see the memo or which option is correct. Type the questions here or import a Word document: options written a), b), c) under a question make it multiple choice.')}
+                </Typography.Paragraph>
                 <Form.List name="questions" rules={[{ validator: async (_, rows?: QuestionRow[]) => { if (!rows?.length) throw new Error(t('Add at least one question.')) } }]}>
                     {(fields, { add, remove }, { errors }) => (
                         <Space orientation="vertical" style={{ width: '100%' }} size={10}>
-                            {fields.map((field, index) => (
+                            {fields.map((field, index) => {
+                                const row = watchedQuestions[field.name]
+                                const isChoice = row?.type === 'choice'
+                                return (
                                 <MotionCard key={field.key} size="small">
                                     <Row gutter={12} align="top">
                                         <Col flex="none"><Typography.Text strong>{index + 1}.</Typography.Text></Col>
                                         <Col flex="auto">
                                             <Form.Item name={[field.name, 'id']} hidden><Input /></Form.Item>
+                                            <Form.Item name={[field.name, 'type']} hidden><Input /></Form.Item>
+                                            <Form.Item name={[field.name, 'correct']} hidden><InputNumber /></Form.Item>
+                                            <Segmented
+                                                size="small"
+                                                style={{ marginBottom: 8 }}
+                                                value={isChoice ? 'choice' : 'written'}
+                                                onChange={(value) => changeType(field.name, value as TrainingQuestionType)}
+                                                options={[{ value: 'written', label: t('Written') }, { value: 'choice', label: t('Multiple choice') }]}
+                                                aria-label={t('Question type')}
+                                            />
                                             <Form.Item name={[field.name, 'text']} rules={[{ required: true, whitespace: true, message: t('Enter the question.') }]} style={{ marginBottom: 8 }}>
                                                 <Input.TextArea autoSize={{ minRows: 1, maxRows: 4 }} placeholder={t('Question')} maxLength={600} />
                                             </Form.Item>
-                                            <Form.Item name={[field.name, 'memo']} style={{ marginBottom: 0 }}>
-                                                <Input.TextArea autoSize={{ minRows: 1, maxRows: 4 }} placeholder={t('Memo answer')} maxLength={1000} />
-                                            </Form.Item>
+                                            {isChoice ? (
+                                                <Form.Item
+                                                    name={[field.name, 'options']}
+                                                    style={{ marginBottom: 0 }}
+                                                    rules={[{
+                                                        validator: async (_, options?: string[]) => {
+                                                            const filled = (options || []).filter((option) => option?.trim())
+                                                            if (filled.length < 2) throw new Error(t('Give at least two options.'))
+                                                            const correct = form.getFieldValue(['questions', field.name, 'correct'])
+                                                            if (correct === undefined || correct === null || !(options || [])[correct]?.trim()) throw new Error(t('Tick the correct option.'))
+                                                        },
+                                                    }]}
+                                                >
+                                                    <ChoiceOptions
+                                                        correct={row?.correct}
+                                                        onCorrect={(option) => setCorrect(field.name, option)}
+                                                        onRemove={(option) => removeOption(field.name, option)}
+                                                        onAdd={() => addOption(field.name)}
+                                                    />
+                                                </Form.Item>
+                                            ) : (
+                                                <Form.Item name={[field.name, 'memo']} style={{ marginBottom: 0 }}>
+                                                    <Input.TextArea autoSize={{ minRows: 1, maxRows: 4 }} placeholder={t('Memo answer')} maxLength={1000} />
+                                                </Form.Item>
+                                            )}
                                         </Col>
                                         <Col flex="none">
                                             <Space orientation="vertical" align="end">
@@ -219,9 +300,13 @@ export const AssessmentEditorDrawer = ({ open, assessment, usedByClasses, onClos
                                         </Col>
                                     </Row>
                                 </MotionCard>
-                            ))}
+                                )
+                            })}
                             <Form.ErrorList errors={errors} />
-                            <Button icon={<PlusOutlined />} onClick={() => add({ id: newId(), text: '', marks: 1, memo: '' })} block>{t('Add question')}</Button>
+                            <Space.Compact block>
+                                <Button icon={<PlusOutlined />} onClick={() => add({ id: newId(), type: 'written', text: '', marks: 1, memo: '', options: [] })} block>{t('Add written question')}</Button>
+                                <Button icon={<PlusOutlined />} onClick={() => add({ id: newId(), type: 'choice', text: '', marks: 1, memo: '', options: [...EMPTY_OPTIONS] })} block>{t('Add multiple-choice question')}</Button>
+                            </Space.Compact>
                         </Space>
                     )}
                 </Form.List>
@@ -265,5 +350,45 @@ export const AssessmentEditorDrawer = ({ open, assessment, usedByClasses, onClos
                 </Form.List>
             </Form>
         </Drawer>
+    )
+}
+
+/**
+ * The options of a multiple-choice question (a form control: `value` is the list of option texts). The radio marks
+ * the correct one; it is kept in the question's `correct` field.
+ */
+const ChoiceOptions = ({ value = [], onChange, correct, onCorrect, onRemove, onAdd }: {
+    value?: string[]
+    onChange?: (value: string[]) => void
+    correct?: number
+    onCorrect: (option: number) => void
+    onRemove: (option: number) => void
+    onAdd: () => void
+}) => {
+    const { t } = useLanguage()
+    return (
+        <Space orientation="vertical" style={{ width: '100%' }} size={6}>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>{t('Tick the correct option. Learners see the options in this order.')}</Typography.Text>
+            {value.map((option, position) => (
+                <Space.Compact key={position} block>
+                    <Tooltip title={t('Correct answer')}>
+                        <Button onClick={() => onCorrect(position)} aria-label={t('Option {letter} is correct', undefined, { letter: LETTERS[position] || String(position + 1) })} aria-pressed={correct === position}>
+                            <Radio checked={correct === position} style={{ marginInlineEnd: 0, pointerEvents: 'none' }} />
+                        </Button>
+                    </Tooltip>
+                    <Input
+                        addonBefore={`${LETTERS[position] || position + 1})`}
+                        value={option}
+                        maxLength={300}
+                        placeholder={t('Option {letter}', undefined, { letter: LETTERS[position] || String(position + 1) })}
+                        onChange={(event) => onChange?.(value.map((item, index) => (index === position ? event.target.value : item)))}
+                    />
+                    <Tooltip title={t('Remove option')}>
+                        <Button icon={<CloseOutlined />} disabled={value.length <= 2} onClick={() => onRemove(position)} aria-label={t('Remove option')} />
+                    </Tooltip>
+                </Space.Compact>
+            ))}
+            {value.length < LETTERS.length && <Button size="small" type="dashed" icon={<PlusOutlined />} onClick={onAdd}>{t('Add option')}</Button>}
+        </Space>
     )
 }
