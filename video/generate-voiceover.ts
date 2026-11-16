@@ -40,7 +40,8 @@ const pace = pitch ? { speed: 0.95, style: 0.3 } : { speed: 0.9, style: 0.2 }
 for (const scene of pitch ? PITCH : SCENES) {
   const file = new URL(`${scene.id}.mp3`, outDir)
   const wanted = only.length ? only.includes(scene.id) : force || !existsSync(file)
-  if (!wanted) continue
+  // A pitch chapter card is silent.
+  if (!wanted || !scene.narration) continue
 
   const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
     method: 'POST',

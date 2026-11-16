@@ -359,6 +359,32 @@ export const seedIncubators = async ({ db, Timestamp, FieldValue, seedPerson, si
                 status: 'in_progress', priority: 'high', dueAt: ts(daysFromNow(5)), startAt: ts(daysFromNow(-2)), assigneeIds: [people.operations.uid], archived: false,
                 createdBy: director.uid, createdAt: ts(daysFromNow(-3)),
             })
+            // The bell in the top bar, as the daily jobs fill it (deadlineDigest.ts, followUps.ts, agentWatches.ts),
+            // so the in-app inbox is not empty when testing locally.
+            const smeNames = company.smes.map((sme) => sme.business)
+            const bell = [
+                {
+                    id: 'deadlines', type: 'intervention_deadlines', title: '1 overdue and 2 due soon interventions', counts: { overdue: 1, dueSoon: 2 },
+                    body: `Business Plan Refresh (${smeNames[0]}): 3 days overdue\nMarketing Strategy Development (${smeNames[0]}): due in 2 days\nSales Pipeline Coaching (${smeNames[1]}): due in 4 days`,
+                    link: '/operations/interventions/monitoring', ageHours: 2,
+                },
+                {
+                    id: 'watch', type: 'agent_watch', title: `${smeNames[2]} has not accepted its support yet`,
+                    body: 'Assigned 9 days ago. A reminder went out on WhatsApp yesterday.', ageHours: 20,
+                },
+                {
+                    id: 'followups', type: 'intervention_follow_ups', title: '2 follow-ups due', counts: { overdue: 0 },
+                    body: `Cash Flow & Budgeting Workshop (${smeNames[0]}): due this week\nBookkeeping Systems Setup (${smeNames[1]}): due this week`,
+                    link: '/operations/interventions/monitoring', ageHours: 30,
+                },
+            ]
+            for (const item of bell) {
+                const { id, ageHours, ...rest } = item
+                put(`staffNotifications/${people.operations.uid}_seed_${id}`, {
+                    ...rest, recipientUid: people.operations.uid, companyCode: code, readAt: null,
+                    createdAt: ts(new Date(Date.now() - ageHours * 3_600_000)), updatedAt: FieldValue.serverTimestamp(),
+                })
+            }
         }
         put(`kpis/${code.toLowerCase()}-kpi-completion`, {
             companyCode: code, name: 'Intervention completion rate', description: 'Share of assigned interventions completed.', kind: 'system', metric: 'completion_rate',

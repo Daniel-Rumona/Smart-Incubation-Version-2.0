@@ -1,13 +1,13 @@
-// The pitch: a short film (about 4 minutes) for prospective clients and funders. It runs problem → solution → key
+// The pitch: a film of about 5 minutes for prospective clients and funders. It runs problem → solution → key
 // features → outcome, and touches each feature in one beat instead of walking through its screens (that is the
 // walkthrough's job: src/script.ts).
-// Narration: node generate-voiceover.ts --pitch → public/voiceover/pitch/<id>.mp3. Footage: the walkthrough's
-// recordings (public/recordings/<name>.mp4), cut into short clips here, so there is nothing new to film.
+// Narration: node generate-voiceover.ts --pitch → public/voiceover/pitch/<id>.mp3 (a chapter card has none).
+// Footage: the recordings (public/recordings/<name>.mp4, from record.mjs), cut into clips here and always shown whole.
 
 export type Section = 'platform' | 'incubation' | 'training' | 'esg'
 
-/** A piece of a recording: seconds `from`–`to`, optionally zoomed on a point (x, y as 0–1 of the frame) at `zoom`. */
-export type Clip = { src: string; from: number; to: number; focus?: [x: number, y: number, zoom: number] }
+/** A piece of a recording: seconds `from` to `to`, shown whole. */
+export type Clip = { src: string; from: number; to: number }
 
 /** A file or habit the problem scenes show as clutter: a coloured badge, a name, and what is wrong with it. */
 export type Fragment = { badge: string; color: string; title: string; note: string }
@@ -20,7 +20,9 @@ export type PitchScene = {
   | { kind: 'problem'; step: number; headline: string; motif: 'scattered' | 'weeks' | 'paper' }
   | { kind: 'reveal'; headline: string; tagline: string }
   | { kind: 'workspaces'; headline: string }
+  | { kind: 'chapter'; section: Section; headline: string; line: string }
   | { kind: 'feature'; section: Section; headline: string; bullets: string[]; clips: Clip[] }
+  | { kind: 'notifications'; headline: string; clips: Clip[] }
   | { kind: 'outcomes'; lead: string; lines: string[] }
   | { kind: 'close'; headline: string; tagline: string; action: string }
 )
@@ -97,18 +99,27 @@ export const PITCH: PitchScene[] = [
   },
 
   // ---- Key features ------------------------------------------------------------------------------------------------
+  // Clip times are seconds in public/recordings/<src>.mp4 (record.mjs). Each clip is shown whole, never cropped.
   {
     id: 'assistant',
     kind: 'feature',
     section: 'platform',
     headline: 'An assistant that knows the day',
     bullets: ['Decisions waiting', 'Work running late', 'Who needs a nudge'],
-    clips: [
-      { src: 'ops-home', from: 0.5, to: 10, focus: [0.5, 0.74, 1.9] },
-      { src: 'ops-home', from: 12, to: 18 },
-    ],
+    clips: [{ src: 'ops-home', from: 0.5, to: 8.5 }, { src: 'ops-home', from: 10.8, to: 20 }],
     narration:
       'Every day starts with an assistant that already knows what needs attention: decisions waiting, work running late, and the businesses that need a nudge.',
+  },
+  { id: 'chapter-incubation', kind: 'chapter', section: 'incubation', headline: 'Incubation', line: 'For programmes that grow small businesses', narration: '' },
+  {
+    id: 'applications',
+    kind: 'feature',
+    section: 'incubation',
+    headline: 'Every application, in one place',
+    bullets: ['Applied for online', 'The same structured details', 'Every decision on record'],
+    clips: [{ src: 'applications', from: 1, to: 6 }, { src: 'applications', from: 8.5, to: 21 }],
+    narration:
+      'It starts with applications. Every business applies online, in the same structured way, and every decision is recorded with its reason, so selection is fair and easy to report on.',
   },
   {
     id: 'plan',
@@ -116,25 +127,39 @@ export const PITCH: PitchScene[] = [
     section: 'incubation',
     headline: 'A growth plan for every business',
     bullets: ['Weaknesses linked to support', 'Signed off by both sides', 'One agreed starting point'],
-    clips: [
-      { src: 'diagnostic', from: 0.5, to: 6.5, focus: [0.5, 0.3, 1.5] },
-      { src: 'diagnostic', from: 8.5, to: 15, focus: [0.5, 0.62, 1.45] },
-    ],
+    clips: [{ src: 'diagnostic', from: 0.5, to: 8 }, { src: 'diagnostic', from: 8, to: 16 }],
     narration:
-      'Each business starts with a diagnostic growth plan. Its weaknesses are linked to the support it will get, and both sides sign it off, so success is defined up front.',
+      'Each business then gets a diagnostic growth plan. Its weaknesses are linked to the support it will get, and both sides sign it off, so success is defined up front.',
   },
   {
     id: 'delivery',
     kind: 'feature',
     section: 'incubation',
     headline: 'Delivery you can see',
-    bullets: ['Evidence before anything is complete', 'Hold-ups explained', 'WhatsApp reminders, in English or isiZulu'],
-    clips: [
-      { src: 'monitoring', from: 0.5, to: 9, focus: [0.5, 0.5, 1.2] },
-      { src: 'sme', from: 6, to: 10.5, focus: [0.5, 0.42, 1.3] },
-    ],
+    bullets: ['Evidence before anything is complete', 'Hold-ups explained', 'Overdue work flagged daily'],
+    clips: [{ src: 'monitoring', from: 0.5, to: 10 }, { src: 'consultant', from: 0.5, to: 13 }],
     narration:
-      'From there, every intervention is tracked. Consultants attach evidence, the system says exactly why work is held up, and business owners get reminders on WhatsApp, in English or isiZulu.',
+      'From there, every intervention is tracked. Consultants attach evidence before anything is marked complete, and the system says exactly why work is held up.',
+  },
+  {
+    id: 'notifications',
+    kind: 'notifications',
+    headline: 'Reminders that reach people',
+    // The bell's list, then the notification centre (the page load between them is cut).
+    clips: [{ src: 'bell', from: 2.5, to: 8.2 }, { src: 'bell', from: 9.9, to: 14.5 }],
+    narration:
+      'And nobody has to chase. Reminders reach people where they already are: in the app, by email, and on WhatsApp, where a business owner can answer with a single tap. The platform also works in local languages like Zulu.',
+  },
+  {
+    id: 'sme',
+    kind: 'feature',
+    section: 'incubation',
+    headline: 'Business owners see their own progress',
+    bullets: ['What is waiting on them', 'Who is helping with what', 'Documents still needed'],
+    // Growth plan, compliance, interventions (the page loads between them are cut).
+    clips: [{ src: 'sme', from: 5.8, to: 10.8 }, { src: 'sme', from: 12.4, to: 15.2 }, { src: 'sme', from: 17.6, to: 22.5 }],
+    narration:
+      'Business owners get a workspace of their own: what is waiting on them, how their plan is going, who is helping with what, and which documents are still needed.',
   },
   {
     id: 'impact',
@@ -142,49 +167,67 @@ export const PITCH: PitchScene[] = [
     section: 'incubation',
     headline: 'Readiness and impact, from real data',
     bullets: ['Funding readiness by clear rules', 'Revenue and jobs, before and after', 'Supported against not yet supported'],
-    clips: [
-      { src: 'readiness', from: 0.5, to: 10, focus: [0.33, 0.55, 1.55] },
-      { src: 'impact', from: 9, to: 15.5, focus: [0.5, 0.5, 1.15] },
-    ],
+    clips: [{ src: 'readiness', from: 0.5, to: 10 }, { src: 'impact', from: 6, to: 16 }],
     narration:
       'Readiness for funding is scored against clear rules, and impact is measured from real delivery data: revenue and jobs, before and after support.',
+  },
+  {
+    id: 'director',
+    kind: 'feature',
+    section: 'incubation',
+    headline: 'Every programme on one page',
+    bullets: ['Growth, jobs and completion', 'What needs attention, spelled out', 'A scorecard per programme'],
+    clips: [{ src: 'director', from: 0.5, to: 12 }],
+    narration: 'Directors see every programme on one page, with the items that need their attention spelled out.',
   },
   {
     id: 'funders',
     kind: 'feature',
     section: 'incubation',
     headline: 'Funders see what they fund',
-    bullets: ['Every programme on one page', 'Live, not at quarter end', 'Only what each funder funds'],
-    clips: [
-      { src: 'director', from: 0.5, to: 6, focus: [0.5, 0.3, 1.4] },
-      { src: 'funder', from: 0.5, to: 10, focus: [0.5, 0.4, 1.25] },
-    ],
+    bullets: ['Their own portfolio only', 'Progress and revenue per business', 'Live, not at quarter end'],
+    clips: [{ src: 'funder', from: 0.5, to: 9.5 }, { src: 'funder-portfolio', from: 4, to: 12.5 }],
     narration:
-      'Directors see every programme on one page. Funders sign in to see exactly what they fund, at any time, without waiting for the quarter to end.',
+      'Funders sign in to see exactly what they fund: every business in their portfolio, its progress and its revenue, at any time, without waiting for the quarter to end.',
   },
+  {
+    id: 'funder-impact',
+    kind: 'feature',
+    section: 'incubation',
+    headline: 'Impact across everything they fund',
+    bullets: ['Funding committed and cost per job', 'Who owns the businesses supported', 'Implementors compared side by side'],
+    clips: [{ src: 'funder-impact', from: 0.5, to: 19.2 }],
+    narration:
+      'Across every programme they fund, the impact view brings it together: the money committed, the cost per job created, who owns the businesses supported, and the support delivered, with implementors compared side by side.',
+  },
+  { id: 'chapter-training', kind: 'chapter', section: 'training', headline: 'Training', line: 'For providers who train their clients’ staff', narration: '' },
   {
     id: 'classes',
     kind: 'feature',
     section: 'training',
     headline: 'A class set up in a minute',
     bullets: ['In person, online, or both', 'Learners straight from Excel', 'Grouped by client company'],
-    clips: [
-      { src: 'classes', from: 8.5, to: 22, focus: [0.5, 0.5, 1.45] },
-      { src: 'learners', from: 3.5, to: 12, focus: [0.5, 0.5, 1.6] },
-    ],
+    clips: [{ src: 'classes', from: 6, to: 22 }, { src: 'learners', from: 3, to: 12 }],
     narration:
       'For training providers, a class is set up in a minute, and learners come straight in from the attendance sheet in Excel.',
+  },
+  {
+    id: 'learner',
+    kind: 'feature',
+    section: 'training',
+    headline: 'A simple page for every learner',
+    bullets: ['Class days and materials', 'Tests written online', 'Results as soon as they are marked'],
+    clips: [{ src: 'learner-test', from: 0.5, to: 21.5 }],
+    narration:
+      'Every learner has a simple page of their own, with their class days, course materials and tests, written online from wherever they are.',
   },
   {
     id: 'tests',
     kind: 'feature',
     section: 'training',
     headline: 'Tests that mark themselves',
-    bullets: ['Imported from Word', 'Written online', 'Multiple choice marked on hand-in'],
-    clips: [
-      { src: 'assessments', from: 7.5, to: 15, focus: [0.8, 0.42, 1.8] },
-      { src: 'marking', from: 13.5, to: 23, focus: [0.83, 0.5, 1.75] },
-    ],
+    bullets: ['Imported from Word', 'Multiple choice marked on hand-in', 'Only written answers left to mark'],
+    clips: [{ src: 'assessments', from: 6, to: 16 }, { src: 'marking', from: 13, to: 24 }],
     narration:
       'Tests can be imported from Word. Learners write them online, multiple choice is marked the moment they hand in, and the trainer only marks what needs a person.',
   },
@@ -194,25 +237,62 @@ export const PITCH: PitchScene[] = [
     section: 'training',
     headline: 'Certificates anyone can check',
     bullets: ['Issued automatically', 'In the provider’s own colours', 'A QR code that proves it is genuine'],
-    clips: [
-      { src: 'certificate', from: 5, to: 10, focus: [0.5, 0.48, 2.2] },
-      { src: 'company', from: 0.5, to: 6.5, focus: [0.5, 0.4, 1.3] },
-    ],
+    clips: [{ src: 'certificate', from: 0.5, to: 11 }],
     narration:
-      'Certificates are issued automatically, in the provider’s own colours, with a QR code anyone can scan to check they are genuine. Client companies follow their own people’s results.',
+      'Learners who pass get their certificate automatically, in the provider’s own colours, with a QR code anyone can scan to check it is genuine.',
   },
+  {
+    id: 'company',
+    kind: 'feature',
+    section: 'training',
+    headline: 'Client companies sign in too',
+    bullets: ['Book their people into classes', 'Follow attendance and results', 'Download certificates and reports'],
+    clips: [{ src: 'company', from: 0.5, to: 7 }, { src: 'company', from: 11, to: 15.5 }],
+    narration:
+      'Client companies sign in too. They book their people into classes, follow attendance and results, and download their certificates and their own ESG report.',
+  },
+  {
+    id: 'library',
+    kind: 'feature',
+    section: 'training',
+    headline: 'A library and surveys',
+    bullets: ['Course documents in one place', 'Choose who sees each one', 'Surveys for learners and clients'],
+    clips: [{ src: 'library', from: 0.5, to: 6.5 }, { src: 'library', from: 7.2, to: 16 }],
+    narration:
+      'Course documents live in one library, and surveys ask learners how a class went, or ask client companies what they need next.',
+  },
+  {
+    id: 'revenue',
+    kind: 'feature',
+    section: 'training',
+    headline: 'Income, and a report for funders',
+    bullets: ['Income from training and reports', 'Paid or outstanding', 'Totals only, no personal details'],
+    // The funder report takes a while to load in the recording; the clip starts once it has.
+    clips: [{ src: 'revenue', from: 0.5, to: 6 }, { src: 'revenue', from: 24.5, to: 35.5 }],
+    narration:
+      'Providers keep track of their income, and their own funders get a report of the work: learners trained, pass rates and who was reached, with totals only and no personal details.',
+  },
+  { id: 'chapter-esg', kind: 'chapter', section: 'esg', headline: 'ESG reporting', line: 'An add-on for either workspace', narration: '' },
   {
     id: 'esg',
     kind: 'feature',
     section: 'esg',
     headline: 'ESG reports, drafted for you',
     bullets: ['Carbon footprint, scopes 1 to 3', 'The right standards for each client', 'Drafted with AI, finished in Word'],
-    clips: [
-      { src: 'esg-report', from: 10.5, to: 17, focus: [0.4, 0.55, 1.45] },
-      { src: 'esg-footprint', from: 19.5, to: 25.4, focus: [0.5, 0.45, 1.3] },
-    ],
+    clips: [{ src: 'esg-report', from: 9.5, to: 16 }, { src: 'esg-footprint', from: 3, to: 9.5 }, { src: 'esg-footprint', from: 18, to: 25.5 }],
     narration:
       'With the ESG add-on, the client’s figures become a carbon footprint and a sustainability report, drafted with AI against the right standards, and downloaded in Word.',
+  },
+
+  {
+    id: 'admin',
+    kind: 'feature',
+    section: 'platform',
+    headline: 'A new client in one step',
+    bullets: ['Incubation or Training workspace', 'ESG switched on when needed', 'Each client’s records kept apart'],
+    clips: [{ src: 'admin', from: 0.5, to: 19 }],
+    narration:
+      'And setting up a new client takes one step: choose the workspace, switch on ESG reporting if it is needed, and each client’s records stay their own.',
   },
 
   // ---- The outcome -------------------------------------------------------------------------------------------------

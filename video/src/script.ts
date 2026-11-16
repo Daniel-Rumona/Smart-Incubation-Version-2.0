@@ -63,7 +63,7 @@ export const SCENES: Scene[] = [
     role: 'Operations',
     footage: 'ops-home',
     narration:
-      'The operations team signs in to an assistant that already knows the day: decisions waiting, interventions under way, and active SMEs. One click on Workspace opens the full dashboard, with SME health, revenue and employees, compliance, and every intervention, assigned, completed or overdue.',
+      'The operations team signs in to an assistant that already knows the day: decisions waiting, interventions under way, and active SMEs. One click on Dashboard opens the full picture, with SME health, revenue and employees, compliance, and every intervention, assigned, completed or overdue.',
   },
   {
     id: 'applications',
@@ -108,7 +108,7 @@ export const SCENES: Scene[] = [
     role: 'SME owner',
     footage: 'sme',
     narration:
-      'The SME owner has a workspace of their own. It shows what is waiting on them, the progress of their growth plan, who is helping with what, and the documents still needed for compliance. Reminders reach them in the app, by email and on WhatsApp, in English or isiZulu.',
+      'The SME owner has a workspace of their own. It shows what is waiting on them, the progress of their growth plan, who is helping with what, and the documents still needed for compliance. Reminders reach them in the app, by email and on WhatsApp, in local languages like Zulu.',
   },
   {
     id: 'monitoring',

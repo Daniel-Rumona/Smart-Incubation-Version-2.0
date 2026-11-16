@@ -2,8 +2,9 @@
 
 Two narrated videos, made with [Remotion](https://www.remotion.dev) from the same recordings of the app:
 
-- **Pitch** (about 3½ minutes): for prospective clients and funders. Problem, solution, the key features in one
-  beat each, and the outcome. Script: `src/pitch/script.ts`.
+- **Pitch** (about 5 minutes): for prospective clients and funders. Problem, solution, the key features in one
+  beat each (the app always shown whole, never cropped), how reminders reach people in the app, by email and on
+  WhatsApp, and the outcome. Script: `src/pitch/script.ts`.
 - **Showcase** (about 9 minutes): a walkthrough of every workspace by role, for people who want to see how the
   work is done. Script: `src/script.ts`.
 
@@ -38,8 +39,10 @@ npx remotion render Pitch out/pitch.mp4
 npx remotion render Showcase out/walkthrough.mp4
 ```
 
-The pitch reuses the walkthrough's recordings, so it needs no filming of its own. To show a different moment,
-change a clip's `from` and `to` (seconds) or its `focus` (where to zoom) in `src/pitch/script.ts`.
+The pitch cuts its clips from the same recordings (plus three shots of its own: `bell`, `funder-impact` and
+`funder-portfolio`). To show a different moment, change a clip's `from` and `to` (seconds) in `src/pitch/script.ts`.
+If the voice says a word wrongly, spell it as it should sound in `narration` and put the proper spelling in
+`subtitles`; to check, run the clip through ElevenLabs speech-to-text and read what it hears.
 
 Each shot is timed to its narration, so record after generating the voice. The recordings, the
 rendered video and `.env` are git-ignored.

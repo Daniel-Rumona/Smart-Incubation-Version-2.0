@@ -187,7 +187,8 @@ const SHOTS = {
       await d.hover(text(page, 'Ongoing interventions'), 1100)
       await d.hover(text(page, 'Active SMEs'), 1100)
       await d.hover(text(page, 'Which interventions are falling behind?'), 1600)
-      await d.click(text(page, 'Workspace'), 3500)
+      // The top bar's Dashboard link (it was a Workspace button before Daniel's November top bar).
+      await d.click(text(page, 'Dashboard'), 3500)
       await d.hover(text(page, 'Active SMEs'), 1200)
       await d.hover(text(page, 'Revenue & Employees'), 1500)
       await d.hover(text(page, 'Compliance Health'), 1200)
@@ -359,6 +360,58 @@ const SHOTS = {
       await d.scroll(450, { x: 960, y: 700, ms: 2200 })
       await d.click(text(page, 'Portfolio'), 3000)
       await d.hover(text(page, 'Ilanga Solar Farms'), 1200)
+    },
+  },
+
+  // Daniel's funder impact page, in its demo mode (made-up figures for ten programmes; nothing is read or saved).
+  'funder-impact': {
+    as: 'funder',
+    url: '/funder/impact?demo=1',
+    ready: 'Funding committed',
+    act: async (page, d) => {
+      await d.wait(1200)
+      await d.hover(text(page, 'Funding committed'), 900)
+      await d.hover(text(page, 'Jobs created'), 900)
+      await d.hover(text(page, 'Beneficiary profile'), 1100)
+      await d.hover(text(page, 'Support delivered'), 1100)
+      await d.scroll(520, { x: 960, y: 760, ms: 2600 })
+      await d.hover(text(page, 'Agri Hub SA'), 1100)
+      await d.scroll(700, { x: 960, y: 760, ms: 3000 })
+      await d.wait(1500)
+    },
+  },
+
+  'funder-portfolio': {
+    as: 'funder',
+    url: '/funder/portfolio?demo=video',
+    ready: 'Portfolio SMEs',
+    act: async (page, d) => {
+      await d.wait(1000)
+      await d.hover(text(page, 'Portfolio Revenue'), 900)
+      await d.hover(text(page, 'Ilanga Solar Farms'), 900)
+      await d.click(button(page, /View Performance/), 2600)
+      await d.scroll(400, { x: 1500, y: 600, ms: 2400 })
+      await d.wait(1500)
+    },
+  },
+
+  // The bell in the top bar, then the notification centre behind "View all notifications".
+  bell: {
+    as: 'operations',
+    url: '/operations',
+    ready: 'Pending decisions',
+    act: async (page, d) => {
+      await d.wait(1200)
+      await d.click(page.locator('.anticon-bell').first(), 1600)
+      await d.hover(text(page, '1 overdue and 2 due soon interventions', { exact: false }), 1200)
+      await d.hover(text(page, '2 follow-ups due', { exact: false }), 1000)
+      await d.hover(text(page, 'View all notifications'), 700)
+      // The link closes the popover before routing, so open the centre directly (its loading is cut in the edit).
+      await page.goto(`${APP}/notifications?demo=video`, { waitUntil: 'domcontentloaded' })
+      await page.getByText('Open related page').first().waitFor({ timeout: 30_000 }).catch((error) => console.warn('  centre not loaded', error.message))
+      await d.wait(1200)
+      await d.hover(text(page, 'Business Plan Refresh (Ubuntu Harvest): 3 days overdue', { exact: false }), 1400)
+      await d.hover(text(page, 'Open related page'), 1200)
     },
   },
 
