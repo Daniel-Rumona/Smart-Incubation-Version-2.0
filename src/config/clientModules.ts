@@ -74,6 +74,41 @@ export const clientHomeModuleFor = (settings: Record<string, unknown>, role?: st
     return role && module.staffRoles.includes(role) ? key : null
 }
 
+/** Whether the company has ESG reporting switched on (training pages leave out ESG wording and figures when not). */
+export const esgReportingOn = (settings: Record<string, unknown>) => settings[CLIENT_MODULES.esgReporting.setting] === true
+
+/**
+ * The workspace type: Incubation (the standard app) or Training (awareness training is the staff home and the
+ * incubation pages leave the menu). The client modules on top are add-ons: ESG reporting on either type, and training
+ * inside an incubation workspace. Derived from the fields above (training switched on and set as the home), so no
+ * record changes shape and firestore.rules and the assistant keep reading the same fields; clientModulesService writes
+ * them through workspaceTypeFields.
+ */
+export type WorkspaceType = 'incubation' | 'training'
+
+export const WORKSPACE_TYPES: Array<{ key: WorkspaceType, label: string, description: string }> = [
+    { key: 'incubation', label: 'Incubation', description: 'Programmes, SMEs, interventions, diagnostics and the standard reports.' },
+    { key: 'training', label: 'Training', description: 'Classes, learners from client companies, assessments, certificates, surveys, revenue and a funder report. No SMEs, interventions or diagnostics.' },
+]
+
+export const workspaceTypeOf = (settings: Record<string, unknown>): WorkspaceType =>
+    settings[CLIENT_HOME_SETTING] === 'awarenessTraining' && settings[CLIENT_MODULES.awarenessTraining.setting] === true ? 'training' : 'incubation'
+
+/** The client modules a workspace type can add on (training is part of a Training workspace, not an add-on to it). */
+export const WORKSPACE_ADD_ONS: Record<WorkspaceType, ClientModuleKey[]> = {
+    incubation: ['esgReporting', 'awarenessTraining'],
+    training: ['esgReporting'],
+}
+
+/**
+ * The `companies/{code}` fields for a workspace type; `null` means remove the field. Training switches the training
+ * module on and makes it the home; Incubation removes the home and leaves training on as an add-on (its records stay
+ * visible until the add-on is switched off).
+ */
+export const workspaceTypeFields = (type: WorkspaceType): Record<string, true | string | null> => type === 'training'
+    ? { [CLIENT_MODULES.awarenessTraining.setting]: true, [CLIENT_HOME_SETTING]: 'awarenessTraining' }
+    : { [CLIENT_HOME_SETTING]: null }
+
 /** The settings of the client modules switched on for the company, so their pages stay in a client-home menu. */
 export const enabledClientModuleSettings = (settings: Record<string, unknown>) =>
     new Set(CLIENT_MODULE_KEYS.map((key) => CLIENT_MODULES[key].setting).filter((setting) => settings[setting] === true))

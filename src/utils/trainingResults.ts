@@ -46,6 +46,28 @@ export const scoreMarks = (questions: TrainingQuestion[], marks: Record<string, 
     return { score, totalMarks, scorePct: totalMarks ? Math.round((score / totalMarks) * 100) : 0 }
 }
 
+/** A multiple-choice question. Questions saved before multiple choice existed are written questions. */
+export const isChoiceQuestion = (question: Pick<TrainingQuestion, 'type'>) => question.type === 'choice'
+
+const sameOption = (answer: string | undefined, correct: string | undefined) => {
+    const given = (answer || '').trim().toLowerCase()
+    return given !== '' && given === (correct || '').trim().toLowerCase()
+}
+
+/**
+ * The marks of the multiple-choice questions whose correct option is in the memo: full marks for the correct option,
+ * 0 for another option or none. Written questions (and choice questions without a correct option) are left out, for
+ * the facilitator to mark. The same rule runs on the server when a test is handed in (functions/src/trainingMarking.ts).
+ */
+export const choiceMarks = (questions: TrainingQuestion[], answers: Record<string, string>, memo: Record<string, string>) =>
+    Object.fromEntries(questions
+        .filter((question) => isChoiceQuestion(question) && (memo[question.id] || '').trim())
+        .map((question) => [question.id, sameOption(answers[question.id], memo[question.id]) ? question.marks : 0]))
+
+/** Every question is multiple choice with its correct option known, so the whole test marks itself. */
+export const marksItself = (questions: TrainingQuestion[], memo: Record<string, string>) =>
+    questions.length > 0 && questions.every((question) => isChoiceQuestion(question) && Boolean((memo[question.id] || '').trim()))
+
 export const groupOfLearner = (learnerId: string, groups: TrainingGroup[]) =>
     groups.find((group) => group.learnerIds.includes(learnerId))
 

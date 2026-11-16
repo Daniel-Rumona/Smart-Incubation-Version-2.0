@@ -6,7 +6,9 @@ import type Highcharts from 'highcharts'
 import DashboardPage from '@/components/shared/DashboardPage'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import { ThemedHighcharts } from '@/components/shared/ThemedHighcharts'
+import { esgReportingOn } from '@/config/clientModules'
 import { ESG_SECTORS, countryName } from '@/config/esgStandards'
+import { useSystemSettings } from '@/contexts/SystemSettingsContext'
 import { usesFirebaseEmulators } from '@/config/firebase'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { getFunderSummary, inviteFunder, listFunders, listTrainingFunders, saveTrainingFunder } from '@/services/clientRevenueService'
@@ -19,9 +21,9 @@ type FunderFormValues = { name: string, contactName: string, contactEmail: strin
 
 /**
  * Staff only: the company's funders and who at each can sign in. Each funder's report shows only what is marked as
- * funded by it (classes, learners, ESG reports and income).
+ * funded by it (classes, learners, ESG reports when the company has ESG reporting, and income).
  */
-const Funders = ({ funders, accounts, onChanged }: { funders: TrainingFunder[], accounts: TrainingFunderAccount[], onChanged: () => void }) => {
+const Funders = ({ funders, accounts, onChanged, showEsg }: { funders: TrainingFunder[], accounts: TrainingFunderAccount[], onChanged: () => void, showEsg: boolean }) => {
     const { t } = useLanguage()
     const { message, modal } = App.useApp()
     const { user } = useFullIdentity()
@@ -76,7 +78,9 @@ const Funders = ({ funders, accounts, onChanged }: { funders: TrainingFunder[], 
     return (
         <Card title={t('Funders')} extra={<Button icon={<PlusOutlined />} onClick={() => startEdit()}>{t('Add funder')}</Button>} style={{ marginBottom: 16 }}>
             <Typography.Paragraph type="secondary">
-                {t('Each funder signs in to see only what it funded: the classes, learners, ESG reports and income marked as funded by it. Funders never see learners\' names, ID numbers or contact details, or another funder\'s work.')}
+                {showEsg
+                    ? t('Each funder signs in to see only what it funded: the classes, learners, ESG reports and income marked as funded by it. Funders never see learners\' names, ID numbers or contact details, or another funder\'s work.')
+                    : t('Each funder signs in to see only what it funded: the classes, learners and income marked as funded by it. Funders never see learners\' names, ID numbers or contact details, or another funder\'s work.')}
             </Typography.Paragraph>
             <Table
                 rowKey="id"
@@ -121,6 +125,7 @@ const Funders = ({ funders, accounts, onChanged }: { funders: TrainingFunder[], 
 export default function FunderReportPage() {
     const { t } = useLanguage()
     const { user } = useFullIdentity()
+    const { settings } = useSystemSettings()
     const [summary, setSummary] = useState<ClientFunderSummary | null>()
     const [funders, setFunders] = useState<TrainingFunder[]>([])
     const [accounts, setAccounts] = useState<TrainingFunderAccount[]>([])
@@ -145,6 +150,9 @@ export default function FunderReportPage() {
         return () => window.clearTimeout(timeout)
     }, [loadFunders])
 
+    // ESG wording and figures only where the company has ESG reporting, or ESG work on record from when it had.
+    const showEsg = esgReportingOn(settings) || Boolean(summary && (summary.esg.reports > 0 || summary.revenue.byMonth.some((item) => item.esgReporting > 0)))
+
     const revenueChart = useMemo(() => summary ? ({
         chart: { type: 'column', height: 260 },
         title: { text: undefined },
@@ -154,10 +162,10 @@ export default function FunderReportPage() {
         plotOptions: { column: { stacking: 'normal' } },
         series: [
             { type: 'column', name: t('Training'), data: summary.revenue.byMonth.map((item) => item.training) },
-            { type: 'column', name: t('ESG reporting'), data: summary.revenue.byMonth.map((item) => item.esgReporting) },
+            ...(showEsg ? [{ type: 'column', name: t('ESG reporting'), data: summary.revenue.byMonth.map((item) => item.esgReporting) }] : []),
             { type: 'column', name: t('Other'), data: summary.revenue.byMonth.map((item) => item.other) },
         ],
-    }) as Highcharts.Options : null, [summary, t])
+    }) as Highcharts.Options : null, [showEsg, summary, t])
 
     const trainingChart = useMemo(() => summary ? ({
         chart: { type: 'column', height: 260 },
@@ -173,16 +181,18 @@ export default function FunderReportPage() {
     useRegisterAgentPageContext({
         pageKey: 'training-funder',
         pageName: 'Funder report',
-        purpose: 'The read-only report a funder sees: only what that funder funded. Revenue (paid and outstanding), learners trained and certified with their gender, youth and disability, the businesses served with their baseline revenue and employees, and the ESG reports produced. Totals only, no learner personal information.',
+        purpose: showEsg
+            ? 'The read-only report a funder sees: only what that funder funded. Revenue (paid and outstanding), learners trained and certified with their gender, youth and disability, the businesses served with their baseline revenue and employees, and the ESG reports produced. Totals only, no learner personal information.'
+            : 'The read-only report a funder sees: only what that funder funded. Revenue (paid and outstanding), learners trained and certified with their gender, youth and disability, and the businesses served with their baseline revenue and employees. Totals only, no learner personal information. The company does not offer ESG reporting.',
         metrics: summary ? {
             funder: summary.funderName || 'whole company (staff view)',
             revenueLast12MonthsZar: summary.revenue.last12Months, paidZar: summary.revenue.paid, outstandingZar: summary.revenue.outstanding,
             learnersTrained: summary.training.learners, learnersCertified: summary.training.learnersCertified, passRatePct: summary.training.passRatePct ?? 'none yet',
             women: summary.training.people.female, men: summary.training.people.male, youth: summary.training.people.youth, withDisability: summary.training.people.withDisability,
             businessesWithDetails: summary.businesses.withDetails, combinedBaselineRevenueZar: summary.businesses.baselineRevenue, employees: summary.businesses.employees,
-            organisations: summary.organisations.length, esgReports: summary.esg.reports, esgReportsFinal: summary.esg.final,
+            organisations: summary.organisations.length, ...(showEsg ? { esgReports: summary.esg.reports, esgReportsFinal: summary.esg.final } : {}),
         } : {},
-        dataSummary: summary ? { organisations: summary.organisations.slice(0, 20), beeLevels: summary.businesses.beeLevels } : {},
+        dataSummary: summary ? { organisations: summary.organisations.slice(0, 20).map(({ esgReports, ...organisation }) => (showEsg ? { ...organisation, esgReports } : organisation)), beeLevels: summary.businesses.beeLevels } : {},
     })
 
     const genderTotal = (people?.female || 0) + (people?.male || 0)
@@ -284,7 +294,7 @@ export default function FunderReportPage() {
                         { title: t('Organisation'), dataIndex: 'name' },
                         { title: t('Learners trained'), dataIndex: 'learners', align: 'center' },
                         { title: t('Certified'), dataIndex: 'certified', align: 'center' },
-                        { title: t('ESG reports'), dataIndex: 'esgReports', align: 'center' },
+                        ...(showEsg ? [{ title: t('ESG reports'), dataIndex: 'esgReports', align: 'center' as const }] : []),
                         { title: t('Revenue (12 months)'), dataIndex: 'revenue', align: 'right', render: (value: number) => rand(value) },
                     ]}
                 />
@@ -298,7 +308,7 @@ export default function FunderReportPage() {
                     </Space>
                 </Card>
             )}
-            {isStaff && <Funders funders={funders} accounts={accounts} onChanged={() => void loadFunders()} />}
+            {isStaff && <Funders funders={funders} accounts={accounts} onChanged={() => void loadFunders()} showEsg={showEsg} />}
         </DashboardPage>
     )
 }

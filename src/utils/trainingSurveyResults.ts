@@ -13,8 +13,10 @@ const question = (type: TrainingSurveyQuestion['type'], text: string, options: s
 export const blankQuestion = (type: TrainingSurveyQuestion['type'] = 'rating'): TrainingSurveyQuestion =>
     question(type, '', type === 'choice' ? ['', ''] : [])
 
+type SurveyTemplate = { key: string, label: string, values: () => TrainingSurveyValues }
+
 /** Ready-made surveys: her training pack's participant feedback form first. */
-export const SURVEY_TEMPLATES: Array<{ key: string, label: string, values: () => TrainingSurveyValues }> = [
+export const SURVEY_TEMPLATES: SurveyTemplate[] = [
     {
         key: 'feedback',
         label: 'Participant feedback form (from your training pack)',
@@ -57,6 +59,50 @@ export const SURVEY_TEMPLATES: Array<{ key: string, label: string, values: () =>
         values: () => ({ title: '', description: '', audience: 'learners', classIds: [], hideNames: false, questions: [blankQuestion('rating')] }),
     },
 ]
+
+/** The same surveys without ESG questions, for a training company that does not offer ESG reporting. */
+const GENERAL_SURVEY_TEMPLATES: SurveyTemplate[] = [
+    {
+        key: 'feedback',
+        label: 'Participant feedback form',
+        values: () => ({
+            title: 'Participant feedback form',
+            description: 'Tell us how the training went. It takes two minutes.',
+            audience: 'learners',
+            classIds: [],
+            hideNames: false,
+            questions: [
+                question('rating', 'The training objectives were clear.'),
+                question('rating', 'Examples were relevant to my workplace.'),
+                question('rating', 'I can apply what I learnt in my work.'),
+                question('text', 'Most useful activity'),
+                question('text', 'Suggested improvement', [], false),
+            ],
+        }),
+    },
+    {
+        key: 'client',
+        label: 'Client company satisfaction',
+        values: () => ({
+            title: 'How did the training work for your company?',
+            description: 'Your answers help us plan the next trainings with you.',
+            audience: 'companies',
+            classIds: [],
+            hideNames: false,
+            questions: [
+                question('rating', 'Overall, how satisfied are you with the training your people attended?'),
+                question('rating', 'How useful is it to your company\'s work?'),
+                question('yesno', 'Would you send more staff to this training?'),
+                question('choice', 'What would help your company most next?', ['More staff trained', 'A refresher course', 'A different course', 'Support after the training']),
+                question('text', 'Anything else we should know?', [], false),
+            ],
+        }),
+    },
+    SURVEY_TEMPLATES[2],
+]
+
+/** The ready-made surveys for the company: with ESG questions only where it offers ESG reporting. */
+export const surveyTemplates = (esgOn: boolean) => (esgOn ? SURVEY_TEMPLATES : GENERAL_SURVEY_TEMPLATES)
 
 /** Problems that stop a survey being opened. */
 export const surveyProblems = (survey: Pick<TrainingSurvey, 'title' | 'questions'>) => {

@@ -5,7 +5,7 @@ import { MotionCard } from '@/components/shared/MotionCard'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { deleteSubmission, saveSubmissionMarks } from '@/services/trainingAssessmentService'
 import { useLanguage } from '@/providers/LanguageProvider'
-import { scoreMarks } from '@/utils/trainingResults'
+import { choiceMarks, isChoiceQuestion, scoreMarks } from '@/utils/trainingResults'
 import type { TrainingLearner, TrainingSubmission } from '@/types/training'
 
 type Props = {
@@ -27,7 +27,12 @@ const MarkingDrawerContent = ({ submission, learner, memo, passMarkPct, onClose 
     const { message } = App.useApp()
     const { user } = useFullIdentity()
     const screens = Grid.useBreakpoint()
-    const [marks, setMarks] = useState<Record<string, number>>(() => ({ ...submission.marks }))
+    // Multiple-choice answers mark themselves (also done on the server when the test is handed in); marks already
+    // saved win, so a facilitator's correction stays.
+    const [marks, setMarks] = useState<Record<string, number>>(() => ({
+        ...(submission.source === 'online' ? choiceMarks(submission.questions, submission.answers, memo) : {}),
+        ...submission.marks,
+    }))
     const [saving, setSaving] = useState(false)
 
     const totals = useMemo(() => scoreMarks(submission.questions, marks), [marks, submission])
@@ -111,7 +116,28 @@ const MarkingDrawerContent = ({ submission, learner, memo, passMarkPct, onClose 
                                 <Typography.Text strong>{index + 1}. {question.text}</Typography.Text>
                                 <Tag>{question.marks === 1 ? t('1 mark') : t('{count} marks', undefined, { count: question.marks })}</Tag>
                             </Space>
-                            {!isPaper && (
+                            {isChoiceQuestion(question) && question.options?.length ? (
+                                <MotionCard.SunkenPanel>
+                                    <Space orientation="vertical" size={4} style={{ width: '100%' }}>
+                                        {question.options.map((option, position) => {
+                                            const isCorrect = Boolean(memo[question.id]) && option.trim().toLowerCase() === memo[question.id].trim().toLowerCase()
+                                            const chosen = !isPaper && option.trim().toLowerCase() === (submission.answers[question.id] || '').trim().toLowerCase()
+                                            return (
+                                                <Space key={`${position}-${option}`} wrap size={6}>
+                                                    <Typography.Text strong={chosen || isCorrect} type={isCorrect ? 'success' : chosen ? 'danger' : undefined}>
+                                                        {'abcdefghij'[position] || position + 1}) {option}
+                                                    </Typography.Text>
+                                                    {chosen && <Tag color={isCorrect ? 'green' : 'red'}>{t('Learner\'s choice')}</Tag>}
+                                                    {isCorrect && <Tag color="green">{t('Correct')}</Tag>}
+                                                </Space>
+                                            )
+                                        })}
+                                        {!isPaper && !(submission.answers[question.id] || '').trim() && <Typography.Text type="secondary">{t('No option chosen.')}</Typography.Text>}
+                                        {!memo[question.id]?.trim() && <Typography.Text type="warning">{t('No correct option is set for this question, so mark it yourself.')}</Typography.Text>}
+                                        {!isPaper && memo[question.id]?.trim() && <Typography.Text type="secondary" style={{ fontSize: 12 }}>{t('Marked automatically. You can still change the mark.')}</Typography.Text>}
+                                    </Space>
+                                </MotionCard.SunkenPanel>
+                            ) : !isPaper && (
                                 <MotionCard.SunkenPanel>
                                     <Typography.Text type="secondary">{t('Learner\'s answer')}</Typography.Text>
                                     <Typography.Paragraph style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }}>
@@ -119,9 +145,11 @@ const MarkingDrawerContent = ({ submission, learner, memo, passMarkPct, onClose 
                                     </Typography.Paragraph>
                                 </MotionCard.SunkenPanel>
                             )}
-                            <Typography.Text type="success">
-                                {t('Memo: {answer}', undefined, { answer: memo[question.id]?.trim() || t('No memo answer saved.') })}
-                            </Typography.Text>
+                            {!isChoiceQuestion(question) && (
+                                <Typography.Text type="success">
+                                    {t('Memo: {answer}', undefined, { answer: memo[question.id]?.trim() || t('No memo answer saved.') })}
+                                </Typography.Text>
+                            )}
                             {question.marks === 1 ? (
                                 <Segmented
                                     value={marks[question.id] ?? 0}

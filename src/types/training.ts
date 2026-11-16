@@ -221,10 +221,20 @@ export type TrainingOrgMember = {
     jobTitle: string
 }
 
+/** `written`: the learner writes an answer, marked against the memo. `choice`: the learner picks one option. */
+export type TrainingQuestionType = 'written' | 'choice'
+
+/**
+ * A knowledge question. A multiple-choice question lists its options (learners see them); which one is correct is in
+ * the memo (the option's text), so learners never receive it. Questions saved before multiple choice have no type
+ * and are written questions.
+ */
 export type TrainingQuestion = {
     id: string
     text: string
     marks: number
+    type?: TrainingQuestionType
+    options?: string[]
 }
 
 export type TrainingRubricCriterion = {
@@ -257,7 +267,7 @@ export type TrainingAssessment = {
     updatedBy?: string
 }
 
-/** Facilitator-only: the expected answer for each question, keyed by question id. */
+/** Facilitator-only: the expected answer for each question, keyed by question id (for multiple choice, the correct option's text). */
 export type TrainingAssessmentMemo = {
     companyCode: string
     answers: Record<string, string>

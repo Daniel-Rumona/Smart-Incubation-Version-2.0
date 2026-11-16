@@ -18,9 +18,10 @@ const env = Object.fromEntries(
 
 const apiKey = env.ELEVENLABS_API_KEY
 if (!apiKey) throw new Error('ELEVENLABS_API_KEY is missing from video/.env')
-// "Rachel", the same stock voice the app's /tts endpoint defaults to. Multilingual v2 rather than the app's
-// Turbo model: narration is generated once, so quality matters more than latency here.
-const voiceId = env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM'
+// "Alice" (clear, educational, British): one of ElevenLabs' built-in voices, which every plan can use through the
+// API (library voices such as "Rachel" need a paid plan). Multilingual v2 rather than the app's Turbo model:
+// narration is generated once, so quality matters more than latency here.
+const voiceId = env.ELEVENLABS_VOICE_ID || 'Xb7hH8MSUJpSbSDYk0k2'
 const modelId = env.ELEVENLABS_MODEL_ID || 'eleven_multilingual_v2'
 
 const args = process.argv.slice(2)
@@ -41,7 +42,8 @@ for (const scene of SCENES) {
     body: JSON.stringify({
       text: scene.narration,
       model_id: modelId,
-      voice_settings: { stability: 0.5, similarity_boost: 0.75, style: 0.2 },
+      // A little slower than the default (1.0): a walkthrough reads better at a calm pace.
+      voice_settings: { stability: 0.5, similarity_boost: 0.75, style: 0.2, speed: 0.9 },
     }),
   })
   if (!response.ok) throw new Error(`ElevenLabs ${response.status} for ${scene.id}: ${(await response.text()).slice(0, 300)}`)

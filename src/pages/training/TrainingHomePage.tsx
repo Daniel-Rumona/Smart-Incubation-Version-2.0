@@ -62,7 +62,7 @@ export default function TrainingHomePage() {
     useRegisterAgentPageContext({
         pageKey: 'training-home',
         pageName: 'Home',
-        purpose: 'The facilitator\'s overview of the company\'s results: learners trained, pass rate, revenue and client organisations, with revenue and learners trained per month. The work itself is on the Classes, Assessments, ESG reports and Revenue pages.',
+        purpose: 'The facilitator\'s overview of the company\'s results: learners trained, pass rate, revenue and client organisations, with revenue and learners trained per month. The work itself is on the Classes, Assessments, ' + (esgOn ? 'ESG reports and Revenue pages.' : 'Surveys and Revenue pages. The company does not offer ESG reporting.'),
         metrics: summary ? {
             learnersTrained: summary.training.learners,
             learnersCertified: summary.training.learnersCertified,

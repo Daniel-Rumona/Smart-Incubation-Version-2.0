@@ -12,7 +12,9 @@ import { listTrainingClasses } from '@/services/trainingService'
 import { countSurveyResponses, createTrainingSurvey, listTrainingSurveys } from '@/services/trainingSurveysService'
 import { useRegisterAgentPageContext } from '@/shared/hooks/useRegisterAgentPageContext'
 import { useLanguage } from '@/providers/LanguageProvider'
-import { SURVEY_TEMPLATES } from '@/utils/trainingSurveyResults'
+import { surveyTemplates } from '@/utils/trainingSurveyResults'
+import { esgReportingOn } from '@/config/clientModules'
+import { useSystemSettings } from '@/contexts/SystemSettingsContext'
 import { surveyAudienceLabel, surveyStatusTag } from '@/components/training/surveyLabels'
 import type { TrainingClass } from '@/types/training'
 import type { TrainingSurvey } from '@/types/trainingSurveys'
@@ -28,7 +30,9 @@ export default function TrainingSurveysPage() {
     const [counts, setCounts] = useState<Map<string, number>>(new Map())
     const [classes, setClasses] = useState<TrainingClass[]>([])
     const [creating, setCreating] = useState(false)
-    const [template, setTemplate] = useState(SURVEY_TEMPLATES[0].key)
+    const { settings } = useSystemSettings()
+    const templates = surveyTemplates(esgReportingOn(settings))
+    const [template, setTemplate] = useState(templates[0].key)
     const [saving, setSaving] = useState(false)
 
     const load = useCallback(async () => {
@@ -62,7 +66,7 @@ export default function TrainingSurveysPage() {
 
     const create = async () => {
         if (!user) return
-        const chosen = SURVEY_TEMPLATES.find((row) => row.key === template) || SURVEY_TEMPLATES[0]
+        const chosen = templates.find((row) => row.key === template) || templates[0]
         setSaving(true)
         try {
             const values = chosen.values()
@@ -126,7 +130,7 @@ export default function TrainingSurveysPage() {
                     <Typography.Text type="secondary">{t('Start from a ready-made survey and change anything before you open it.')}</Typography.Text>
                     <Radio.Group value={template} onChange={(event) => setTemplate(event.target.value)}>
                         <Space orientation="vertical">
-                            {SURVEY_TEMPLATES.map((row) => (
+                            {templates.map((row) => (
                                 <Radio key={row.key} value={row.key}>
                                     {t(row.label)}
                                     {row.key !== 'blank' && <Typography.Text type="secondary" style={{ display: 'block', fontSize: 12 }}>{row.values().questions.map((item) => item.text).join(' · ')}</Typography.Text>}

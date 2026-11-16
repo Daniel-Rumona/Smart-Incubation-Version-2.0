@@ -578,6 +578,7 @@ export const SystemLayout = () => {
                 return { path: entry.group, label: entry.label ? t(entry.label) : t(groupRoute.labelKey), icon: groupRoute.icon, children }
             })
             .filter((link): link is QuickLink => Boolean(link))
+            // A client module's top bar may hold all its links; the phone tab bar keeps to three (the rest stay in the Menu).
             .slice(0, clientModule && !isMobile ? clientModule.quickLinkPaths.length : user?.role === USER_ROLES.CLIENT_ORG && !isMobile ? 5 : 3)
 
         return [...home, ...rest]

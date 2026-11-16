@@ -1,31 +1,26 @@
 import { Video } from '@remotion/media'
-import { AbsoluteFill, Easing, Freeze, Img, Interactive, interpolate, Sequence, staticFile, useCurrentFrame, useVideoConfig } from 'remotion'
+import { AbsoluteFill, Easing, Freeze, Interactive, interpolate, Sequence, staticFile, useCurrentFrame, useVideoConfig } from 'remotion'
 import { Backdrop } from '../components/Backdrop'
 import { Captions } from '../components/Captions'
 import { COLORS } from '../theme'
 import type { SceneProps } from './types'
 
-// Which screen each recording shows, and the still to fall back on before it has been recorded.
-const SCREENS: Record<string, { label: string; still: string }> = {
-  applications: { label: 'Applications', still: 'applications.jpg' },
-  diagnostic: { label: 'Diagnostic Growth Plan', still: 'diagnostic-plan.jpg' },
-  monitoring: { label: 'Intervention monitoring', still: 'monitoring.jpg' },
-  readiness: { label: 'SME Control Tower', still: 'control-tower.jpg' },
-  kpis: { label: 'Programme KPIs', still: 'kpis.jpg' },
-  impact: { label: 'Impact analysis', still: 'impact.jpg' },
-}
-
 // The recording sits in a browser-style frame at 80% of full size, leaving a header above and captions below.
 const FRAME_WIDTH = 1536
 const FRAME_HEIGHT = 864
 const FRAME_TOP = 118
+const MAX_PLAYBACK_RATE = 1.5
 
-/** A live recording of one screen of the app, titled, with the narration as captions. */
+/** A live recording of the app, titled with who is signed in, with the narration as captions. Until the shot is
+ * recorded (node record.mjs <shot>), the frame shows which shot is missing. */
 export const FootageScene: React.FC<SceneProps> = ({ scene, speechFrames, footageFrames }) => {
   const frame = useCurrentFrame()
   const { durationInFrames } = useVideoConfig()
-  const screen = SCREENS[scene.footage ?? ''] ?? { label: scene.title, still: '' }
   const src = staticFile(`recordings/${scene.footage}.mp4`)
+  // A recording longer than its scene plays a little faster (at most 1.5x) so its last action still shows; one
+  // that is longer still is cut at the scene's end.
+  const rate = footageFrames ? Math.min(MAX_PLAYBACK_RATE, Math.max(1, footageFrames / durationInFrames)) : 1
+  const playedFrames = footageFrames ? Math.min(durationInFrames, Math.ceil(footageFrames / rate)) : 0
 
   return (
     <Backdrop>
@@ -44,7 +39,7 @@ export const FootageScene: React.FC<SceneProps> = ({ scene, speechFrames, footag
           }}
         >
           <span style={{ fontSize: 50, fontWeight: 800, letterSpacing: -1 }}>{scene.title}</span>
-          <span style={{ fontSize: 26, fontWeight: 600, color: COLORS.accent, letterSpacing: 3, textTransform: 'uppercase' }}>{screen.label}</span>
+          <span style={{ fontSize: 26, fontWeight: 600, color: COLORS.accent, letterSpacing: 3, textTransform: 'uppercase' }}>{scene.role}</span>
         </Interactive.Div>
 
         <Interactive.Div
@@ -71,35 +66,26 @@ export const FootageScene: React.FC<SceneProps> = ({ scene, speechFrames, footag
             {footageFrames ? (
               <>
                 {/* Play the recording, then hold its last frame if the narration runs longer. */}
-                <Sequence durationInFrames={footageFrames} layout="absolute-fill">
-                  <Video src={src} muted style={{ width: '100%', height: '100%' }} />
+                <Sequence durationInFrames={playedFrames} layout="absolute-fill">
+                  <Video src={src} muted playbackRate={rate} style={{ width: '100%', height: '100%' }} />
                 </Sequence>
-                {footageFrames < durationInFrames && (
-                  <Sequence from={footageFrames} layout="absolute-fill">
-                    <Freeze frame={footageFrames - 1}>
-                      <Video src={src} muted style={{ width: '100%', height: '100%' }} />
+                {playedFrames < durationInFrames && (
+                  <Sequence from={playedFrames} layout="absolute-fill">
+                    <Freeze frame={playedFrames - 1}>
+                      <Video src={src} muted playbackRate={rate} style={{ width: '100%', height: '100%' }} />
                     </Freeze>
                   </Sequence>
                 )}
               </>
             ) : (
-              screen.still && (
-                <Img
-                  src={staticFile(screen.still)}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                    objectPosition: 'top',
-                    scale: interpolate(frame, [0, durationInFrames], [1, 1.06], { extrapolateRight: 'clamp' }),
-                  }}
-                />
-              )
+              <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', color: COLORS.muted, fontSize: 36 }}>
+                Not recorded yet: node record.mjs {scene.footage}
+              </AbsoluteFill>
             )}
           </div>
         </Interactive.Div>
       </AbsoluteFill>
-      <Captions text={scene.narration} speechFrames={speechFrames} bottom={22} />
+      <Captions text={scene.subtitles ?? scene.narration} speechFrames={speechFrames} bottom={22} />
     </Backdrop>
   )
 }

@@ -49,7 +49,9 @@ const toQuestions = (value: unknown): TrainingQuestion[] => (Array.isArray(value
     const questionText = text(data.text)
     if (!id || !questionText) return []
     const marks = typeof data.marks === 'number' && data.marks > 0 ? Math.round(data.marks) : 1
-    return [{ id, text: questionText, marks }]
+    const options = Array.isArray(data.options) ? data.options.map(text).filter(Boolean) : []
+    // A multiple-choice question needs two options to be answerable; anything less reads as a written question.
+    return [data.type === 'choice' && options.length >= 2 ? { id, text: questionText, marks, type: 'choice' as const, options } : { id, text: questionText, marks }]
 })
 
 const toRubric = (value: unknown): TrainingRubricCriterion[] => (Array.isArray(value) ? value : []).flatMap((row) => {
@@ -146,8 +148,13 @@ export const getTrainingAssessmentMemo = async (user: FullIdentity, assessmentId
 export const saveTrainingAssessment = async (user: FullIdentity, values: TrainingAssessmentValues, assessmentId?: string) => {
     const companyCode = trainingCompanyOf(user)
     const db = getFirebaseDb()
+    // Written questions are stored exactly as before; multiple-choice ones add their type and options.
     const questions = values.questions
-        .map((question) => ({ id: question.id, text: question.text.trim(), marks: Math.max(1, Math.round(question.marks || 1)) }))
+        .map((question): TrainingQuestion => {
+            const base = { id: question.id, text: question.text.trim(), marks: Math.max(1, Math.round(question.marks || 1)) }
+            const options = (question.options || []).map((option) => option.trim()).filter(Boolean)
+            return question.type === 'choice' && options.length >= 2 ? { ...base, type: 'choice', options } : base
+        })
         .filter((question) => question.text)
     const rubric = values.rubric
         .map((criterion) => ({
