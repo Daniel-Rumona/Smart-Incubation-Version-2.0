@@ -50,6 +50,7 @@ import { WelcomePage } from '@/pages/welcome/WelcomePage'
 import { ConsentPage } from '@/pages/consent/ConsentPage'
 import OrganisationAccessPage from '@/pages/auth/OrganisationAccessPage'
 import OrganisationRequestsPage from '@/pages/admin/OrganisationRequestsPage'
+import FunderOrganisationsPage from '@/pages/admin/FunderOrganisationsPage'
 import JoinProgramPage from '@/pages/join/JoinProgramPage'
 import { DashboardPage } from '@/pages/dashboard/DashboardPage'
 import LandingPage from '@/pages/landing/LandingPage'
@@ -110,6 +111,8 @@ import { ReceptionHomePage } from '@/pages/reception/ReceptionHomePage'
 import { FunderDashboardPage } from '@/pages/funder/FunderDashboardPage'
 import { FunderCalendarPage } from '@/pages/funder/FunderCalendarPage'
 import { FunderAnalyticsPage } from '@/pages/funder/FunderAnalyticsPage'
+import { FunderImpactPage } from '@/pages/funder/FunderImpactPage'
+import { FunderPortfolioPage } from '@/pages/funder/FunderPortfolioPage'
 import { DiagnosticPlansPage } from '@/pages/operations/DiagnosticPlansPage'
 import RiskRegisterPage from '@/pages/operations/RiskRegisterPage'
 import SmeControlTowerPage from '@/pages/operations/SmeControlTowerPage'
@@ -124,6 +127,7 @@ import SurveysPage from '@/pages/operations/surveys/SurveysPage'
 import IncubateeSurveysPage from '@/pages/incubatee/surveys/IncubateeSurveysPage'
 import SurveyResponsePage from '@/pages/incubatee/surveys/SurveyResponsePage'
 import SurveyBuilderPage from '@/pages/operations/surveys/SurveyBuilderPage'
+import GapAnalysisPage from '@/pages/operations/gapAnalysis/GapAnalysisPage'
 import LmsPage from '@/pages/operations/lms/LmsPage'
 import CourseBuilderPage from '@/pages/operations/lms/CourseBuilderPage'
 import IncubateeCoursesPage from '@/pages/incubatee/lms/IncubateeCoursesPage'
@@ -415,6 +419,7 @@ export const appRoutes: AppRoute[] = [
         showInNav: true,
         children: [
             { path: '/operations/participants/diagnostic-plans', labelKey: 'nav.diagnosticPlans', icon: <FileSearchOutlined />, element: <DiagnosticPlansPage />, allowedRoles: operationsRoles, requiredPermission: 'view_diagnostic_plans', audiences: ['operations'], showInNav: true },
+            { path: '/operations/gap-analysis', labelKey: 'nav.gapAnalysis', icon: <FileSearchOutlined />, element: <GapAnalysisPage />, allowedRoles: operationsRoles, requiredPermission: 'view_diagnostic_plans', audiences: ['operations'], showInNav: true },
             { path: '/shared/participants', labelKey: 'nav.viewAll', icon: <ApartmentOutlined />, element: <ParticipantsPage />, allowedRoles: operationsRoles, requiredPermission: 'view_participants', audiences: ['operations'], showInNav: true },
             // Old address, kept so bookmarks and links still land on the participants list.
             { path: '/operations/participants/all', labelKey: 'nav.viewAll', icon: <ApartmentOutlined />, element: <Navigate to="/shared/participants" replace />, allowedRoles: operationsRoles, requiredPermission: 'view_participants', audiences: ['operations'], showInNav: false },
@@ -494,6 +499,8 @@ export const appRoutes: AppRoute[] = [
     { path: '/operations/surveys', labelKey: 'nav.surveys', icon: <FormOutlined />, element: <SurveysPage />, allowedRoles: operationsRoles, audiences: ['operations'], showInNav: true },
     { path: '/operations/surveys/builder', labelKey: 'nav.surveyBuilder', icon: <FormOutlined />, element: <SurveyBuilderPage />, allowedRoles: operationsRoles, audiences: ['operations'], showInNav: false },
     { path: '/operations/surveys/builder/:id', labelKey: 'nav.surveyBuilder', icon: <FormOutlined />, element: <SurveyBuilderPage />, allowedRoles: operationsRoles, audiences: ['operations'], showInNav: false },
+    { path: '/operations/gap-analysis/builder', labelKey: 'nav.gapAnalysisBuilder', icon: <FileSearchOutlined />, element: <SurveyBuilderPage variant="gap" />, allowedRoles: operationsRoles, requiredPermission: 'view_diagnostic_plans', audiences: ['operations'], showInNav: false },
+    { path: '/operations/gap-analysis/builder/:id', labelKey: 'nav.gapAnalysisBuilder', icon: <FileSearchOutlined />, element: <SurveyBuilderPage variant="gap" />, allowedRoles: operationsRoles, requiredPermission: 'view_diagnostic_plans', audiences: ['operations'], showInNav: false },
     { path: '/operations/lms', labelKey: 'nav.courses', icon: <ReadOutlined />, element: <LmsPage />, allowedRoles: operationsRoles, audiences: ['operations'], showInNav: true },
     { path: '/operations/lms/builder', labelKey: 'nav.courseBuilder', icon: <ReadOutlined />, element: <CourseBuilderPage />, allowedRoles: operationsRoles, audiences: ['operations'], showInNav: false },
     { path: '/operations/lms/builder/:id', labelKey: 'nav.courseBuilder', icon: <ReadOutlined />, element: <CourseBuilderPage />, allowedRoles: operationsRoles, audiences: ['operations'], showInNav: false },
@@ -551,10 +558,11 @@ export const appRoutes: AppRoute[] = [
     { path: '/kpis', labelKey: 'nav.kpis', icon: <AimOutlined />, element: <KpisPage />, allowedRoles: [USER_ROLES.DIRECTOR, USER_ROLES.PROJECT_MANAGER, USER_ROLES.OPERATIONS, USER_ROLES.PROJECT_ADMIN, USER_ROLES.CONSULTANT], audiences: ['operations', 'platform'], hideFromMarketplaceConsultants: true, showInNav: true },
     // Funders: read-only results for the programmes linked to their account (Portfolio and Sectors are the director pages).
     { path: '/funder', labelKey: 'nav.dashboard', icon: <DashboardOutlined />, element: <FunderDashboardPage />, allowedRoles: funderRoles, requiredPermission: 'view_dashboard', audiences: ['platform'], showInNav: true },
-    { path: '/funder/portfolio', labelKey: 'nav.portfolio', icon: <TeamOutlined />, element: <DirectorPortfolioPage />, allowedRoles: funderRoles, requiredPermission: 'view_reports', audiences: ['platform'], showInNav: true },
+    { path: '/funder/portfolio', labelKey: 'nav.portfolio', icon: <TeamOutlined />, element: <FunderPortfolioPage />, allowedRoles: funderRoles, requiredPermission: 'view_reports', audiences: ['platform'], showInNav: true },
     { path: '/funder/sectors', labelKey: 'nav.sectorPerformance', icon: <PieChartOutlined />, element: <DirectorSectorsPage />, allowedRoles: funderRoles, requiredPermission: 'view_reports', audiences: ['platform'], showInNav: true },
     { path: '/funder/calendar', labelKey: 'nav.calendar', icon: <CalendarOutlined />, element: <FunderCalendarPage />, allowedRoles: funderRoles, requiredPermission: 'view_reports', audiences: ['platform'], showInNav: true },
     { path: '/funder/analytics', labelKey: 'nav.analytics', icon: <BarChartOutlined />, element: <FunderAnalyticsPage />, allowedRoles: funderRoles, requiredPermission: 'view_reports', audiences: ['platform'], showInNav: true },
+    { path: '/funder/impact', labelKey: 'nav.impact', icon: <FundProjectionScreenOutlined />, element: <FunderImpactPage />, allowedRoles: funderRoles, requiredPermission: 'view_reports', audiences: ['platform'], showInNav: true },
     { path: '/director', labelKey: 'nav.dashboard', icon: <DashboardOutlined />, element: <DirectorDashboardPage />, allowedRoles: directorRoles, requiredPermission: 'view_dashboard', audiences: ['platform'], showInNav: true },
     { path: '/director/programs', labelKey: 'nav.programPerformance', icon: <ProjectOutlined />, element: <DirectorProgramsPage />, allowedRoles: directorRoles, requiredPermission: 'view_reports', audiences: ['platform'], showInNav: true },
     { path: '/director/portfolio', labelKey: 'nav.portfolio', icon: <FundProjectionScreenOutlined />, element: <DirectorPortfolioPage />, allowedRoles: directorRoles, requiredPermission: 'view_reports', audiences: ['platform'], showInNav: true },
@@ -565,6 +573,7 @@ export const appRoutes: AppRoute[] = [
     { path: '/director/reports', labelKey: 'nav.reports', icon: <BarChartOutlined />, element: <DirectorReportsPage />, allowedRoles: directorRoles, requiredPermission: 'view_reports', audiences: ['platform'], showInNav: true },
     { path: '/admin/storage', labelKey: 'nav.storage', icon: <FolderOpenOutlined />, element: <StoragePage />, allowedRoles: adminRoles, audiences: ['platform'], showInNav: true },
     { path: '/admin/organisation-requests', labelKey: 'nav.organisationRequests', icon: <SafetyCertificateOutlined />, element: <OrganisationRequestsPage />, allowedRoles: [USER_ROLES.SYSTEM_ADMIN], audiences: ['platform'], showInNav: true },
+    { path: '/admin/funder-organisations', labelKey: 'nav.funderOrganisations', icon: <BankOutlined />, element: <FunderOrganisationsPage />, allowedRoles: [USER_ROLES.SYSTEM_ADMIN], audiences: ['platform'], showInNav: true },
     { path: '/admin/users', labelKey: 'nav.users', icon: <UserOutlined />, element: <UserManagementPage />, allowedRoles: adminRoles, requiredPermission: 'manage_users', audiences: ['platform'], showInNav: true },
     { path: '/admin/client-modules', labelKey: 'nav.clientModules', icon: <AppstoreAddOutlined />, element: <ClientModulesPage />, allowedRoles: adminRoles, requiredPermission: 'manage_users', audiences: ['platform'], showInNav: true },
     { path: '/admin/consultant-verification', labelKey: 'nav.consultantVerification', icon: <SafetyCertificateOutlined />, element: <ConsultantVerificationPage />, allowedRoles: [USER_ROLES.SYSTEM_ADMIN], requiredPermission: 'manage_users', audiences: ['platform'], showInNav: true },
@@ -585,7 +594,7 @@ export const appRoutes: AppRoute[] = [
     { path: '/admin/plans', labelKey: 'nav.companyPlans', icon: <DollarOutlined />, element: <CompanyPlansPage />, allowedRoles: adminRoles, requiredPermission: 'manage_users', audiences: ['platform'], showInNav: true },
     { path: '/admin/agent-ratings', labelKey: 'nav.agentRatings', icon: <StarOutlined />, element: <Navigate to="/admin/agent-registry?tab=ratings" replace />, allowedRoles: [USER_ROLES.SYSTEM_ADMIN], audiences: ['platform'], showInNav: false },
     { path: '/admin/sales-pitch', labelKey: 'nav.salesPitch', icon: <ExperimentOutlined />, element: <SalesPitchPage />, allowedRoles: adminRoles, audiences: ['platform'], showInNav: true },
-    { path: '/notifications', labelKey: 'nav.notifications', icon: <BellOutlined />, element: <NotificationCenterPage />, allowedRoles: [USER_ROLES.INCUBATEE, USER_ROLES.OPERATIONS, USER_ROLES.PROJECT_ADMIN, USER_ROLES.PROJECT_MANAGER, USER_ROLES.CONSULTANT], audiences: ['platform', 'applicant', 'incubatee', 'operations'], showInNav: false },
+    { path: '/notifications', labelKey: 'nav.notifications', icon: <BellOutlined />, element: <NotificationCenterPage />, allowedRoles: [USER_ROLES.INCUBATEE, USER_ROLES.OPERATIONS, USER_ROLES.PROJECT_ADMIN, USER_ROLES.PROJECT_MANAGER, USER_ROLES.CONSULTANT, USER_ROLES.FUNDER], audiences: ['platform', 'applicant', 'incubatee', 'operations'], showInNav: false },
     { path: '/profile', labelKey: 'nav.profile', icon: <ProfileOutlined />, element: <UserProfilePage />, allowedRoles: allRolesExceptLearners.filter(role => role !== USER_ROLES.INCUBATEE), audiences: ['platform'], showInNav: false },
     { path: '/settings', labelKey: 'nav.companySettings', icon: <SettingOutlined />, element: <CompanySettingsPage />, allowedRoles: allRolesExceptLearners, audiences: ['platform'], showInNav: false },
 ]

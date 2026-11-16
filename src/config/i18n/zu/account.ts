@@ -726,4 +726,17 @@ export const zuAccount: Record<string, string> = {
   "Not added yet": "Ayikengezwa",
   "No signature yet. You will be asked to add one the first time you sign an agreement or document.": "Ayikho isiginesha okwamanje. Uzocelwa ukuthi uyengeze okokuqala lapho usayina isivumelwano noma idokhumenti.",
   "This goes on the agreements and documents you sign.": "Le isiginesha ifakwa ezivumelwaneni nasemadokhumentini owasayinayo.",
+  // How this device remembers a sign-in.
+  "On this device": "Kule divayisi",
+  "Ask me each time": "Ngibuze njalo",
+  "Keep me signed in": "Ngigcine ngingenile",
+  "Don't remember me": "Ungangikhumbuli",
+  "Stay signed in": "Hlala ungenile",
+  "Ask each time": "Buza njalo",
+  "Don't remember": "Ungakhumbuli",
+  "Opening the site takes you straight to your workspace.": "Ukuvula isayithi kukuyisa ngqo endaweni yakho yokusebenza.",
+  "Next time we ask before continuing as you.": "Ngokuzayo sizobuza ngaphambi kokuqhubeka njengawe.",
+  "You are signed out when you close the browser. Best on shared computers.": "Uyaphuma uma uvala isiphequluli. Kungcono kumakhompyutha okwabelwana ngawo.",
+  "Main navigation": "Ukuzulazula okuyinhloko",
+  "More": "Okunye",
 }

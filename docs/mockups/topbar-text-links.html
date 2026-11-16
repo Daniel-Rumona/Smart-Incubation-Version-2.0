@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Top bar with text links</title>
+<style>
+  :root {
+    --accent: #6d5dfb; --accent-2: #4f7df3; --accent-soft: rgba(109,93,251,.12);
+    --bg: #f5f6fb; --surface: #ffffff; --surface-2: #eef0f8; --ink: #172033; --muted: #5b6478; --line: rgba(109,93,251,.14);
+    --note: #b45309; --note-bg: rgba(217,119,6,.1); --red: #ef4444;
+    --ease: cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  [data-theme="dark"] {
+    --bg: #0f1117; --surface: #1b1e2a; --surface-2: #232737; --ink: #eef0f6; --muted: #a1a9bd; --line: rgba(139,92,246,.24); --accent-soft: rgba(109,93,251,.22);
+    --note: #fbbf24; --note-bg: rgba(251,191,36,.12);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
+  button { font: inherit; color: inherit; }
+
+  .controls { position: sticky; top: 0; z-index: 30; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; padding: 12px; background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+  .seg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); }
+  .seg button { border: 0; background: none; color: var(--muted); font-weight: 650; font-size: 13px; padding: 7px 14px; border-radius: 999px; cursor: pointer; }
+  .seg button.on { color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+  .stage { display: flex; justify-content: center; padding: 28px 16px 60px; }
+  .frame { width: 1440px; max-width: 100%; transition: width .35s var(--ease); }
+  .stage.narrow .frame { width: 1100px; }
+  .view { display: none; } .view.on { display: block; }
+  .chg { display: none; margin: 14px 0; padding: 9px 12px; border-radius: 10px; font-size: 12.5px; line-height: 1.45; color: var(--note); background: var(--note-bg); border: 1px dashed color-mix(in srgb, var(--note) 50%, transparent); }
+  .show-notes .chg { display: block; }
+  .page { height: 300px; margin-top: 16px; border-radius: 18px; border: 1px dashed var(--line); display: grid; place-items: center; color: var(--muted); }
+
+  /* shared bar shell */
+  .bar { position: relative; display: flex; align-items: center; gap: 12px; height: 58px; padding: 0 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 16px 42px rgba(15,23,42,.07); }
+  .icon-btn { width: 40px; height: 40px; flex: none; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--line); background: var(--surface); cursor: pointer; position: relative; }
+  .icon-btn svg { width: 18px; height: 18px; }
+  .dot { position: absolute; top: 7px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--red); border: 2px solid var(--surface); }
+  .spacer { flex: 1; }
+  .scope { height: 40px; display: inline-flex; align-items: center; gap: 8px; padding: 0 12px 0 6px; border-radius: 999px; border: 1px solid var(--line); background: var(--accent-soft); font-weight: 650; white-space: nowrap; cursor: pointer; min-width: 0; }
+  .scope .ico { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--surface); color: var(--accent); flex: none; }
+  .scope .ico svg { width: 15px; height: 15px; }
+  .scope span.txt { overflow: hidden; text-overflow: ellipsis; }
+  .caret { font-size: 10px; opacity: .65; }
+
+  /* current */
+  .pillseg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); height: 40px; }
+  .pillseg span { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 12px; min-width: 40px; border-radius: 999px; color: var(--muted); font-weight: 700; white-space: nowrap; }
+  .pillseg span.on { color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: 0 6px 16px rgba(109,93,251,.35); }
+  .pillseg svg { width: 16px; height: 16px; }
+  .cur-center { flex: 1; display: flex; justify-content: center; }
+
+  /* proposed */
+  .nav { display: flex; align-items: center; gap: 4px; min-width: 0; }
+  .nav a { position: relative; display: inline-flex; align-items: center; gap: 5px; height: 40px; padding: 0 12px; border-radius: 10px; color: var(--muted); font-weight: 600; text-decoration: none; white-space: nowrap; cursor: pointer; }
+  .nav a:hover { color: var(--ink); background: var(--surface-2); }
+  .nav a.on { color: var(--accent); font-weight: 750; }
+  .nav a.on::after { content: ''; position: absolute; left: 12px; right: 12px; bottom: 4px; height: 2px; border-radius: 2px; background: var(--accent); }
+  .home { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; font-weight: 800; flex: none; margin-right: 6px; }
+  .divider { width: 1px; height: 26px; background: var(--line); flex: none; }
+  .agentic { height: 40px; display: inline-flex; align-items: center; gap: 7px; padding: 0 14px 0 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-weight: 650; cursor: pointer; flex: none; position: relative; }
+  .agentic svg { width: 18px; height: 18px; color: var(--accent); }
+  .agentic.on { color: #fff; border-color: transparent; background: linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: 0 6px 16px rgba(109,93,251,.35); }
+  .agentic.on svg { color: #fff; }
+  .agentic .tip { position: absolute; top: 48px; right: 0; white-space: nowrap; padding: 6px 10px; border-radius: 8px; background: var(--ink); color: var(--bg); font-size: 12px; font-weight: 500; opacity: 0; pointer-events: none; transition: opacity .15s; }
+  .agentic:hover .tip { opacity: 1; }
+  kbd { padding: 1px 5px; border-radius: 5px; border: 1px solid color-mix(in srgb, var(--bg) 50%, transparent); font: 600 11px system-ui; }
+  .agentic-page { height: 300px; margin-top: 16px; border-radius: 18px; display: grid; place-items: center; text-align: center; background: radial-gradient(circle at 50% 30%, var(--accent-soft), transparent 60%); }
+  .agentic-page h2 { margin: 0 0 6px; font-size: 26px; } .agentic-page h2 b { color: var(--accent); }
+  .agentic-page p { margin: 0; color: var(--muted); }
+
+  /* dropdown */
+  .menu { position: absolute; top: 54px; z-index: 20; width: 330px; padding: 8px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 24px 60px rgba(15,23,42,.16); display: none; }
+  .menu.open { display: block; }
+  .menu.wide { width: 520px; display: none; grid-template-columns: 1fr 1fr; gap: 2px; }
+  .menu.wide.open { display: grid; }
+  .mi { display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 12px; cursor: pointer; }
+  .mi:hover, .mi.on { background: var(--accent-soft); }
+  .mi i { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--surface-2); color: var(--accent); font-style: normal; }
+  .mi i svg { width: 17px; height: 17px; }
+  .mi b { display: block; font-size: 13.5px; } .mi small { display: block; color: var(--muted); font-size: 12px; }
+  .mi.on b { color: var(--accent); }
+  .cascade { position: absolute; top: 54px; right: 150px; z-index: 20; display: none; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 24px 60px rgba(15,23,42,.16); overflow: hidden; }
+  .cascade.open { display: flex; }
+  .cascade ul { list-style: none; margin: 0; padding: 6px; min-width: 210px; }
+  .cascade ul + ul { border-left: 1px solid var(--line); }
+  .cascade li { padding: 8px 12px; border-radius: 10px; cursor: pointer; font-size: 13px; display: flex; justify-content: space-between; gap: 12px; }
+  .cascade li:hover, .cascade li.on { background: var(--accent-soft); }
+  .cascade li.on { color: var(--accent); font-weight: 650; }
+</style>
+</head>
+<body>
+<div class="controls">
+  <div class="seg" id="page"><button data-p="current">Current</button><button class="on" data-p="simple">Proposed</button></div>
+  <div class="seg" id="role"><button class="on" data-r="ops">Operations</button><button data-r="director">Director</button><button data-r="funder">Funder organisation</button></div>
+  <div class="seg" id="plan"><button class="on" data-plan="agentic">Plan with Agentic</button><button data-plan="basic">Without Agentic</button></div>
+  <div class="seg" id="width"><button class="on" data-w="wide">1440px</button><button data-w="narrow">1100px</button></div>
+  <div class="seg" id="theme"><button class="on" data-t="light">Light</button><button data-t="dark">Dark</button></div>
+  <div class="seg" id="notes"><button class="on" data-n="on">Show changes</button><button data-n="off">Hide changes</button></div>
+</div>
+
+<div class="stage show-notes" id="stage">
+  <div class="frame">
+    <section class="view" id="current">
+      <div class="bar" id="cur-bar"></div>
+      <div class="chg" id="cur-note"></div>
+      <div class="page">Page</div>
+    </section>
+
+    <section class="view on" id="simple">
+      <div class="bar" id="new-bar"></div>
+      <div class="chg"><b>Text links that stay text.</b> Page names sit on the left as plain links and are the last thing to give way. The current page is accent text with a thin underline instead of a filled pill. Pages that aren't shortcuts live in <b>More ▾</b>, a menu with a line of description each, instead of a separate Menu button. <i>Click More, and on the funder the scope picker, to open them.</i></div>
+      <div class="chg"><b>Home is the Agentic space.</b> You land on <b>Home</b>, the assistant with today's key figures, and it's underlined, so you always know where you are. The dashboard is the next link along, one click away. Moving between the assistant and any page is just clicking a link: no Agentic / Workspace switch and no extra Assistant button. <i>Switch to "Without Agentic": the same bar, with Home as the dashboard and no Dashboard link.</i></div>
+      <div class="chg"><b>Your things on the right.</b> The scope picker (one control, even for a funder organisation), notifications and your profile. The H tile also goes Home.</div>
+      <div id="new-page"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+  const I = {
+    home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>',
+    apps: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>',
+    risk: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16v.5"/></svg>',
+    chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
+    people: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"/></svg>',
+    pie: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v9h9A9 9 0 1 1 12 3z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/></svg>',
+    cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
+    folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg>',
+    org: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="3" width="6" height="5" rx="1"/><rect x="3" y="16" width="6" height="5" rx="1"/><rect x="15" y="16" width="6" height="5" rx="1"/><path d="M12 8v4M6 16v-4h12v4"/></svg>',
+    bell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8M10 20a2 2 0 0 0 4 0"/></svg>',
+    user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
+    robot: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="7" width="16" height="12" rx="3"/><path d="M12 3v4M9 12v1M15 12v1M9 16h6"/></svg>',
+    grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>',
+    guide: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></svg>',
+    menu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
+    list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>',
+    file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 13h6M9 17h4"/></svg>',
+    shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg>',
+  }
+
+  const ROLES = {
+    ops: {
+      links: [['Home', 'home'], ['Applications', 'apps'], ['Risks', 'risk'], ['Reports', 'chart']],
+      active: 'Home',
+      more: [['Participants', 'people', 'SMEs in your programmes'], ['Interventions', 'list', 'Assign, monitor and set up support'], ['Diagnostic plans', 'file', 'Build and sign growth plans'], ['Compliance', 'shield', 'Documents and expiry dates'], ['Calendar', 'cal', 'Sessions and appointments'], ['Impact analysis', 'chart', 'Outcomes and growth since joining']],
+      scope: 'Women in Agri Accelerator 2026', funderOrg: false,
+    },
+    director: {
+      links: [['Home', 'home'], ['Portfolio', 'people'], ['Programmes', 'folder'], ['Reports', 'chart']],
+      active: 'Home',
+      more: [['Sector performance', 'pie', 'Revenue and delivery by sector'], ['KPIs', 'chart', 'Targets against actuals'], ['Calendar', 'cal', 'Sessions across programmes'], ['Company settings', 'list', 'How your company works']],
+      scope: 'All programmes', funderOrg: false,
+    },
+    funder: {
+      links: [['Home', 'home'], ['Portfolio', 'people'], ['Sector performance', 'pie'], ['Analytics', 'chart'], ['Calendar', 'cal']],
+      active: 'Home',
+      more: [],
+      scope: 'All implementors · All programmes', funderOrg: true,
+    },
+  }
+  let role = 'ops', narrow = false, plan = 'agentic'
+  const el = (id) => document.getElementById(id)
+
+  const currentBar = () => {
+    const r = ROLES[role]
+    // At 1100px (and for the funder organisation's two dropdowns) the current bar drops labels to icons.
+    const squeezed = narrow || r.funderOrg
+    const links = r.links.map(([label, icon]) => {
+      const on = label === r.active
+      return `<span class="${on ? 'on' : ''}">${I[icon]}${on || !squeezed ? label : ''}</span>`
+    }).join('')
+    const scopes = r.funderOrg
+      ? `<span class="scope" style="max-width:190px"><span class="ico">${I.org}</span><span class="txt">All implementors</span><span class="caret">▾</span></span><span class="scope"><span class="ico">${I.folder}</span><span class="txt">All Programs</span><span class="caret">▾</span></span>`
+      : `<span class="scope"><span class="ico">${I.folder}</span><span class="txt">${r.scope}</span></span>`
+    el('cur-bar').innerHTML = `
+      <span class="pillseg">${squeezed ? `<span>${I.robot}</span><span class="on">${I.grid}</span>` : `<span>${I.robot}Agentic</span><span class="on">${I.grid}Workspace</span>`}</span>
+      <div class="cur-center"><span class="pillseg">${links}</span></div>
+      ${r.more.length ? `<span class="scope" style="background:var(--surface)"><span class="ico">${I.menu}</span>Menu</span>` : ''}
+      ${scopes}
+      <span class="icon-btn" style="color:var(--accent)">${I.guide}</span>
+      <span class="icon-btn">${I.bell}<span class="dot"></span></span>
+      <span class="icon-btn">${I.user}</span>`
+    el('cur-note').innerHTML = squeezed
+      ? '<b>Squeezed:</b> the mode switch and every page but the current one fall back to icons, and two scope dropdowns (funder organisation) take the room the page names needed. The filled pill is the loudest thing on the bar.'
+      : 'Today\'s bar: Agentic / Workspace switch first, page shortcuts as a filled pill in the middle, Menu for the rest, then scope and actions. Try 1100px or the funder organisation to see it squeeze.'
+  }
+
+  // Home first; with Agentic in the plan Home is the assistant and the dashboard follows as its own link.
+  const linksFor = (r) => ['Home', ...(plan === 'agentic' ? ['Dashboard'] : []), ...r.links.map(([label]) => label).filter((label) => label !== 'Home')]
+
+  const newBar = () => {
+    const r = ROLES[role]
+    const links = linksFor(r).map((label) => `<a class="${label === r.active ? 'on' : ''}">${label}</a>`).join('')
+    const more = r.more.length ? `<a id="more-btn">More <span class="caret">▾</span></a>` : ''
+    el('new-bar').innerHTML = `
+      <span class="home" title="Home">H</span>
+      <nav class="nav">${links}${more}</nav>
+      <span class="spacer"></span>
+      <span class="scope" id="scope-btn" style="max-width:${narrow ? 230 : 320}px"><span class="ico">${r.funderOrg ? I.org : I.folder}</span><span class="txt">${r.scope}</span><span class="caret">▾</span></span>
+      <span class="divider"></span>
+      <span class="icon-btn">${I.bell}<span class="dot"></span></span>
+      <span class="icon-btn">${I.user}</span>
+      <div class="menu ${r.more.length > 4 ? 'wide' : ''}" id="more-menu">${r.more.map(([label, icon, sub]) => `<div class="mi"><i>${I[icon]}</i><div><b>${label}</b><small>${sub}</small></div></div>`).join('')}</div>
+      <div class="cascade" id="cascade"><ul><li class="on">All implementors <span>›</span></li><li>Acme Incubator <span>›</span></li><li>Thrive Hub <span>›</span></li></ul><ul><li class="on">All programmes</li><li>Women in Agri Accelerator 2026</li><li>Youth Enterprise 2026</li></ul></div>`
+  }
+
+  const newPage = () => {
+    const active = ROLES[role].active
+    const agenticHome = active === 'Home' && plan === 'agentic'
+    const dashboard = active === 'Dashboard' || (active === 'Home' && plan !== 'agentic')
+    el('new-page').innerHTML = agenticHome
+      ? '<div class="agentic-page"><div><h2>RCM, ready to work on <b>delivery risks</b>?</h2><p>Home: the assistant, with today’s figures. Ask across your workspace, or start with a suggested action.</p></div></div>'
+      : '<div class="page">' + (dashboard ? 'Dashboard: the figures and charts for your role' : active) + '</div>'
+  }
+  const render = () => { currentBar(); newBar(); newPage() }
+  const seg = (id, fn) => el(id).addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return
+    document.querySelectorAll('#' + id + ' button').forEach(x => x.classList.toggle('on', x === b))
+    fn(b.dataset)
+  })
+  seg('page', d => document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === d.p)))
+  seg('role', d => { role = d.r; render() })
+  seg('plan', d => { plan = d.plan; if (plan !== 'agentic' && ROLES[role].active === 'Dashboard') ROLES[role].active = 'Home'; render() })
+  seg('width', d => { narrow = d.w === 'narrow'; el('stage').classList.toggle('narrow', narrow); render() })
+  seg('theme', d => document.documentElement.dataset.theme = d.t)
+  seg('notes', d => el('stage').classList.toggle('show-notes', d.n === 'on'))
+  document.addEventListener('click', e => {
+    const more = e.target.closest('#more-btn'), scope = e.target.closest('#scope-btn')
+    const menu = el('more-menu')
+    if (menu) {
+      menu.classList.toggle('open', !!more && !menu.classList.contains('open'))
+      const button = el('more-btn')
+      if (button) menu.style.left = button.offsetLeft + 'px'
+    }
+    const cascade = el('cascade')
+    if (cascade) cascade.classList.toggle('open', !!scope && ROLES[role].funderOrg && !cascade.classList.contains('open'))
+    const link = e.target.closest('.nav a:not(#more-btn), .mi, .home')
+    if (link) { ROLES[role].active = link.classList.contains('home') ? 'Home' : link.querySelector('b')?.textContent || link.textContent.trim(); render() }
+  })
+  render()
+</script>
+</body>
+</html>

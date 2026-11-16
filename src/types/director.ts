@@ -14,6 +14,9 @@ export type DirectorPortfolioSme = {
   lastUpdate: string
   programId?: string
   programName?: string
+  /** The company (implementor) running the SME's programme, and its name where known. */
+  companyCode?: string
+  companyName?: string
   photoUrl?: string
   execution: {
     required: number
@@ -23,6 +26,8 @@ export type DirectorPortfolioSme = {
     upcoming: number
   }
   trend: Array<{ key: string; month: string; revenue: number; employees: number }>
+  /** The date of the SME's latest monthly report (YYYY-MM-DD); null when it has never reported. */
+  lastReport?: string | null
   /** When the SME was accepted (YYYY-MM-DD). */
   joinedAt?: string
   /** First and latest reported revenue and headcount, as Impact analysis uses them; null with fewer than two figures. */

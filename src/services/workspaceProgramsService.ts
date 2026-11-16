@@ -2,6 +2,7 @@ import { collection, getDocs, query, where } from 'firebase/firestore'
 import { getFirebaseDb } from '@/config/firebase'
 import type { FullIdentity } from '@/types/identity'
 import { isPlatformAdmin, listTeamRegisteredCompanyCodes } from '@/services/companiesService'
+import { isOrgFunder } from '@/services/funderScopeService'
 
 export type WorkspaceProgram = {
   id: string
@@ -10,6 +11,8 @@ export type WorkspaceProgram = {
   openToExternalSmes?: boolean
   /** 'Incubation' or 'Training' (older programmes may hold other types). */
   type?: string
+  /** The company running the programme; set for a funder organisation, whose programmes span implementors. */
+  companyCode?: string
 }
 
 /** Training programmes only deliver a set list, so their SMEs get a smaller workspace. */
@@ -51,11 +54,29 @@ export const matchesActiveProgram = (
   return canAccessProgram(user, normalizedProgramId)
 }
 
-export const listWorkspacePrograms = async (user?: FullIdentity | null) => {
+export const listWorkspacePrograms = async (user?: FullIdentity | null): Promise<WorkspaceProgram[]> => {
   const snapshot = await getDocs(collection(getFirebaseDb(), 'programs'))
   const assignedIds = getAssignedProgramIds(user)
   const companyCode = String(user?.companyCode || '').trim()
   const shouldScopeToCompany = !isPlatformAdmin(user)
+
+  // A funder organisation's member has no company: their programmes are the ones its active links cover, at any implementor.
+  if (isOrgFunder(user)) {
+    const linked = new Set(user?.funderProgramIds || [])
+    const companies = new Set(user?.funderCompanyCodes || [])
+    return snapshot.docs.flatMap((row) => {
+      const data = row.data()
+      const programCompany = String(data.companyCode || '').trim()
+      if (!linked.has(row.id) || !companies.has(programCompany)) return []
+      return [{
+        id: row.id,
+        name: data.name || row.id,
+        agentSupportMode: normalizeAgentSupportMode(data),
+        type: typeof data.type === 'string' ? data.type : undefined,
+        companyCode: programCompany,
+      }]
+    }).sort((left, right) => left.name.localeCompare(right.name))
+  }
 
   return snapshot.docs.flatMap((row) => {
     const data = row.data()

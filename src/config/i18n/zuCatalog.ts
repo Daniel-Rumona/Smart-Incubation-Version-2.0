@@ -20,6 +20,8 @@ import { zuReports } from './zu/reports'
 import { zuKpis } from './zu/kpis'
 import { zuMarketplace } from './zu/marketplace'
 import { zuConsultant } from './zu/consultant'
+import { zuGapAnalysis } from './zu/gapAnalysis'
+import { zuFunderOrganisations } from './zu/funderOrganisations'
 
 /** isiZulu translations keyed by the English source text passed to t(). Per-area files keep review manageable. */
 export const zuCatalog: Record<string, string> = {
@@ -42,6 +44,8 @@ export const zuCatalog: Record<string, string> = {
   ...zuKpis,
   ...zuMarketplace,
   ...zuConsultant,
+  ...zuGapAnalysis,
+  ...zuFunderOrganisations,
   ...zuNotifications,
   ...zuCompliance,
   ...zuAgentic,

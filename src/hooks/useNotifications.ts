@@ -23,8 +23,9 @@ export type AppNotification = {
 
 dayjs.extend(relativeTime)
 
-// Consultants get the follow-up reminders from functions/src/followUps.ts in the same collection.
-const STAFF_ROLES = ['operations', 'projectadmin', 'projectmanager', 'consultant']
+// Consultants get the follow-up reminders from functions/src/followUps.ts in the same collection, and funders their
+// programme link requests (functions/src/funderOrganisations.ts).
+const STAFF_ROLES = ['operations', 'projectadmin', 'projectmanager', 'consultant', 'funder']
 const CHANGED_EVENT = 'app-notifications-changed'
 
 export const isStaffNotificationRole = (role?: string) => !!role && STAFF_ROLES.includes(role)

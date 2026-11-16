@@ -519,3 +519,35 @@ html[data-theme='dark'] .landing-preview-toast { box-shadow: 0 18px 40px rgba(0,
   .landing-cta-group > .ant-btn,
   .landing-final-actions > .ant-btn { min-width: 210px; justify-content: center; }
 }
+
+/* Signed in, "ask me each time": a small card in the hero instead of the sign-up buttons. */
+.landing-continue { display: flex; align-items: center; gap: 14px; width: 100%; max-width: 520px; padding: 12px 12px 12px 14px; border: 1px solid rgba(109, 93, 251, 0.18); border-radius: 22px; background: var(--landing-surface-solid); box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08); }
+.landing-continue-avatar { flex: none; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; color: #fff; background: linear-gradient(135deg, var(--landing-accent), var(--landing-accent-2)); }
+.landing-continue-copy { flex: 1; min-width: 0; display: grid; gap: 2px; justify-items: start; }
+.landing-continue-copy strong { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
+.landing-continue-copy .landing-returning-link { font-size: 13px; font-weight: 600; }
+.landing-continue .landing-get-started { flex: none; min-width: 0 !important; }
+.landing-final-actions .landing-continue { margin-inline: auto; text-align: left; }
+html[data-theme='dark'] .landing-continue { border-color: rgba(165, 155, 255, 0.24); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35); }
+
+@media (max-width: 479px) {
+  .landing-continue { flex-wrap: wrap; }
+  .landing-continue .landing-get-started { flex: 1 1 100%; }
+}
+
+/* Book a demo form (DemoRequestForm) */
+.demo-request-intro { margin: 0 0 14px; color: var(--landing-muted, #5b6478); }
+.demo-request-roles.ant-radio-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: 100%; }
+.demo-request-roles .ant-radio-button-wrapper { height: auto; padding: 10px 12px; border-radius: 12px !important; border-inline-start-width: 1px; line-height: 1.3; text-align: left; }
+.demo-request-roles .ant-radio-button-wrapper::before { display: none !important; }
+.demo-request-roles .ant-radio-button-wrapper strong { display: block; font-size: 13px; }
+.demo-request-roles .ant-radio-button-wrapper small { display: block; font-size: 11.5px; opacity: 0.75; }
+.demo-request-roles .ant-radio-button-wrapper:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.demo-request-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; }
+.demo-request-size.ant-radio-group { display: flex; width: 100%; }
+.demo-request-size .ant-radio-button-wrapper { flex: 1; text-align: center; }
+.demo-request-trap { position: absolute !important; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+@media (max-width: 520px) {
+  .demo-request-roles.ant-radio-group,
+  .demo-request-pair { grid-template-columns: 1fr; }
+}

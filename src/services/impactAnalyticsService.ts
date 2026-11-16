@@ -4,8 +4,10 @@ import { db } from '@/firebase/config'
 import { isDiscontinuedRecord } from '@/services/discontinuedSmes'
 import { metricHistory, toDayjsValue, type FirestoreDateLike, type PerformanceSourceRow } from '@/services/smePerformanceMetrics'
 import { SME_ANSWER_MATCHES, smeCheckbackHistory, type SmeCheckbackEntry } from '@/services/smeCheckbackService'
-import { matchesActiveProgram } from '@/services/workspaceProgramsService'
+import { listWorkspacePrograms, matchesActiveProgram } from '@/services/workspaceProgramsService'
 import type { FullIdentity } from '@/types/identity'
+import { rankInterventionImpact, type InterventionImpact } from './interventionImpact'
+import { measureAll, type ImpactResult, type ImpactTreatment } from './matchedImpactLogic'
 
 /**
  * Impact analytics: did the SMEs we supported grow, and did the interventions achieve what they set out to?
@@ -55,6 +57,9 @@ type AnyDoc = Record<string, unknown>
 
 type Assignment = {
   id: string
+  interventionId: string
+  eligibleForImpact: boolean
+  smeConfirmed: boolean
   participantId: string
   programId: string
   areaOfSupport: string
@@ -125,6 +130,9 @@ export type TrendMonth = {
 export type AreaOutcome = { area: string, achievedConfirmed: number } & Record<OutcomeBucket, number>
 
 export type ImpactAnalytics = {
+  matchedImpact: ImpactResult[]
+  programNames: Record<string, string>
+  interventionImpactByLag: InterventionImpact[][]
   smes: SmeImpact[]
   totalSmes: number
   smesWithRevenue: number
@@ -195,6 +203,10 @@ const toAssignment = (id: string, row: AnyDoc, now: Dayjs): Assignment => {
   const history = Array.isArray(row.outcomeHistory) ? row.outcomeHistory as Array<{ via?: unknown, result?: unknown }> : []
   return {
     id,
+    interventionId: text(row.interventionId),
+    smeConfirmed: ['confirmed', 'completed', 'done'].includes(lower(row.participantCompletionStatus)) || Boolean(row.completionConfirmedAt),
+    eligibleForImpact: !['cancelled', 'canceled', 'declined', 'superseded'].includes(lower(row.status))
+      && lower(row.assigneeStatus) !== 'declined' && lower(row.participantStatus) !== 'declined',
     participantId: text(row.participantId || row.smmeId || row.smeId),
     programId: text(row.programId),
     areaOfSupport: text(row.areaOfSupport || row.area) || 'Other',
@@ -494,11 +506,36 @@ export const loadImpactAnalytics = async (
   const firstWithData = trend.findIndex((point) => point.revenueSmes || point.jobsSmes)
 
   const jobsCompared = smes.filter((sme) => sme.jobsBeforeAfterChange !== null)
+  const participantPrograms = new Map(participants.map(row => [row.id, text(row.programId)]))
+  const treatments: ImpactTreatment[] = assignments.filter(row => row.eligibleForImpact && row.smeConfirmed && row.completedAt
+    && !row.completedAt.isAfter(now) && row.interventionId && participantPrograms.has(row.participantId)
+    && (!row.programId || row.programId === participantPrograms.get(row.participantId))).map(row => ({
+      participantId: row.participantId, programId: row.programId || participantPrograms.get(row.participantId)!,
+      interventionId: row.interventionId, interventionTitle: row.title, month: row.completedAt!.format('YYYY-MM'),
+      outcome: row.outcome === 'partially' ? 'partial' : row.outcome === 'achieved' || row.outcome === 'not_yet' ? row.outcome : null,
+    }))
+  const matchedImpact = options.skipMonthlyReports ? [] : (['revenue', 'jobs'] as const).flatMap(metric => measureAll(
+    participants.map((row, index) => ({
+      id: row.id, programId: text(row.programId), sector: lower(row.sector || row.industry),
+      synthetic: row.synthetic === true || row.isSynthetic === true || row.isDemo === true || row.seeded === true || Boolean(row.seedBatch || row.seedTag),
+      values: Object.fromEntries(metricHistory(metric === 'revenue'
+        ? { revenueHistory: { monthly: sources[index].revenueHistory?.monthly } }
+        : { headcountHistory: { monthly: sources[index].headcountHistory?.monthly } }, metric === 'revenue' ? 'revenue' : 'headcount')
+        .filter(entry => entry.date.isBefore(now.startOf('month'))).map(entry => [entry.date.format('YYYY-MM'), entry.value])),
+    })), treatments, undefined, metric,
+  ))
   const servedWithJobs = withJobs.filter((sme) => sme.completedInterventions > 0)
   const notServedWithJobs = withJobs.filter((sme) => sme.completedInterventions === 0)
+  const programmes = options.skipMonthlyReports ? [] : await listWorkspacePrograms(user)
 
   return {
+    matchedImpact,
+    programNames: Object.fromEntries(programmes.map(row => [row.id, row.name])),
     smes: smes.sort((left, right) => (right.revenueChange ?? -Infinity) - (left.revenueChange ?? -Infinity) || left.name.localeCompare(right.name)),
+    interventionImpactByLag: options.skipMonthlyReports ? [] : Array.from({ length: 13 }, (_, lag) => rankInterventionImpact(
+      participants.map((row, index) => ({ id: row.id, programId: text(row.programId), source: sources[index] })),
+      assignments.filter(row => row.eligibleForImpact).map(row => ({ ...row, completedAt: row.completedAt?.toISOString() || null })), lag, now,
+    )),
     totalSmes: smes.length,
     smesWithRevenue: withRevenue.length,
     revenueStart,

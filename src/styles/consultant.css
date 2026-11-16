@@ -16,8 +16,8 @@
 .consultant-profile-identity-card .consultant-profile-hero { display: flex; flex-direction: column; gap: 14px; margin: 0; padding: 0; border: 0; background: transparent; text-align: center; }
 .consultant-profile-identity-card .consultant-profile-identity { display: grid; justify-items: center; gap: 8px; }
 .consultant-profile-editor-top { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
-.consultant-profile-editor-top .ant-segmented { width: 100%; border: 1px solid rgba(109, 93, 251, .16); border-radius: 999px; background: rgba(248, 250, 252, .78) !important; padding: 3px !important; }
-.consultant-profile-editor-top .ant-segmented-item { border-radius: 999px !important; color: #64748b; font-weight: 700; }
+.consultant-profile-editor-top .ant-segmented { width: 100%; border: 1px solid rgba(109, 93, 251, .16); border-radius: 10px; background: rgba(248, 250, 252, .78) !important; padding: 3px !important; }
+.consultant-profile-editor-top .ant-segmented-item { border-radius: 7px !important; color: #64748b; font-weight: 700; }
 .consultant-profile-editor-top .ant-segmented-item-selected { color: #6d5dfb !important; background: #fff !important; box-shadow: 0 5px 14px rgba(109, 93, 251, .13) !important; }
 .consultant-location-choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .consultant-currency-choice-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }

@@ -38,9 +38,9 @@ export const calculateShowcaseMetadata: CalculateMetadataFunction<ShowcaseProps>
   return { durationInFrames: total, props: { timings } }
 }
 
-// A product scene keeps showing its live footage after the narration ends, up to this much longer, so viewers
-// see the screen in use rather than cutting away the moment the voice stops.
-const MAX_FOOTAGE_OVERRUN_FRAMES = 15 * FPS
+// A product scene may linger on its footage only briefly after the narration ends; any longer reads as a gap in
+// the voiceover. Footage beyond that is simply cut, so the narration should describe what is on screen instead.
+const MAX_FOOTAGE_OVERRUN_FRAMES = Math.round(0.5 * FPS)
 
 export const sceneFrames = (timing: Timing) => {
   const spoken = LEAD_IN_FRAMES + timing.speechFrames + TAIL_FRAMES

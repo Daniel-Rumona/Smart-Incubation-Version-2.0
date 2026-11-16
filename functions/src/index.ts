@@ -3,21 +3,30 @@ import nodemailer from 'nodemailer'
 import { initializeApp } from 'firebase-admin/app'
 import { getAuth } from 'firebase-admin/auth'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
-import { onDocumentCreated, onDocumentWritten } from 'firebase-functions/v2/firestore'
+import { onDocumentCreated, onDocumentDeleted, onDocumentWritten } from 'firebase-functions/v2/firestore'
 import { HttpsError, onCall, onRequest, type Request } from 'firebase-functions/v2/https'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { runInterventionDeadlineDigest, type DigestDeps } from './deadlineDigest.js'
 import { runFollowUpReminders } from './followUps.js'
+import { runAgentWatches } from './agentWatches.js'
 import { acceptPlan, MarketplaceError, notifyChange, nudgeUnanswered, type MarketplaceDeps } from './marketplace.js'
 import { AvailableWorkError, claimAvailableWork, listAvailableWork } from './availableWork.js'
 import { FunderComplianceError, funderComplianceSummary } from './funderCompliance.js'
 import { runSmeCheckbackAsks } from './smeCheckbacks.js'
 import { DirectorSetupError, completeDirectorSetup } from './directorSetup.js'
-import { isOrganisationStaff, notifyCompletedRegistration, notifyFirstOrganisationStaff, requestOrganisationAccess, reviewOrganisationAccess } from './organisationAccess.js'
+import { REGISTRATION_NOTIFY_EMAIL, isOrganisationStaff, notifyCompletedRegistration, notifyFirstOrganisationStaff, requestOrganisationAccess, reviewOrganisationAccess } from './organisationAccess.js'
+import {
+  FUNDER_LINKS, FUNDER_ORGS, FunderOrgError, confirmFunderOrganisation, createInvitedFunderOrganisation, endLinksForDeletedProgramme,
+  getInviteForResend, linkRequestWording, mergeFunderOrganisation, orgConfirmedWording, orgFunderInviteWording, prepareFunderOrgInvite,
+  removeFunderLink, requestFunderLink, respondToFunderLink, searchFunderOrganisations, toFunderOrgType,
+  LINK_REQUEST_DAYS, addFunderColleague, setLinksOrgStatus, decideFunderOrgChange, funderOrgFieldsFor, syncFunderAccess,
+  convertOldStyleFunder, createConfirmedFunderOrganisation, setFunderLinkFunding, canReuseAccountAsOrgFunder, colleagueInviteWording, expirePendingFunderLinks, prepareFunderColleagueInvite,
+} from './funderOrganisations.js'
 import { canCreateLearner, canReuseAccountAsLearner, isLearnerRole, learnerInviteWording } from './trainingLearners.js'
 import { OrganisationResultsError, organisationResults } from './organisationResults.js'
 import { CLIENT_ORG_ROLE, canInviteFunder, canInviteOrganisationMember, canReuseAccountAsFunder, canReuseAccountAsOrgMember, funderInviteWording, orgMemberInviteWording, toOrgRole } from './trainingOrganisations.js'
 import { ClientFunderError, clientFunderSummary } from './clientFunderSummary.js'
+import { DemoRequestError, submitDemoRequestHandler } from './demoRequests.js'
 import { JoinError, buildConfirmedSetPlan, enrolInDirectProgram, forcedProgramInterventions, getProgramLinkInfo, joinProgram, type JoinInput } from './programJoin.js'
 import {
   processWhatsAppInboundEvent,
@@ -76,6 +85,8 @@ type MailRecord = {
   to?: string | string[]
   cc?: string | string[]
   bcc?: string | string[]
+  /** Where replies go, e.g. the visitor who asked for a demo. */
+  replyTo?: string
   message?: {
     from?: string
     subject?: string
@@ -105,6 +116,8 @@ type PlatformUserPayload = {
   phoneProvider?: string | null
   /** Learner invites: the course named in the invitation email. */
   courseTitle?: string
+  /** Funders: the funder organisation they belong to (system admins only); '' for a funder of one company. */
+  funderOrgId?: string | null
 }
 
 type DeleteUserPayload = {
@@ -128,6 +141,8 @@ type UpdateUserPayload = {
   phoneIsWhatsApp?: boolean
   alternativePhoneIsWhatsApp?: boolean
   phoneProvider?: string | null
+  /** Funders: the funder organisation (system admins only); '' = one company only; not sent = unchanged. */
+  funderOrgId?: string | null
 }
 
 type OrphanCleanupPayload = {
@@ -802,6 +817,20 @@ async function getSuppressedEmail(email: string) {
   }
 }
 
+/**
+ * The recipients a failed send proves don't exist. Nodemailer lists refused recipients on the error; with a single
+ * recipient and a 550-style "no such mailbox" reply, that one address is it. Account or connection problems
+ * (a blocked sender, a dropped connection, a bad login) name no recipient.
+ */
+function hardBouncedRecipients(error: unknown, attempted: string[]) {
+  const message = error instanceof Error ? error.message : String(error)
+  if (/currently blocked|authentication|invalid login|ECONNRESET|ETIMEDOUT/i.test(message)) return []
+  const listed = (error as { rejected?: unknown[] })?.rejected
+  if (Array.isArray(listed) && listed.length) return listed.map((item) => normalizeEmailAddress(item)).filter(Boolean) as string[]
+  const noSuchMailbox = /\b55[0-3]\b/.test(message) && /no such (recipient|user|mailbox)|user unknown|does not exist|recipient.*rejected|mailbox unavailable/i.test(message)
+  return noSuchMailbox && attempted.length === 1 ? attempted : []
+}
+
 async function sendMailRecord(mailId: string, data: MailRecord) {
   const to = normalizeRecipients(data.to).map(normalizeEmail).filter(Boolean)
   const cc = normalizeRecipients(data.cc).map(normalizeEmail).filter(Boolean)
@@ -856,6 +885,7 @@ async function sendMailRecord(mailId: string, data: MailRecord) {
       to: allowedTo,
       cc,
       bcc,
+      ...(data.replyTo ? { replyTo: normalizeEmail(data.replyTo) } : {}),
       subject: message.subject || 'Smart Incubation notification',
       text: message.text || '',
       html: buildBrandedEmailHtml({
@@ -919,11 +949,34 @@ async function sendMailRecord(mailId: string, data: MailRecord) {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
 
+    // Hard bounce (every recipient refused, e.g. "550 No such recipient"): suppress those addresses so the
+    // next send skips them. Repeated bounces get the sending account blocked by the mail host. An account-level
+    // refusal ("currently blocked") is not about the recipients, so it suppresses nobody.
+    const bounced = hardBouncedRecipients(error, allowedTo)
+    await Promise.all(
+      bounced.map((email) =>
+        db.collection('emailSuppressions').doc(email).set(
+          {
+            email,
+            active: true,
+            reason: 'hard_bounce',
+            lastError: errorMessage.slice(0, 300),
+            failureCount: FieldValue.increment(1),
+            lastFailureAt: FieldValue.serverTimestamp(),
+            lastMailId: mailId,
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        ),
+      ),
+    )
+
     await db.collection('mail').doc(mailId).set(
       {
         delivery: {
           status: 'failed',
           error: errorMessage,
+          ...(bounced.length ? { suppressedAfterBounce: bounced } : {}),
           failedAt: FieldValue.serverTimestamp(),
         },
       },
@@ -1520,6 +1573,9 @@ export const requestBrandedPasswordReset = onRequest({ region }, (request, respo
   })
 })
 
+/** A funder organisation problem from the Users page, as an HTTP answer. */
+const funderOrgHttpStatus = (error: FunderOrgError) => (error.code === 'permission-denied' ? 403 : error.code === 'not-found' ? 404 : 400)
+
 export const createPlatformUser = onRequest({ region }, (request, response) => {
   corsHandler(request, response, async () => {
     if (request.method !== 'POST') {
@@ -1555,6 +1611,18 @@ export const createPlatformUser = onRequest({ region }, (request, response) => {
       if (!email) {
         jsonResponse(response, 400, { ok: false, error: 'email_required' })
         return
+      }
+
+      // A funder may belong to a funder organisation (system admins choose it) instead of one company.
+      let funderOrgFields: Record<string, unknown> = {}
+      let funderOrgToSync = ''
+      try {
+        const change = decideFunderOrgChange({ isPlatformAdmin: admin.isPlatformAdmin, role: payload.role, requestedOrgId: payload.funderOrgId || undefined, companyCode: payload.companyCode })
+        funderOrgFields = await funderOrgFieldsFor(getFirestore(), change)
+        if (change.action === 'set') funderOrgToSync = change.orgId
+      } catch (error) {
+        if (error instanceof FunderOrgError) { jsonResponse(response, funderOrgHttpStatus(error), { ok: false, error: error.message }); return }
+        throw error
       }
 
       let userRecord
@@ -1615,6 +1683,7 @@ export const createPlatformUser = onRequest({ region }, (request, response) => {
         db.collection('users').doc(userRecord.uid).set(
           {
             ...userDoc,
+            ...funderOrgFields,
             createdAt: FieldValue.serverTimestamp(),
           },
           { merge: true },
@@ -1642,6 +1711,8 @@ export const createPlatformUser = onRequest({ region }, (request, response) => {
           { merge: true },
         ),
       ])
+      // A new member of a funder organisation sees what its accepted links cover straight away.
+      if (funderOrgToSync) await syncFunderAccess(db, funderOrgToSync)
 
       if (payload.sendEmail && resetLink) {
         const wording = learner
@@ -2052,6 +2123,25 @@ export const updatePlatformUser = onRequest({ region }, (request, response) => {
         return
       }
 
+      // A funder may belong to a funder organisation (system admins choose it) instead of one company.
+      let funderOrgFields: Record<string, unknown> = {}
+      let funderOrgChange: { action: string, orgId: string } = { action: 'keep', orgId: '' }
+      try {
+        funderOrgChange = decideFunderOrgChange({
+          isPlatformAdmin: admin.isPlatformAdmin,
+          role: payload.role || profile.data()?.role,
+          requestedOrgId: payload.funderOrgId === undefined ? undefined : (payload.funderOrgId ?? ''),
+          existingOrgId: profile.data()?.funderOrgId,
+          companyCode: payload.companyCode,
+          previousRole: profile.data()?.role,
+        })
+        funderOrgFields = await funderOrgFieldsFor(getFirestore(), funderOrgChange as Parameters<typeof funderOrgFieldsFor>[1])
+      } catch (error) {
+        if (error instanceof FunderOrgError) { jsonResponse(response, funderOrgHttpStatus(error), { ok: false, error: error.message }); return }
+        throw error
+      }
+      const previousFunderOrgId = String(profile.data()?.funderOrgId || '').trim()
+
       const name = String(payload.name || '').trim()
       const status = payload.status === 'inactive' ? 'inactive' : 'active'
       try {
@@ -2087,10 +2177,13 @@ export const updatePlatformUser = onRequest({ region }, (request, response) => {
       }
 
       await Promise.all([
-        getFirestore().collection('users').doc(uid).set(updates, { merge: true }),
+        getFirestore().collection('users').doc(uid).set({ ...updates, ...funderOrgFields }, { merge: true }),
         getFirestore().collection('userIdentities').doc(uid).set(updates, { merge: true }),
         ...(updates.companyCode ? [ensureCompanyRecord(getFirestore(), updates.companyCode, admin.decoded.uid)] : []),
       ])
+      // Rebuild what the organisation's members may read: the one joined, and the one left.
+      const orgsToSync = new Set([funderOrgChange.action === 'set' ? funderOrgChange.orgId : '', funderOrgChange.action === 'keep' ? '' : previousFunderOrgId].filter(Boolean))
+      await Promise.all([...orgsToSync].map((orgId) => syncFunderAccess(getFirestore(), orgId)))
 
       jsonResponse(response, 200, { ok: true, uid })
     } catch (error) {
@@ -2772,6 +2865,16 @@ export const completeDirectorCompanySetup = onCall({ region }, async request => 
   }
 })
 
+// "Book a demo" on the public landing page: no sign-in needed (functions/src/demoRequests.ts checks and throttles it).
+export const submitDemoRequest = onCall({ region }, async request => {
+  try {
+    return await submitDemoRequestHandler(request.data, String(request.rawRequest?.ip || ''))
+  } catch (error) {
+    if (error instanceof DemoRequestError) throw new HttpsError(error.code === 'too_many' ? 'resource-exhausted' : 'invalid-argument', error.message)
+    throw error
+  }
+})
+
 export const submitOrganisationAccessRequest = onCall({ region }, async request => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first.')
   const user = await getAuth().getUser(request.auth.uid)
@@ -3420,6 +3523,45 @@ export const runInterventionDeadlineDigestNow = onRequest({ region, timeoutSecon
   })
 })
 
+
+/**
+ * Every morning (04:30 UTC, 06:30 in South Africa): check the AI agent's watches and chasers
+ * (see agentWatches.ts). Fired watches and chaser progress are posted as cards in the owner's AI chat.
+ */
+export const notifyAgentWatches = onSchedule(
+  { schedule: '30 4 * * *', timeZone: 'Etc/UTC', region, timeoutSeconds: 540, memory: '1GiB' },
+  async () => {
+    const result = await runAgentWatches({ db: getFirestore() })
+    console.log('[agentWatches] nightly run', result)
+  },
+)
+
+/**
+ * Manual trigger for the same run (POST, signed-in operations / project admin / admin).
+ * { dryRun: true } evaluates and counts without writing anything.
+ * Non-platform users only ever run it for their own company.
+ */
+export const runAgentWatchesNow = onRequest({ region, timeoutSeconds: 540, memory: '1GiB' }, (request, response) => {
+  corsHandler(request, response, async () => {
+    if (request.method !== 'POST') {
+      jsonResponse(response, 405, { ok: false, error: 'Method not allowed' })
+      return
+    }
+    try {
+      const manager = await requireAccountManager(request)
+      const body = (request.body || {}) as { dryRun?: boolean }
+      const result = await runAgentWatches({
+        db: getFirestore(),
+        dryRun: body.dryRun === true,
+        ...(manager.isPlatformAdmin ? {} : { companyCode: manager.companyCode }),
+      })
+      jsonResponse(response, 200, { ok: true, ...result })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      jsonResponse(response, message === 'permission_denied' ? 403 : message === 'not_authenticated' ? 401 : 500, { ok: false, error: message })
+    }
+  })
+})
 // ---------------------------------------------------------------------------
 // Facilitators picking up their own work (see availableWork.ts)
 // ---------------------------------------------------------------------------
@@ -3457,9 +3599,9 @@ export const claimFacilitatorWork = onCall({ region }, async (request) => {
 
 export const getFunderComplianceSummary = onCall({ region }, async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in to see compliance.')
-  const data = (request.data || {}) as { programId?: unknown }
+  const data = (request.data || {}) as { programId?: unknown, implementor?: unknown }
   try {
-    return await funderComplianceSummary(getFirestore(), request.auth.uid, data.programId ? String(data.programId) : null)
+    return await funderComplianceSummary(getFirestore(), request.auth.uid, data.programId ? String(data.programId) : null, data.implementor ? String(data.implementor) : null)
   } catch (error) {
     if (error instanceof FunderComplianceError) throw new HttpsError(error.code, error.message)
     throw error
@@ -3642,6 +3784,289 @@ export const inviteTrainingFunder = onCall({ region }, async (request) => {
     template: buildAuthActionTemplate({ ...funderInviteWording({ providerName: company?.companyName || company?.name, funderName: funder.name }), name, actionUrl: setPasswordLink }),
   })
   return { uid: userRecord.uid, setPasswordLink }
+})
+
+// ---------------------------------------------------------------------------
+// Funder organisations: one funder across several implementors (see funderOrganisations.ts and
+// docs/funder-organisations-plan.md). Every write to funderOrganisations, funderLinks and a funder's access goes
+// through these functions; firestore.rules lets clients only read them.
+// ---------------------------------------------------------------------------
+
+const runFunderOrg = async <T>(work: () => Promise<T>): Promise<T> => {
+  try {
+    return await work()
+  } catch (error) {
+    if (error instanceof FunderOrgError) throw new HttpsError(error.code, error.message)
+    throw error
+  }
+}
+
+const requireAuthUid = (request: { auth?: { uid: string } | null }) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first.')
+  return request.auth.uid
+}
+
+const queueFunderNotice = async (to: string, name: string, source: string, wording: { title: string, intro: string, actionLabel: string, expiryNote: string }, actionUrl: string) => {
+  const email = normalizeEmail(to)
+  if (!isValidEmail(email) || await getSuppressedEmail(email)) return
+  await queueTemplateMail({ to: email, source, template: buildAuthActionTemplate({ ...wording, name, actionUrl }) })
+}
+
+/** A new funder contact's account and its set-password email. Refuses an address that already has an account. */
+const sendFunderOrgInvite = async (input: { email: string, name: string, implementorName: string, funderName: string, programName: string, request: Request }) => {
+  const setPasswordLink = buildPasswordActionUrl(await getAuth().generatePasswordResetLink(input.email), { invite: true, request: input.request })
+  await queueTemplateMail({
+    to: input.email,
+    source: 'inviteFunderOrganisation',
+    template: buildAuthActionTemplate({
+      ...orgFunderInviteWording({ implementorName: input.implementorName, funderName: input.funderName, programName: input.programName }),
+      name: input.name,
+      actionUrl: setPasswordLink,
+    }),
+  })
+  return setPasswordLink
+}
+
+export const searchFunderOrgs = onCall({ region }, async (request) => {
+  const uid = requireAuthUid(request)
+  return runFunderOrg(() => searchFunderOrganisations(getFirestore(), uid, String((request.data as { query?: unknown } | null)?.query || '')))
+})
+
+export const requestFunderOrgLink = onCall({ region }, async (request) => {
+  const uid = requireAuthUid(request)
+  const data = (request.data || {}) as Record<string, unknown>
+  const result = await runFunderOrg(() => requestFunderLink(getFirestore(), uid, String(data.programId || '').trim(), String(data.funderOrgId || '').trim()))
+  const actionUrl = `${getAppBaseUrl(request.rawRequest)}/funder`
+  await Promise.all(result.notify.map((member) => queueFunderNotice(member.email, member.name, 'requestFunderOrgLink',
+    linkRequestWording({ implementorName: result.companyName, programName: result.programName }), actionUrl)))
+  return { linkId: result.linkId }
+})
+
+export const inviteFunderOrganisation = onCall({ region }, async (request) => {
+  const uid = requireAuthUid(request)
+  const data = (request.data || {}) as Record<string, unknown>
+  const email = normalizeEmail(String(data.email || ''))
+  const contactName = String(data.contactName || '').trim() || email
+  if (!isValidEmail(email)) throw new HttpsError('invalid-argument', 'Enter the contact\'s work email address.')
+  const db = getFirestore()
+  const prepared = await runFunderOrg(() => prepareFunderOrgInvite(db, uid, {
+    programId: String(data.programId || '').trim(),
+    name: String(data.name || ''),
+    email,
+  }))
+
+  let userRecord
+  let createdAuth = false
+  try {
+    userRecord = await getAuth().getUserByEmail(email)
+  } catch {
+    userRecord = await getAuth().createUser({ email, displayName: contactName, emailVerified: false, disabled: false })
+    createdAuth = true
+  }
+  // A new organisation has no members yet, so any account that already exists belongs to someone else.
+  const existing = (await db.collection('users').doc(userRecord.uid).get()).data()
+  if (existing) throw new HttpsError('already-exists', 'email_already_exists')
+
+  let created
+  try {
+    created = await createInvitedFunderOrganisation(db, uid, {
+      programme: prepared.programme,
+      companyName: prepared.companyName,
+      name: prepared.name,
+      type: toFunderOrgType(data.type),
+      contact: { uid: userRecord.uid, email, name: contactName, existing: false },
+    })
+  } catch (error) {
+    if (createdAuth) await getAuth().deleteUser(userRecord.uid).catch(() => undefined)
+    throw error
+  }
+
+  const setPasswordLink = await sendFunderOrgInvite({
+    email, name: contactName, implementorName: prepared.companyName, funderName: prepared.name, programName: prepared.programme.name, request: request.rawRequest,
+  })
+  await queueFunderNotice(REGISTRATION_NOTIFY_EMAIL, 'System Admin', 'funderOrganisationToConfirm', {
+    title: `New funder organisation to confirm: ${prepared.name}`,
+    intro: `${prepared.companyName} has invited ${prepared.name} (${email}) as a funder of ${prepared.programme.name || 'a programme'}. Confirm it, or merge it into an existing funder organisation.`,
+    actionLabel: 'Review funder organisations',
+    expiryNote: '',
+  }, `${getAppBaseUrl(request.rawRequest)}/admin/funder-organisations`)
+  return { orgId: created.orgId, linkId: created.linkId, setPasswordLink }
+})
+
+export const respondToFunderOrgLink = onCall({ region }, async (request) => {
+  const uid = requireAuthUid(request)
+  const data = (request.data || {}) as Record<string, unknown>
+  const db = getFirestore()
+  const result = await runFunderOrg(() => respondToFunderLink(db, uid, String(data.linkId || '').trim(), data.accept === true))
+  const requester = result.requestedBy ? (await db.collection('users').doc(result.requestedBy).get()).data() : undefined
+  if (requester?.email) {
+    const accepted = result.status === 'active'
+    await queueFunderNotice(String(requester.email), String(requester.name || ''), 'respondToFunderOrgLink', {
+      title: `${result.orgName} ${accepted ? 'accepted' : 'declined'} the link to ${result.programName}`,
+      intro: accepted
+        ? `${result.orgName} now sees ${result.programName}'s results on its funder dashboard.`
+        : `${result.orgName} says ${result.programName} isn't its project. Check the funder's name, or invite the right organisation.`,
+      actionLabel: 'Open your programmes',
+      expiryNote: '',
+    }, `${getAppBaseUrl(request.rawRequest)}/`)
+  }
+  return { status: result.status }
+})
+
+export const removeFunderOrgLink = onCall({ region }, async (request) => {
+  const uid = requireAuthUid(request)
+  const linkId = String((request.data as { linkId?: unknown } | null)?.linkId || '').trim()
+  const db = getFirestore()
+  const result = await runFunderOrg(() => removeFunderLink(db, uid, linkId))
+  // The implementor is told when the funder ends a link.
+  if (result.side === 'funder' && result.requestedBy) {
+    const requester = (await db.collection('users').doc(result.requestedBy).get()).data()
+    if (requester?.email) {
+      await queueFunderNotice(String(requester.email), String(requester.name || ''), 'removeFunderOrgLink', {
+        title: `${result.orgName} removed its link to ${result.programName}`,
+        intro: `${result.orgName} no longer funds ${result.programName} on Smart Incubation, so it no longer sees the programme's results. Ask it again from the programme's funders if this is a mistake.`,
+        actionLabel: 'Open your programmes',
+        expiryNote: '',
+      }, `${getAppBaseUrl(request.rawRequest)}/`)
+    }
+  }
+  return { orgId: result.orgId }
+})
+
+/** A member of a confirmed funder organisation adds a colleague, who sees the same programmes. */
+export const inviteFunderOrgColleague = onCall({ region }, async (request) => {
+  const uid = requireAuthUid(request)
+  const data = (request.data || {}) as Record<string, unknown>
+  const email = normalizeEmail(String(data.email || ''))
+  const name = String(data.name || '').trim() || email
+  if (!isValidEmail(email)) throw new HttpsError('invalid-argument', 'Enter your colleague\'s work email address.')
+  const db = getFirestore()
+  const org = await runFunderOrg(() => prepareFunderColleagueInvite(db, uid))
+  let userRecord
+  let createdAuth = false
+  try {
+    userRecord = await getAuth().getUserByEmail(email)
+  } catch {
+    userRecord = await getAuth().createUser({ email, displayName: name, emailVerified: false, disabled: false })
+    createdAuth = true
+  }
+  const existing = (await db.collection('users').doc(userRecord.uid).get()).data()
+  if (existing && !canReuseAccountAsOrgFunder(existing, org.orgId)) throw new HttpsError('already-exists', 'email_already_exists')
+  try {
+    await addFunderColleague(db, uid, { orgId: org.orgId, orgName: org.orgName, contact: { uid: userRecord.uid, email, name, existing: Boolean(existing) } })
+  } catch (error) {
+    if (createdAuth) await getAuth().deleteUser(userRecord.uid).catch(() => undefined)
+    throw error
+  }
+  const setPasswordLink = buildPasswordActionUrl(await getAuth().generatePasswordResetLink(email), { invite: true, request: request.rawRequest })
+  await queueTemplateMail({
+    to: email,
+    source: 'inviteFunderOrgColleague',
+    template: buildAuthActionTemplate({ ...colleagueInviteWording({ inviterName: org.inviterName, funderName: org.orgName }), name, actionUrl: setPasswordLink }),
+  })
+  return { uid: userRecord.uid, setPasswordLink }
+})
+
+/** Daily: link requests a funder hasn't answered in LINK_REQUEST_DAYS expire, and the implementor that asked is told. */
+export const expireFunderLinkRequests = onSchedule(
+  { schedule: '30 5 * * *', timeZone: 'Etc/UTC', region, timeoutSeconds: 300 },
+  async () => {
+    const db = getFirestore()
+    const expired = await expirePendingFunderLinks(db, new Date())
+    const appUrl = getAppBaseUrl()
+    for (const link of expired) {
+      const requester = link.requestedBy ? (await db.collection('users').doc(link.requestedBy).get()).data() : undefined
+      if (!requester?.email) continue
+      await queueFunderNotice(String(requester.email), String(requester.name || ''), 'expireFunderLinkRequests', {
+        title: `${link.orgName} didn't answer the link to ${link.programName}`,
+        intro: `Your request asking ${link.orgName} to accept ${link.programName} has expired after ${LINK_REQUEST_DAYS} days. You can send it again from the programme's funders.`,
+        actionLabel: 'Open your programmes',
+        expiryNote: '',
+      }, `${appUrl}/`)
+    }
+  },
+)
+
+export const confirmFunderOrg = onCall({ region }, async (request) => {
+  const uid = requireAuthUid(request)
+  const orgId = String((request.data as { orgId?: unknown } | null)?.orgId || '').trim()
+  const result = await runFunderOrg(() => confirmFunderOrganisation(getFirestore(), uid, orgId))
+  const actionUrl = `${getAppBaseUrl(request.rawRequest)}/funder`
+  await Promise.all(result.notify.map((member) => queueFunderNotice(member.email, member.name, 'confirmFunderOrg', orgConfirmedWording({ funderName: result.name }), actionUrl)))
+  return { orgId: result.orgId }
+})
+
+export const mergeFunderOrgs = onCall({ region }, async (request) => {
+  const uid = requireAuthUid(request)
+  const data = (request.data || {}) as Record<string, unknown>
+  return runFunderOrg(() => mergeFunderOrganisation(getFirestore(), uid, String(data.sourceId || '').trim(), String(data.targetId || '').trim()))
+})
+
+/** Sends the invited contact a fresh set-password link, while they haven't signed in yet. */
+export const resendFunderOrgInvite = onCall({ region }, async (request) => {
+  const uid = requireAuthUid(request)
+  const db = getFirestore()
+  const invite = await runFunderOrg(() => getInviteForResend(db, uid, String((request.data as { orgId?: unknown } | null)?.orgId || '').trim()))
+  if (!invite.contactUid) throw new HttpsError('failed-precondition', 'This organisation has no invited contact.')
+  const contact = await getAuth().getUser(invite.contactUid)
+  if (contact.metadata.lastSignInTime) throw new HttpsError('failed-precondition', 'The contact has already signed in.')
+  if (!await reserveAuthEmailCooldown(`funder-org-invite-${invite.orgId}`)) throw new HttpsError('resource-exhausted', 'An invite was sent a moment ago. Try again in a minute.')
+  const programName = String((await db.collection(FUNDER_LINKS).where('funderOrgId', '==', invite.orgId).limit(1).get()).docs[0]?.get('programName') || '')
+  await sendFunderOrgInvite({ email: invite.contactEmail, name: invite.contactName, implementorName: invite.companyName, funderName: invite.name, programName, request: request.rawRequest })
+  return { ok: true }
+})
+
+/** Corrects the invited contact's email address, while they haven't signed in yet, and sends the invite there. */
+export const changeFunderOrgInviteEmail = onCall({ region }, async (request) => {
+  const uid = requireAuthUid(request)
+  const data = (request.data || {}) as Record<string, unknown>
+  const email = normalizeEmail(String(data.email || ''))
+  if (!isValidEmail(email)) throw new HttpsError('invalid-argument', 'Enter a valid email address.')
+  const db = getFirestore()
+  const invite = await runFunderOrg(() => getInviteForResend(db, uid, String(data.orgId || '').trim()))
+  if (!invite.contactUid) throw new HttpsError('failed-precondition', 'This organisation has no invited contact.')
+  const contact = await getAuth().getUser(invite.contactUid)
+  if (contact.metadata.lastSignInTime) throw new HttpsError('failed-precondition', 'The contact has already signed in. Ask them to change it themselves.')
+  if (email === normalizeEmail(invite.contactEmail)) return { ok: true }
+  const taken = await getAuth().getUserByEmail(email).then(() => true).catch(() => false)
+  if (taken) throw new HttpsError('already-exists', 'email_already_exists')
+  await getAuth().updateUser(invite.contactUid, { email, emailVerified: false })
+  await Promise.all([
+    db.collection('users').doc(invite.contactUid).update({ email, updatedAt: FieldValue.serverTimestamp() }),
+    db.collection('userIdentities').doc(invite.contactUid).set({ email, updatedAt: FieldValue.serverTimestamp() }, { merge: true }),
+    db.collection(FUNDER_ORGS).doc(invite.orgId).update({ contactEmail: email, updatedAt: FieldValue.serverTimestamp() }),
+  ])
+  await setLinksOrgStatus(db, invite.orgId, 'invited', { email })
+  const programName = String((await db.collection(FUNDER_LINKS).where('funderOrgId', '==', invite.orgId).limit(1).get()).docs[0]?.get('programName') || '')
+  await sendFunderOrgInvite({ email, name: invite.contactName, implementorName: invite.companyName, funderName: invite.name, programName, request: request.rawRequest })
+  return { ok: true }
+})
+
+/** Either side records the funding committed to a programme (rand), for the Impact page. */
+export const setFunderOrgLinkFunding = onCall({ region }, async (request) => {
+  const uid = requireAuthUid(request)
+  const data = (request.data || {}) as Record<string, unknown>
+  return runFunderOrg(() => setFunderLinkFunding(getFirestore(), uid, String(data.linkId || '').trim(), data.amount))
+})
+
+/** A system admin adds a funder organisation directly (confirmed at once). */
+export const createFunderOrg = onCall({ region }, async (request) => {
+  const uid = requireAuthUid(request)
+  const data = (request.data || {}) as Record<string, unknown>
+  return runFunderOrg(() => createConfirmedFunderOrganisation(getFirestore(), uid, { name: data.name, type: data.type }))
+})
+
+/** A system admin converts a funder made the old way (one company) into a member of a funder organisation. */
+export const convertCompanyFunder = onCall({ region }, async (request) => {
+  const uid = requireAuthUid(request)
+  const data = (request.data || {}) as Record<string, unknown>
+  const newOrg = data.newOrg && typeof data.newOrg === 'object' ? data.newOrg as { name?: unknown, type?: unknown } : null
+  return runFunderOrg(() => convertOldStyleFunder(getFirestore(), uid, { userId: data.userId, orgId: data.orgId, newOrg }))
+})
+
+/** A deleted programme's funder links end, so no funder keeps access through them. */
+export const endFunderLinksOnProgramDelete = onDocumentDeleted({ region, document: 'programs/{programId}' }, async (event) => {
+  await endLinksForDeletedProgramme(getFirestore(), event.params.programId)
 })
 
 // Consultant marketplace: plans, alerts and the unanswered-request nudge (see marketplace.ts)

@@ -89,6 +89,8 @@ export const listManagedUsers = async (user: FullIdentity) => {
       phoneIsWhatsApp: data.phoneIsWhatsApp === true,
       alternativePhoneIsWhatsApp: data.alternativePhoneIsWhatsApp === true,
       assignedProgramIds: Array.isArray(data.assignedProgramIds) ? data.assignedProgramIds.filter((id: unknown): id is string => typeof id === 'string') : [],
+      funderOrgId: typeof data.funderOrgId === 'string' && data.funderOrgId ? data.funderOrgId : null,
+      funderOrgName: typeof data.funderOrgName === 'string' ? data.funderOrgName : undefined,
     } satisfies ManagedUser
   })
 }
@@ -96,7 +98,8 @@ export const listManagedUsers = async (user: FullIdentity) => {
 export const createManagedUser = async (user: FullIdentity, values: Omit<ManagedUser, 'id'>) => {
   assertAdmin(user)
   if (user.role !== 'systemadmin' && values.role === 'systemadmin') throw new Error('forbidden')
-  const companyCode = values.companyCode || user.companyCode || ''
+  // A funder organisation's member has no company: falling back to the creator's would cut off their access.
+  const companyCode = values.role === 'funder' && values.funderOrgId ? '' : values.companyCode || user.companyCode || ''
   if (companyCode) await ensureWorkspaceCompany(companyCode, companyCode, user.uid)
   if (functionsBaseUrl) {
     const result = await callAdminEndpoint<{ uid: string }>('createPlatformUser', {

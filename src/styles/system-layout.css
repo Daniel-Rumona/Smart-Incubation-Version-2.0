@@ -423,7 +423,7 @@ html[data-theme='dark'] .workspace-navigation-card:hover, html[data-theme='dark'
 
     padding: 0 12px;
 
-    border-radius: 999px;
+    border-radius: 18px;
 
     background: rgba(255, 255, 255, 0.94);
 
@@ -626,6 +626,10 @@ html:not([data-theme='dark']) .app-account-row .ant-segmented-thumb {
 .app-project-select.ant-select-focused { border-color: rgba(109, 93, 251, 0.5); background: rgba(109, 93, 251, 0.09); }
 
 .app-project-select .ant-select-prefix { margin-inline-end: 8px; }
+
+/* A funder organisation's implementor-and-programme picker: one control, "Implementor · Programme". */
+.app-scope-cascader.ant-select { width: 300px; }
+.app-scope-cascader .ant-select-selection-item { overflow: hidden; text-overflow: ellipsis; }
 
 .app-scope-icon {
     display: inline-grid !important;
@@ -1692,11 +1696,30 @@ html[data-theme='dark'] .app-topbar-actions.is-mobile-pills .app-icon-btn.app-ic
    current shortcut.
    ========================================================= */
 
-.app-topbar-pill[data-fit~='links'] .app-quicklinks-switch .ant-segmented-item:not(.ant-segmented-item-selected) .app-topbar-text,
-.app-topbar-pill[data-fit~='modes'] .app-mode-switch .ant-segmented-item:not(.ant-segmented-item-selected) .app-topbar-text,
-.app-topbar-pill[data-fit~='modesall'] .app-mode-switch .app-topbar-text,
-.app-topbar-pill[data-fit~='all'] .app-quicklinks-switch .app-topbar-text {
+/* The whole label goes, not just its text: antd wraps it in a span after the icon with its own spacing, and an
+   empty wrapper left behind pushed every icon-only button's icon off centre (as dashboard.css does for filters). */
+.app-topbar-pill[data-fit~='links'] .app-quicklinks-switch .ant-segmented-item:not(.ant-segmented-item-selected) .ant-segmented-item-icon + *,
+.app-topbar-pill[data-fit~='modes'] .app-mode-switch .ant-segmented-item:not(.ant-segmented-item-selected) .ant-segmented-item-icon + *,
+.app-topbar-pill[data-fit~='modesall'] .app-mode-switch .ant-segmented-item-icon + *,
+.app-topbar-pill[data-fit~='all'] .app-quicklinks-switch .ant-segmented-item-icon + * {
     display: none;
+}
+
+/* Icon-only buttons: a square hit area with the icon in the middle, instead of the padding the label needed. */
+.app-topbar-pill[data-fit~='links'] .app-quicklinks-switch .ant-segmented-item:not(.ant-segmented-item-selected),
+.app-topbar-pill[data-fit~='modes'] .app-mode-switch .ant-segmented-item:not(.ant-segmented-item-selected),
+.app-topbar-pill[data-fit~='modesall'] .app-mode-switch .ant-segmented-item,
+.app-topbar-pill[data-fit~='all'] .app-quicklinks-switch .ant-segmented-item {
+    min-width: 40px;
+    padding-inline: 0;
+}
+
+.app-topbar-pill[data-fit~='links'] .app-quicklinks-switch .ant-segmented-item:not(.ant-segmented-item-selected) .ant-segmented-item-label,
+.app-topbar-pill[data-fit~='modes'] .app-mode-switch .ant-segmented-item:not(.ant-segmented-item-selected) .ant-segmented-item-label,
+.app-topbar-pill[data-fit~='modesall'] .app-mode-switch .ant-segmented-item-label,
+.app-topbar-pill[data-fit~='all'] .app-quicklinks-switch .ant-segmented-item-label {
+    justify-content: center;
+    padding-inline: 12px;
 }
 
 /* The programme as an icon only: its name is in the tag's title / the dropdown. */
@@ -1716,13 +1739,14 @@ html[data-theme='dark'] .app-topbar-actions.is-mobile-pills .app-icon-btn.app-ic
 
 /* =========================================================
    PHONES: programme selector in the top bar
-   Page tag | programme | action pills. The page tag and the programme share the free width and
-   both cut off with an ellipsis; the actions keep their size.
+   Programme (or implementor and programme) | action pills. The page tag gives way to the picker, which
+   cuts off with an ellipsis; the actions keep their size.
    ========================================================= */
 
 @media (max-width: 767px) {
+    /* No page tag beside a picker: the left column only holds Back or Go to Workspace when there is one, and the picker takes the rest. */
     .app-topbar-pill.has-phone-scope {
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) auto;
+        grid-template-columns: minmax(0, max-content) minmax(0, 1fr) auto;
         gap: 6px;
     }
 
@@ -1776,3 +1800,223 @@ html[data-theme='dark'] .app-topbar-actions.is-mobile-pills .app-icon-btn.app-ic
 /* When the bar runs out of room, the programme gives up some width before the shortcut labels go. */
 .app-topbar-pill[data-fit~='narrow'] .app-project-select { width: 160px; }
 .app-topbar-pill[data-fit~='narrow'] .app-project-tag { max-width: 160px; }
+
+/* Phones: the implementor-and-programme picker shares the free width with the page tag. */
+@media (max-width: 767px) {
+    .app-scope-cascader.ant-select {
+        width: auto;
+        min-width: 0;
+        flex: 1 1 0;
+    }
+}
+
+/* =========================================================
+   DESKTOP TEXT NAVIGATION
+   Agentic, the dashboard, the role's shortcuts and More as plain text links on the left; scope and your own
+   buttons on the right. The current page is accent text with a thin underline, not a filled pill.
+   ========================================================= */
+
+.app-topbar-pill.has-textnav { display: flex; }
+.app-topbar-pill.has-textnav > .app-topbar-left { flex: 1 1 auto; min-width: 0; }
+.app-topbar-pill.has-textnav > .app-topbar-actions { flex: none; margin-left: auto; }
+
+.app-textnav {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.app-textnav-divider {
+    flex: none;
+    width: 1px;
+    height: 22px;
+    margin: 0 8px;
+    background: rgba(100, 116, 139, 0.28);
+}
+
+html[data-theme='dark'] .app-textnav-divider { background: rgba(174, 184, 202, 0.24); }
+.app-topbar-pill[data-fit~='tight'] .app-textnav-divider { margin: 0 4px; }
+
+.app-textnav-link {
+    position: relative;
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 5px;
+    height: 40px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 10px;
+    background: none;
+    color: #64748b;
+    font: inherit;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+.app-textnav-link:hover { color: #1e293b; background: rgba(109, 93, 251, 0.06); }
+.app-textnav-link:focus-visible { outline: 2px solid var(--ant-color-primary, #6d5dfb); outline-offset: 1px; }
+
+.app-textnav-link.is-active { color: #6d5dfb; font-weight: 700; }
+
+.app-textnav-link.is-active::after {
+    content: '';
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 4px;
+    height: 2px;
+    border-radius: 2px;
+    background: currentColor;
+}
+
+html[data-theme='dark'] .app-textnav-link { color: #aeb8ca; }
+html[data-theme='dark'] .app-textnav-link:hover { color: #f1f5f9; background: rgba(255, 255, 255, 0.05); }
+html[data-theme='dark'] .app-textnav-link.is-active { color: #a99ffc; }
+
+/* Last step before anything is lost: tighter spacing between the links. */
+.app-topbar-pill[data-fit~='tight'] .app-textnav-link { padding: 0 8px; }
+.app-topbar-pill[data-fit~='tight'] .app-textnav-link.is-active::after { left: 8px; right: 8px; }
+
+@media (prefers-reduced-motion: reduce) {
+    .app-textnav-link { transition: none; }
+}
+
+/* More: a dropdown of the other pages, each with a line of description. Two columns when there are many. */
+.app-more-menu {
+    display: grid;
+    gap: 6px;
+    width: 360px;
+    max-height: min(70vh, 560px);
+    overflow-y: auto;
+    padding: 8px;
+    border: 1px solid rgba(109, 93, 251, 0.14);
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.16);
+}
+
+.app-more-menu.is-wide { width: 620px; }
+.app-more-menu.is-wide .app-more-items { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+.app-more-heading {
+    padding: 6px 10px 2px;
+    color: #94a3b8;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.app-more-items { display: grid; gap: 2px; }
+
+.app-more-item {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+    width: 100%;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 12px;
+    background: none;
+    color: #1e293b;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.app-more-item:hover,
+.app-more-item:focus-visible,
+.app-more-item.is-current { background: rgba(109, 93, 251, 0.08); outline: none; }
+
+.app-more-icon {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: rgba(109, 93, 251, 0.1);
+    color: #6d5dfb;
+    font-size: 16px;
+}
+
+.app-more-copy { display: grid; min-width: 0; }
+.app-more-copy strong { font-size: 13.5px; font-weight: 650; }
+.app-more-item.is-current .app-more-copy strong { color: #6d5dfb; }
+
+.app-more-copy span {
+    overflow: hidden;
+    color: #64748b;
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+html[data-theme='dark'] .app-more-menu { border-color: rgba(139, 92, 246, 0.24); background: #1b1e2a; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45); }
+html[data-theme='dark'] .app-more-item { color: #eef0f6; }
+html[data-theme='dark'] .app-more-item:hover,
+html[data-theme='dark'] .app-more-item:focus-visible,
+html[data-theme='dark'] .app-more-item.is-current { background: rgba(139, 92, 246, 0.16); }
+html[data-theme='dark'] .app-more-icon { background: rgba(139, 92, 246, 0.2); color: #a99ffc; }
+html[data-theme='dark'] .app-more-item.is-current .app-more-copy strong { color: #a99ffc; }
+html[data-theme='dark'] .app-more-copy span { color: #a1a9bd; }
+
+/* =========================================================
+   TOP BAR ACTIONS AS PLAIN ICONS
+   Guide me, notifications, the assistant and your account are bare icons: no ring, fill or shadow, so the
+   page links and the scope picker carry the bar. The hit area stays 38px; hover tints the icon and shows a
+   faint round wash.
+   ========================================================= */
+
+.app-topbar-actions .app-icon-btn.app-icon-btn,
+.app-topbar-actions.is-mobile-pills .app-icon-btn.app-icon-btn,
+.app-topbar-actions .guide-me-launcher.guide-me-launcher {
+    border-color: transparent !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: #475569 !important;
+}
+
+.app-topbar-actions .app-icon-btn.app-icon-btn:hover,
+.app-topbar-actions .app-icon-btn.app-icon-btn.is-active,
+.app-topbar-actions .guide-me-launcher.guide-me-launcher:hover {
+    background: rgba(109, 93, 251, 0.08) !important;
+    color: #6d5dfb !important;
+}
+
+.app-topbar-actions .app-icon-btn .anticon,
+.app-topbar-actions .guide-me-launcher .anticon { font-size: 18px; }
+
+html[data-theme='dark'] .app-topbar-actions .app-icon-btn.app-icon-btn,
+html[data-theme='dark'] .app-topbar-actions.is-mobile-pills .app-icon-btn.app-icon-btn,
+html[data-theme='dark'] .app-topbar-actions .guide-me-launcher.guide-me-launcher {
+    border-color: transparent !important;
+    background: transparent !important;
+    color: #c4cbd8 !important;
+}
+
+html[data-theme='dark'] .app-topbar-actions .app-icon-btn.app-icon-btn:hover,
+html[data-theme='dark'] .app-topbar-actions .app-icon-btn.app-icon-btn.is-active,
+html[data-theme='dark'] .app-topbar-actions .guide-me-launcher.guide-me-launcher:hover {
+    background: rgba(255, 255, 255, 0.07) !important;
+    color: #f1f5f9 !important;
+}
+
+/* Bare icons sit closer together than ringed buttons did. */
+.app-topbar-pill.has-textnav > .app-topbar-actions { gap: 2px !important; }
+
+/* Your profile photo on the account button: a round photo filling the hit area, with a thin ring on hover. */
+.app-topbar-actions .app-icon-btn .app-topbar-avatar {
+    display: block;
+    flex: none;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    transition: box-shadow 0.15s ease;
+}
+
+.app-topbar-actions .app-icon-btn:hover .app-topbar-avatar { box-shadow: 0 0 0 2px rgba(109, 93, 251, 0.45); }
+html[data-theme='dark'] .app-topbar-actions .app-icon-btn .app-topbar-avatar { border-color: rgba(255, 255, 255, 0.12); }

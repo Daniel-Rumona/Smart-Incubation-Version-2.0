@@ -20,6 +20,16 @@ type IdentityContextValue = {
 
 const IdentityContext = createContext<IdentityContextValue | undefined>(undefined)
 
+const stringList = (value: unknown) => (Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string' && id.trim() !== '') : [])
+
+/** A funder organisation member's organisation and what its active links cover (blank for company-scoped funders). */
+const funderOrgFields = (data: Record<string, unknown> | null | undefined): Partial<FullIdentity> => ({
+  funderOrgId: typeof data?.funderOrgId === 'string' && data.funderOrgId ? data.funderOrgId : null,
+  funderOrgName: typeof data?.funderOrgName === 'string' && data.funderOrgName ? data.funderOrgName : null,
+  funderProgramIds: stringList(data?.funderProgramIds),
+  funderCompanyCodes: stringList(data?.funderCompanyCodes),
+})
+
 export const IdentityProvider = ({ children }: PropsWithChildren) => {
   const [user, setUser] = useState<FullIdentity | null>(null)
   const [loading, setLoading] = useState(isFirebaseConfigured)
@@ -95,6 +105,7 @@ export const IdentityProvider = ({ children }: PropsWithChildren) => {
             organisationName: typeof profile?.organisationName === 'string' ? profile.organisationName : null,
             orgRole: profile?.orgRole === 'director' ? 'director' as const : 'coordinator' as const,
           } : {}),
+          ...(role === 'funder' ? funderOrgFields(profile) : {}),
         })
         setError(undefined)
       } catch {
@@ -142,13 +153,16 @@ export const IdentityProvider = ({ children }: PropsWithChildren) => {
           emailVerified: current.emailVerified || data.emailVerified === true,
           organisationAccessStatus: data.organisationAccessStatus,
         }
+        // A funder's links are accepted, removed and confirmed mid-session; follow them so the pages reload.
+        const funderFields: Partial<FullIdentity> = effectiveRole === 'funder' ? funderOrgFields(data) : {}
         const roleUnchanged = Object.entries(roleFields).every(([key, value]) => value === current[key as keyof FullIdentity])
         const smeUnchanged = Object.entries(smeFields).every(([key, value]) => JSON.stringify(value) === JSON.stringify(current[key as keyof FullIdentity]))
         const verificationUnchanged = Object.entries(verificationFields).every(([key, value]) => value === current[key as keyof FullIdentity])
+        const funderUnchanged = Object.entries(funderFields).every(([key, value]) => JSON.stringify(value) === JSON.stringify(current[key as keyof FullIdentity]))
 
-        return permissionsUnchanged && roleUnchanged && smeUnchanged && verificationUnchanged
+        return permissionsUnchanged && roleUnchanged && smeUnchanged && verificationUnchanged && funderUnchanged
           ? current
-          : { ...current, ...roleFields, permissions, ...smeFields, ...verificationFields }
+          : { ...current, ...roleFields, permissions, ...smeFields, ...verificationFields, ...funderFields }
       })
     }, () => undefined)
   }, [uid])

@@ -11,6 +11,8 @@ import { useLanguage } from '@/providers/LanguageProvider'
 import { formatCurrencyZAR } from '@/services/smePerformanceMetrics'
 import type { FunderActivity } from '@/services/funderService'
 import { useFunderData } from '@/pages/funder/useFunderData'
+import FunderOrgPanel from '@/components/funders/FunderOrgPanel'
+import { isOrgFunder } from '@/services/funderScopeService'
 import '@/styles/admin-dashboard.css'
 import '@/styles/funder.css'
 
@@ -146,6 +148,8 @@ export const FunderDashboardPage = () => {
           <span className="funder-chip">{t('{month} reporting is open ({reported} of {total} in)', undefined, { month: t(reporting.label), reported: reporting.reported, total: reporting.total })}</span>
         )}
       </header>
+      {/* A funder organisation's member: link requests to answer, the confirmation notice, colleagues and programmes funded. */}
+      {user && isOrgFunder(user) && <FunderOrgPanel user={user} />}
       {error && <Alert type="error" showIcon message={t('Your programme results could not be loaded.')} style={{ marginBottom: 16 }} />}
 
       <Row gutter={[16, 16]}>

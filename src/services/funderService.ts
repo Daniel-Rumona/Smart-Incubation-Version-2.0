@@ -1,6 +1,6 @@
 import dayjs, { type Dayjs } from 'dayjs'
-import { where } from 'firebase/firestore'
-import { getScopedDocs, isAssignmentCompleted, listDirectorPortfolio } from '@/services/directorPortfolioService'
+import { isAssignmentCompleted, listDirectorPortfolio } from '@/services/directorPortfolioService'
+import { ALL_IMPLEMENTORS, getDocsInScope, isOrgFunder, loadDataScope, type ScopeEntry } from '@/services/funderScopeService'
 import { computeActual, listKpis, periodFor, statusFor, targetFor, type KpiStatus } from '@/services/kpiService'
 import { listWorkspacePrograms, matchesActiveProgram } from '@/services/workspaceProgramsService'
 import type { DirectorPortfolioSme } from '@/types/director'
@@ -9,7 +9,8 @@ import type { Kpi } from '@/types/kpi'
 
 /**
  * Everything the funder pages show, limited to the funder's linked programmes (users.assignedProgramIds; none = all
- * the company's) and the programme chosen in the selector. Figures are processed here: the pages get totals, rates,
+ * the company's; for a funder organisation, every implementor's programmes its active links cover, see
+ * funderScopeService), the implementor chosen (organisation funders) and the programme chosen in the selector. Figures are processed here: the pages get totals, rates,
  * trends and milestones, not raw records or SME contact details.
  */
 
@@ -67,6 +68,9 @@ export type FunderMonth = { key: string; label: string; revenue: number; employe
 export type FunderProgramme = {
   id: string
   name: string
+  /** The implementor running it (always set for funder organisations). */
+  companyCode?: string
+  companyName?: string
   smes: number
   /** Delivery, on the dashboard's rule: required interventions completed. */
   required: number
@@ -101,7 +105,24 @@ export type FunderSummary = {
   reporting: { key: string; label: string; reported: number; total: number }
 }
 
-export type FunderKpi = { kpi: Kpi; actual: number | null; detail?: string; target: number | null; status: KpiStatus; periodLabel: string }
+/** A KPI belongs to one implementor (its company), so a funder organisation sees each implementor's separately, never added together. */
+export type FunderKpi = { kpi: Kpi; actual: number | null; detail?: string; target: number | null; status: KpiStatus; periodLabel: string; companyCode: string; companyName: string }
+
+const ADDITIVE_UNITS = new Set<Kpi['unit']>(['count', 'currency', 'number'])
+
+/**
+ * The target a funder sees for one implementor's KPI. A chosen programme uses its own target (or the company's). For a
+ * funder organisation looking at all its programmes at that implementor: one programme, that programme's target; several,
+ * their targets added up for counts and amounts when every one has a target, or the company's target for rates, days and
+ * ratings (a rate target holds across programmes); otherwise none, rather than the company's whole-company count.
+ */
+export const funderKpiTarget = (kpi: Kpi, programmeId: string | null, entry: ScopeEntry, orgFunder: boolean) => {
+  if (programmeId || !orgFunder || entry.programIds === null) return targetFor(kpi, programmeId)?.value ?? null
+  if (entry.programIds.length === 1) return targetFor(kpi, entry.programIds[0])?.value ?? null
+  if (!ADDITIVE_UNITS.has(kpi.unit)) return kpi.target
+  const targets = entry.programIds.map((id) => kpi.programTargets[id])
+  return targets.every((value) => typeof value === 'number') ? targets.reduce((sum, value) => sum + value, 0) : null
+}
 
 /** The Analytics page's charts. Delivery is completed against required throughout, as on the dashboard. */
 export type FunderAnalytics = {
@@ -132,21 +153,25 @@ export type FunderData = {
 const MEETING_TYPES = ['telephonic', 'online', 'in_person'] as const
 const STATUSES = ['pending', 'accepted', 'declined', 'cancelled', 'completed'] as const
 
-export const loadFunderData = async (user: FullIdentity, activeProgramId?: string): Promise<FunderData> => {
-  const companyCode = text(user.companyCode)
-  if (!companyCode) throw new Error('No company on this account.')
-  const company = where('companyCode', '==', companyCode)
+export const loadFunderData = async (user: FullIdentity, activeProgramId?: string, implementor: string = ALL_IMPLEMENTORS): Promise<FunderData> => {
+  const orgFunder = isOrgFunder(user)
+  const scope = await loadDataScope(user, implementor)
+  // A funder organisation with no active links yet loads as empty (its pages show the requests waiting for it).
+  if (!scope.length && !orgFunder) throw new Error('No company on this account.')
+  const scopeCompanies = new Set(scope.map((entry) => entry.companyCode))
   const inScope = (programId: unknown) => matchesActiveProgram(user, activeProgramId || 'all', text(programId))
 
-  const [portfolio, assignmentDocs, appointmentDocs, programmes, kpiList, applicationDocs] = await Promise.all([
-    listDirectorPortfolio(user, activeProgramId),
-    getScopedDocs(user, 'assignedInterventions', [company]),
-    getScopedDocs(user, 'appointments', [company]).catch(() => []),
+  const [portfolio, assignmentDocs, appointmentDocs, allProgrammes, kpiLists, applicationDocs] = await Promise.all([
+    listDirectorPortfolio(user, activeProgramId, scope),
+    getDocsInScope(scope, 'assignedInterventions'),
+    getDocsInScope(scope, 'appointments').catch(() => []),
     listWorkspacePrograms(user),
-    listKpis(companyCode).catch(() => [] as Kpi[]),
+    Promise.all(scope.map((entry) => listKpis(entry.companyCode).catch(() => [] as Kpi[]))),
     // Required support per area of support (Analytics); funders may read their programmes' applications.
-    getScopedDocs(user, 'applications', [company]).catch((error) => { console.error(error); return [] }),
+    getDocsInScope(scope, 'applications').catch((error) => { console.error(error); return [] }),
   ])
+  const companyNameOf = new Map(scope.map((entry) => [entry.companyCode, entry.companyName]))
+  const programmes = orgFunder ? allProgrammes.filter((row) => !!row.companyCode && scopeCompanies.has(row.companyCode)) : allProgrammes
   const programmeName = new Map(programmes.map((row) => [row.id, String(row.name)]))
   const smeIds = new Set(portfolio.map((row) => row.id))
   const smeName = new Map(portfolio.map((row) => [row.id, row.name]))
@@ -223,6 +248,7 @@ export const loadFunderData = async (user: FullIdentity, activeProgramId?: strin
       return {
         id: programme.id,
         name: String(programme.name),
+        ...(programme.companyCode ? { companyCode: programme.companyCode, companyName: companyNameOf.get(programme.companyCode) || programme.companyCode } : {}),
         smes: smes.length,
         required,
         completed,
@@ -236,14 +262,20 @@ export const loadFunderData = async (user: FullIdentity, activeProgramId?: strin
       }
     })
 
-  // Company KPIs, worked out on the funder's programmes only.
-  const kpiData = { assignments, appointments: appointmentRows }
+  // Each implementor's KPIs, worked out on the funder's programmes at that implementor only.
   const programmeForTargets = activeProgramId && activeProgramId !== 'all' ? activeProgramId : null
-  const kpis: FunderKpi[] = kpiList.map((kpi) => {
-    const period = periodFor(kpi.cadence)
-    const actual = computeActual(kpi, kpiData, period, user, programmeForTargets)
-    const target = targetFor(kpi, programmeForTargets)
-    return { kpi, actual: actual.value, detail: actual.detail, target: target?.value ?? null, status: statusFor(kpi, actual, target?.value ?? null, period).status, periodLabel: period.label }
+  const kpis: FunderKpi[] = scope.flatMap((entry, index) => {
+    const ofCompany = (row: Row) => text(row.companyCode) === entry.companyCode
+    const kpiData = { assignments: assignments.filter(ofCompany), appointments: appointmentRows.filter(ofCompany) }
+    return kpiLists[index].map((kpi) => {
+      const period = periodFor(kpi.cadence)
+      const actual = computeActual(kpi, kpiData, period, user, programmeForTargets)
+      const target = funderKpiTarget(kpi, programmeForTargets, entry, orgFunder)
+      return {
+        kpi, actual: actual.value, detail: actual.detail, target, status: statusFor(kpi, actual, target, period).status, periodLabel: period.label,
+        companyCode: entry.companyCode, companyName: entry.companyName || entry.companyCode,
+      }
+    })
   })
 
   // Delivery now and three months ago: required for the SMEs in the programme by then, against what was completed by then.

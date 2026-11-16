@@ -1,0 +1,139 @@
+/* Programme funders modal (ProgrammeFundersModal) and the system admin funder organisations page. */
+
+.funder-modal-subtitle {
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.funder-link-list {
+  border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+  border-radius: var(--ant-border-radius, 8px);
+}
+
+.funder-link-list:has(.ant-empty),
+.funder-link-list:not(:has(.funder-link-row)) {
+  border: none;
+}
+
+.funder-link-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+}
+
+.funder-link-row + .funder-link-row {
+  border-top: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+}
+
+.funder-link-avatar {
+  flex: none;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.funder-link-avatar.is-active {
+  background: var(--ant-color-primary-bg, #e6f4ff);
+  color: var(--ant-color-primary, #1677ff);
+}
+
+.funder-link-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.funder-link-detail {
+  font-size: 12px;
+}
+
+.funder-link-actions {
+  margin-top: 6px;
+}
+
+.funder-funding-link.ant-btn {
+  align-self: flex-start;
+  padding-inline: 0;
+  height: auto;
+  font-size: 12px;
+}
+
+.funder-section-label {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.funder-hint {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.funder-inline-link.ant-btn {
+  padding-inline: 0;
+  height: auto;
+  font-size: 12px;
+}
+
+.funder-invite-box {
+  border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+  border-radius: var(--ant-border-radius, 8px);
+  padding: 16px;
+}
+
+.funder-lookalike {
+  margin-bottom: 16px;
+}
+
+.funder-invite-actions {
+  margin-top: 16px;
+}
+
+/* System admin page: the confirmation table only shows while something waits, marked so it reads as a to-do. */
+.funder-orgs-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.funder-orgs-awaiting.ant-card {
+  border-color: var(--ant-color-warning-border, #ffe58f);
+  scroll-margin-top: 88px;
+}
+
+.funder-orgs-awaiting .ant-card-head {
+  background: var(--ant-color-warning-bg, #fffbe6);
+}
+
+.funder-orgs-search {
+  width: 300px;
+  max-width: 100%;
+}
+
+.funder-orgs-tools {
+  justify-content: flex-end;
+}
+
+@media (max-width: 767px) {
+  .funder-orgs-tools,
+  .funder-orgs-tools .ant-space-item {
+    width: 100%;
+  }
+
+  .funder-orgs-page .ant-card-head-wrapper {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .funder-orgs-search {
+    width: 100%;
+  }
+}
+
+.funder-org-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}

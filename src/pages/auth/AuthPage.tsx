@@ -38,6 +38,7 @@ import {
   registerUser,
   sendPasswordResetLink,
 } from '@/services/authService'
+import { applySignInPreference, getSignInPreference, hasSignInPreference, type SignInPreference } from '@/services/signInPreference'
 import { getAuthErrorCode, getAuthFriendlyError, isAuthCancelled } from '@/utils/authErrors'
 import { getRoleHomePath } from '@/utils/roleRouting'
 import { readPendingProgramLink, rememberProgramLinkOnAccount } from '@/services/programLinkService'
@@ -91,6 +92,10 @@ export default function AuthPage() {
   // A programme link lands on the register side; everyone else starts on login as before.
   const [authMode, setAuthMode] = useState<AuthMode>(() => (searchParams.get('mode') === 'signup' ? 'signup' : 'login'))
   const [pending, setPending] = useState<PendingAction>(null)
+  // How this device remembers the sign-in; applied just before signing in (src/services/signInPreference.ts).
+  const [rememberChoice, setRememberChoice] = useState<SignInPreference>(getSignInPreference)
+  // Asked once per device: the first sign-in saves the choice, and the account window changes it after that.
+  const [askRemember] = useState(() => !hasSignInPreference())
   const [authError, setAuthError] = useState<AuthError | null>(null)
   const [resetOpen, setResetOpen] = useState(false)
   const [resetLoading, setResetLoading] = useState(false)
@@ -179,6 +184,7 @@ export default function AuthPage() {
       const values = await form.validateFields()
       setAuthError(null)
       setPending('email')
+      await applySignInPreference(rememberChoice)
 
       if (isLogin) {
         const { profile } = await loginUser(values.email, values.password)
@@ -215,6 +221,7 @@ export default function AuthPage() {
     try {
       setAuthError(null)
       setPending(provider)
+      await applySignInPreference(rememberChoice)
 
       const { profile } = provider === 'google' ? await loginWithGoogle() : await loginWithFacebook()
 
@@ -496,6 +503,30 @@ export default function AuthPage() {
                   action={errorAction}
                 />
               )}
+
+              {/* Asked once per device, on its first sign-in: all three options with a note on the chosen one.
+                  After that it's changed in the account window ("On this device"). */}
+              {askRemember && <div className="auth-remember" role="group" aria-label={t('On this device')}>
+                <span className="auth-remember-label">{t('On this device')}</span>
+                <Segmented<SignInPreference>
+                  block
+                  size="small"
+                  value={rememberChoice}
+                  onChange={setRememberChoice}
+                  options={[
+                    { value: 'keep', label: t('Stay signed in') },
+                    { value: 'ask', label: t('Ask each time') },
+                    { value: 'session', label: t("Don't remember") },
+                  ]}
+                />
+                <span className="auth-remember-hint">
+                  {rememberChoice === 'keep'
+                    ? t('Opening the site takes you straight to your workspace.')
+                    : rememberChoice === 'ask'
+                      ? t('Next time we ask before continuing as you.')
+                      : t('You are signed out when you close the browser. Best on shared computers.')}
+                </span>
+              </div>}
 
               <Button
                 type="primary"

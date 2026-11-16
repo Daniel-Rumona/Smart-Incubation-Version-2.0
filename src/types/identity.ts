@@ -56,6 +56,14 @@ export type FullIdentity = {
   organisationId?: string | null
   organisationName?: string | null
   orgRole?: 'director' | 'coordinator'
+  /**
+   * Funder organisation members (role funder, no company): their organisation, and the programmes and companies its
+   * active links cover. Set only by the server (functions/src/funderOrganisations.ts); firestore.rules reads the same lists.
+   */
+  funderOrgId?: string | null
+  funderOrgName?: string | null
+  funderProgramIds?: string[]
+  funderCompanyCodes?: string[]
 }
 
 export type SmeJourney = 'programme' | 'independent'

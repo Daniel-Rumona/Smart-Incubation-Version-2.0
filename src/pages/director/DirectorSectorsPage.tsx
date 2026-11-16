@@ -20,12 +20,13 @@ import { FilterBar } from '@/components/shared/FilterBar'
 import { ThemedHighcharts } from '@/components/shared/ThemedHighcharts'
 import { CHART_COLORS, CHART_PALETTE } from '@/config/chartPalette'
 import dayjs from 'dayjs'
-import { where } from 'firebase/firestore'
 import type Highcharts from 'highcharts'
 import { useActiveProgramId } from '@/hooks/useActiveProgramId'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { USER_ROLES } from '@/config/roles'
-import { buildSectorRollups, getScopedDocs, listDirectorPortfolio } from '@/services/directorPortfolioService'
+import { buildSectorRollups, listDirectorPortfolio } from '@/services/directorPortfolioService'
+import { getDocsInScope, loadDataScope } from '@/services/funderScopeService'
+import { useActiveImplementor } from '@/hooks/useActiveImplementor'
 import { isBehind } from '@/services/funderService'
 import { useRegisterAgentPageContext } from '@/shared/hooks/useRegisterAgentPageContext'
 import type { DirectorPortfolioSme } from '@/types/director'
@@ -134,6 +135,8 @@ export const DirectorSectorsPage = () => {
   // Funders see the sector picture, not a named list of struggling SMEs: the watchlist is the incubator's to act on.
   const isFunder = user?.role === USER_ROLES.FUNDER
   const { activeProgramId } = useActiveProgramId()
+  // Funder organisations only: the implementor picked next to the programme selector.
+  const { activeImplementor } = useActiveImplementor()
   const [rows, setRows] = useState<DirectorPortfolioSme[]>([])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
@@ -147,16 +150,17 @@ export const DirectorSectorsPage = () => {
     let mounted = true
     const load = async () => {
       if (!user) return
-      // A director without a company code has no company data; never query without the company filter.
-      if (!user.companyCode) {
-        setLoading(false)
-        return
-      }
       setLoading(true)
       try {
-        const data = await listDirectorPortfolio(user, activeProgramId)
+        // The director's company, or a funder's programmes (at one implementor or several); never an unfiltered read.
+        const scope = await loadDataScope(user, activeImplementor)
+        if (!scope.length) {
+          if (mounted) setRows([])
+          return
+        }
+        const data = await listDirectorPortfolio(user, activeProgramId, scope)
         // Scoped to a funder's programmes, which firestore.rules requires of a funder's list queries.
-        const assignmentDocs = await getScopedDocs(user, 'assignedInterventions', [where('companyCode', '==', user.companyCode)])
+        const assignmentDocs = await getDocsInScope(scope, 'assignedInterventions')
           .then(docs => docs.map(row => row.data()))
           .catch((error) => { console.error(error); return [] })
         if (mounted) {
@@ -180,7 +184,7 @@ export const DirectorSectorsPage = () => {
     return () => {
       mounted = false
     }
-  }, [activeProgramId, message, user, t])
+  }, [activeImplementor, activeProgramId, message, user, t])
 
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase()

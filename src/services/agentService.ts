@@ -63,6 +63,14 @@ const authorizedRequest = async (path: string, init: { method?: 'GET' | 'POST', 
 export const confirmAgentProposal = (proposalId: string) =>
   authorizedRequest(`/api/agent/actions/${encodeURIComponent(proposalId)}/confirm`) as Promise<{ ok: boolean; reply: string }>
 
+/** Stop one of the user's watches or chasers (ai-backend/agent_watches.py). */
+export const stopAgentWatch = (watchId: string) =>
+  authorizedRequest(`/api/agent/watches/${encodeURIComponent(watchId)}/stop`) as Promise<{ ok: boolean; status: string }>
+
+/** The user's answer when a chaser asks whether to escalate its outstanding items to the programme leads. */
+export const answerAgentEscalation = (watchId: string, decision: 'escalate' | 'decline') =>
+  authorizedRequest(`/api/agent/watches/${encodeURIComponent(watchId)}/escalation`, { body: { decision } }) as Promise<{ ok: boolean; status: string; reply: string }>
+
 export const cancelAgentProposal = (proposalId: string) =>
   authorizedRequest(`/api/agent/actions/${encodeURIComponent(proposalId)}/cancel`) as Promise<{ ok: boolean; reply: string }>
 

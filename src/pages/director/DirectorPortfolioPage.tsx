@@ -39,6 +39,8 @@ import { ThemedHighcharts } from '@/components/shared/ThemedHighcharts'
 import { useActiveProgramId } from '@/hooks/useActiveProgramId'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { listDirectorPortfolio } from '@/services/directorPortfolioService'
+import { loadDataScope } from '@/services/funderScopeService'
+import { useActiveImplementor } from '@/hooks/useActiveImplementor'
 import { useRegisterAgentPageContext } from '@/shared/hooks/useRegisterAgentPageContext'
 import type { DirectorPortfolioSme, DirectorRisk, DirectorStage } from '@/types/director'
 import '@/styles/director.css'
@@ -99,6 +101,8 @@ export const DirectorPortfolioPage = () => {
   const isMobile = !screens.md
   const { user } = useFullIdentity()
   const { activeProgramId } = useActiveProgramId()
+  // Funder organisations only: the implementor picked next to the programme selector.
+  const { activeImplementor } = useActiveImplementor()
 
   const [queryText, setQueryText] = useState('')
   const [sector, setSector] = useState<string | undefined>(undefined)
@@ -116,7 +120,7 @@ export const DirectorPortfolioPage = () => {
       if (!user) return
       setLoading(true)
       try {
-        const data = await listDirectorPortfolio(user, activeProgramId)
+        const data = await listDirectorPortfolio(user, activeProgramId, await loadDataScope(user, activeImplementor))
         if (mounted) setRows(data)
       } catch (error) {
         console.error(error)
@@ -130,7 +134,7 @@ export const DirectorPortfolioPage = () => {
     return () => {
       mounted = false
     }
-  }, [activeProgramId, message, user, t])
+  }, [activeImplementor, activeProgramId, message, user, t])
 
   const sectors = useMemo(() => Array.from(new Set(rows.map(item => item.sector))).sort(), [rows])
 
