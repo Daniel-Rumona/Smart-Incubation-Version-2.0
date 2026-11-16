@@ -76,7 +76,7 @@ export const PointsScene: React.FC<SceneProps & { points: Point[]; finale?: stri
           </Interactive.Div>
         )}
       </AbsoluteFill>
-      <Captions text={scene.narration} speechFrames={speechFrames} bottom={70} />
+      <Captions text={scene.subtitles ?? scene.narration} speechFrames={speechFrames} bottom={70} />
     </Backdrop>
   )
 }

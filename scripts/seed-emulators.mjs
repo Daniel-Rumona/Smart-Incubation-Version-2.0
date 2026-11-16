@@ -108,7 +108,13 @@ const asset = (name) => readFileSync(new URL(`../emulators/seed-assets/${name}`,
 // ---- Companies and accounts --------------------------------------------------------------------------------------
 
 const TNS = 'TNS'
-const TNS_NAME = 'Tau Namagadi Sustainable Solutions'
+// `SEED_FOR_VIDEO=1` (video/record.mjs) gives the training provider a fictional name, trainer and logo, so no client's
+// real name or logo appears on camera. Everything else, ids included, stays the same.
+const FOR_VIDEO = process.env.SEED_FOR_VIDEO === '1'
+const TNS_NAME = FOR_VIDEO ? 'Demo Sustainability Training' : 'Tau Namagadi Sustainable Solutions'
+const TRAINER = FOR_VIDEO
+    ? { name: 'Tumi Facilitator', email: 'trainer@demo-sustainability.test', logo: 'demo-training-logo.png' }
+    : { name: 'Keletso', email: 'keletso@taunamagadi.co.za', logo: 'tau-namagadi-logo.png' }
 
 const ensureSignIn = async ({ uid, email, name }) => {
     const values = { email, password: PASSWORD, displayName: name, emailVerified: true, disabled: false }
@@ -183,8 +189,8 @@ const seedPerson = async ({ uid, email, name, role, companyCode, companyName, si
     ])
 }
 
-const logoPath = 'company-logos/seed/tau-namagadi-logo.png'
-const logoUrl = await upload(logoPath, asset('tau-namagadi-logo.png'), 'image/png')
+const logoPath = `company-logos/seed/${TRAINER.logo}`
+const logoUrl = await upload(logoPath, asset(TRAINER.logo), 'image/png')
 const keletsoUid = 'tns-keletso'
 const signaturePath = `user-signatures/${keletsoUid}/seed-signature.png`
 const signature = { path: signaturePath, url: await upload(signaturePath, asset('test-signature.png'), 'image/png') }
@@ -220,7 +226,7 @@ await db.doc(`companies/${TNS}`).set({
 const accounts = [
     { uid: 'qtx-systemadmin', email: 'admin@smartinc.test', name: 'Quantilytix Admin', role: 'systemadmin', signature: sharedSignature, note: 'Platform: Admin > Workspace types' },
     { uid: 'qtx-prince', email: 'prince@quantilytix.co.za', name: 'Prince', role: 'systemadmin', signature: sharedSignature, note: 'Platform admin (Prince): Admin > Workspace types' },
-    { uid: keletsoUid, email: 'keletso@taunamagadi.co.za', name: 'Keletso', role: 'projectadmin', companyCode: TNS, companyName: TNS_NAME, signature, note: `${TNS_NAME}: the facilitator` },
+    { uid: keletsoUid, email: TRAINER.email, name: TRAINER.name, role: 'projectadmin', companyCode: TNS, companyName: TNS_NAME, signature, note: `${TNS_NAME}: the facilitator` },
 ]
 
 // ---- Training ----------------------------------------------------------------------------------------------------
@@ -332,6 +338,8 @@ put('trainingClasses/tns-class-now', {
     startDate: day(0),
     testsOpen: { pre: true, post: false },
     learnerUids: uidsOf('tns-class-now'),
+    // On camera, the learner writes the quick quiz: multiple choice marked on hand-in, one written answer to mark.
+    ...(FOR_VIDEO ? { preAssessmentId: 'tns-quick-quiz' } : {}),
 })
 put('trainingClasses/tns-class-online', {
     ...classBase,
@@ -493,7 +501,7 @@ put(`trainingCertificates/${certificateId}`, {
     organisation: 'Kgalagadi Mining (Pty) Ltd',
     deliveryLabel: doneClass.venue,
     logoUrl,
-    signatoryName: 'Keletso',
+    signatoryName: TRAINER.name,
     signatureUrl: signature.url,
     issuedAt: at(-28, 16),
     issuedBy: keletsoUid,

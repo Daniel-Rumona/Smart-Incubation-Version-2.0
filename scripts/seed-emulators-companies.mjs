@@ -37,6 +37,13 @@ export const docxText = (bytes) => {
 
 /** The library's documents: from her training pack when it is there, else a stand-in PDF. */
 export const trainingPackLibrary = (samplePdf) => {
+    // For the video (SEED_FOR_VIDEO=1, see seed-emulators.mjs) her real documents stay out: stand-in PDFs with the same titles.
+    if (process.env.SEED_FOR_VIDEO === '1') {
+        return PACK_DOCUMENTS.map(({ entry, ...values }) => {
+            const text = `${values.title}: sample document (demo data only).`
+            return { ...values, courseTitle: COURSE, fileName: `${values.title.replace(/\W+/g, '-')}.pdf`, contentType: 'application/pdf', bytes: samplePdf(text), text }
+        })
+    }
     if (!existsSync(TRAINING_PACK)) {
         const text = 'ESG Awareness Training: sample document (test data only).'
         return [{ id: 'tns-lib-notes', title: 'ESG Awareness Training (sample document)', category: 'course_material', courseTitle: COURSE, audience: 'shared', fileName: 'ESG-Awareness-sample.pdf', contentType: 'application/pdf', bytes: samplePdf(text), text }]

@@ -4,7 +4,7 @@ import { fade } from '@remotion/transitions/fade'
 import { ALL_FORMATS, Input, UrlSource } from 'mediabunny'
 import { Fragment } from 'react'
 import { CalculateMetadataFunction, Sequence, staticFile } from 'remotion'
-import { SCENES, type Scene } from './script'
+import { SCENES, type Scene, type Tone } from './script'
 import { FootageScene } from './scenes/FootageScene'
 import { PointsScene } from './scenes/PointsScene'
 import { TitleScene } from './scenes/TitleScene'
@@ -38,9 +38,9 @@ export const calculateShowcaseMetadata: CalculateMetadataFunction<ShowcaseProps>
   return { durationInFrames: total, props: { timings } }
 }
 
-// A product scene keeps showing its live footage after the narration ends, up to this much longer, so viewers
-// see the screen in use rather than cutting away the moment the voice stops.
-const MAX_FOOTAGE_OVERRUN_FRAMES = 15 * FPS
+// A product scene keeps showing its live footage after the narration ends, up to this much longer, so the last
+// action lands before the fade. record.mjs times each shot to its narration, so this is a small margin.
+const MAX_FOOTAGE_OVERRUN_FRAMES = 3 * FPS
 
 export const sceneFrames = (timing: Timing) => {
   const spoken = LEAD_IN_FRAMES + timing.speechFrames + TAIL_FRAMES
@@ -48,46 +48,16 @@ export const sceneFrames = (timing: Timing) => {
   return Math.max(spoken, Math.min(timing.footageFrames, spoken + MAX_FOOTAGE_OVERRUN_FRAMES))
 }
 
+const TONES: Record<Tone, string> = { info: COLORS.info, warn: COLORS.warn, good: COLORS.good, accent: COLORS.accent }
+
 const renderScene = (scene: Scene, timing: Timing) => {
   const props = { scene, speechFrames: timing.speechFrames, footageFrames: timing.footageFrames }
-  switch (scene.id) {
-    case 'intro':
-      return <TitleScene {...props} eyebrow="Incubation, measured" heading="Smart Incubation" subheading="One platform, from application to impact." />
-    case 'close':
-      return <TitleScene {...props} eyebrow="Smart Incubation" heading="Support you can measure" subheading="Run one cohort, and see the results in your own data." />
-    case 'method':
-      return (
-        <PointsScene
-          {...props}
-          points={[
-            { label: 'Record', detail: 'Every SME captured the same way, with a baseline.', color: COLORS.info },
-            { label: 'Track', detail: 'Every intervention, its status and what it is waiting on.', color: COLORS.warn },
-            { label: 'Verify', detail: 'Outcomes checked, and compared against others.', color: COLORS.good },
-          ]}
-        />
-      )
-    case 'verified':
-      return (
-        <PointsScene
-          {...props}
-          finale="Outcome verified"
-          points={[
-            { label: 'Evidence', detail: 'No intervention reaches 100% without it.', color: COLORS.info },
-            { label: 'Facilitator', detail: 'Reports the outcome on its own.', color: COLORS.accent },
-            { label: 'SME', detail: 'Answers separately, without seeing the facilitator’s answer.', color: COLORS.warn },
-          ]}
-        />
-      )
-    case 'honest':
-      return (
-        <PointsScene
-          {...props}
-          points={[
-            { label: 'Observation, not proof', detail: 'A facilitator’s answer is recorded for what it is.', color: COLORS.accent },
-            { label: 'Comparison, not cause', detail: 'Impact figures say what they can show.', color: COLORS.good },
-          ]}
-        />
-      )
+  switch (scene.kind) {
+    case 'title':
+    case 'chapter':
+      return <TitleScene {...props} eyebrow={scene.eyebrow ?? ''} heading={scene.title} subheading={scene.subheading ?? ''} compact={scene.kind === 'chapter'} />
+    case 'points':
+      return <PointsScene {...props} points={(scene.points ?? []).map((point) => ({ label: point.label, detail: point.detail, color: TONES[point.tone] }))} />
     default:
       return <FootageScene {...props} />
   }
