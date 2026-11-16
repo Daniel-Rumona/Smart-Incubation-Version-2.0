@@ -27,6 +27,30 @@ const STATES = {
 const BUCKETS = [['completed', 'inProgress', 'overdue'], ['completed', 'completed', 'pending'], ['inProgress', 'pending', 'overdue']]
 const slug = (value) => String(value).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 
+// A SWOT per SME, in the shape scripts/seed-swot-and-outcomes.cjs writes on live data: `swotItems` (each tied to an
+// area of support) and the plain `swot` lists older screens read. Weaknesses and threats sit in the areas the SME's
+// plan covers, so the diagnostic plan shows what each intervention is for.
+const SWOT_TEXT = {
+    'Financial Management': { weaknesses: 'No monthly management accounts or cash-flow forecast', threats: 'Late-paying customers strain cash flow', strengths: 'Healthy gross margins on core products', opportunities: 'Funding readiness would open access to development finance' },
+    'Marketing & Sales': { weaknesses: 'No structured sales pipeline or follow-up process', threats: 'Larger competitors winning on price and visibility', strengths: 'Loyal repeat customers and a good local reputation', opportunities: 'Growing demand in nearby markets' },
+    'Governance & Leadership': { weaknesses: 'Roles and responsibilities are not documented', threats: 'Key-person dependency on the founder', strengths: 'Committed founder with a clear vision', opportunities: 'Mentors available through the programme' },
+    'Digital Transformation': { weaknesses: 'Records kept on paper or loose spreadsheets', threats: 'Competitors are moving sales online', strengths: 'Already takes payments digitally', opportunities: 'Low-cost tools can automate invoicing and stock' },
+    'Operations & Compliance': { weaknesses: 'No written operating procedures', threats: 'Compliance gaps could block large contracts', strengths: 'Reliable, on-time delivery', opportunities: 'Supplier-development programmes want compliant SMEs' },
+    'Access to Markets': { weaknesses: 'Sells into only one customer segment', threats: 'Dependence on one or two large customers', strengths: 'Established relationships with local buyers', opportunities: 'Public-sector procurement set-asides' },
+}
+const swotFor = (planAreas) => {
+    const areas = [...new Set(planAreas)]
+    const items = [
+        ...areas.map((area) => ({ quadrant: 'weaknesses', text: SWOT_TEXT[area].weaknesses, areaOfSupport: area })),
+        { quadrant: 'threats', text: SWOT_TEXT[areas[0]].threats, areaOfSupport: areas[0] },
+        { quadrant: 'strengths', text: SWOT_TEXT[areas.at(-1)].strengths, areaOfSupport: areas.at(-1) },
+        { quadrant: 'opportunities', text: SWOT_TEXT[areas[0]].opportunities, areaOfSupport: areas[0] },
+    ]
+    const lists = { strengths: [], weaknesses: [], opportunities: [], threats: [] }
+    items.forEach((item) => lists[item.quadrant].push(item.text))
+    return { swot: lists, swotItems: items }
+}
+
 const COMPANIES = [
     {
         code: 'DEMO',
@@ -230,9 +254,11 @@ export const seedIncubators = async ({ db, Timestamp, FieldValue, seedPerson, si
                 businessName: sme.business, participantName: sme.owner, email, phone, sector: sme.sector,
                 programId: programme.id, programName: programme.name, companyCode: code,
             }
+            const swot = swotFor(plan.map((item) => item.area))
 
             put(`participants/${participantId}`, {
                 ...base,
+                ...swot,
                 ...(login ? { uid: login.uid } : {}),
                 applicationId, applicantProfileId: login ? login.uid : null, businessProfileId: login ? login.uid : null, departmentId: null,
                 gender: index % 3 === 1 ? 'Male' : 'Female', stage: 'Early growth', province: 'Gauteng', beeLevel: 'Level 1',
@@ -248,7 +274,7 @@ export const seedIncubators = async ({ db, Timestamp, FieldValue, seedPerson, si
                 employmentStatus: 'Self-employed', maritalStatus: 'Single', locationType: 'Urban', youthOwnedPercent: 50, femaleOwnedPercent: 100, blackOwnedPercent: 100,
                 departmentId: null, status: 'accepted', applicationStatus: 'accepted',
                 submittedAt: ts(daysFromNow(-170 + index * 9)), acceptedAt: ts(acceptedAt), reviewedAt: ts(acceptedAt), reviewedBy: null,
-                interventions: { required, completed }, requiredInterventions: [], complianceDocuments: [], swot: null,
+                interventions: { required, completed }, requiredInterventions: [], complianceDocuments: [], ...swot,
                 seededBy: 'emulators', createdAt: ts(daysFromNow(-170 + index * 9)), createdBy: null, updatedAt: FieldValue.serverTimestamp(), updatedBy: null,
             })
             const confirmedAt = acceptedAt.toISOString()
