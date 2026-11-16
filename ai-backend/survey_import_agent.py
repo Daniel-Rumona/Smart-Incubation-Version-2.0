@@ -8,6 +8,7 @@ survey builder stores them, so importing is a review step rather than retyping.
 from __future__ import annotations
 
 import base64
+import html
 import io
 import json
 import re
@@ -43,7 +44,7 @@ Return JSON only, matching this shape:
 {
   "title": "string, the questionnaire's own title if it has one, else empty",
   "description": "one sentence describing the questionnaire, else empty",
-  "category": "Evaluation Form" | "Feedback Form" | "Assessment" | "",
+  "category": "Evaluation Form" | "Feedback Form" | "Assessment" | "Gap Analysis" | "",
   "fields": [
     {
       "type": "text|textarea|number|email|select|checkbox|radio|date|file|rating|heading",
@@ -66,6 +67,14 @@ Rules:
 - Use "textarea" where a long written answer is expected, "text" otherwise.
 - Mark required only where the document says so (an asterisk, "required", or
   "compulsory"). Otherwise false.
+- The document may be a completed form or report. Take only the questions and
+  field labels; never turn the answers given into questions or options.
+- Tables whose first column lists items to assess (e.g. "Revenue / turnover",
+  "Cash flow") become one question per row, under the table's section heading.
+- A per-section score such as "Diagnostic rating 2 / 5" becomes a "rating"
+  question labelled "<section> rating" at the end of that section.
+- When preferredCategory is "Gap Analysis", group every question under a
+  "heading" for the business area it assesses, and skip signature blocks.
 - Never include commentary outside the JSON.
 """
 
@@ -136,7 +145,25 @@ def _decode_document(file_name: str, encoded: str) -> str:
     if name.endswith((".txt", ".md", ".csv")):
         return raw.decode("utf-8", errors="ignore")
 
-    raise HTTPException(status_code=415, detail="Upload a .docx, .pdf, .txt, .md or .csv file")
+    if name.endswith((".html", ".htm")):
+        return _html_to_text(raw.decode("utf-8", errors="ignore"))
+
+    raise HTTPException(status_code=415, detail="Upload a .docx, .pdf, .html, .txt, .md or .csv file")
+
+
+_BLOCK_TAGS = re.compile(r"</?(?:p|div|br|tr|h[1-6]|li|table|section|b|th)\b[^>]*>", re.IGNORECASE)
+_CELL_TAGS = re.compile(r"</t[dh]>", re.IGNORECASE)
+
+
+def _html_to_text(markup: str) -> str:
+    """Saved reports and web forms: keep one line per block and " | " between table cells."""
+    markup = re.sub(r"<(script|style|head)\b[^>]*>.*?</\1>", " ", markup, flags=re.IGNORECASE | re.DOTALL)
+    markup = re.sub(r"<img\b[^>]*>", " ", markup, flags=re.IGNORECASE)
+    markup = _CELL_TAGS.sub(" | ", markup)
+    markup = _BLOCK_TAGS.sub("\n", markup)
+    text = html.unescape(re.sub(r"<[^>]+>", " ", markup))
+    lines = (re.sub(r"[ \t]+", " ", line).strip(" |") for line in text.splitlines())
+    return "\n".join(line for line in lines if line)
 
 
 def _clean_label(value: Any) -> str:

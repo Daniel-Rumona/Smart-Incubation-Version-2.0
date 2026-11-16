@@ -1,6 +1,8 @@
 import {
+    Avatar,
     Button,
     App,
+    Cascader,
     Dropdown,
     Grid,
     Layout,
@@ -17,6 +19,7 @@ import {
     GlobalOutlined,
     LogoutOutlined,
     MenuOutlined,
+    LockOutlined,
     MoonOutlined,
     RobotOutlined,
     ApartmentOutlined,
@@ -28,7 +31,7 @@ import {
     SunOutlined,
     UserOutlined,
 } from '@ant-design/icons'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useFitSteps } from '@/hooks/useFitSteps'
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { doc, getDoc } from 'firebase/firestore'
@@ -54,12 +57,16 @@ import { TrainingAgenticHome } from '@/pages/training/TrainingAgenticHome'
 import { CLIENT_MODULES, clientHomeModuleFor, enabledClientModuleSettings } from '@/config/clientModules'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
+import FunderLinkRequestsPopup from '@/components/funders/FunderLinkRequestsPopup'
+import FunderOrgAccountActions from '@/components/funders/FunderOrgAccountActions'
 import { useSystemSettings } from '@/contexts/SystemSettingsContext'
 import { useEntitlements } from '@/hooks/useEntitlements'
 import { SystemLayoutTopbarContext, type SystemLayoutPageChrome } from '@/contexts/SystemLayoutTopbarContext'
 import { WorkspaceShellProvider } from '@/contexts/WorkspaceShellContext'
 import { ALL_PROGRAMS, setActiveProgramId, useActiveProgramId } from '@/hooks/useActiveProgramId'
 import { ALL_COMPANIES, setActiveCompanyCode, useActiveCompanyCode } from '@/hooks/useActiveCompanyCode'
+import { setActiveImplementor, useActiveImplementor } from '@/hooks/useActiveImplementor'
+import { ALL_IMPLEMENTORS, isOrgFunder, loadDataScope, type ScopeEntry } from '@/services/funderScopeService'
 import { isTrainingProgram, listWorkspacePrograms, type WorkspaceProgram } from '@/services/workspaceProgramsService'
 import { listCoursesForParticipant } from '@/services/courseProgressService'
 import { canAccessPlatformOwnerRoute, isPlatformAdmin, listWorkspaceCompanies, type WorkspaceCompany } from '@/services/companiesService'
@@ -72,6 +79,7 @@ import '@/styles/system-layout.css'
 // Page fade-in and skeleton styles; the full LoadingOverlay is only used for this first load now.
 import '@/styles/page-loading.css'
 import { workspaceDashboardPath } from '@/utils/workspacePath'
+import { applySignInPreference, getSignInPreference, type SignInPreference } from '@/services/signInPreference'
 
 const { Content } = Layout
 const { useBreakpoint } = Grid
@@ -131,12 +139,13 @@ const NAVIGATION_DESCRIPTIONS: Record<string, string> = {
     '/projectadmin/reports': 'Review programme reporting, evidence, and performance summaries.',
     '/projectadmin/esg': 'Track ESG commitments, indicators, and programme scorecard results.',
     '/operations': 'Monitor delivery work, activity queues, and operational priorities.',
-    '/operations/programs': 'Create and maintain the programmes available in this workspace.',
+    '/operations/programs': 'Create and maintain your programmes.',
     '/operations/tasks': 'Plan, assign, and follow up on operational work across the active programme.',
     '/shared/staff/tasks': 'Plan, assign, and follow up on operational work across the active programme.',
     '/shared/staff/manage': 'Manage staff records, roles, and team capacity.',
     '/shared/applications': 'Review incoming applications and decide who moves into the programme.',
     '/operations/participants/diagnostic-plans': 'Review diagnostic plans and the business priorities they identify.',
+    '/operations/gap-analysis': 'Set up gap analyses, review SME responses and turn the gaps found into diagnostic plan interventions.',
     '/shared/participants': 'Manage all participating businesses and their programme records.',
     '/operations/participants/metrics': 'Compare participant performance measures and growth trends.',
     '/operations/participants/compliance': 'Review participant compliance, evidence, and outstanding requirements.',
@@ -154,7 +163,7 @@ const NAVIGATION_DESCRIPTIONS: Record<string, string> = {
     '/director/portfolio': 'Review the portfolio of businesses, programmes, and their results.',
     '/director/sectors': 'Understand performance across the sectors served by the organisation.',
     '/director/structure': 'Review organisational structure, departments, and branch coverage.',
-    '/director/settings': 'Maintain the organisation-wide settings that shape this workspace.',
+    '/director/settings': 'Maintain your organisation-wide settings.',
     '/director/reports': 'Access executive reports and performance summaries.',
     '/admin/users': 'Manage user access, roles, and workspace permissions.',
     '/admin/consultant-verification': 'Review consultant verification requests and professional credentials.',
@@ -167,7 +176,7 @@ const NAVIGATION_DESCRIPTIONS: Record<string, string> = {
 
 const navigationDescription = (route: AppRoute, label: string) => {
     const description = NAVIGATION_DESCRIPTIONS[route.path]
-    return description ? tr(description) : tr('Review and manage {label} for this workspace.', undefined, { label: label.toLowerCase() })
+    return description ? tr(description) : tr('Review and manage {label}.', undefined, { label: label.toLowerCase() })
 }
 
 /** Everything a Training SME's menu holds: their programme only delivers a set list, so no plans, metrics or tracker. */
@@ -265,11 +274,17 @@ export const SystemLayout = () => {
     const { message } = App.useApp()
 
     const [navigationOpen, setNavigationOpen] = useState(false)
+    // Desktop: the More dropdown beside the page links (the full page menu stays for tablets and phones).
+    const [moreOpen, setMoreOpen] = useState(false)
     const [navigationSection, setNavigationSection] = useState('')
     const { activeProgramId } = useActiveProgramId()
     const { activeCompanyCode } = useActiveCompanyCode()
     const [programs, setPrograms] = useState<WorkspaceProgram[]>([])
     const [programsVersion, setProgramsVersion] = useState(0)
+    // A funder organisation's member can fund programmes at several implementors: a second dropdown picks one.
+    const orgFunder = isOrgFunder(user)
+    const { activeImplementor } = useActiveImplementor()
+    const [implementors, setImplementors] = useState<ScopeEntry[]>([])
     // An accepted SME whose programmes are all Training gets the small workspace (see TRAINING_SME_PATHS).
     const isTrainingSme = user?.role === 'incubatee' && !user.isApplicant && programs.length > 0 && programs.every(isTrainingProgram)
     // Courses join a Training SME's menu once at least one is set up for them.
@@ -332,6 +347,7 @@ export const SystemLayout = () => {
     // Phones split the shell in two: identity on top, the controls people tap on the bottom bar,
     // and everything set-and-forget behind the account panel.
     const [accountOpen, setAccountOpen] = useState(false)
+    const [rememberChoice, setRememberChoice] = useState<SignInPreference>(getSignInPreference)
     const [guideOpen, setGuideOpen] = useState(false)
     const [pageChrome, setPageChrome] = useState<SystemLayoutPageChrome>({
         showBackButton: false,
@@ -404,6 +420,20 @@ export const SystemLayout = () => {
             cancelled = true
         }
     }, [activeProgramId, programsVersion, showCompanySelector, user])
+
+    useEffect(() => {
+        if (!orgFunder) return
+        let cancelled = false
+        loadDataScope(user)
+            .then((scope) => {
+                if (cancelled) return
+                setImplementors(scope)
+                // A choice that no longer applies (a link ended) falls back to every implementor.
+                if (activeImplementor !== ALL_IMPLEMENTORS && !scope.some((entry) => entry.companyCode === activeImplementor)) setActiveImplementor(ALL_IMPLEMENTORS)
+            })
+            .catch(() => { if (!cancelled) setImplementors([]) })
+        return () => { cancelled = true }
+    }, [activeImplementor, orgFunder, user])
 
     useEffect(() => {
         let cancelled = false
@@ -521,7 +551,8 @@ export const SystemLayout = () => {
     const baseQuickLinks = useMemo(() => {
         const byPath = new Map(flattenRoutes(visibleRoutes).map((route) => [route.path, route]))
         const homeRoute = byPath.get(homePath)
-        const home: QuickLink[] = homeRoute ? [{ path: homeRoute.path, label: t('Home'), icon: homeRoute.icon }] : []
+        // With Agentic in the plan, Agentic is where people land, so the role's home page is named for what it is.
+        const home: QuickLink[] = homeRoute ? [{ path: homeRoute.path, label: agenticAllowed ? t('Dashboard') : t('Home'), icon: homeRoute.icon }] : []
 
         const candidatePaths = clientModule
             ? clientModule.quickLinkPaths
@@ -551,7 +582,7 @@ export const SystemLayout = () => {
             .slice(0, clientModule && !isMobile ? clientModule.quickLinkPaths.length : user?.role === USER_ROLES.CLIENT_ORG && !isMobile ? 5 : 3)
 
         return [...home, ...rest]
-    }, [t, user, visibleRoutes, hasApplications, checkDocuments, isTrainingSme, hasCourses, homePath, clientModule, isMobile]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [t, user, visibleRoutes, hasApplications, checkDocuments, isTrainingSme, hasCourses, homePath, clientModule, isMobile, agenticAllowed]) // eslint-disable-line react-hooks/exhaustive-deps
     /** Section › Page trail for the topbar, so orientation survives the navigation modal closing. */
     const currentLocationLabel = useMemo(() => {
         const trail: string[] = []
@@ -637,14 +668,22 @@ export const SystemLayout = () => {
         />
     )
 
+    // For a funder organisation with an implementor chosen, only that implementor's programmes.
+    const visiblePrograms = orgFunder && activeImplementor !== ALL_IMPLEMENTORS
+        ? programs.filter((program) => program.companyCode === activeImplementor)
+        : programs
+
     // A single programme has nothing to choose between, so show it as a plain tag instead of a dropdown with "All programmes".
-    const singleProgramTag = programs.length === 1
-        ? <Tag className="app-project-tag" title={programs[0].name} icon={<FolderOpenOutlined className="app-scope-icon" />}><span className="app-scope-name">{programs[0].name}</span></Tag>
+    const singleProgramTag = visiblePrograms.length === 1
+        ? <Tag className="app-project-tag" title={visiblePrograms[0].name} icon={<FolderOpenOutlined className="app-scope-icon" />}><span className="app-scope-name">{visiblePrograms[0].name}</span></Tag>
         : null
+
+    // A funder organisation working across several implementors gets one implementor-and-programme picker (below).
+    const pickImplementor = orgFunder && implementors.length > 1
 
     // Learners, client companies and the funders of a training company have no programmes to pick between.
     const hasNoProgrammes = user?.role === USER_ROLES.LEARNER || user?.role === USER_ROLES.CLIENT_ORG || isClientFunder
-    const projectSelector = showCompanySelector ? companySelector : isSmeWorkspace || hasNoProgrammes ? null : singleProgramTag ?? (
+    const programmeSelector = showCompanySelector ? companySelector : isSmeWorkspace || hasNoProgrammes ? null : singleProgramTag ?? (
         <Select
             value={activeProgramId}
             onChange={setActiveProgramId}
@@ -652,12 +691,46 @@ export const SystemLayout = () => {
             className="app-project-select"
             popupMatchSelectWidth={false}
             prefix={<FolderOpenOutlined className="app-scope-icon" />}
-            options={[{ id: ALL_PROGRAMS, name: t('shell.allPrograms') }, ...programs].map((project) => ({
+            options={[{ id: ALL_PROGRAMS, name: t('shell.allPrograms') }, ...visiblePrograms].map((project) => ({
                 value: project.id,
                 label: project.name,
             }))}
         />
     )
+    // A funder organisation picks an implementor and a programme from one control: implementors first, then that
+    // implementor's programmes. Two dropdowns side by side pushed the page names out of the top bar.
+    const implementorValue = implementors.some((entry) => entry.companyCode === activeImplementor) ? activeImplementor : ALL_IMPLEMENTORS
+    const programmesOf = (companyCode: string) => (companyCode === ALL_IMPLEMENTORS ? programs : programs.filter((program) => program.companyCode === companyCode))
+    const scopeOptions = [{ value: ALL_IMPLEMENTORS, label: t('All implementors') }, ...implementors.map((entry) => ({ value: entry.companyCode, label: entry.companyName || entry.companyCode }))]
+        .map((option) => ({
+            ...option,
+            children: [{ value: ALL_PROGRAMS, label: t('shell.allPrograms') }, ...programmesOf(option.value).map((program) => ({ value: program.id, label: program.name }))],
+        }))
+    const programmeValue = programmesOf(implementorValue).some((program) => program.id === activeProgramId) ? activeProgramId : ALL_PROGRAMS
+    const chooseScope = (path: Array<string | number>) => {
+        const [implementor = ALL_IMPLEMENTORS, programme = ALL_PROGRAMS] = path.map(String)
+        setActiveImplementor(implementor)
+        setActiveProgramId(programme)
+    }
+    const scopeSelector = pickImplementor && programmeSelector ? (
+        <Cascader
+            className="app-project-select app-scope-cascader"
+            value={[implementorValue, programmeValue]}
+            options={scopeOptions}
+            onChange={(path) => path && chooseScope(path)}
+            changeOnSelect
+            allowClear={false}
+            expandTrigger="hover"
+            aria-label={t('Implementor and programme')}
+            prefix={<ApartmentOutlined className="app-scope-icon" />}
+            displayRender={(labels) => labels.join(' · ')}
+        />
+    ) : null
+    const projectSelector = scopeSelector ?? programmeSelector
+
+    // Your uploaded profile photo on the account button, or the person icon when there is none.
+    const profilePhoto = user?.profileImageUrl || null
+    const accountIcon = profilePhoto ? <Avatar src={profilePhoto} size={30} className="app-topbar-avatar" alt="" /> : <UserOutlined />
 
     const handleTopbarBack = () => {
         const historyState = window.history.state as { idx?: number } | null
@@ -705,45 +778,85 @@ export const SystemLayout = () => {
         items: (link.children ?? []).map((child) => ({ key: child.path, label: child.label, icon: child.icon })),
         onClick: ({ key }: { key: string }) => openWorkspace(key),
     })
-    const quickLinksValue = quickLinkRoutes.find(isQuickLinkActive)?.path ?? ''
-    const quickLinksSwitch = quickLinkRoutes.length > 0 && (
-        <Segmented
-            className="app-quicklinks-switch"
-            value={quickLinksValue}
-            // A dropdown shortcut has no page of its own: its menu does the navigating.
-            onChange={(value) => { if (!quickLinkRoutes.find((link) => link.path === value)?.children) openWorkspace(String(value)) }}
-            options={quickLinkRoutes.map((link) => ({
-                value: link.path,
-                label: link.children ? (
-                    // The icon sits inside the trigger so the menu still opens when the label is squeezed out.
-                    <Dropdown menu={quickLinkMenu(link)} trigger={['hover', 'click']} placement="bottom">
-                        <span className="app-quicklink-dropdown">
-                            {link.icon}
-                            <span className="app-topbar-text">{link.label}</span>
-                            <DownOutlined className="app-quicklink-caret" />
-                        </span>
+    // Desktop navigation: plain text links that stay text. Agentic comes first and is where people land; then the
+    // role's dashboard and shortcuts; then More for every other page. Being in Agentic is just being on its link,
+    // so there is no separate Agentic / Workspace switch.
+    const textNavLink = (key: string, label: ReactNode, active: boolean, onClick?: () => void, extra?: ReactNode) => (
+        <button key={key} type="button" className={`app-textnav-link${active ? ' is-active' : ''}`} aria-current={active ? 'page' : undefined} onClick={onClick}>
+            {label}{extra}
+        </button>
+    )
+    // More: every page that isn't a link in the bar, as a dropdown with a line of description each (the same
+    // descriptions the page menu uses), grouped under their sections' names when there is more than one section.
+    const moreItems = navigationSections.flatMap((section) => section.items)
+    const moreMenu = (
+        <div className={`app-more-menu${moreItems.length > 5 ? ' is-wide' : ''}`} role="menu">
+            {navigationSections.filter((section) => section.items.length).map((section) => (
+                <div key={section.key} className="app-more-section">
+                    {navigationSections.length > 1 && <div className="app-more-heading">{section.label}</div>}
+                    <div className="app-more-items">
+                        {section.items.map((route) => {
+                            const label = t(route.labelKey)
+                            const isCurrent = shellMode === 'workspace' && route.path === selectedKey
+                            return (
+                                <button
+                                    key={route.path}
+                                    type="button"
+                                    role="menuitem"
+                                    className={`app-more-item${isCurrent ? ' is-current' : ''}`}
+                                    onClick={() => { setMoreOpen(false); openWorkspace(route.path) }}
+                                >
+                                    <span className="app-more-icon">{route.icon || <AppstoreOutlined />}</span>
+                                    <span className="app-more-copy"><strong>{label}</strong><span>{navigationDescription(route, label)}</span></span>
+                                </button>
+                            )
+                        })}
+                    </div>
+                </div>
+            ))}
+        </div>
+    )
+
+    const textNav = (
+        <nav className="app-textnav" aria-label={t('Main navigation')}>
+            {agenticAllowed && textNavLink('agentic', t('Agentic'), shellMode === 'agentic', () => handleShellModeChange('agentic'))}
+            {/* Agentic is its own space; a thin rule sets it apart from the pages that follow. */}
+            {agenticAllowed && quickLinkRoutes.length > 0 && <span className="app-textnav-divider" aria-hidden="true" />}
+            {quickLinkRoutes.map((link) => {
+                const active = shellMode === 'workspace' && isQuickLinkActive(link)
+                return link.children ? (
+                    <Dropdown key={link.path} menu={quickLinkMenu(link)} trigger={['hover', 'click']} placement="bottomLeft">
+                        {textNavLink(link.path, link.label, active, undefined, <DownOutlined className="app-quicklink-caret" />)}
                     </Dropdown>
-                ) : <span className="app-topbar-text">{link.label}</span>,
-                title: link.label,
-                icon: link.children ? undefined : link.icon,
-            }))}
-        />
+                ) : textNavLink(link.path, link.label, active, () => openWorkspace(link.path))
+            })}
+            {hasMenuItems && (
+                <Dropdown
+                    open={moreOpen}
+                    onOpenChange={setMoreOpen}
+                    trigger={['click']}
+                    placement="bottomLeft"
+                    popupRender={() => moreMenu}
+                >
+                    {textNavLink('more', t('More'), moreOpen || navigationSections.some((section) => section.items.some((route) => route.path === selectedKey && shellMode === 'workspace')), undefined, <DownOutlined className="app-quicklink-caret" />)}
+                </Dropdown>
+            )}
+        </nav>
     )
 
     // The bar never wraps, and labels run longer in some languages. When it overflows, things give way in
-    // steps so the bell and account button stay on screen. The page names go last, because they are how people
-    // find their way: first the mode switch drops its labels, then the programme narrows and then shows only its
-    // icon (its name stays as a tooltip), and only then do the other shortcuts, and finally the current one, lose
-    // their labels.
+    // steps so the bell and account button stay on screen. Page names go last, because they are how people find
+    // their way: first the programme narrows, then it shows only its icon (its name stays as a tooltip), then the
+    // links tighten their spacing. Tablets still use the mode switch and icon shortcuts, which keep their steps.
     const topbarRef = useRef<HTMLElement>(null)
-    useFitSteps(topbarRef, [
+    useFitSteps(topbarRef, isTablet ? [
         'modes',
         'modes modesall',
         'modes modesall narrow',
         'modes modesall narrow scope',
         'modes modesall narrow scope links',
         'modes modesall narrow scope links all',
-    ])
+    ] : ['narrow', 'narrow scope', 'narrow scope tight'])
 
     const handleLogout = async () => {
         try {
@@ -785,7 +898,7 @@ export const SystemLayout = () => {
                             <header
                                 ref={topbarRef}
                                 id="guide-app-topbar"
-                                className={`app-topbar-pill${isMobile && !isTablet && projectSelector ? ' has-phone-scope' : ''}${!isMobile && settingsReady && !agenticAllowed ? ' has-no-mode-switch' : ''}`}
+                                className={`app-topbar-pill${isMobile && !isTablet && projectSelector ? ' has-phone-scope' : ''}${!isMobile ? ' has-textnav' : ''}`}
                                 style={{
                                     left: isMobile ? 10 : 12,
                                 }}
@@ -824,16 +937,15 @@ export const SystemLayout = () => {
                                             {t('Go to Workspace')}
                                             <ArrowRightOutlined />
                                         </Button>
-                                    ) : isMobile ? (
+                                    ) : isMobile && !projectSelector ? (
+                                        // Phones with a programme or implementor picker give it the room instead of naming the page.
                                         <div className="app-brand-lockup">
                                             <span className="app-brand-copy">
                                                 <strong id="guide-app-name" className="app-page-title app-page-tag" title={showLocationCrumb ? currentLocationLabel : undefined}>{showLocationCrumb ? currentLocationLabel : t('Smart Incubation')}</strong>
                                             </span>
                                         </div>
-                                    ) : modeSwitch}
+                                    ) : isMobile ? null : textNav}
                                 </div>
-
-                                {!isMobile && <div className="app-topbar-center">{shellMode === 'workspace' && quickLinksSwitch}</div>}
 
                                 {isTablet && <div className="app-topbar-center">{projectSelector}</div>}
 
@@ -858,7 +970,7 @@ export const SystemLayout = () => {
                                         {/* Log out lives in the account panel on phones too. */}
                                         <Button
                                             type="text"
-                                            icon={<UserOutlined />}
+                                            icon={accountIcon}
                                             onClick={() => setAccountOpen(true)}
                                             className="app-icon-btn"
                                             aria-label={t('Account and settings')}
@@ -866,8 +978,6 @@ export const SystemLayout = () => {
                                     </Space>
                                 ) : (
                                     <Space size={8} className="app-topbar-actions">
-                                        {shellMode === 'workspace' && hasMenuItems && <Button icon={<MenuOutlined />} onClick={() => setNavigationOpen(true)} className="app-menu-button">{t('Menu')}</Button>}
-
                                         {projectSelector}
 
                                         <GuideMe
@@ -883,7 +993,7 @@ export const SystemLayout = () => {
                                         <Button
                                             type="text"
                                             shape="circle"
-                                            icon={<UserOutlined />}
+                                            icon={accountIcon}
                                             onClick={() => setAccountOpen(true)}
                                             className="app-icon-btn"
                                             aria-label={t('Account and settings')}
@@ -901,6 +1011,8 @@ export const SystemLayout = () => {
                                 }}
                             >
                                 <ProgramResumeBanner />
+                                {/* Funder organisations: programme link requests waiting, once per sign-in. */}
+                                <FunderLinkRequestsPopup user={user} />
                                 {agenticPending ? <PageSkeleton /> : shellMode === 'agentic' ? (trainingAgenticHome ? <TrainingAgenticHome /> : <AgenticHomePage />) : <Outlet key={location.pathname} />}
                             </Content>
 
@@ -1010,6 +1122,22 @@ export const SystemLayout = () => {
                                     ]}
                                 />
                             </div>
+
+                            {/* How this device remembers the sign-in (the same choice as on the sign-in form). */}
+                            <div className="app-account-row">
+                                <span className="app-account-row-label"><LockOutlined /> {t('On this device')}</span>
+                                <Select<SignInPreference>
+                                    value={rememberChoice}
+                                    popupMatchSelectWidth={false}
+                                    aria-label={t('On this device')}
+                                    onChange={(value) => { setRememberChoice(value); void applySignInPreference(value) }}
+                                    options={[
+                                        { value: 'ask', label: t('Ask me each time') },
+                                        { value: 'keep', label: t('Keep me signed in') },
+                                        { value: 'session', label: t("Don't remember me") },
+                                    ]}
+                                />
+                            </div>
                         </div>
 
                         <div className="app-account-actions">
@@ -1022,6 +1150,9 @@ export const SystemLayout = () => {
                                     {t('Guide me')}
                                 </Button>
                             )}
+
+                            {/* Funder organisations: the programmes they fund and inviting a colleague. */}
+                            <FunderOrgAccountActions user={user} onOpen={() => setAccountOpen(false)} />
 
                             <Button block icon={<IdcardOutlined />} onClick={() => { setAccountOpen(false); navigate(profilePathForUser(user)) }}>{t('My profile')}</Button>
 

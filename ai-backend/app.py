@@ -30,8 +30,10 @@ from pitchfy_client import PitchfyClient
 from document_provenance import create_document_provenance_router
 from whatsapp_agent import authorize_router_user, create_whatsapp_agent_router
 from appointment_responses import create_appointment_responses_router
-from agent_actions import actions_enabled, build_actor, create_agent_actions_router, run_agent_turn, tools_for
+from agent_actions import actions_enabled, build_actor, create_agent_actions_router, register_tools, run_agent_turn, tools_for
+from agent_watches import PROMPT_RULES as WATCH_PROMPT_RULES, WATCH_TOOLS, create_agent_watches_router
 from survey_import_agent import create_survey_import_router
+from gap_analysis_agent import create_gap_analysis_router
 from course_builder_agent import create_course_builder_router
 from client_modules import is_training_page, library_context, persona_for
 from esg_report_agent import create_esg_report_router
@@ -1080,8 +1082,10 @@ def channel_chat(payload: WhatsAppChatRequest, request: Request):
 
 
 AGENT_PERSONA = (
-    "Your name is Q. You are the Smart Incubation assistant. Greet the viewer by first name when it feels "
-    "natural, especially at the start of a conversation. Answer as a concise, warm operational assistant. "
+    "Your name is Q. You are the Smart Incubation assistant. Greet the viewer by first name (viewerName) when it feels "
+    "natural, especially at the start of a conversation. If viewerName is empty, do not use a name at all: names "
+    "in records, metrics and the conversation belong to other people (SMEs, facilitators, staff), never the viewer. "
+    "Answer as a concise, warm operational assistant. "
     "Use the page context, recent conversation, and sanitized Firestore snapshots to explain what is "
     "happening and suggest useful next steps. Do not expose implementation details, collection names, raw "
     "record fields, internal action keys, secrets, service-account details, user IDs, emails, phone numbers, "
@@ -1128,7 +1132,8 @@ async def page_agent(payload: AgentRequest, authorization: str | None = Header(d
             {"label": action.get("label"), "description": action.get("description")}
             for action in actions
         ],
-        "recentConversation": [turn.model_dump() for turn in payload.history[-8:]],
+        # The page sends the last 24 hours; the newest 30 turns, each trimmed, keep the prompt bounded.
+        "recentConversation": [{"role": turn.role, "content": turn.content[:1500]} for turn in payload.history[-30:]],
         "firestore": firestore_context,
     }
     # A training company's own library: the passages that match the question (shared items only for learners).
@@ -1878,7 +1883,10 @@ def synthesize_speech(payload: TtsRequest, authorization: str | None = Header(de
     return Response(content=audio_bytes, media_type="audio/mpeg")
 
 
+# Watches and chasers: agent tools (checked nightly by functions/src/agentWatches.ts) and the card answers.
+register_tools(WATCH_TOOLS, WATCH_PROMPT_RULES)
 app.include_router(create_agent_actions_router(db, _require_agentic))
+app.include_router(create_agent_watches_router(db, _require_agentic))
 app.include_router(create_whatsapp_agent_router(db, _call_gemini, _extract_json_object, AGENT_PERSONA))
 app.include_router(create_appointment_responses_router(
     db, _require_auth, lambda request, user_id, phone: authorize_router_user(db, request, user_id, phone),
@@ -1887,6 +1895,7 @@ app.include_router(create_business_plan_router(_call_gemini, _require_agentic))
 app.include_router(create_strategic_plan_router(_call_gemini, _require_agentic))
 app.include_router(create_document_provenance_router(_require_auth))
 app.include_router(create_survey_import_router(_call_gemini, _require_auth))
+app.include_router(create_gap_analysis_router(_call_gemini, _require_auth))
 app.include_router(create_course_builder_router(_call_gemini, _require_auth))
 app.include_router(create_intervention_outcome_router(_call_gemini, _require_auth))
 app.include_router(create_esg_report_router(db, _call_gemini, _require_auth, _extract_json_object))

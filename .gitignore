@@ -40,7 +40,7 @@ __pycache__/
 # Local scratch output
 tmp/
 
-# Saved local emulator data (npm run emulators:save): test accounts and records, local only
-emulator-data/
 # Firebase CLI deploy cache (rewritten on every deploy)
 .firebase/
+# Saved local emulator data (npm run emulators:save): test accounts and records, local only
+emulator-data/

@@ -214,3 +214,13 @@ html[data-theme='dark'] .auth-divider .ant-typography { color: #aab2c5 !importan
     @keyframes auth-card-in { from { opacity: 0; } to { opacity: 1; } }
     @keyframes auth-rise-in { from { opacity: 0; } to { opacity: 1; } }
 }
+
+/* "On this device": how the sign-in is remembered. Three visible options, then a note on the chosen one. */
+.auth-remember { display: grid; gap: 6px; margin: -2px 0 14px; }
+.auth-remember-label { font-size: 12.5px; font-weight: 600; color: var(--auth-muted); }
+.auth-remember .ant-segmented { padding: 3px; border-radius: 999px; }
+.auth-remember .ant-segmented-item, .auth-remember .ant-segmented-thumb { border-radius: 999px !important; }
+.auth-remember .ant-segmented-item-label { font-size: 12.5px; font-weight: 600; padding-inline: 6px; }
+.auth-remember .ant-segmented-item-selected { color: #fff !important; background: linear-gradient(135deg, #6d5dfb, #4f7df3) !important; }
+.auth-remember-hint { font-size: 12px; line-height: 1.4; color: var(--auth-muted); }
+@media (max-height: 680px) and (min-width: 768px) { .auth-remember { gap: 4px; margin-bottom: 10px; } }

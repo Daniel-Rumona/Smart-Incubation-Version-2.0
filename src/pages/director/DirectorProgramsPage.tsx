@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { App, Card, Col, Empty, Input, Pagination, Progress, Row, Select, Space, Tag, Typography, theme } from 'antd'
+import { App, Button, Card, Col, Empty, Input, Pagination, Progress, Row, Select, Space, Tag, Typography, theme } from 'antd'
 import {
     AimOutlined,
     AppstoreOutlined,
+    BankOutlined,
     BarChartOutlined,
     CalendarOutlined,
     CheckCircleOutlined,
@@ -13,6 +14,7 @@ import {
     TeamOutlined,
 } from '@ant-design/icons'
 import type Highcharts from 'highcharts'
+import ProgrammeFundersModal from '@/components/funders/ProgrammeFundersModal'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
@@ -67,6 +69,7 @@ export const DirectorProgramsPage = () => {
     const [sortKey, setSortKey] = useState<SortKey>('completion')
     const [page, setPage] = useState(1)
     const [selectedId, setSelectedId] = useState<string>()
+    const [fundersFor, setFundersFor] = useState<{ id: string; name: string; companyCode: string } | null>(null)
 
     const load = useCallback(async () => {
         if (identityLoading || !user) return
@@ -317,6 +320,12 @@ export const DirectorProgramsPage = () => {
                 open={!!selected}
                 onClose={() => setSelectedId(undefined)}
                 width={820}
+                // The director links the programme to the organisations that fund it (they accept before seeing it).
+                footer={selected && selected.id !== 'unassigned' && user?.companyCode ? (
+                    <Button icon={<BankOutlined />} onClick={() => setFundersFor({ id: selected.id, name: programmeName(selected), companyCode: String(user.companyCode) })}>
+                        {t('Funders of this programme')}
+                    </Button>
+                ) : null}
                 title={selected ? (
                     <Space direction="vertical" size={2}>
                         <Space><ProjectOutlined /> {programmeName(selected)}</Space>
@@ -379,6 +388,7 @@ export const DirectorProgramsPage = () => {
                     </Space>
                 )}
             </ResponsiveModal>
+            <ProgrammeFundersModal open={!!fundersFor} programme={fundersFor} onClose={() => setFundersFor(null)} />
         </DashboardPage>
     )
 }

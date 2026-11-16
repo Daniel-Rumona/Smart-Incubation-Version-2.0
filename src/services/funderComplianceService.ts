@@ -14,7 +14,8 @@ export type FunderComplianceSummary = {
   missingDocuments: Array<{ name: string; smes: number }>
 }
 
-export const loadFunderCompliance = async (programId?: string | null) => {
-  const callable = httpsCallable<{ programId: string | null }, FunderComplianceSummary>(getFunctions(firebaseApp, 'us-central1'), 'getFunderComplianceSummary')
-  return (await callable({ programId: programId && programId !== 'all' ? programId : null })).data
+/** For a funder organisation, `implementor` narrows the summary to one company ('all' or empty = every implementor). */
+export const loadFunderCompliance = async (programId?: string | null, implementor?: string | null) => {
+  const callable = httpsCallable<{ programId: string | null; implementor: string | null }, FunderComplianceSummary>(getFunctions(firebaseApp, 'us-central1'), 'getFunderComplianceSummary')
+  return (await callable({ programId: programId && programId !== 'all' ? programId : null, implementor: implementor && implementor !== 'all' ? implementor : null })).data
 }

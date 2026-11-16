@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Button, Space, Typography } from 'antd'
 import {
     ArrowRightOutlined,
@@ -14,6 +14,7 @@ import {
     WhatsAppOutlined,
     SunOutlined,
     TeamOutlined,
+    UserOutlined,
 } from '@ant-design/icons'
 import { MotionConfig, motion, type Variants } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
@@ -22,11 +23,14 @@ import { useThemeMode } from '@/providers/ThemeProvider'
 import { useAgent } from '@/providers/AgentProvider'
 import { useIdentity } from '@/contexts/IdentityProvider'
 import { workspaceDashboardPath } from '@/utils/workspacePath'
+import { getSignInPreference } from '@/services/signInPreference'
+import { logoutUser } from '@/services/authService'
 import { HolidayBanner } from '@/components/shared/HolidayBanner'
 import { LanguageMenu } from '@/components/shared/LanguageMenu'
 import { trackEvent } from '@/lib/analytics'
 import { CONTACT_EMAIL, CONTACT_PHONE, DEMO_REQUEST_CC, DEMO_REQUEST_TO, PRIVACY_URL, TERMS_URL } from '@/config/company'
 import LandingProductPreview from './LandingProductPreview'
+import DemoRequestForm from './DemoRequestForm'
 import '@/styles/landing/LandingPage.css'
 
 const SIGNUP_PATH = '/auth?mode=signup'
@@ -157,6 +161,20 @@ const LandingPage: React.FC = () => {
     // Someone already signed in sees a way straight back to their workspace instead of sign-up prompts.
     const { user, loading: identityLoading } = useIdentity()
     const signedIn = !identityLoading && !!user
+    // Book a demo opens a short form first (role, organisation, …) so the team can prepare.
+    const [demoOpen, setDemoOpen] = useState(false)
+
+    // "Keep me signed in" on this device: go straight to the workspace. Otherwise the hero asks "Continue as …?".
+    // (src/services/signInPreference.ts; chosen on the sign-in form or in the account window.)
+    useEffect(() => {
+        if (signedIn && getSignInPreference() === 'keep') navigate(workspaceDashboardPath(user), { replace: true })
+    }, [navigate, signedIn, user])
+
+    // Partly hidden (d•••@quantilytix.co.za): enough to recognise your own account, not to read someone else's.
+    const maskedEmail = (() => {
+        const [local = '', domain = ''] = String(user?.email || '').split('@')
+        return domain ? `${local.slice(0, 1)}•••@${domain}` : ''
+    })()
 
     useEffect(() => {
         registerPageContext({
@@ -210,17 +228,23 @@ const LandingPage: React.FC = () => {
     )
 
     // The same actions sit in the hero and the closing section.
+    const signOutHere = async () => {
+        track('sign_out', 'landing')
+        await logoutUser()
+    }
+
     const renderCtas = (source: string) => signedIn ? (
-        <Button
-            type="primary"
-            size="large"
-            className="landing-get-started"
-            icon={<ArrowRightOutlined />}
-            iconPosition="end"
-            onClick={() => goWorkspace(source)}
-        >
-            {t('Continue to your workspace')}
-        </Button>
+        // Signed in on this device and asked each time: continue, or sign out if it isn't you.
+        <div className="landing-continue">
+            <span className="landing-continue-avatar" aria-hidden="true"><UserOutlined /></span>
+            <span className="landing-continue-copy">
+                <strong>{maskedEmail ? t('Continue as {email}?', undefined, { email: maskedEmail }) : t('Continue where you left off?')}</strong>
+                <button type="button" className="landing-returning-link" onClick={() => void signOutHere()}>{t('Not you? Sign out')}</button>
+            </span>
+            <Button type="primary" size="large" className="landing-get-started" icon={<ArrowRightOutlined />} iconPosition="end" onClick={() => goWorkspace(source)}>
+                {t('Continue')}
+            </Button>
+        </div>
     ) : (
         <>
             <Button
@@ -228,8 +252,7 @@ const LandingPage: React.FC = () => {
                 size="large"
                 className="landing-get-started"
                 icon={<ArrowRightOutlined />}
-                href={demoMailto}
-                onClick={() => track('book_a_demo', source)}
+                onClick={() => { track('book_a_demo', source); setDemoOpen(true) }}
             >
                 {t('Book a demo')}
             </Button>
@@ -435,6 +458,7 @@ const LandingPage: React.FC = () => {
                     </nav>
                 </footer>
             </main>
+            <DemoRequestForm open={demoOpen} onClose={() => setDemoOpen(false)} fallbackMailto={demoMailto} />
         </MotionConfig>
     )
 }

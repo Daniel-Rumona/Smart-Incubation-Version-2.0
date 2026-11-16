@@ -46,4 +46,10 @@ export type ManagedUser = {
   phoneProvider?: string
   /** Programmes this person works on (project admins, consultants) or funds (funders). Empty = all the company's. */
   assignedProgramIds?: string[]
+  /**
+   * Funders only: the funder organisation they belong to (no company; they see what its accepted links cover).
+   * '' saves them as a funder of one company. Only system admins set it.
+   */
+  funderOrgId?: string | null
+  funderOrgName?: string
 }

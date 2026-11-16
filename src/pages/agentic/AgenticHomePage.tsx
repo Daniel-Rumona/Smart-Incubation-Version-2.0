@@ -6,14 +6,20 @@ import {
     Modal,
     Tag,
     Pagination,
+    Popover,
     Skeleton,
     Typography,
     theme,
+    type InputRef,
 } from 'antd'
 import {
     AudioOutlined,
+    CalendarOutlined,
     CheckCircleOutlined,
     ClockCircleOutlined,
+    EyeOutlined,
+    FieldTimeOutlined,
+    UnorderedListOutlined,
     FileDoneOutlined,
     LoadingOutlined,
     PlusOutlined,
@@ -21,6 +27,7 @@ import {
     RobotOutlined,
     SendOutlined,
     ThunderboltOutlined,
+    UserAddOutlined,
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -47,6 +54,11 @@ import { uploadIncubateeComplianceDocument } from '@/services/incubateeComplianc
 import { listMyApplications } from '@/services/applicantService'
 import { loadFunderData, type FunderData } from '@/services/funderService'
 import type { AgentChatMessage, AgentPageContext, AgentProposalStatus } from '@/types/agent'
+import { isWithinChatWindow, saveAgentChatMessage, saveAgentProposalStatus, subscribeRecentAgentChat } from '@/services/agentChatHistoryService'
+import { AgentWatchCardView } from '@/components/agent/AgentWatchCard'
+import { AgentWatchesModal } from '@/components/agent/AgentWatchesModal'
+import { AgentWatchRail } from '@/components/agent/AgentWatchRail'
+import { loadWatchExampleData, type WatchExampleData } from '@/services/agentWatchExamples'
 import { AgentProposalCard } from '@/components/agent/AgentProposalCard'
 import { AgentGuidedAction, type GuidedActionKind } from '@/components/agent/AgentGuidedAction'
 import { hasRolePermission } from '@/config/permissions'
@@ -58,6 +70,7 @@ import { summariseConsultantWork } from '@/pages/consultant/consultantWorkSummar
 import '@/styles/agentic-home.css'
 import { useLanguage, tr } from '@/providers/LanguageProvider'
 import { singleActionFooter } from '@/components/shared/modalFooter'
+import { formatStatus } from '@/utils/status'
 
 /**
  * What a metric counts. Drill-downs, actions and the agent's context are keyed on this, never on the
@@ -323,6 +336,7 @@ export const AgenticHomePage = () => {
     const [focusedItem, setFocusedItem] = useState<{ metric: MetricKey; row: MetricDetailRow; facts: Record<string, unknown> }>()
     const [scopeFacts, setScopeFacts] = useState<Record<string, unknown> | undefined>()
     const [loading, setLoading] = useState(true)
+    const [actionsOpen, setActionsOpen] = useState(false)
     const [draft, setDraft] = useState('')
     const [messages, setMessages] = useState<AgentChatMessage[]>([])
     const [voiceMode, setVoiceMode] = useState(false)
@@ -342,6 +356,40 @@ export const AgenticHomePage = () => {
     useEffect(() => {
         composerRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' })
     }, [messages])
+
+    // The last 24 hours of saved chat, live, so watch and chaser cards posted overnight (or while the
+    // page is open) appear in the conversation. Turns being written now stay as they are locally.
+    const userUid = user?.uid
+    useEffect(() => {
+        if (!userUid) return undefined
+        return subscribeRecentAgentChat(userUid, (saved) => {
+            const savedById = new Map(saved.map((item) => [item.id, item]))
+            setMessages((current) => {
+                const known = new Set(current.map((item) => item.id))
+                const added = saved.filter((item) => !known.has(item.id))
+                let changed = added.length > 0
+                const updated = current.map((item) => {
+                    const stored = savedById.get(item.id)
+                    if (!stored) return item
+                    if (stored.createdAt === item.createdAt && stored.card?.response === item.card?.response) return item
+                    changed = true
+                    return { ...item, createdAt: stored.createdAt, ...(stored.card ? { card: stored.card } : {}) }
+                })
+                if (!changed) return current
+                // Saved messages in time order; unsaved ones (still being answered) stay last.
+                const order = (item: AgentChatMessage) => (item.createdAt ? new Date(item.createdAt).getTime() : Number.MAX_SAFE_INTEGER)
+                return [...updated, ...added]
+                    .map((item, index) => ({ item, index }))
+                    .sort((left, right) => order(left.item) - order(right.item) || left.index - right.index)
+                    .map(({ item }) => item)
+            })
+        })
+    }, [userUid])
+
+    const [watchesOpen, setWatchesOpen] = useState(false)
+    const [composeKind, setComposeKind] = useState<'watch' | 'chaser' | null>(null)
+    const composerInputRef = useRef<InputRef>(null)
+    const [exampleData, setExampleData] = useState<WatchExampleData>()
 
     // Only facilitators' cards are built from the shared assignments list; for everyone else its live
     // updates must not re-run (and re-skeleton) the whole overview.
@@ -562,7 +610,6 @@ export const AgenticHomePage = () => {
                     prompts: isExecutive
                         ? ['Give me an executive programme brief', 'Where are our biggest delivery risks?', 'Compare this week’s intervention progress']
                         : [
-                            ...(COORDINATOR_ROLES.includes(user.role) && hasRolePermission(user.role, 'assign_interventions', user.permissions) ? ['Assign an intervention', 'Schedule an appointment'] : []),
                             'Build my priority list for today',
                             'Which interventions are falling behind?',
                             'Summarise programme delivery this week',
@@ -615,14 +662,79 @@ export const AgenticHomePage = () => {
                 visibleRows: metricRows.slice(0, 50),
             } : undefined,
         },
+        // The signed-in user's own name; without it the model may pick up a name from the records.
+        viewer: { name: String(user?.displayName || user?.name || '').trim() || undefined, role: user?.role || undefined },
         updatedAt: new Date().toISOString(),
-    }), [activeProgramId, metricRows, overview, scopeFacts, focusedItem, selectedMetric, user?.role])
+    }), [activeProgramId, metricRows, overview, scopeFacts, focusedItem, selectedMetric, user?.role, user?.displayName, user?.name])
 
     const [guidedKind, setGuidedKind] = useState<GuidedActionKind | null>(null)
     const canGuide = (kind: GuidedActionKind) => !!user && COORDINATOR_ROLES.includes(user.role)
         && (kind === 'assignment'
             ? hasRolePermission(user.role, 'assign_interventions', user.permissions)
             : hasRolePermission(user.role, 'assign_interventions', user.permissions) || hasRolePermission(user.role, 'track_interventions', user.permissions))
+    // Guided forms behind the composer's '+' (suggested prompts stay above the box).
+    // Watches and chasers are for staff who can see intervention data (the agent tools' permission).
+    const canWatch = !!user && (['assign_interventions', 'track_interventions', 'view_participants'] as const)
+        .some((permission) => hasRolePermission(user.role, permission, user.permissions))
+    // Chasers send reminders, so they need the permissions the backend's create_chaser tool asks for.
+    const canChase = !!user && (['assign_interventions', 'track_interventions'] as const)
+        .some((permission) => hasRolePermission(user.role, permission, user.permissions))
+    const startCompose = (kind: 'watch' | 'chaser') => {
+        setComposeKind(kind)
+        window.setTimeout(() => composerInputRef.current?.focus(), 0)
+    }
+    const menuActions = [
+        ...([
+            { kind: 'assignment', label: t('Assign an intervention'), icon: <UserAddOutlined /> },
+            { kind: 'appointment', label: t('Schedule an appointment'), icon: <CalendarOutlined /> },
+        ] as { kind: GuidedActionKind; label: string; icon: ReactNode }[])
+            .filter((action) => canGuide(action.kind))
+            .map((action) => ({ key: action.kind, label: action.label, icon: action.icon, onSelect: () => setGuidedKind(action.kind) })),
+        ...(canWatch ? [{ key: 'new-watch', label: t('New watch'), icon: <EyeOutlined />, onSelect: () => startCompose('watch') }] : []),
+        ...(canChase ? [{ key: 'new-chaser', label: t('New chaser'), icon: <FieldTimeOutlined />, onSelect: () => startCompose('chaser') }] : []),
+        ...(canWatch ? [{ key: 'watches', label: t('Watches and chasers'), icon: <UnorderedListOutlined />, onSelect: () => setWatchesOpen(true) }] : []),
+    ]
+
+    // "New watch" / "New chaser": the user describes it in their own words; the request is sent with a
+    // lead-in so the agent goes straight to create_watch / create_chaser, while the chat shows their words.
+    // Examples name a town, SME and count from this workspace (loaded the first time they're needed).
+    const exampleUid = user?.uid
+    const exampleRole = user?.role
+    const exampleCompany = user?.companyCode
+    useEffect(() => {
+        if (exampleData || !exampleUid || (!composeKind && !watchesOpen)) return
+        let cancelled = false
+        void loadWatchExampleData({ uid: exampleUid, role: exampleRole, companyCode: exampleCompany })
+            .then((data) => { if (!cancelled) setExampleData(data) })
+        return () => { cancelled = true }
+    }, [composeKind, watchesOpen, exampleData, exampleUid, exampleRole, exampleCompany])
+    const watchExamples = [
+        exampleData?.city
+            ? t('Tell me if any SME in {city} goes High risk and has no session booked in the next two weeks', undefined, { city: exampleData.city })
+            : t('Tell me if any SME goes High risk and has no session booked in the next two weeks'),
+        t('Tell me when any SME has an overdue intervention'),
+        ...(exampleData?.smeWithOpenWork ? [t('Let me know when all of {sme}’s open interventions are complete', undefined, { sme: exampleData.smeWithOpenWork })] : []),
+    ]
+    const chaserExamples = [
+        exampleData?.waitingAcceptance
+            ? t('Get the {count} interventions waiting on acceptance approved by Friday, two reminders each', undefined, { count: exampleData.waitingAcceptance })
+            : t('Get the interventions waiting on acceptance approved by Friday, two reminders each'),
+        exampleData?.smeWithOpenWork
+            ? t('Get {sme}’s open interventions completed by the end of the month', undefined, { sme: exampleData.smeWithOpenWork })
+            : t('Get the interventions waiting on completion signed off by the end of the month'),
+    ]
+    const composeExamples = composeKind === 'chaser' ? chaserExamples : watchExamples
+    const submitDraft = () => {
+        const text = draft.trim()
+        if (!text) return
+        if (!composeKind) {
+            void send()
+            return
+        }
+        const lead = composeKind === 'watch' ? 'Start a watch for this: ' : 'Start a chaser for this: '
+        setComposeKind(null)
+        void send(`${lead}${text}`, text)
+    }
 
     const send = (content = draft, display?: string) => {
         const nextContent = content.trim()
@@ -637,23 +749,25 @@ export const AgenticHomePage = () => {
         // The pending flag (not the text) marks "thinking", so the wording can be translated.
         const pendingMessage = { ...makeMessage('agent', t('Working on this in the background…')), pending: true }
         const action = actionForPrompt(nextContent, user?.role)
-        const history = messages.filter((item) => !item.pending)
+        // Context is the last 24 hours of the conversation, the same window the user sees.
+        const history = messages.filter((item) => !item.pending && isWithinChatWindow(item))
         setMessages((current) => [...current, userMessage, pendingMessage])
         setDraft('')
+        if (user) void saveAgentChatMessage(user.uid, user.companyCode, userMessage)
+        const finish = (finished: AgentChatMessage) => {
+            setMessages((current) => current.map((item) => item.id === pendingMessage.id ? finished : item))
+            if (user) void saveAgentChatMessage(user.uid, user.companyCode, finished)
+        }
         queueTask({
             title: selectedMetric ? `${METRIC_NAMES[selectedMetric.key]}: ${nextContent}` : undefined,
             prompt: nextContent,
             page: pageContext,
             history,
             onCompleted: (result, proposal) => {
-                setMessages((current) => current.map((item) => item.id === pendingMessage.id
-                    ? { ...item, content: result, pending: false, ...(proposal ? { proposal, proposalStatus: 'pending' as const } : {}) }
-                    : item))
+                finish({ ...pendingMessage, content: result, pending: false, ...(proposal ? { proposal, proposalStatus: 'pending' as const } : {}) })
                 if (action) setMessageActions((current) => ({ ...current, [pendingMessage.id]: action }))
             },
-            onFailed: (error) => setMessages((current) => current.map((item) => item.id === pendingMessage.id
-                ? { ...item, content: error, pending: false }
-                : item)),
+            onFailed: (error) => finish({ ...pendingMessage, content: error, pending: false }),
         })
     }
 
@@ -661,6 +775,7 @@ export const AgenticHomePage = () => {
         setMessages((current) => current.map((item) => item.id === messageId
             ? { ...item, proposalStatus, proposalNote }
             : item))
+        if (proposalStatus !== 'confirming') void saveAgentProposalStatus(messageId, proposalStatus, proposalNote)
     }
 
     // Each drill-down gets a number; a reply that arrives after the user opened another metric (or closed
@@ -677,7 +792,15 @@ export const AgenticHomePage = () => {
         if (!user) return
         const request = ++metricRequest.current
         const isCurrent = () => request === metricRequest.current
-        const showRows = (rows: MetricDetailRow[]) => { if (isCurrent()) setMetricRows(rows) }
+        // Records store statuses as raw codes ('awaiting_sme', 'active', 'PENDING'); show them in
+        // the house form ('Awaiting SME', 'Active', 'Pending'). Labels already built for display
+        // (translated text, '45% done', '—') pass through unchanged.
+        const displayStatus = (status: string) => {
+            const value = String(status || '').trim()
+            const isRawCode = /^[A-Za-z_\-\s]+$/.test(value) && (/[_-]/.test(value) || value === value.toLowerCase() || value === value.toUpperCase())
+            return isRawCode ? t(formatStatus(value).replace(/\bSme\b/g, 'SME')) : value
+        }
+        const showRows = (rows: MetricDetailRow[]) => { if (isCurrent()) setMetricRows(rows.map((row) => ({ ...row, status: displayStatus(row.status) }))) }
         setSelectedMetric(metric)
         setMetricRows([])
         setMetricPage(1)
@@ -945,6 +1068,7 @@ export const AgenticHomePage = () => {
                     { element: guideTarget('agentic-priority-metrics'), skipMissingElement: true, popover: { title: t('Priority signals'), description: t('Only items that need attention are shown. Select one to inspect the live records behind its count.'), side: 'bottom' } },
                     { element: guideTarget('agentic-composer'), popover: { title: t('Ask or direct the agent'), description: t('Use this one-line composer for a question, a summary, or a task. Once you start, it stays docked below the conversation.'), side: 'top' } },
                     { element: guideTarget('agentic-suggestions'), skipMissingElement: true, popover: { title: t('Suggested starting points'), description: t('These role-aware prompts are shortcuts. Select one to start a focused conversation immediately.'), side: 'top' } },
+                    { element: guideTarget('agentic-actions'), skipMissingElement: true, popover: { title: t('Quick actions'), description: t('Select + to open a guided form, such as assigning an intervention or scheduling an appointment, or to see your watches and chasers.'), side: 'top' } },
                 ],
             },
             ...(visibleMetrics.length ? [{
@@ -960,6 +1084,7 @@ export const AgenticHomePage = () => {
                 steps: [
                     { element: guideTarget('agentic-composer'), popover: { title: t('Write a focused request'), description: t('Ask for a priority list, progress update, risk review or help with a particular item.'), side: 'top' } },
                     { element: guideTarget('agentic-suggestions'), skipMissingElement: true, popover: { title: t('Use a suggested prompt'), description: t('Choose one of these to send a ready-made role-specific request and begin the conversation.'), side: 'top' } },
+                    { element: guideTarget('agentic-actions'), skipMissingElement: true, popover: { title: t('Quick actions'), description: t('Select + to open a guided form, such as assigning an intervention or scheduling an appointment, or to see your watches and chasers.'), side: 'top' } },
                 ],
             },
         ],
@@ -969,6 +1094,8 @@ export const AgenticHomePage = () => {
 
     return (
         <main className={`agentic-home ${activeMode ? 'is-conversing' : ''} ${!loading && visibleMetrics.length === 0 ? 'has-no-metrics' : ''}`}>
+            {/* During a chat, running watches and chasers sit in the left column so they can be stopped. */}
+            {activeMode && canWatch && <AgentWatchRail uid={user?.uid} onOpenAll={() => setWatchesOpen(true)} />}
             {(loading || visibleMetrics.length > 0) && <section data-guide-target="agentic-priority-metrics" className="agentic-summary" aria-label={t('Priority metrics')}>
                 <div className="agentic-metric-grid">
                     {loading || (user?.role === 'consultant' && assignmentsLoading)
@@ -1041,7 +1168,8 @@ export const AgenticHomePage = () => {
                                     ? <div className="agentic-message-content">
                                         {item.pending
                                             ? <span className="agentic-pending-copy"><LoadingOutlined spin />{item.content}</span>
-                                            : renderAgentContent(item.content)}
+                                            : item.card ? null : renderAgentContent(item.content)}
+                                        {item.card && <AgentWatchCardView card={item.card} />}
                                         {item.proposal && (
                                             <AgentProposalCard
                                                 proposal={item.proposal}
@@ -1095,7 +1223,18 @@ export const AgenticHomePage = () => {
                         </div>
                     )}
 
-                    {!activeMode && !focusedItem && (
+                    {composeKind && (
+                        <div className="agentic-suggestions agentic-compose-mode">
+                            <Tag closable color="purple" onClose={() => setComposeKind(null)} icon={composeKind === 'watch' ? <EyeOutlined /> : <FieldTimeOutlined />}>
+                                {composeKind === 'watch' ? t('New watch') : t('New chaser')}
+                            </Tag>
+                            {composeExamples.map((example) => (
+                                <Button key={example} onClick={() => { setDraft(example); composerInputRef.current?.focus() }}>{example}</Button>
+                            ))}
+                        </div>
+                    )}
+
+                    {!activeMode && !focusedItem && !composeKind && (
                         <div data-guide-target="agentic-suggestions" className="agentic-suggestions">
                             {overview.prompts.map((prompt) => (
                                 <Button key={prompt} onClick={() => void send(prompt)}>
@@ -1107,6 +1246,47 @@ export const AgenticHomePage = () => {
                     )}
 
                     <div data-guide-target="agentic-composer" className="agentic-composer" ref={composerRef}>
+                        {menuActions.length > 0 && (
+                            <Popover
+                                open={actionsOpen}
+                                onOpenChange={setActionsOpen}
+                                trigger="click"
+                                placement="topLeft"
+                                arrow={false}
+                                rootClassName="agentic-actions-popover"
+                                getPopupContainer={() => composerRef.current || document.body}
+                                content={(
+                                    <div className="agentic-actions-menu" role="menu" aria-label={t('Actions')}>
+                                        <Typography.Text type="secondary" className="agentic-actions-title">{t('Actions')}</Typography.Text>
+                                        {menuActions.map((action) => (
+                                            <button
+                                                key={action.key}
+                                                type="button"
+                                                role="menuitem"
+                                                className="agentic-actions-item"
+                                                onClick={() => {
+                                                    setActionsOpen(false)
+                                                    action.onSelect()
+                                                }}
+                                            >
+                                                <span className="agentic-actions-item-icon" aria-hidden="true">{action.icon}</span>
+                                                <span>{action.label}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            >
+                                <Button
+                                    type="text"
+                                    shape="circle"
+                                    data-guide-target="agentic-actions"
+                                    className={`agentic-composer-plus-button ${actionsOpen ? 'is-open' : ''}`}
+                                    icon={<PlusOutlined />}
+                                    aria-label={t('Show actions')}
+                                    aria-expanded={actionsOpen}
+                                />
+                            </Popover>
+                        )}
                         <Button
                             type="text"
                             shape="circle"
@@ -1116,12 +1296,18 @@ export const AgenticHomePage = () => {
                             aria-label={t('Start voice conversation')}
                         />
                         <Input
+                            ref={composerInputRef}
                             value={draft}
                             onChange={(event) => setDraft(event.target.value)}
-                            onPressEnter={() => void send()}
-                            placeholder={focusedItem ? t('Ask about {item}…', undefined, { item: focusedItem.row.item }) : t('Ask about priorities, progress, risks or next steps…')}
+                            onPressEnter={submitDraft}
+                            onKeyDown={(event) => { if (event.key === 'Escape' && composeKind) setComposeKind(null) }}
+                            placeholder={composeKind === 'watch'
+                                ? t('Describe what to watch for, and I’ll tell you when it happens…')
+                                : composeKind === 'chaser'
+                                    ? t('Which interventions, approved or completed, by when…')
+                                    : focusedItem ? t('Ask about {item}…', undefined, { item: focusedItem.row.item }) : t('Ask about priorities, progress, risks or next steps…')}
                         />
-                        <Button type="primary" shape="circle" icon={<SendOutlined />} onClick={() => void send()} disabled={!draft.trim()} aria-label={t('Send message')} />
+                        <Button type="primary" shape="circle" icon={<SendOutlined />} onClick={submitDraft} disabled={!draft.trim()} aria-label={t('Send message')} />
                     </div>
                 </div>
 
@@ -1358,6 +1544,21 @@ export const AgenticHomePage = () => {
                 />
                 {pendingDatesInvalid && <Typography.Text type="danger">{t('The expiry date must be after the issue date.')}</Typography.Text>}
             </Modal>
+
+            <AgentWatchesModal
+                open={watchesOpen}
+                uid={user?.uid}
+                onClose={() => setWatchesOpen(false)}
+                examples={[
+                    ...watchExamples.slice(0, 2).map((text) => ({ text, kind: 'watch' as const })),
+                    ...chaserExamples.slice(0, 1).map((text) => ({ text, kind: 'chaser' as const })),
+                ]}
+                onStartExample={({ text, kind }) => {
+                    setWatchesOpen(false)
+                    setDraft(text)
+                    startCompose(kind)
+                }}
+            />
 
             {voiceMode && (
                 <ConversationMode

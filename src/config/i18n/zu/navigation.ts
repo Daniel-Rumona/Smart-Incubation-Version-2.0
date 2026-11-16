@@ -1,6 +1,6 @@
 // isiZulu translations for the workspace menu descriptions and role labels. Needs native-speaker review.
 export const zuNavigation: Record<string, string> = {
-  "Review and manage {label} for this workspace.": "Buyekeza futhi uphathe {label} kule ndawo yokusebenza.",
+  "Review and manage {label}.": "Buyekeza futhi uphathe {label}.",
   "SME": "I-SME",
   "All companies": "Zonke izinkampani",
   "Consultant": "Umeluleki",
@@ -28,7 +28,7 @@ export const zuNavigation: Record<string, string> = {
   "Review programme reporting, evidence, and performance summaries.": "Buyekeza ukubika kohlelo, ubufakazi nezifinyezo zokusebenza.",
   "Track ESG commitments, indicators, and programme scorecard results.": "Landelela izibopho ze-ESG, izinkomba nemiphumela yekhadi lamaphuzu ohlelo.",
   "Monitor delivery work, activity queues, and operational priorities.": "Qapha umsebenzi wokulethwa, imigqa yemisebenzi nezinto eziza kuqala zemisebenzi.",
-  "Create and maintain the programmes available in this workspace.": "Dala futhi ugcine izinhlelo ezitholakalayo kule ndawo yokusebenza.",
+  "Create and maintain your programmes.": "Dala futhi ugcine izinhlelo zakho.",
   "Plan, assign, and follow up on operational work across the active programme.": "Hlela, wabele futhi ulandelele umsebenzi wemisebenzi kuwo wonke uhlelo olusebenzayo.",
   "Manage staff records, roles, and team capacity.": "Phatha amarekhodi abasebenzi, izindima nomthamo wethimba.",
   "Review incoming applications and decide who moves into the programme.": "Buyekeza izicelo ezingenayo bese unquma ukuthi ngubani ongena kuhlelo.",
@@ -51,7 +51,7 @@ export const zuNavigation: Record<string, string> = {
   "Review the portfolio of businesses, programmes, and their results.": "Buyekeza iphothifoliyo yamabhizinisi, izinhlelo nemiphumela yazo.",
   "Understand performance across the sectors served by the organisation.": "Qonda ukusebenza kuzo zonke izimikhakha ezisetshenzelwa yinhlangano.",
   "Review organisational structure, departments, and branch coverage.": "Buyekeza isakhiwo senhlangano, izigaba nokumbozwa kwamagatsha.",
-  "Maintain the organisation-wide settings that shape this workspace.": "Gcina izilungiselelo zenhlangano yonke ezibumba le ndawo yokusebenza.",
+  "Maintain your organisation-wide settings.": "Gcina izilungiselelo zenhlangano yakho yonke.",
   "Access executive reports and performance summaries.": "Finyelela emibikweni yabaphathi nezifinyezo zokusebenza.",
   "Manage user access, roles, and workspace permissions.": "Phatha ukufinyelela kwabasebenzisi, izindima nezimvume zendawo yokusebenza.",
   "Review consultant verification requests and professional credentials.": "Buyekeza izicelo zokuqinisekiswa kwabaluleki nezitifiketi zobuchwepheshe.",

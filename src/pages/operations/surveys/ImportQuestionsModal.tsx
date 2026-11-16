@@ -132,7 +132,7 @@ export const ImportQuestionsModal = ({ open, category, hasExistingFields, onClos
                 >
                     <p className="ant-upload-drag-icon"><InboxOutlined /></p>
                     <p className="ant-upload-text">{file ? file.name : t('Click or drag a questionnaire here')}</p>
-                    <p className="ant-upload-hint">{t('Word, PDF, text, Markdown or CSV, up to')} {megabytes}{t('MB.')}</p>
+                    <p className="ant-upload-hint">{t('Word, PDF, HTML, text, Markdown or CSV, up to')} {megabytes}{t('MB.')}</p>
                 </Upload.Dragger>
 
                 {analysing && (

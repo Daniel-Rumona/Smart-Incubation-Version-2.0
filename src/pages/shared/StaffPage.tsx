@@ -1,4 +1,4 @@
-import { App, Avatar, Button, Card, Col, Dropdown, Form, Input, Row, Segmented, Select, Skeleton, Space, Switch, Tag, Tooltip, Typography, type MenuProps, type TableProps } from 'antd'
+import { Alert, App, Avatar, Button, Card, Col, Dropdown, Form, Input, Row, Segmented, Select, Skeleton, Space, Switch, Tag, Tooltip, Typography, type MenuProps, type TableProps } from 'antd'
 import { AimOutlined, ArrowLeftOutlined, ArrowRightOutlined, CheckCircleOutlined, ClockCircleOutlined, DeleteOutlined, EditOutlined, LockOutlined, MoreOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, StopOutlined, TeamOutlined, UserSwitchOutlined, WhatsAppOutlined } from '@ant-design/icons'
 import ResponsiveModal from '@/components/shared/ResponsiveModal'
 import { WeekHoursEditor } from '@/components/shared/WeekHoursEditor'
@@ -117,16 +117,24 @@ export const StaffPage = () => {
   const providerOptions = providersForCountry(phoneCountry).map((value) => ({ value, label: value }))
   // Directors only add reception admins; operations can't add them (mirrors MANAGEABLE_ROLES in functions/src/index.ts).
   const isDirector = user?.role === USER_ROLES.DIRECTOR
-  const roleOptions = useMemo(() => [
+  const canAddFunders = isDirector || user?.role === USER_ROLES.PROJECT_ADMIN
+  // Every role this manager's list can show (labels for the table, and the role cards when editing).
+  const allRoleOptions = useMemo(() => [
     ...(isDirector ? [] : [
       { value: USER_ROLES.CONSULTANT, label: t('operations.staff.consultant') },
       { value: USER_ROLES.PROJECT_ADMIN, label: t('operations.staff.projectAdmin') },
     ]),
-    ...(isDirector || user?.role === USER_ROLES.PROJECT_ADMIN ? [
+    ...(canAddFunders ? [
       { value: USER_ROLES.ADMIN, label: t('Admin (reception)') },
       { value: USER_ROLES.FUNDER, label: t('Funder') },
     ] : []),
-  ], [isDirector, t, user?.role])
+  ], [canAddFunders, isDirector, t])
+  // New funders are added from a programme's Funders button, as funder organisations that can follow projects at
+  // several implementors. Funders already on the team (one company only) stay editable here.
+  const roleOptions = useMemo(
+    () => allRoleOptions.filter((option) => option.value !== USER_ROLES.FUNDER || editing?.role === USER_ROLES.FUNDER),
+    [allRoleOptions, editing?.role],
+  )
   const [programmeOptions, setProgrammeOptions] = useState<Array<{ value: string, label: string }>>([])
   useEffect(() => {
     if (!user?.companyCode) return
@@ -136,7 +144,7 @@ export const StaffPage = () => {
       .catch(() => setProgrammeOptions([]))
   }, [user])
   const defaultRole = roleOptions[0]?.value || USER_ROLES.CONSULTANT
-  const roleLabel = (value: UserRole) => value === USER_ROLES.OPERATIONS ? t('Operations') : roleOptions.find((option) => option.value === value)?.label || value
+  const roleLabel = (value: UserRole) => value === USER_ROLES.OPERATIONS ? t('Operations') : allRoleOptions.find((option) => option.value === value)?.label || value
   const roleColor = (value: UserRole) => value === USER_ROLES.OPERATIONS ? 'blue' : 'purple'
   const staffError = (error: unknown, fallbackKey: string) => {
     const code = error instanceof Error ? error.message : ''
@@ -225,7 +233,7 @@ export const StaffPage = () => {
   // Untouched access follows the new role silently; custom access is only replaced if the manager says so.
   const changeRole = (next: UserRole) => {
     const current = form.getFieldValue('permissions') as IdentityPermission[] | undefined
-    const isDefault = roleOptions.some((option) => samePermissions(current, getRolePermissions(option.value)))
+    const isDefault = allRoleOptions.some((option) => samePermissions(current, getRolePermissions(option.value)))
     const reset = () => form.setFieldValue('permissions', getRolePermissions(next))
     if (isDefault) {
       reset()
@@ -266,7 +274,7 @@ export const StaffPage = () => {
       if (missingAreasOnly && !missingAreas(row)) return false
       return [row.name, row.email, roleLabel(row.role), row.phone, ...areasFor(workSettings, row.id)].join(' ').toLowerCase().includes(query)
     }).sort((left, right) => Number(isSelf(right)) - Number(isSelf(left)))
-  }, [search, staff, missingAreasOnly, workSettings, roleOptions, user]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [search, staff, missingAreasOnly, workSettings, allRoleOptions, user]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const metrics = useMemo(() => ({
     staff: staff.length,
@@ -603,6 +611,15 @@ export const StaffPage = () => {
             <Form.Item name="role" label={t('common.role')} rules={[{ required: true }]} extra={isSelfEdit ? t("You can't change your own role.") : undefined}>
               <RoleCards options={roleOptions} disabled={isSelfEdit} onChange={changeRole} />
             </Form.Item>
+            {!editing && canAddFunders && (
+              <Alert
+                type="info"
+                showIcon
+                style={{ marginBottom: 16 }}
+                message={t('Adding a funder?')}
+                description={t('Open the programme they fund and use its Funders button. They accept the link, and one sign-in then covers every implementor they fund.')}
+              />
+            )}
             <Row gutter={12}>
               <Col xs={24} md={12}><Form.Item name="name" label={t('common.name')} rules={[{ required: true }]}><Input /></Form.Item></Col>
               <Col xs={24} md={12}><Form.Item name="email" label={t('common.email')} rules={[{ required: true }, { type: 'email' }]} tooltip={editing ? t("The sign-in email can't be changed here.") : undefined}><Input disabled={Boolean(editing)} /></Form.Item></Col>

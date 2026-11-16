@@ -19,6 +19,7 @@ import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { ALL_PROGRAMS, useActiveProgramId } from '@/hooks/useActiveProgramId'
 import { listWorkspacePrograms, type WorkspaceProgram } from '@/services/workspaceProgramsService'
 import {
+    GAP_ANALYSIS_CATEGORY,
     SURVEY_CATEGORIES,
     SURVEY_FIELD_TYPES,
     assignSurveyToProgramme,
@@ -40,16 +41,19 @@ import '@/styles/survey-builder.css'
 import { useLanguage } from '@/providers/LanguageProvider'
 
 const SURVEYS_PATH = '/operations/surveys'
+const GAP_ANALYSIS_PATH = '/operations/gap-analysis'
 
 const OPTION_TYPES: SurveyFieldType[] = ['select', 'checkbox', 'radio']
 const PLACEHOLDER_TYPES: SurveyFieldType[] = ['text', 'textarea', 'number', 'email', 'select']
 
-const emptyTemplate = (): SurveyTemplate => ({
+type BuilderVariant = 'survey' | 'gap'
+
+const emptyTemplate = (variant: BuilderVariant = 'survey'): SurveyTemplate => ({
     title: '',
     description: '',
     fields: [],
     status: 'draft',
-    category: 'Evaluation Form',
+    category: variant === 'gap' ? GAP_ANALYSIS_CATEGORY : 'Evaluation Form',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
 })
@@ -66,8 +70,15 @@ const fingerprint = (template: SurveyTemplate | null) => template
     })
     : null
 
-export default function SurveyBuilderPage() {
+/**
+ * Builds surveys, and gap analyses with `variant="gap"`: the same questions, import and publishing,
+ * but the category is fixed, the template is stamped with the company, and Back returns to the gap
+ * analysis page.
+ */
+export default function SurveyBuilderPage({ variant = 'survey' }: { variant?: BuilderVariant }) {
     const { t } = useLanguage()
+    const isGap = variant === 'gap'
+    const listPath = isGap ? GAP_ANALYSIS_PATH : SURVEYS_PATH
     const { message } = App.useApp()
     const { user } = useFullIdentity()
     const navigate = useNavigate()
@@ -78,10 +89,10 @@ export default function SurveyBuilderPage() {
 
     // Seeded once: a new survey starts scoped to whatever programme the workspace is filtered to.
     const [survey, setSurvey] = useState<SurveyTemplate>(() => ({
-        ...emptyTemplate(),
+        ...emptyTemplate(variant),
         programId: activeProgramId && activeProgramId !== ALL_PROGRAMS ? activeProgramId : undefined,
     }))
-    const [baseline, setBaseline] = useState<string | null>(() => (params.id ? null : fingerprint(emptyTemplate())))
+    const [baseline, setBaseline] = useState<string | null>(() => (params.id ? null : fingerprint(emptyTemplate(variant))))
     const [programs, setPrograms] = useState<WorkspaceProgram[]>([])
     const [selectedId, setSelectedId] = useState<string | null>(null)
     const [loading, setLoading] = useState(Boolean(params.id))
@@ -103,7 +114,7 @@ export default function SurveyBuilderPage() {
             .then((template) => {
                 if (!template) {
                     message.error(t('That survey template could not be found.'))
-                    navigate(SURVEYS_PATH)
+                    navigate(listPath)
                     return
                 }
                 setSurvey(template)
@@ -177,7 +188,7 @@ export default function SurveyBuilderPage() {
             if (options.applyMeta) {
                 if (meta.title && (options.replace || !current.title.trim())) next.title = meta.title
                 if (meta.description && (options.replace || !current.description.trim())) next.description = meta.description
-                if (meta.category && SURVEY_CATEGORIES.includes(meta.category as (typeof SURVEY_CATEGORIES)[number])) next.category = meta.category
+                if (!isGap && meta.category && SURVEY_CATEGORIES.includes(meta.category as (typeof SURVEY_CATEGORIES)[number])) next.category = meta.category
             }
 
             return next
@@ -226,7 +237,7 @@ export default function SurveyBuilderPage() {
     const save = async (status: 'draft' | 'published') => {
         if (!survey.title.trim()) {
             setSettingsOpen(true)
-            message.error(t('Give the survey a title first.'))
+            message.error(isGap ? t('Give the gap analysis a title first.') : t('Give the survey a title first.'))
             return
         }
         if (!survey.fields.length) {
@@ -235,13 +246,13 @@ export default function SurveyBuilderPage() {
         }
         if (!survey.programId) {
             setSettingsOpen(true)
-            message.error(t('Choose the programme this survey belongs to.'))
+            message.error(isGap ? t('Choose the programme this gap analysis belongs to.') : t('Choose the programme this survey belongs to.'))
             return
         }
 
         setSaving(true)
         try {
-            const next = { ...survey, status }
+            const next = { ...survey, status, ...(isGap ? { category: GAP_ANALYSIS_CATEGORY, companyCode: survey.companyCode || user?.companyCode || undefined } : {}) }
             const id = await saveSurveyTemplate(next, user)
             const saved = { ...next, id }
             setSurvey(saved)
@@ -255,10 +266,10 @@ export default function SurveyBuilderPage() {
             // Publishing is what puts the survey in front of the programme's SMEs.
             const assigned = await assignSurveyToProgramme(saved)
             message.success(assigned
-                ? `Survey published and sent to ${assigned} SME${assigned === 1 ? '' : 's'}.`
-                : t('Survey published. Everyone on this programme already has it.'))
+                ? `${isGap ? 'Gap analysis' : 'Survey'} published and sent to ${assigned} SME${assigned === 1 ? '' : 's'}.`
+                : isGap ? t('Gap analysis published. Everyone on this programme already has it.') : t('Survey published. Everyone on this programme already has it.'))
         } catch {
-            message.error(t('The survey could not be saved.'))
+            message.error(isGap ? t('The gap analysis could not be saved.') : t('The survey could not be saved.'))
         } finally {
             setSaving(false)
         }
@@ -266,16 +277,16 @@ export default function SurveyBuilderPage() {
 
     const goBack = () => {
         if (!isDirty || !survey.fields.length) {
-            navigate(SURVEYS_PATH)
+            navigate(listPath)
             return
         }
         Modal.confirm({
             title: t('Save as draft before leaving?'),
-            content: t('This survey has unsaved changes.'),
+            content: isGap ? t('This gap analysis has unsaved changes.') : t('This survey has unsaved changes.'),
             okText: t('Save draft'),
             cancelText: t('Discard'),
-            onOk: async () => { await save('draft'); navigate(SURVEYS_PATH) },
-            onCancel: () => navigate(SURVEYS_PATH),
+            onOk: async () => { await save('draft'); navigate(listPath) },
+            onCancel: () => navigate(listPath),
         })
     }
 
@@ -303,20 +314,22 @@ export default function SurveyBuilderPage() {
             </Form.Item>
 
             <Form.Item label={t('Title')} required>
-                <Input value={survey.title} onChange={(event) => patchSurvey({ title: event.target.value })} placeholder={t('Survey title')} />
+                <Input value={survey.title} onChange={(event) => patchSurvey({ title: event.target.value })} placeholder={isGap ? t('Gap analysis title') : t('Survey title')} />
             </Form.Item>
 
             <Form.Item label={t('Description')}>
                 <Input.TextArea rows={3} value={survey.description} onChange={(event) => patchSurvey({ description: event.target.value })} placeholder={t('What is this survey for?')} />
             </Form.Item>
 
-            <Form.Item label={t('Category')}>
-                <Select
-                    value={survey.category}
-                    onChange={(value) => patchSurvey({ category: value })}
-                    options={SURVEY_CATEGORIES.map((category) => ({ value: category, label: category }))}
-                />
-            </Form.Item>
+            {!isGap && (
+                <Form.Item label={t('Category')}>
+                    <Select
+                        value={survey.category}
+                        onChange={(value) => patchSurvey({ category: value })}
+                        options={SURVEY_CATEGORIES.map((category) => ({ value: category, label: category }))}
+                    />
+                </Form.Item>
+            )}
 
             <Form.Item label={t('Department')} tooltip={t('Taken from your own workspace scope.')}>
                 <Tag color="purple">{survey.department || user?.departmentId || t('Not set')}</Tag>
@@ -336,7 +349,7 @@ export default function SurveyBuilderPage() {
                     </Space>
 
                     <button type="button" className="survey-builder-identity" onClick={() => setSettingsOpen(true)}>
-                        <strong>{survey.title.trim() || t('Untitled survey')}</strong>
+                        <strong>{survey.title.trim() || (isGap ? t('Untitled gap analysis') : t('Untitled survey'))}</strong>
                         <span>{survey.description.trim() || t('Add a description')}</span>
                     </button>
 
@@ -407,9 +420,16 @@ export default function SurveyBuilderPage() {
                                 <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('Select a question from the outline')} />
                             ) : (
                                 <>
-                                    <Typography.Title level={4}>{t('Start building your survey')}</Typography.Title>
-                                    <Typography.Paragraph type="secondary">{t('Add your first question, then arrange them in the outline.')}</Typography.Paragraph>
-                                    <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>{t('Add question')}</Button>
+                                    <Typography.Title level={4}>{isGap ? t('Start building your gap analysis') : t('Start building your survey')}</Typography.Title>
+                                    <Typography.Paragraph type="secondary">
+                                        {isGap
+                                            ? t('Import an existing diagnostic form, or add sections (one per business area) with a rating question in each.')
+                                            : t('Add your first question, then arrange them in the outline.')}
+                                    </Typography.Paragraph>
+                                    <Space wrap>
+                                        {isGap && <Button icon={<FileSearchOutlined />} onClick={() => setImportOpen(true)}>{t('Import from a document')}</Button>}
+                                        <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>{t('Add question')}</Button>
+                                    </Space>
                                 </>
                             )}
                         </MotionCard>
@@ -504,7 +524,7 @@ export default function SurveyBuilderPage() {
                             ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('No question selected')} />}
                         </MotionCard>
 
-                        <MotionCard loading={loading} className="survey-builder-panel" title={t('Survey at a glance')}>
+                        <MotionCard loading={loading} className="survey-builder-panel" title={isGap ? t('Gap analysis at a glance') : t('Survey at a glance')}>
                             <div className="survey-snapshot-row"><span>{t('Questions')}</span><strong>{survey.fields.length}</strong></div>
                             <div className="survey-snapshot-row"><span>{t('Required')}</span><strong>{requiredCount}</strong></div>
                             <div className="survey-snapshot-row"><span>{t('Status')}</span><Tag color={survey.status === 'published' ? 'green' : 'default'}>{survey.status === 'published' ? t('Published') : t('Draft')}</Tag></div>
@@ -531,7 +551,7 @@ export default function SurveyBuilderPage() {
 
             <Modal
                 open={settingsOpen}
-                title={t('Survey settings')}
+                title={isGap ? t('Gap analysis settings') : t('Survey settings')}
                 width={520}
                 onCancel={() => setSettingsOpen(false)}
                 footer={<Button type="primary" onClick={() => setSettingsOpen(false)}>{t('Done')}</Button>}

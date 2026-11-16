@@ -66,6 +66,7 @@ import {
     where,
 } from 'firebase/firestore'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
+import ProgrammeFundersModal from '@/components/funders/ProgrammeFundersModal'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { getFirebaseDb } from '@/config/firebase'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
@@ -262,6 +263,9 @@ export const ProgramsPage = () => {
     // A company whose team registers SMEs has no self-application, so there is no link to share.
     const programLinksEnabled = getSetting<string>('smeOnboardingModel', 'self_application') !== 'consultants_register_smes'
     const { user } = useFullIdentity()
+    // Project admins (and directors) link programmes to their funders; operations can't add funders.
+    const canManageFunders = user?.role === 'projectadmin' || user?.role === 'director'
+    const [fundersFor, setFundersFor] = useState<{ id: string; name: string; companyCode: string } | null>(null)
     const [detailsForm] = Form.useForm<ProgramDetailsForm>()
     const [eligibilityForm] = Form.useForm<EligibilityForm>()
     const [programs, setPrograms] = useState<ProgramRecord[]>([])
@@ -711,7 +715,7 @@ export const ProgramsPage = () => {
         {
             title: t('Actions'),
             width: 160,
-            render: (_, program) => <Space>{(programLinksEnabled || program.intakeMode === 'direct') && <Tooltip title={t('Copy the link SMEs use to join this programme')}><Button type="text" icon={<LinkOutlined />} aria-label={`Copy link for ${program.name}`} onClick={() => void copyProgramLink(program)} /></Tooltip>}<Button type="text" icon={<EditOutlined />} aria-label={`Edit ${program.name}`} onClick={() => openEdit(program)} /><Popconfirm title={t('Delete this program?')} description={t('This cannot be undone.')} onConfirm={() => void remove(program)}><Button danger className="program-delete-button" icon={<DeleteOutlined />} aria-label={`Delete ${program.name}`} /></Popconfirm></Space>,
+            render: (_, program) => <Space>{(programLinksEnabled || program.intakeMode === 'direct') && <Tooltip title={t('Copy the link SMEs use to join this programme')}><Button type="text" icon={<LinkOutlined />} aria-label={`Copy link for ${program.name}`} onClick={() => void copyProgramLink(program)} /></Tooltip>}{canManageFunders && user?.companyCode && <Tooltip title={t('Funders of this programme')}><Button type="text" icon={<BankOutlined />} aria-label={`${t('Funders')} ${program.name}`} onClick={() => setFundersFor({ id: program.id, name: program.name, companyCode: String(user.companyCode) })} /></Tooltip>}<Button type="text" icon={<EditOutlined />} aria-label={`Edit ${program.name}`} onClick={() => openEdit(program)} /><Popconfirm title={t('Delete this program?')} description={t('This cannot be undone.')} onConfirm={() => void remove(program)}><Button danger className="program-delete-button" icon={<DeleteOutlined />} aria-label={`Delete ${program.name}`} /></Popconfirm></Space>,
         },
     ]
 
@@ -739,6 +743,8 @@ export const ProgramsPage = () => {
                 {programs.length ? <Table rowKey="id" columns={columns} dataSource={filteredPrograms} scroll={{ x: 1080 }} pagination={{ pageSize: 8 }} locale={{ emptyText: t('No programs match these filters.') }} /> : <Empty description={t('No programs yet')}><Button type="primary" onClick={openCreate}>{t('Create your first program')}</Button></Empty>}
             </Card>
 
+            <ProgrammeFundersModal open={!!fundersFor} programme={fundersFor} onClose={() => setFundersFor(null)} />
+
             <Modal
                 open={modalOpen}
                 title={editing ? (picking ? `${t('Edit')} ${editing.name}` : `${t('Edit')} ${editing.name} · ${t(WIZARD_STEPS[step])}`) : t('Create program')}
@@ -750,281 +756,281 @@ export const ProgramsPage = () => {
                 onCancel={() => { setModalOpen(false); resetWizard() }}
             >
                 <div className="program-view-stage">
-                <AnimatePresence mode="wait" initial={false} custom={direction}>
-                <motion.div
-                    key={editing && picking ? 'sections' : `section-${step}`}
-                    custom={direction}
-                    variants={reduceMotion ? SECTION_FADE : SECTION_SLIDE}
-                    initial="enter"
-                    animate="center"
-                    exit="exit"
-                    transition={{ duration: reduceMotion ? 0.12 : 0.24, ease: [0.22, 1, 0.36, 1] }}
-                >
-                {editing && picking && (
-                    <div className="program-section-picker" role="list">
-                        <Typography.Text type="secondary">{t('Choose the part of this programme you want to change.')}</Typography.Text>
-                        {WIZARD_STEPS.map((title, index) => (
-                            <button key={title} type="button" role="listitem" className="program-section-option" onClick={() => { setDirection(1); setStep(index); setPicking(false) }}>
-                                <span className="program-section-option-copy"><strong>{t(title)}</strong><small>{sectionSummaries[index]}</small></span>
-                                <RightOutlined />
-                            </button>
-                        ))}
-                    </div>
-                )}
-
-                {!(editing && picking) && <div className="program-wizard-body">
-                    {step === 0 && (
-                        <Form form={detailsForm} layout="vertical" onValuesChange={(changed: Partial<ProgramDetailsForm>) => {
-                            // A new Training programme usually has no application; the team can still change it.
-                            if (!editing && changed.type) detailsForm.setFieldValue('intakeMode', isTrainingType(changed.type) ? 'direct' : 'application')
-                        }}>
-                            <Form.Item name="name" label={t('Program name')} rules={[{ required: true, message: tr('Enter a program name.') }]}><Input placeholder={t('e.g. Growth Accelerator 2026')} /></Form.Item>
-                            <Form.Item name="type" label={t('Program type')} rules={[{ required: true, message: tr('Choose a program type.') }]}>
-                                <Radio.Group className="program-choice-grid is-compact program-radio-cards">
-                                    {TYPE_CARDS.map((option) => (
-                                        <Radio.Button value={option.value} key={option.value}>
-                                            <span className="program-status-icon">{option.icon}</span>
-                                            <span className="program-status-copy"><strong>{t(option.value)}</strong><small>{option.hint}</small></span>
-                                        </Radio.Button>
+                    <AnimatePresence mode="wait" initial={false} custom={direction}>
+                        <motion.div
+                            key={editing && picking ? 'sections' : `section-${step}`}
+                            custom={direction}
+                            variants={reduceMotion ? SECTION_FADE : SECTION_SLIDE}
+                            initial="enter"
+                            animate="center"
+                            exit="exit"
+                            transition={{ duration: reduceMotion ? 0.12 : 0.24, ease: [0.22, 1, 0.36, 1] }}
+                        >
+                            {editing && picking && (
+                                <div className="program-section-picker" role="list">
+                                    <Typography.Text type="secondary">{t('Choose the part of this programme you want to change.')}</Typography.Text>
+                                    {WIZARD_STEPS.map((title, index) => (
+                                        <button key={title} type="button" role="listitem" className="program-section-option" onClick={() => { setDirection(1); setStep(index); setPicking(false) }}>
+                                            <span className="program-section-option-copy"><strong>{t(title)}</strong><small>{sectionSummaries[index]}</small></span>
+                                            <RightOutlined />
+                                        </button>
                                     ))}
-                                </Radio.Group>
-                            </Form.Item>
-                            {editing?.type && !PROGRAM_TYPE_OPTIONS.includes(editing.type) && <Typography.Paragraph type="secondary">{t('Saved as')} “{editing.type}”. {t('Choose Incubation or Training to update it.')}</Typography.Paragraph>}
-                            <Form.Item name="intakeMode" label={t('How do SMEs join?')} rules={[{ required: true }]}>
-                                <Radio.Group className="program-choice-grid is-compact program-radio-cards">
-                                    {INTAKE_CARDS.map((option) => (
-                                        <Radio.Button value={option.value} key={option.value}>
-                                            <span className="program-status-icon">{option.icon}</span>
-                                            <span className="program-status-copy"><strong>{option.title}</strong><small>{option.hint}</small></span>
-                                        </Radio.Button>
-                                    ))}
-                                </Radio.Group>
-                            </Form.Item>
-                            <Form.Item name="status" label={t('Status')} rules={[{ required: true }]}>
-                                <Radio.Group className="program-status-grid program-radio-cards">
-                                    {STATUS_CARDS.map((option) => (
-                                        <Radio.Button value={option.value} key={option.value}>
-                                            <span className="program-status-icon">{option.icon}</span>
-                                            <span className="program-status-copy"><strong>{option.value}</strong><small>{option.hint}</small></span>
-                                        </Radio.Button>
-                                    ))}
-                                </Radio.Group>
-                            </Form.Item>
-                            <Form.Item name="description" label={t('Description')} rules={[{ required: true, message: tr('Describe the program.') }]}><Input.TextArea rows={2} /></Form.Item>
-                            <Row gutter={16}>
-                                <Col xs={24} md={12}><Form.Item name="cohortYear" label={t('Cohort year')} rules={[{ required: true }]}><Input /></Form.Item></Col>
-                                <Col xs={24} md={12}><Form.Item name="assignedAdmin" label={t('Project admin')}><Select allowClear showSearch optionFilterProp="label" options={adminOptions} placeholder={t('Select an admin')} /></Form.Item></Col>
-                            </Row>
-                            <Row gutter={16}>
-                                <Col xs={24} md={6}><Form.Item name="startDate" label={t('Start date')}><DatePicker style={{ width: '100%' }} /></Form.Item></Col>
-                                <Col xs={24} md={6}><Form.Item name="endDate" label={t('End date')} dependencies={['startDate']} rules={[({ getFieldValue }) => ({ validator(_, value) { const start = getFieldValue('startDate'); return !value || !start || value.isAfter(start, 'day') || value.isSame(start, 'day') ? Promise.resolve() : Promise.reject(new Error('End date must be after start date.')) } })]}><DatePicker style={{ width: '100%' }} /></Form.Item></Col>
-                                <Col xs={24} md={6}><Form.Item name="budget" label={t('Budget (ZAR)')}><InputNumber min={0} style={{ width: '100%' }} /></Form.Item></Col>
-                                <Col xs={24} md={6}><Form.Item name="maxCapacity" label={t('Maximum capacity')}><InputNumber min={1} style={{ width: '100%' }} /></Form.Item></Col>
-                            </Row>
-                            <Form.Item name="openToExternalSmes" label={t('Who can join this program?')}>
-                                <Radio.Group className="program-choice-grid is-compact program-radio-cards">
-                                    {AVAILABILITY_CARDS.map((option) => (
-                                        <Radio.Button value={option.value} key={option.title}>
-                                            <span className="program-status-icon">{option.icon}</span>
-                                            <span className="program-status-copy"><strong>{option.title}</strong><small>{option.hint}</small></span>
-                                        </Radio.Button>
-                                    ))}
-                                </Radio.Group>
-                            </Form.Item>
-                        </Form>
-                    )}
-
-                    {step === 1 && (
-                        <Form form={eligibilityForm} layout="vertical">
-                            <Typography.Text strong>{t('Eligibility criteria')}</Typography.Text>
-                            <div className="program-eligibility-grid">
-                                {ELIGIBILITY_OPTIONS.map(({ value, label }) => {
-                                    const selected = selectedEligibilityCriteria.includes(value)
-                                    return <button type="button" key={value} className={`program-eligibility-card${selected ? ' is-selected' : ''}`} aria-pressed={selected} onClick={() => setSelectedEligibilityCriteria((current) => {
-                                        if (current.includes(value)) {
-                                            eligibilityForm.setFieldValue(value, undefined)
-                                            return current.filter((item) => item !== value)
-                                        }
-                                        return [...current, value]
-                                    })}>{ELIGIBILITY_ICONS[value]}<span>{label}</span></button>
-                                })}
-                            </div>
-                            {selectedEligibilityCriteria.includes('sectors') && <Form.Item name="sectors" label={t('Eligible sectors')} rules={[{ required: true, message: tr('Select at least one sector.') }]}><Select mode="multiple" options={SECTORS.map((value) => ({ value, label: value }))} /></Form.Item>}
-                            {selectedEligibilityCriteria.includes('provinces') && <Form.Item name="provinces" label={t('Eligible provinces')} rules={[{ required: true, message: tr('Select at least one province.') }]}><Select mode="multiple" options={PROVINCES.map((value) => ({ value, label: value }))} /></Form.Item>}
-                            <Row gutter={16}>
-                                {selectedEligibilityCriteria.includes('minAge') && <Col xs={24} md={8}><Form.Item name="minAge" label={t('Minimum owner age')} rules={[{ required: true }]}><InputNumber min={18} max={100} style={{ width: '100%' }} /></Form.Item></Col>}
-                                {selectedEligibilityCriteria.includes('maxAge') && <Col xs={24} md={8}><Form.Item name="maxAge" label={t('Maximum owner age')} rules={[{ required: true }]}><InputNumber min={18} max={100} style={{ width: '100%' }} /></Form.Item></Col>}
-                                {selectedEligibilityCriteria.includes('minYearsOfTrading') && <Col xs={24} md={8}><Form.Item name="minYearsOfTrading" label={t('Minimum years trading')} rules={[{ required: true }]}><InputNumber min={0} style={{ width: '100%' }} /></Form.Item></Col>}
-                            </Row>
-                        </Form>
-                    )}
-
-                    {step === 2 && (
-                        <section>
-                            <div className="program-wizard-heading"><div><Typography.Title level={4}>{t('Onboarding questions')}</Typography.Title><Typography.Text type="secondary">{t('Collect programme-specific information during onboarding.')}</Typography.Text></div><Button icon={<PlusOutlined />} onClick={() => setQuestions((current) => [...current, { id: makeId(), question: '', type: 'text', required: false }])}>{t('Add question')}</Button></div>
-                            {!questions.length && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('No custom questions')} />}
-                            <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                                {questions.map((question, index) => (
-                                    <Card size="small" key={question.id} className="program-config-card">
-                                        <Row gutter={[12, 12]} align="middle">
-                                            <Col xs={24} md={12}><Input value={question.question} placeholder={`Question ${index + 1}`} onChange={(event) => setQuestions((current) => current.map((item) => item.id === question.id ? { ...item, question: event.target.value } : item))} /></Col>
-                                            <Col xs={16} md={7}>
-                                                <Select
-                                                    value={question.type}
-                                                    style={{ width: '100%' }}
-                                                    options={[{ value: 'text', label: t('Short text') }, { value: 'long_text', label: t('Long text') }, { value: 'number', label: t('Number') }, { value: 'yes_no', label: t('Yes / No') }, { value: 'single_select', label: t('Dropdown · one answer') }, { value: 'multi_select', label: t('Dropdown · multiple answers') }]}
-                                                    onChange={(type: OnboardingQuestion['type']) => setQuestions((current) => current.map((item) => item.id === question.id ? { ...item, type, options: type === 'single_select' || type === 'multi_select' ? item.options || [] : undefined, maxSelections: type === 'multi_select' ? item.maxSelections : undefined } : item))}
-                                                />
-                                            </Col>
-                                            <Col xs={5} md={3}><Checkbox checked={question.required} onChange={(event) => setQuestions((current) => current.map((item) => item.id === question.id ? { ...item, required: event.target.checked } : item))}>{t('Required')}</Checkbox></Col>
-                                            <Col xs={3} md={2}><Button danger className="program-delete-button" icon={<DeleteOutlined />} aria-label={`Delete question ${index + 1}`} onClick={() => setQuestions((current) => current.filter((item) => item.id !== question.id))} /></Col>
-                                            {(question.type === 'single_select' || question.type === 'multi_select') && (
-                                                <Col span={24}>
-                                                    <Row gutter={12}>
-                                                        <Col xs={24} md={question.type === 'multi_select' ? 18 : 24}>
-                                                            <Typography.Text strong>{t('Answer options')}</Typography.Text>
-                                                            <Select mode="tags" value={question.options || []} tokenSeparators={[',']} placeholder={t('Type an option and press Enter')} style={{ width: '100%', marginTop: 6 }} onChange={(options) => setQuestions((current) => current.map((item) => item.id === question.id ? { ...item, options } : item))} />
-                                                        </Col>
-                                                        {question.type === 'multi_select' && <Col xs={24} md={6}><Typography.Text strong>{t('Maximum answers')}</Typography.Text><InputNumber min={2} max={Math.max(2, question.options?.length || 2)} value={question.maxSelections} placeholder={t('No limit')} style={{ width: '100%', marginTop: 6 }} onChange={(value) => setQuestions((current) => current.map((item) => item.id === question.id ? { ...item, maxSelections: value || undefined } : item))} /></Col>}
-                                                    </Row>
-                                                </Col>
-                                            )}
-                                        </Row>
-                                    </Card>
-                                ))}
-                            </Space>
-                        </section>
-                    )}
-
-                    {step === 3 && (
-                        <section className="program-assignment-stage">
-                            <Typography.Title level={4}>{t(training ? 'Training interventions' : setListOnly ? 'Programme interventions' : 'Intervention assignment')}</Typography.Title>
-                            {setListOnly && <Typography.Paragraph type="secondary">{t(training
-                                ? 'Training programmes deliver a set list of interventions. Every participant receives all of them.'
-                                : 'SMEs join this programme without an application, so it delivers a set list. Every participant receives all of them, and their growth plan is confirmed automatically.')}</Typography.Paragraph>}
-                            {!setListOnly && <div className={`program-assignment-slot${assignmentMode === 'force_all' ? ' is-expanded' : ''}`}>
-                                <Radio.Group value={assignmentMode} onChange={(event) => setAssignmentMode(event.target.value)} className="program-choice-grid program-radio-cards">
-                                    <Radio.Button value="sme_choice"><strong>{t('SME chooses')}</strong><span>{t('Participants choose relevant interventions from the catalogue.')}</span></Radio.Button>
-                                    <Radio.Button value="force_all"><strong>{t('Program assigns')}</strong><span>{t('Every selected intervention is included in each diagnostic plan.')}</span></Radio.Button>
-                                </Radio.Group>
-
-                                {assignmentMode === 'sme_choice' && (
-                                    <div className="program-limit-block">
-                                        <Typography.Text strong>{t('Limit how many interventions an SME can choose?')}</Typography.Text>
-                                        <Radio.Group value={limitSelections ? 'yes' : 'no'} onChange={(event) => setLimitSelections(event.target.value === 'yes')} className="program-choice-grid is-compact program-radio-cards">
-                                            <Radio.Button value="no"><span className="program-status-icon"><UnlockOutlined /></span><span className="program-status-copy"><strong>{t('No')}</strong><small>{t('SMEs can pick as many as they need')}</small></span></Radio.Button>
-                                            <Radio.Button value="yes"><span className="program-status-icon"><FieldNumberOutlined /></span><span className="program-status-copy"><strong>{t('Yes')}</strong><small>{t('Set a maximum for each SME')}</small></span></Radio.Button>
-                                        </Radio.Group>
-                                        {limitSelections && (
-                                            <div className="program-limit-input">
-                                                <Typography.Text>{t('Maximum interventions per SME')}</Typography.Text>
-                                                <InputNumber min={1} max={100} precision={0} value={maxSelections} onChange={(value) => setMaxSelections(value)} />
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>}
-                            {effectiveMode === 'force_all' && (
-                                <div className={`program-intervention-browser${setListOnly ? '' : ' program-field-gap'}`}>
-                                    <Typography.Title level={5}>{t(setListOnly ? 'Find interventions to deliver' : 'Find required interventions')}</Typography.Title>
-                                    <div className="program-intervention-picker">
-                                        <Select allowClear value={interventionArea} onChange={setInterventionArea} className="program-intervention-area" placeholder={t('All areas of support')} options={interventionAreas.map((area) => ({ value: area, label: area }))} />
-                                        <Select
-                                            showSearch
-                                            allowClear
-                                            optionFilterProp="label"
-                                            value={pendingIntervention}
-                                            onChange={setPendingIntervention}
-                                            className="program-intervention-select"
-                                            placeholder={addableInterventions.length ? t('Choose an intervention') : t('No more interventions to add')}
-                                            notFoundContent={t('No interventions match')}
-                                            options={addableInterventions.map((item) => ({ value: item.id, label: item.area ? `${item.title} · ${item.area}` : item.title }))}
-                                        />
-                                        <Tooltip title={t('Add intervention')}>
-                                            <Button type="primary" shape="circle" icon={<PlusOutlined />} disabled={!pendingIntervention} aria-label={t('Add intervention')} onClick={addPendingIntervention} />
-                                        </Tooltip>
-                                    </div>
-                                    <Typography.Text strong className="program-intervention-list-label">{t(setListOnly ? 'Interventions delivered' : 'Required interventions')} ({selectedInterventions.length})</Typography.Text>
-                                    {selectedInterventions.length ? (
-                                        <ol className="program-intervention-list">
-                                            {selectedInterventions.map((id) => {
-                                                const item = interventions.find((intervention) => intervention.id === id)
-                                                return (
-                                                    <li key={id}>
-                                                        <span className="program-intervention-list-copy">
-                                                            <strong>{item?.title || t('Intervention no longer in the catalogue')}</strong>
-                                                            {item?.area && <small>{item.area}</small>}
-                                                        </span>
-                                                        <Button danger type="text" icon={<DeleteOutlined />} aria-label={`${t('Remove')} ${item?.title || id}`} onClick={() => setSelectedInterventions((current) => current.filter((value) => value !== id))} />
-                                                    </li>
-                                                )
-                                            })}
-                                        </ol>
-                                    ) : <Typography.Paragraph type="secondary" className="program-intervention-empty">{t('No interventions added yet. Choose one above and press +.')}</Typography.Paragraph>}
                                 </div>
                             )}
-                        </section>
-                    )}
 
-                    {step === 4 && (
-                        <section>
-                            <Typography.Title level={4}>{t('How should agents support this program?')}</Typography.Title>
-                            <Typography.Paragraph type="secondary">{t('This choice controls who delivers interventions and which intervention pages appear in the workspace.')}</Typography.Paragraph>
-                            <Radio.Group value={supportMode} onChange={(event) => setSupportMode(event.target.value)} className="agent-support-grid program-radio-cards">
-                                {SUPPORT_OPTIONS.map((option) => <Radio.Button value={option.value} key={option.value} className={supportMode === option.value ? 'is-selected' : ''}><span className="agent-support-icon">{option.icon}</span><strong>{option.title}</strong><span>{option.description}</span><small>{option.access}</small></Radio.Button>)}
-                            </Radio.Group>
-                        </section>
-                    )}
-
-                    {step === 5 && (
-                        <section>
-                            <div className="program-wizard-heading"><div><Typography.Title level={4}>{t('Compliance requirements')}</Typography.Title><Typography.Text type="secondary">{t('Choose which documents participants in this programme must provide. Leave everything unticked to ask for all of them.')}</Typography.Text></div></div>
-                            <Space direction="vertical" size={8} style={{ width: '100%' }}>
-                                {COMPLIANCE_DOCUMENT_CATALOGUE.map((entry) => {
-                                    const selected = requirements.find((item) => catalogueEntryFor(item.name)?.key === entry.key)
-                                    return (
-                                        <Card size="small" key={entry.key} className={`program-config-card program-document-option${selected ? ' is-selected' : ''}`}>
-                                            <Row gutter={12} align="middle" wrap={false}>
-                                                <Col flex="auto">
-                                                    <Checkbox
-                                                        checked={Boolean(selected)}
-                                                        onChange={(event) => setRequirements((current) => event.target.checked
-                                                            ? [...current, { id: entry.key, name: entry.name, category: entry.category, required: true }]
-                                                            : current.filter((item) => catalogueEntryFor(item.name)?.key !== entry.key))}
-                                                    >
-                                                        <Typography.Text strong>{t(entry.name)}</Typography.Text>
-                                                    </Checkbox>
-                                                    <Tag className="program-document-category">{t(entry.category[0].toUpperCase() + entry.category.slice(1))}</Tag>
-                                                </Col>
-                                                <Col flex="none">
-                                                    <Switch
-                                                        size="small"
-                                                        disabled={!selected}
-                                                        checked={selected ? selected.required : true}
-                                                        checkedChildren={t('Required')}
-                                                        unCheckedChildren={t('Optional')}
-                                                        onChange={(required) => setRequirements((current) => current.map((item) => catalogueEntryFor(item.name)?.key === entry.key ? { ...item, required } : item))}
-                                                    />
-                                                </Col>
-                                            </Row>
-                                        </Card>
-                                    )
-                                })}
-                                {/* Documents typed in before the catalogue existed: kept, but can only be removed. */}
-                                {requirements.filter((item) => !catalogueEntryFor(item.name)).map((requirement) => (
-                                    <Card size="small" key={requirement.id} className="program-config-card">
-                                        <Row gutter={12} align="middle" wrap={false}>
-                                            <Col flex="auto"><Typography.Text>{requirement.name || t('Untitled document')}</Typography.Text> <Tag>{t('Custom')}</Tag></Col>
-                                            <Col flex="none"><Button danger className="program-delete-button" icon={<DeleteOutlined />} aria-label={`Delete ${requirement.name || 'document'}`} onClick={() => setRequirements((current) => current.filter((item) => item.id !== requirement.id))} /></Col>
+                            {!(editing && picking) && <div className="program-wizard-body">
+                                {step === 0 && (
+                                    <Form form={detailsForm} layout="vertical" onValuesChange={(changed: Partial<ProgramDetailsForm>) => {
+                                        // A new Training programme usually has no application; the team can still change it.
+                                        if (!editing && changed.type) detailsForm.setFieldValue('intakeMode', isTrainingType(changed.type) ? 'direct' : 'application')
+                                    }}>
+                                        <Form.Item name="name" label={t('Program name')} rules={[{ required: true, message: tr('Enter a program name.') }]}><Input placeholder={t('e.g. Growth Accelerator 2026')} /></Form.Item>
+                                        <Form.Item name="type" label={t('Program type')} rules={[{ required: true, message: tr('Choose a program type.') }]}>
+                                            <Radio.Group className="program-choice-grid is-compact program-radio-cards">
+                                                {TYPE_CARDS.map((option) => (
+                                                    <Radio.Button value={option.value} key={option.value}>
+                                                        <span className="program-status-icon">{option.icon}</span>
+                                                        <span className="program-status-copy"><strong>{t(option.value)}</strong><small>{option.hint}</small></span>
+                                                    </Radio.Button>
+                                                ))}
+                                            </Radio.Group>
+                                        </Form.Item>
+                                        {editing?.type && !PROGRAM_TYPE_OPTIONS.includes(editing.type) && <Typography.Paragraph type="secondary">{t('Saved as')} “{editing.type}”. {t('Choose Incubation or Training to update it.')}</Typography.Paragraph>}
+                                        <Form.Item name="intakeMode" label={t('How do SMEs join?')} rules={[{ required: true }]}>
+                                            <Radio.Group className="program-choice-grid is-compact program-radio-cards">
+                                                {INTAKE_CARDS.map((option) => (
+                                                    <Radio.Button value={option.value} key={option.value}>
+                                                        <span className="program-status-icon">{option.icon}</span>
+                                                        <span className="program-status-copy"><strong>{option.title}</strong><small>{option.hint}</small></span>
+                                                    </Radio.Button>
+                                                ))}
+                                            </Radio.Group>
+                                        </Form.Item>
+                                        <Form.Item name="status" label={t('Status')} rules={[{ required: true }]}>
+                                            <Radio.Group className="program-status-grid program-radio-cards">
+                                                {STATUS_CARDS.map((option) => (
+                                                    <Radio.Button value={option.value} key={option.value}>
+                                                        <span className="program-status-icon">{option.icon}</span>
+                                                        <span className="program-status-copy"><strong>{option.value}</strong><small>{option.hint}</small></span>
+                                                    </Radio.Button>
+                                                ))}
+                                            </Radio.Group>
+                                        </Form.Item>
+                                        <Form.Item name="description" label={t('Description')} rules={[{ required: true, message: tr('Describe the program.') }]}><Input.TextArea rows={2} /></Form.Item>
+                                        <Row gutter={16}>
+                                            <Col xs={24} md={12}><Form.Item name="cohortYear" label={t('Cohort year')} rules={[{ required: true }]}><Input /></Form.Item></Col>
+                                            <Col xs={24} md={12}><Form.Item name="assignedAdmin" label={t('Project admin')}><Select allowClear showSearch optionFilterProp="label" options={adminOptions} placeholder={t('Select an admin')} /></Form.Item></Col>
                                         </Row>
-                                    </Card>
-                                ))}
-                            </Space>
-                        </section>
-                    )}
-                </div>}
-                </motion.div>
-                </AnimatePresence>
+                                        <Row gutter={16}>
+                                            <Col xs={24} md={6}><Form.Item name="startDate" label={t('Start date')}><DatePicker style={{ width: '100%' }} /></Form.Item></Col>
+                                            <Col xs={24} md={6}><Form.Item name="endDate" label={t('End date')} dependencies={['startDate']} rules={[({ getFieldValue }) => ({ validator(_, value) { const start = getFieldValue('startDate'); return !value || !start || value.isAfter(start, 'day') || value.isSame(start, 'day') ? Promise.resolve() : Promise.reject(new Error('End date must be after start date.')) } })]}><DatePicker style={{ width: '100%' }} /></Form.Item></Col>
+                                            <Col xs={24} md={6}><Form.Item name="budget" label={t('Budget (ZAR)')}><InputNumber min={0} style={{ width: '100%' }} /></Form.Item></Col>
+                                            <Col xs={24} md={6}><Form.Item name="maxCapacity" label={t('Maximum capacity')}><InputNumber min={1} style={{ width: '100%' }} /></Form.Item></Col>
+                                        </Row>
+                                        <Form.Item name="openToExternalSmes" label={t('Who can join this program?')}>
+                                            <Radio.Group className="program-choice-grid is-compact program-radio-cards">
+                                                {AVAILABILITY_CARDS.map((option) => (
+                                                    <Radio.Button value={option.value} key={option.title}>
+                                                        <span className="program-status-icon">{option.icon}</span>
+                                                        <span className="program-status-copy"><strong>{option.title}</strong><small>{option.hint}</small></span>
+                                                    </Radio.Button>
+                                                ))}
+                                            </Radio.Group>
+                                        </Form.Item>
+                                    </Form>
+                                )}
+
+                                {step === 1 && (
+                                    <Form form={eligibilityForm} layout="vertical">
+                                        <Typography.Text strong>{t('Eligibility criteria')}</Typography.Text>
+                                        <div className="program-eligibility-grid">
+                                            {ELIGIBILITY_OPTIONS.map(({ value, label }) => {
+                                                const selected = selectedEligibilityCriteria.includes(value)
+                                                return <button type="button" key={value} className={`program-eligibility-card${selected ? ' is-selected' : ''}`} aria-pressed={selected} onClick={() => setSelectedEligibilityCriteria((current) => {
+                                                    if (current.includes(value)) {
+                                                        eligibilityForm.setFieldValue(value, undefined)
+                                                        return current.filter((item) => item !== value)
+                                                    }
+                                                    return [...current, value]
+                                                })}>{ELIGIBILITY_ICONS[value]}<span>{label}</span></button>
+                                            })}
+                                        </div>
+                                        {selectedEligibilityCriteria.includes('sectors') && <Form.Item name="sectors" label={t('Eligible sectors')} rules={[{ required: true, message: tr('Select at least one sector.') }]}><Select mode="multiple" options={SECTORS.map((value) => ({ value, label: value }))} /></Form.Item>}
+                                        {selectedEligibilityCriteria.includes('provinces') && <Form.Item name="provinces" label={t('Eligible provinces')} rules={[{ required: true, message: tr('Select at least one province.') }]}><Select mode="multiple" options={PROVINCES.map((value) => ({ value, label: value }))} /></Form.Item>}
+                                        <Row gutter={16}>
+                                            {selectedEligibilityCriteria.includes('minAge') && <Col xs={24} md={8}><Form.Item name="minAge" label={t('Minimum owner age')} rules={[{ required: true }]}><InputNumber min={18} max={100} style={{ width: '100%' }} /></Form.Item></Col>}
+                                            {selectedEligibilityCriteria.includes('maxAge') && <Col xs={24} md={8}><Form.Item name="maxAge" label={t('Maximum owner age')} rules={[{ required: true }]}><InputNumber min={18} max={100} style={{ width: '100%' }} /></Form.Item></Col>}
+                                            {selectedEligibilityCriteria.includes('minYearsOfTrading') && <Col xs={24} md={8}><Form.Item name="minYearsOfTrading" label={t('Minimum years trading')} rules={[{ required: true }]}><InputNumber min={0} style={{ width: '100%' }} /></Form.Item></Col>}
+                                        </Row>
+                                    </Form>
+                                )}
+
+                                {step === 2 && (
+                                    <section>
+                                        <div className="program-wizard-heading"><div><Typography.Title level={4}>{t('Onboarding questions')}</Typography.Title><Typography.Text type="secondary">{t('Collect programme-specific information during onboarding.')}</Typography.Text></div><Button icon={<PlusOutlined />} onClick={() => setQuestions((current) => [...current, { id: makeId(), question: '', type: 'text', required: false }])}>{t('Add question')}</Button></div>
+                                        {!questions.length && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('No custom questions')} />}
+                                        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                                            {questions.map((question, index) => (
+                                                <Card size="small" key={question.id} className="program-config-card">
+                                                    <Row gutter={[12, 12]} align="middle">
+                                                        <Col xs={24} md={12}><Input value={question.question} placeholder={`Question ${index + 1}`} onChange={(event) => setQuestions((current) => current.map((item) => item.id === question.id ? { ...item, question: event.target.value } : item))} /></Col>
+                                                        <Col xs={16} md={7}>
+                                                            <Select
+                                                                value={question.type}
+                                                                style={{ width: '100%' }}
+                                                                options={[{ value: 'text', label: t('Short text') }, { value: 'long_text', label: t('Long text') }, { value: 'number', label: t('Number') }, { value: 'yes_no', label: t('Yes / No') }, { value: 'single_select', label: t('Dropdown · one answer') }, { value: 'multi_select', label: t('Dropdown · multiple answers') }]}
+                                                                onChange={(type: OnboardingQuestion['type']) => setQuestions((current) => current.map((item) => item.id === question.id ? { ...item, type, options: type === 'single_select' || type === 'multi_select' ? item.options || [] : undefined, maxSelections: type === 'multi_select' ? item.maxSelections : undefined } : item))}
+                                                            />
+                                                        </Col>
+                                                        <Col xs={5} md={3}><Checkbox checked={question.required} onChange={(event) => setQuestions((current) => current.map((item) => item.id === question.id ? { ...item, required: event.target.checked } : item))}>{t('Required')}</Checkbox></Col>
+                                                        <Col xs={3} md={2}><Button danger className="program-delete-button" icon={<DeleteOutlined />} aria-label={`Delete question ${index + 1}`} onClick={() => setQuestions((current) => current.filter((item) => item.id !== question.id))} /></Col>
+                                                        {(question.type === 'single_select' || question.type === 'multi_select') && (
+                                                            <Col span={24}>
+                                                                <Row gutter={12}>
+                                                                    <Col xs={24} md={question.type === 'multi_select' ? 18 : 24}>
+                                                                        <Typography.Text strong>{t('Answer options')}</Typography.Text>
+                                                                        <Select mode="tags" value={question.options || []} tokenSeparators={[',']} placeholder={t('Type an option and press Enter')} style={{ width: '100%', marginTop: 6 }} onChange={(options) => setQuestions((current) => current.map((item) => item.id === question.id ? { ...item, options } : item))} />
+                                                                    </Col>
+                                                                    {question.type === 'multi_select' && <Col xs={24} md={6}><Typography.Text strong>{t('Maximum answers')}</Typography.Text><InputNumber min={2} max={Math.max(2, question.options?.length || 2)} value={question.maxSelections} placeholder={t('No limit')} style={{ width: '100%', marginTop: 6 }} onChange={(value) => setQuestions((current) => current.map((item) => item.id === question.id ? { ...item, maxSelections: value || undefined } : item))} /></Col>}
+                                                                </Row>
+                                                            </Col>
+                                                        )}
+                                                    </Row>
+                                                </Card>
+                                            ))}
+                                        </Space>
+                                    </section>
+                                )}
+
+                                {step === 3 && (
+                                    <section className="program-assignment-stage">
+                                        <Typography.Title level={4}>{t(training ? 'Training interventions' : setListOnly ? 'Programme interventions' : 'Intervention assignment')}</Typography.Title>
+                                        {setListOnly && <Typography.Paragraph type="secondary">{t(training
+                                            ? 'Training programmes deliver a set list of interventions. Every participant receives all of them.'
+                                            : 'SMEs join this programme without an application, so it delivers a set list. Every participant receives all of them, and their growth plan is confirmed automatically.')}</Typography.Paragraph>}
+                                        {!setListOnly && <div className={`program-assignment-slot${assignmentMode === 'force_all' ? ' is-expanded' : ''}`}>
+                                            <Radio.Group value={assignmentMode} onChange={(event) => setAssignmentMode(event.target.value)} className="program-choice-grid program-radio-cards">
+                                                <Radio.Button value="sme_choice"><strong>{t('SME chooses')}</strong><span>{t('Participants choose relevant interventions from the catalogue.')}</span></Radio.Button>
+                                                <Radio.Button value="force_all"><strong>{t('Program assigns')}</strong><span>{t('Every selected intervention is included in each diagnostic plan.')}</span></Radio.Button>
+                                            </Radio.Group>
+
+                                            {assignmentMode === 'sme_choice' && (
+                                                <div className="program-limit-block">
+                                                    <Typography.Text strong>{t('Limit how many interventions an SME can choose?')}</Typography.Text>
+                                                    <Radio.Group value={limitSelections ? 'yes' : 'no'} onChange={(event) => setLimitSelections(event.target.value === 'yes')} className="program-choice-grid is-compact program-radio-cards">
+                                                        <Radio.Button value="no"><span className="program-status-icon"><UnlockOutlined /></span><span className="program-status-copy"><strong>{t('No')}</strong><small>{t('SMEs can pick as many as they need')}</small></span></Radio.Button>
+                                                        <Radio.Button value="yes"><span className="program-status-icon"><FieldNumberOutlined /></span><span className="program-status-copy"><strong>{t('Yes')}</strong><small>{t('Set a maximum for each SME')}</small></span></Radio.Button>
+                                                    </Radio.Group>
+                                                    {limitSelections && (
+                                                        <div className="program-limit-input">
+                                                            <Typography.Text>{t('Maximum interventions per SME')}</Typography.Text>
+                                                            <InputNumber min={1} max={100} precision={0} value={maxSelections} onChange={(value) => setMaxSelections(value)} />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>}
+                                        {effectiveMode === 'force_all' && (
+                                            <div className={`program-intervention-browser${setListOnly ? '' : ' program-field-gap'}`}>
+                                                <Typography.Title level={5}>{t(setListOnly ? 'Find interventions to deliver' : 'Find required interventions')}</Typography.Title>
+                                                <div className="program-intervention-picker">
+                                                    <Select allowClear value={interventionArea} onChange={setInterventionArea} className="program-intervention-area" placeholder={t('All areas of support')} options={interventionAreas.map((area) => ({ value: area, label: area }))} />
+                                                    <Select
+                                                        showSearch
+                                                        allowClear
+                                                        optionFilterProp="label"
+                                                        value={pendingIntervention}
+                                                        onChange={setPendingIntervention}
+                                                        className="program-intervention-select"
+                                                        placeholder={addableInterventions.length ? t('Choose an intervention') : t('No more interventions to add')}
+                                                        notFoundContent={t('No interventions match')}
+                                                        options={addableInterventions.map((item) => ({ value: item.id, label: item.area ? `${item.title} · ${item.area}` : item.title }))}
+                                                    />
+                                                    <Tooltip title={t('Add intervention')}>
+                                                        <Button type="primary" shape="circle" icon={<PlusOutlined />} disabled={!pendingIntervention} aria-label={t('Add intervention')} onClick={addPendingIntervention} />
+                                                    </Tooltip>
+                                                </div>
+                                                <Typography.Text strong className="program-intervention-list-label">{t(setListOnly ? 'Interventions delivered' : 'Required interventions')} ({selectedInterventions.length})</Typography.Text>
+                                                {selectedInterventions.length ? (
+                                                    <ol className="program-intervention-list">
+                                                        {selectedInterventions.map((id) => {
+                                                            const item = interventions.find((intervention) => intervention.id === id)
+                                                            return (
+                                                                <li key={id}>
+                                                                    <span className="program-intervention-list-copy">
+                                                                        <strong>{item?.title || t('Intervention no longer in the catalogue')}</strong>
+                                                                        {item?.area && <small>{item.area}</small>}
+                                                                    </span>
+                                                                    <Button danger type="text" icon={<DeleteOutlined />} aria-label={`${t('Remove')} ${item?.title || id}`} onClick={() => setSelectedInterventions((current) => current.filter((value) => value !== id))} />
+                                                                </li>
+                                                            )
+                                                        })}
+                                                    </ol>
+                                                ) : <Typography.Paragraph type="secondary" className="program-intervention-empty">{t('No interventions added yet. Choose one above and press +.')}</Typography.Paragraph>}
+                                            </div>
+                                        )}
+                                    </section>
+                                )}
+
+                                {step === 4 && (
+                                    <section>
+                                        <Typography.Title level={4}>{t('How should agents support this program?')}</Typography.Title>
+                                        <Typography.Paragraph type="secondary">{t('This choice controls who delivers interventions and which intervention pages appear in the workspace.')}</Typography.Paragraph>
+                                        <Radio.Group value={supportMode} onChange={(event) => setSupportMode(event.target.value)} className="agent-support-grid program-radio-cards">
+                                            {SUPPORT_OPTIONS.map((option) => <Radio.Button value={option.value} key={option.value} className={supportMode === option.value ? 'is-selected' : ''}><span className="agent-support-icon">{option.icon}</span><strong>{option.title}</strong><span>{option.description}</span><small>{option.access}</small></Radio.Button>)}
+                                        </Radio.Group>
+                                    </section>
+                                )}
+
+                                {step === 5 && (
+                                    <section>
+                                        <div className="program-wizard-heading"><div><Typography.Title level={4}>{t('Compliance requirements')}</Typography.Title><Typography.Text type="secondary">{t('Choose which documents participants in this programme must provide. Leave everything unticked to ask for all of them.')}</Typography.Text></div></div>
+                                        <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                                            {COMPLIANCE_DOCUMENT_CATALOGUE.map((entry) => {
+                                                const selected = requirements.find((item) => catalogueEntryFor(item.name)?.key === entry.key)
+                                                return (
+                                                    <Card size="small" key={entry.key} className={`program-config-card program-document-option${selected ? ' is-selected' : ''}`}>
+                                                        <Row gutter={12} align="middle" wrap={false}>
+                                                            <Col flex="auto">
+                                                                <Checkbox
+                                                                    checked={Boolean(selected)}
+                                                                    onChange={(event) => setRequirements((current) => event.target.checked
+                                                                        ? [...current, { id: entry.key, name: entry.name, category: entry.category, required: true }]
+                                                                        : current.filter((item) => catalogueEntryFor(item.name)?.key !== entry.key))}
+                                                                >
+                                                                    <Typography.Text strong>{t(entry.name)}</Typography.Text>
+                                                                </Checkbox>
+                                                                <Tag className="program-document-category">{t(entry.category[0].toUpperCase() + entry.category.slice(1))}</Tag>
+                                                            </Col>
+                                                            <Col flex="none">
+                                                                <Switch
+                                                                    size="small"
+                                                                    disabled={!selected}
+                                                                    checked={selected ? selected.required : true}
+                                                                    checkedChildren={t('Required')}
+                                                                    unCheckedChildren={t('Optional')}
+                                                                    onChange={(required) => setRequirements((current) => current.map((item) => catalogueEntryFor(item.name)?.key === entry.key ? { ...item, required } : item))}
+                                                                />
+                                                            </Col>
+                                                        </Row>
+                                                    </Card>
+                                                )
+                                            })}
+                                            {/* Documents typed in before the catalogue existed: kept, but can only be removed. */}
+                                            {requirements.filter((item) => !catalogueEntryFor(item.name)).map((requirement) => (
+                                                <Card size="small" key={requirement.id} className="program-config-card">
+                                                    <Row gutter={12} align="middle" wrap={false}>
+                                                        <Col flex="auto"><Typography.Text>{requirement.name || t('Untitled document')}</Typography.Text> <Tag>{t('Custom')}</Tag></Col>
+                                                        <Col flex="none"><Button danger className="program-delete-button" icon={<DeleteOutlined />} aria-label={`Delete ${requirement.name || 'document'}`} onClick={() => setRequirements((current) => current.filter((item) => item.id !== requirement.id))} /></Col>
+                                                    </Row>
+                                                </Card>
+                                            ))}
+                                        </Space>
+                                    </section>
+                                )}
+                            </div>}
+                        </motion.div>
+                    </AnimatePresence>
                 </div>
 
                 {editing && !picking && (

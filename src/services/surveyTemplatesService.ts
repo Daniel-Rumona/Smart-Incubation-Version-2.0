@@ -41,12 +41,21 @@ export type SurveyTemplate = {
     category: string
     programId?: string
     department?: string
+    /** Set on gap analyses, which are listed per company; older surveys have none. */
+    companyCode?: string
     createdAt: string
     updatedAt: string
     createdBy?: string
 }
 
 export const SURVEY_CATEGORIES = ['Evaluation Form', 'Feedback Form', 'Assessment'] as const
+
+/**
+ * Gap analyses are surveys too (same builder, assignments and SME response page), but they are
+ * set up and reviewed on their own page, so the surveys list leaves this category out.
+ */
+export const GAP_ANALYSIS_CATEGORY = 'Gap Analysis'
+export const isGapAnalysis = (template: Pick<SurveyTemplate, 'category'>) => template.category === GAP_ANALYSIS_CATEGORY
 
 export const SURVEY_FIELD_TYPES: Array<{ value: SurveyFieldType, label: string }> = [
     { value: 'text', label: 'Text field' },

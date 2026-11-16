@@ -8,7 +8,7 @@ import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import { FilterBar } from '@/components/shared/FilterBar'
 import { MotionCard } from '@/components/shared/MotionCard'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
-import { deleteSurveyTemplate, listSurveyTemplates, type SurveyTemplate } from '@/services/surveyTemplatesService'
+import { deleteSurveyTemplate, isGapAnalysis, listSurveyTemplates, type SurveyTemplate } from '@/services/surveyTemplatesService'
 import { listResponseSummaries, type SurveyResponseSummary } from '@/services/surveyResponsesService'
 import { listWorkspacePrograms, type WorkspaceProgram } from '@/services/workspaceProgramsService'
 import SendSurveyModal from './SendSurveyModal'
@@ -35,7 +35,7 @@ export default function SurveysPage() {
 
     const load = async () => {
         try {
-            setTemplates(await listSurveyTemplates())
+            setTemplates((await listSurveyTemplates()).filter((template) => !isGapAnalysis(template)))
         } catch {
             message.error(t('Survey templates could not be loaded.'))
             setTemplates([])

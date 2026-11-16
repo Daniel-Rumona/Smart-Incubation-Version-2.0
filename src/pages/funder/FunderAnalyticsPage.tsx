@@ -5,6 +5,7 @@ import DashboardPage from '@/components/shared/DashboardPage'
 import { ThemedHighcharts } from '@/components/shared/ThemedHighcharts'
 import { CHART_COLORS } from '@/config/chartPalette'
 import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
+import { useActiveImplementor } from '@/hooks/useActiveImplementor'
 import { useActiveProgramId } from '@/hooks/useActiveProgramId'
 import { useLanguage } from '@/providers/LanguageProvider'
 import { formatCurrencyZAR } from '@/services/smePerformanceMetrics'
@@ -43,11 +44,22 @@ export const FunderAnalyticsPage = () => {
   const { t } = useLanguage()
   const { data, loading, error } = useFunderData()
   const { activeProgramId } = useActiveProgramId()
+  const { activeImplementor } = useActiveImplementor()
   const [compliance, setCompliance] = useState<FunderComplianceSummary | null>(null)
   const [complianceState, setComplianceState] = useState<'loading' | 'ready' | 'failed'>('loading')
   const analytics = data?.analytics
   const programmes = useMemo(() => data?.programmes || [], [data])
-  const kpis = data?.kpis || []
+  const kpis = useMemo(() => data?.kpis || [], [data])
+  // Each implementor sets its own KPIs, so a funder of several sees them under each implementor, never added together.
+  const kpiGroups = useMemo(() => {
+    const groups = new Map<string, { name: string; rows: FunderKpi[] }>()
+    kpis.forEach((row) => {
+      const group = groups.get(row.companyCode) || { name: row.companyName, rows: [] }
+      group.rows.push(row)
+      groups.set(row.companyCode, group)
+    })
+    return Array.from(groups.entries()).map(([code, group]) => ({ code, ...group }))
+  }, [kpis])
   const delivery = data?.summary.delivery.rate ?? null
   const growth = data?.summary.revenueGrowth ?? null
   const pastHalfway = (analytics?.progressBands || []).filter((band) => band.from >= 50).reduce((sum, band) => sum + band.smes, 0)
@@ -58,12 +70,12 @@ export const FunderAnalyticsPage = () => {
     let active = true
     const timeout = window.setTimeout(() => {
       setComplianceState('loading')
-      loadFunderCompliance(activeProgramId)
+      loadFunderCompliance(activeProgramId, activeImplementor)
         .then((summary) => { if (active) { setCompliance(summary); setComplianceState('ready') } })
         .catch((reason) => { console.error(reason); if (active) setComplianceState('failed') })
     }, 0)
     return () => { active = false; window.clearTimeout(timeout) }
-  }, [activeProgramId])
+  }, [activeImplementor, activeProgramId])
 
   useRegisterAgentPageContext({
     pageKey: 'funder-analytics',
@@ -289,12 +301,14 @@ export const FunderAnalyticsPage = () => {
             <Col xs={24} lg={programmes.length > 1 ? 12 : 24}>
               <Card className="admin-card" bordered={false}>
                 <div className="admin-card-head"><div><h3>{t('KPIs')}</h3><span>{t('Targets against actuals for the current period')}</span></div></div>
-                {loading ? <Skeleton active /> : (
+                {loading ? <Skeleton active /> : kpiGroups.map((group) => (
+                  <div key={group.code} className="funder-kpi-group">
+                  {kpiGroups.length > 1 && <h4 className="funder-kpi-group-name">{group.name}</h4>}
                   <ul className="funder-kpis">
-                    {kpis.map((row) => {
+                    {group.rows.map((row) => {
                       const share = row.target && row.actual !== null ? Math.min(100, Math.round((row.kpi.direction === 'lower' ? (row.actual <= row.target ? 1 : row.target / row.actual) : row.actual / row.target) * 100)) : 0
                       return (
-                        <li key={row.kpi.id}>
+                        <li key={`${row.companyCode}-${row.kpi.id}`}>
                           <div className="funder-kpi-top">
                             <strong>{row.kpi.name}</strong>
                             <span className={`funder-pill is-${row.status === 'met' ? 'good' : row.status === 'behind' ? 'bad' : row.status === 'on_track' ? 'accent' : 'neutral'}`}>{t(STATUS_LABEL[row.status])}</span>
@@ -305,7 +319,8 @@ export const FunderAnalyticsPage = () => {
                       )
                     })}
                   </ul>
-                )}
+                  </div>
+                ))}
               </Card>
             </Col>
           )}

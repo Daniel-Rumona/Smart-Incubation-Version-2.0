@@ -572,7 +572,7 @@ export const zuOperations: Record<string, string> = {
   "Who can join this program?": "Ubani ongajoyina lolu hlelo?",
   "Who can join?": "Ubani ongajoyina?",
   "Who should own this task?": "Ubani okufanele abe nalo msebenzi?",
-  "Word, PDF, text, Markdown or CSV, up to": "I-Word, i-PDF, umbhalo, i-Markdown noma i-CSV, kuze kube ngu-",
+  "Word, PDF, HTML, text, Markdown or CSV, up to": "I-Word, i-PDF, i-HTML, umbhalo, i-Markdown noma i-CSV, kuze kube ngu-",
   "Workflow": "Ukugeleza komsebenzi",
   "Workload": "Umthwalo womsebenzi",
   "Write the lesson content the SME will read…": "Bhala okuqukethwe kwesifundo i-SME ezokufunda…",

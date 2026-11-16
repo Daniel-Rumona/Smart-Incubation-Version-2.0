@@ -16,4 +16,3 @@ export const surveyAudienceLabel = (survey: Pick<TrainingSurvey, 'audience' | 'c
     const names = survey.classIds.map((id) => classes.find((row) => row.id === id)).filter(Boolean).map((row) => `${row?.courseTitle}, ${classDatesLabel(row as TrainingClass)}`)
     return t('Learners: {classes}', undefined, { classes: names.join('; ') || t('a class that was removed') })
 }
-

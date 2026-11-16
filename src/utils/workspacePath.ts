@@ -8,9 +8,9 @@ export const workspaceDashboardPath = (user?: { role?: UserRole, isApplicant?: b
     if (user?.role === 'projectadmin') return '/projectadmin'
     if (user?.role === 'director') return '/director'
     if (user?.role === 'admin') return '/reception'
-    if (user?.role === 'funder') return '/funder'
     if (user?.role === 'learner') return '/learner'
     if (user?.role === 'clientorg') return '/company'
+    if (user?.role === 'funder') return '/funder'
     if (user?.role === 'operations' || user?.role === 'projectmanager') return '/operations'
     return '/dashboard'
 }

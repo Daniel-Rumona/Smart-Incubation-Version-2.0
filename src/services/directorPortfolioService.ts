@@ -1,8 +1,9 @@
 import dayjs from 'dayjs'
-import { collection, getDocs, limit, orderBy, query, where, type QueryConstraint } from 'firebase/firestore'
+import { collection, getDocs, limit, orderBy, query, where } from 'firebase/firestore'
 import { getFirebaseDb } from '@/config/firebase'
 import type { FullIdentity } from '@/types/identity'
 import type { DirectorPortfolioSme, DirectorRisk, DirectorStage, SectorRollup } from '@/types/director'
+import { getDocsInScope, loadDataScope, type DataScope } from '@/services/funderScopeService'
 import { matchesActiveProgram } from '@/services/workspaceProgramsService'
 import { metricHistory, type PerformanceSourceRow } from '@/services/smePerformanceMetrics'
 
@@ -106,22 +107,7 @@ export const requiredCount = (application: AnyDoc) => {
   return Array.isArray(required) ? required.length : 0
 }
 
-/** A funder's linked programmes; empty for everyone else, and for a funder linked to all of the company's. */
-export const funderProgramIds = (user: FullIdentity) =>
-  user.role === 'funder' ? [...new Set((user.assignedProgramIds || []).map((id) => String(id).trim()).filter(Boolean))] : []
-
-/**
- * A company query, narrowed to a funder's programmes when they have linked ones. firestore.rules only lets a funder
- * list those programmes' records, so the query has to say so for Firestore to allow it ('in' takes 30 values at a time).
- */
-export const getScopedDocs = async (user: FullIdentity, collectionName: string, constraints: QueryConstraint[]) => {
-  const db = getFirebaseDb()
-  const ids = funderProgramIds(user)
-  if (!ids.length) return (await getDocs(query(collection(db, collectionName), ...constraints))).docs
-  const chunks = Array.from({ length: Math.ceil(ids.length / 30) }, (_, index) => ids.slice(index * 30, index * 30 + 30))
-  const snapshots = await Promise.all(chunks.map((chunk) => getDocs(query(collection(db, collectionName), ...constraints, where('programId', 'in', chunk)))))
-  return snapshots.flatMap((snapshot) => snapshot.docs)
-}
+export { funderProgramIds } from '@/services/funderScopeService'
 
 const getParticipantIdFromApplication = (id: string, data: AnyDoc) =>
   String(pick(data.participantId, data.participantID, data.smeId, data.smeID, id) || id)
@@ -147,21 +133,26 @@ const getLatestPerformance = async (participantId: string) => {
   }
 }
 
-export const listDirectorPortfolio = async (user: FullIdentity, activeProgramId?: string): Promise<DirectorPortfolioSme[]> => {
-  // A director is scoped to their own company. With no company code there is nothing they may see, so never
-  // fall back to an unfiltered read (that would return every organisation's data).
-  const companyCode = String(user.companyCode || '').trim()
-  if (!companyCode) return []
+/**
+ * The SMEs in scope: a director's or staff member's own company, or a funder's programmes (one company, or several
+ * implementors for a funder organisation; see funderScopeService). Pass a scope to reuse one already loaded.
+ */
+export const listDirectorPortfolio = async (user: FullIdentity, activeProgramId?: string, givenScope?: DataScope): Promise<DirectorPortfolioSme[]> => {
+  // With no company (or, for a funder organisation, no active links) there is nothing to see. Never fall back to an
+  // unfiltered read (that would return every organisation's data).
+  const scope = givenScope ?? await loadDataScope(user)
+  if (!scope.length) return []
 
   const db = getFirebaseDb()
-  const companyConstraint = where('companyCode', '==', companyCode)
 
-  const [applicationDocs, participantDocs, programsSnap, assignmentDocs] = await Promise.all([
-    getScopedDocs(user, 'applications', [companyConstraint, where('applicationStatus', '==', 'accepted')]),
-    getScopedDocs(user, 'participants', [companyConstraint]),
-    getDocs(query(collection(db, 'programs'), companyConstraint)),
-    getScopedDocs(user, 'assignedInterventions', [companyConstraint]),
+  const [applicationDocs, participantDocs, programsSnaps, assignmentDocs] = await Promise.all([
+    getDocsInScope(scope, 'applications', [where('applicationStatus', '==', 'accepted')]),
+    getDocsInScope(scope, 'participants'),
+    Promise.all(scope.map((entry) => getDocs(query(collection(db, 'programs'), where('companyCode', '==', entry.companyCode))))),
+    getDocsInScope(scope, 'assignedInterventions'),
   ])
+  const programsSnap = { docs: programsSnaps.flatMap((snapshot) => snapshot.docs) }
+  const companyNameOf = new Map(scope.map((entry) => [entry.companyCode, entry.companyName]))
 
   const accepted = new Map<string, { acceptedAt?: string | null; programId?: string; programName?: string; required: number }>()
   applicationDocs.forEach(record => {
@@ -264,8 +255,13 @@ export const listDirectorPortfolio = async (user: FullIdentity, activeProgramId?
       investment: toNumber(participant.investment, participant.totalInvestment, participant.fundingReceived),
       progress,
       lastUpdate: String(perf.lastUpdate || toIsoDate(participant.updatedAt) || toIsoDate(participant.createdAt) || acceptedInfo?.acceptedAt || dayjs().format('YYYY-MM-DD')),
+      // Only a real monthly report's date; lastUpdate above falls back to other dates when there is none.
+      lastReport: perf.lastUpdate || null,
       programId,
       programName: String(acceptedInfo?.programName || programNames.get(programId) || participant.programName || 'Unassigned'),
+      // The implementor running the SME's programme; the funder pages filter and group by it.
+      companyCode: String(participant.companyCode || '').trim() || undefined,
+      companyName: companyNameOf.get(String(participant.companyCode || '').trim()) || undefined,
       photoUrl: String(pick(participant.profileImageUrl, participant.photoURL, participant.photoUrl, participant.logoUrl, participant.logo, participant.avatarUrl) || '') || undefined,
       execution: {
         required: Math.max(acceptedInfo?.required || 0, assignments.length),

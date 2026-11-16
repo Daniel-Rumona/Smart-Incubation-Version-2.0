@@ -34,7 +34,7 @@ type ApiResponse = {
     error?: string
 }
 
-const ACCEPTED_EXTENSIONS = ['.docx', '.pdf', '.txt', '.md', '.csv']
+const ACCEPTED_EXTENSIONS = ['.docx', '.pdf', '.html', '.htm', '.txt', '.md', '.csv']
 
 /** Mirrors MAX_DOCUMENT_BYTES in ai-backend/survey_import_agent.py. */
 export const MAX_SURVEY_DOCUMENT_BYTES = 8 * 1024 * 1024
@@ -69,7 +69,7 @@ export const extractSurveyQuestions = async (input: { file?: File, text?: string
     }
 
     if (input.file && !isSupportedQuestionnaireFile(input.file)) {
-        throw new Error('Upload a Word, PDF, text, Markdown or CSV file.')
+        throw new Error('Upload a Word, PDF, HTML, text, Markdown or CSV file.')
     }
 
     const body = input.file

@@ -87,26 +87,52 @@ const documentState = (row: Row, now: Date): 'valid' | 'expiring' | 'not_ok' => 
 
 const chunks = <T,>(items: T[], size = 30) => Array.from({ length: Math.ceil(items.length / size) }, (_, index) => items.slice(index * size, index * size + size))
 
-export const funderComplianceSummary = async (db: Firestore, uid: string, selectedProgramId?: string | null): Promise<FunderComplianceSummary> => {
+const idList = (value: unknown) => [...new Set(((Array.isArray(value) ? value : []) as unknown[]).map((id) => String(id).trim()).filter(Boolean))]
+
+/**
+ * The companies and programmes this funder may see. A company-scoped funder: their company, and their linked programmes
+ * (none = all). A funder organisation's member (no company): each company its active links cover, with those
+ * programmes only (users.funderProgramIds / funderCompanyCodes, kept by functions/src/funderOrganisations.ts),
+ * narrowed to one implementor when one is chosen.
+ */
+const funderScopes = async (db: Firestore, me: Row, implementor: string) => {
+  const companyCode = String(me.companyCode || '').trim()
+  if (companyCode) {
+    const programmes = (await db.collection('programs').where('companyCode', '==', companyCode).get()).docs
+    const linked = idList(me.assignedProgramIds)
+    return [{ companyCode, programmes, allowed: programmes.map((programme) => programme.id).filter((id) => !linked.length || linked.includes(id)) }]
+  }
+  if (!String(me.funderOrgId || '').trim()) throw new FunderComplianceError('failed-precondition', 'Your account has no company.')
+  const linked = new Set(idList(me.funderProgramIds))
+  const companies = idList(me.funderCompanyCodes).filter((code) => !implementor || implementor === 'all' || code === implementor)
+  return Promise.all(companies.map(async (code) => {
+    const programmes = (await db.collection('programs').where('companyCode', '==', code).get()).docs
+    return { companyCode: code, programmes, allowed: programmes.map((programme) => programme.id).filter((id) => linked.has(id)) }
+  }))
+}
+
+export const funderComplianceSummary = async (db: Firestore, uid: string, selectedProgramId?: string | null, implementor?: string | null): Promise<FunderComplianceSummary> => {
   const me = (await db.doc(`users/${uid}`).get()).data() || {}
   if (String(me.role || '') !== 'funder') throw new FunderComplianceError('permission-denied', 'Only funders can see this summary.')
-  const companyCode = String(me.companyCode || '').trim()
-  if (!companyCode) throw new FunderComplianceError('failed-precondition', 'Your account has no company.')
 
-  const programmes = (await db.collection('programs').where('companyCode', '==', companyCode).get()).docs
-  const linked = [...new Set(((me.assignedProgramIds || []) as unknown[]).map((id) => String(id).trim()).filter(Boolean))]
-  let allowed = programmes.map((programme) => programme.id).filter((id) => !linked.length || linked.includes(id))
   const picked = String(selectedProgramId || '').trim()
-  if (picked && picked !== 'all') allowed = allowed.filter((id) => id === picked)
-  if (!allowed.length) return { total: 0, compliant: 0, expiring: 0, missing: 0, missingDocuments: [] }
-  const requirements = new Map(programmes.map((programme) => [programme.id, requirementsOf(programme.data().complianceRequirements)]))
+  const scopes = (await funderScopes(db, me, String(implementor || '').trim()))
+    .map((scope) => ({ ...scope, allowed: picked && picked !== 'all' ? scope.allowed.filter((id) => id === picked) : scope.allowed }))
+    .filter((scope) => scope.allowed.length > 0)
+  if (!scopes.length) return { total: 0, compliant: 0, expiring: 0, missing: 0, missingDocuments: [] }
+  const requirements = new Map(scopes.flatMap((scope) => scope.programmes.map((programme) => [programme.id, requirementsOf(programme.data().complianceRequirements)] as const)))
 
-  const participants = (await Promise.all(chunks(allowed).map((ids) => db.collection('participants')
-    .where('companyCode', '==', companyCode).where('programId', 'in', ids).get()))).flatMap((snapshot) => snapshot.docs)
-  const participantIds = new Set(participants.map((row) => row.id))
-  const documents = (await db.collection('complianceDocuments').where('companyCode', '==', companyCode).get()).docs
-    .map((row) => row.data())
-    .filter((row) => participantIds.has(String(row.participantId || '')))
+  const perCompany = await Promise.all(scopes.map(async (scope) => {
+    const rows = (await Promise.all(chunks(scope.allowed).map((ids) => db.collection('participants')
+      .where('companyCode', '==', scope.companyCode).where('programId', 'in', ids).get()))).flatMap((snapshot) => snapshot.docs)
+    const ids = new Set(rows.map((row) => row.id))
+    const docs = (await db.collection('complianceDocuments').where('companyCode', '==', scope.companyCode).get()).docs
+      .map((row) => row.data())
+      .filter((row) => ids.has(String(row.participantId || '')))
+    return { rows, docs }
+  }))
+  const participants = perCompany.flatMap((entry) => entry.rows)
+  const documents = perCompany.flatMap((entry) => entry.docs)
 
   const now = new Date()
   const missingByKey = new Map<string, { name: string, smes: number }>()

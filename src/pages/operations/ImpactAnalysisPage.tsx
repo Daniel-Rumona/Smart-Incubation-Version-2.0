@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { App, Card, Col, Input, Row, Segmented, Select, Tag, Tooltip, Typography, type TableProps } from 'antd'
+import { App, Button, Card, Col, Empty, Input, InputNumber, Row, Segmented, Select, Space, Tag, Tooltip, Typography, type TableProps } from 'antd'
 import { CarryOutOutlined, CheckCircleOutlined, CloseOutlined, InfoCircleOutlined, RiseOutlined, SearchOutlined, TeamOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import type Highcharts from 'highcharts'
@@ -15,6 +15,7 @@ import { useLanguage } from '@/providers/LanguageProvider'
 import { BEFORE_AFTER_WINDOW_MONTHS, loadImpactAnalytics, type ImpactAnalytics, type SmeImpact } from '@/services/impactAnalyticsService'
 import { formatCurrencyZAR, formatMetricNumber } from '@/services/smePerformanceMetrics'
 import '@/styles/impact-analysis.css'
+import MatchedImpactPanel from '@/components/interventions/MatchedImpactPanel'
 
 // Below this many SMEs a median says little, so the headline figure is left out.
 const MIN_SMES_FOR_MEDIAN = 5
@@ -66,8 +67,35 @@ export default function ImpactAnalysisPage() {
     const [search, setSearch] = useState('')
     const [band, setBand] = useState<{ metric: Metric, key: string } | null>(null)
     const [sort, setSort] = useState<SortKey>('name')
-    const [trendMetric, setTrendMetric] = useState<Metric>('revenue')
-    const [beforeAfterMetric, setBeforeAfterMetric] = useState<Metric>('revenue')
+    const [metric, setMetric] = useState<Metric>('revenue')
+    const [section, setSection] = useState('overview')
+    const [interventionView, setInterventionView] = useState('matched')
+    const [rankingView, setRankingView] = useState('chart')
+    const [overviewView, setOverviewView] = useState('growth')
+    const [topN, setTopN] = useState(5)
+    const [lagMonths, setLagMonths] = useState(0)
+    const interventionCohorts = data?.interventionImpactByLag[lagMonths] || []
+    const rankedInterventions = useMemo(() => {
+        const rows = data?.interventionImpactByLag[lagMonths] || []
+        return rows.map(row => ({ ...row,
+            value: metric === 'revenue' ? row.revenueChange : row.jobsChange,
+            compared: metric === 'revenue' ? row.revenueSmes : row.jobsSmes,
+        })).filter((row): row is typeof row & { value: number } => row.value !== null)
+            .sort((a, b) => Math.abs(b.value) - Math.abs(a.value) || a.title.localeCompare(b.title)).slice(0, topN)
+    }, [data, metric, lagMonths, topN])
+    const interventionChart = useMemo<Highcharts.Options>(() => ({
+        chart: { type: 'bar', height: Math.max(260, rankedInterventions.length * 42 + 90) },
+        title: { text: undefined },
+        xAxis: { categories: rankedInterventions.map(row => row.title), labels: { style: { fontSize: '12px', textOverflow: 'ellipsis' } } },
+        yAxis: { tickAmount: 5, title: { text: t(metric === 'revenue' ? 'Median revenue change (%)' : 'Median jobs change') }, plotLines: [{ value: 0, width: 1, color: CHART_COLORS.slate }] },
+        legend: { enabled: false },
+        tooltip: { formatter() {
+            const row = rankedInterventions[this.index]
+            return `${signed(row.value)}${metric === 'revenue' ? '%' : ''} · ${row.compared} ${t('SMEs with comparable reports')}`
+        } },
+        plotOptions: { bar: { borderRadius: 4, dataLabels: { enabled: true, format: metric === 'revenue' ? '{point.y}%' : '{point.y}' } } },
+        series: [{ type: 'bar', name: t('Observed change'), data: rankedInterventions.map(row => ({ y: row.value, color: row.value < 0 ? CHART_COLORS.danger : row.value > 0 ? CHART_COLORS.success : CHART_COLORS.slate })) }],
+    }), [rankedInterventions, metric, t])
 
     const load = useCallback(async () => {
         if (identityLoading || !user) return
@@ -97,13 +125,11 @@ export default function ImpactAnalysisPage() {
         revenueBeforeAfter: !!data?.beforeAfter.count,
         jobsBeforeAfter: !!data?.jobsBeforeAfter.count,
     }), [data])
-    const activeTrend: Metric = trendMetric === 'jobs' ? (has.jobsTrend ? 'jobs' : 'revenue') : (has.revenueTrend ? 'revenue' : 'jobs')
-    const activeBeforeAfter: Metric = beforeAfterMetric === 'jobs'
-        ? (has.jobsBeforeAfter ? 'jobs' : 'revenue')
-        : (has.revenueBeforeAfter ? 'revenue' : 'jobs')
+    const activeTrend = metric
+    const activeBeforeAfter = metric
 
     const trendChart = useMemo<Highcharts.Options | null>(() => {
-        if (!data?.trend.length || (!has.revenueTrend && !has.jobsTrend)) return null
+        if (!data?.trend.length || !(metric === 'revenue' ? has.revenueTrend : has.jobsTrend)) return null
         const categories = data.trend.map((point) => dayjs(`${point.period}-01`).format('MMM YY'))
         if (activeTrend === 'revenue') {
             return {
@@ -163,7 +189,7 @@ export default function ImpactAnalysisPage() {
     }, [activeBeforeAfter, data])
 
     const beforeAfterChart = useMemo<Highcharts.Options | null>(() => {
-        if (!has.revenueBeforeAfter && !has.jobsBeforeAfter) return null
+        if (!(metric === 'revenue' ? has.revenueBeforeAfter : has.jobsBeforeAfter)) return null
         const bands = BANDS[activeBeforeAfter]
         const selected = band?.metric === activeBeforeAfter ? band.key : null
         return {
@@ -181,7 +207,7 @@ export default function ImpactAnalysisPage() {
                         events: {
                             click(this: Highcharts.Point) {
                                 const key = bands[this.index]?.key
-                                if (key) setBand((current) => (current?.metric === activeBeforeAfter && current.key === key ? null : { metric: activeBeforeAfter, key }))
+                                if (key) { setSection('smes'); setBand((current) => (current?.metric === activeBeforeAfter && current.key === key ? null : { metric: activeBeforeAfter, key })) }
                             },
                         },
                     },
@@ -319,23 +345,11 @@ export default function ImpactAnalysisPage() {
 
     const showTrend = pageLoading || !!trendChart
     const showBeforeAfter = pageLoading || !!beforeAfterChart
-    const showComparison = pageLoading || !!revenueComparison || !!jobsComparison
+    const showComparison = pageLoading || !!(metric === 'revenue' ? revenueComparison : jobsComparison)
     const showOutcomes = pageLoading || !!outcomesChart
     const bandLabel = band ? BANDS[band.metric].find((item) => item.key === band.key)?.label : undefined
     // A card on its own in a row takes the full width.
     const pairSpan = (both: boolean) => (both ? 12 : 24)
-
-    const metricToggle = (value: Metric, onChange: (next: Metric) => void, revenueOk: boolean, jobsOk: boolean) => (
-        <Segmented<Metric>
-            size="small"
-            value={value}
-            onChange={onChange}
-            options={[
-                { value: 'revenue', label: t('Revenue'), disabled: !revenueOk },
-                { value: 'jobs', label: t('Jobs'), disabled: !jobsOk },
-            ]}
-        />
-    )
 
     const beforeAfterHeadline = () => {
         if (!data) return null
@@ -414,13 +428,37 @@ export default function ImpactAnalysisPage() {
                 </Col>
             </Row>
 
+            <Segmented className="impact-main-nav" block value={section} onChange={setSection} options={[
+                { value: 'overview', label: t('Overview') }, { value: 'interventions', label: t('Interventions') },
+                { value: 'smes', label: t('SMEs') }, { value: 'method', label: t('Method') },
+            ]} />
+            {section !== 'method' && <div className="impact-global-filters">
+                <div className="impact-control"><Typography.Text type="secondary">{t('Measure')}</Typography.Text><Segmented value={metric} onChange={value => { setMetric(value as Metric); setBand(null) }} options={[{ value: 'revenue', label: t('Revenue') }, { value: 'jobs', label: t('Jobs') }]} /></div>
+                {section === 'overview' && <Select aria-label={t('Overview view')} value={overviewView} onChange={setOverviewView} options={[{ value: 'growth', label: t('Growth') }, { value: 'outcomes', label: t('Outcomes & comparison') }]} />}
+                {section === 'interventions' && <>
+
+                    <div className="impact-control impact-analysis-choice">
+                        <Typography.Text type="secondary">{t('Analysis')}</Typography.Text>
+                        <Select aria-label={t('Analysis')} value={interventionView} onChange={setInterventionView} options={[{ value: 'matched', label: t('Compared with similar SMEs') }, { value: 'observed', label: t('Observed change') }]} />
+                    </div>
+                    {interventionView === 'observed' && <>
+                        <div className="impact-control impact-number-control"><Typography.Text type="secondary">{t('Top interventions')}</Typography.Text><InputNumber aria-label={t('Top interventions')} min={1} max={50} precision={0} value={topN} onChange={value => setTopN(value ?? 5)} /></div>
+                        <div className="impact-control impact-number-control"><Typography.Text type="secondary">{t('Lag (months)')}</Typography.Text><InputNumber aria-label={t('Lag (months)')} min={0} max={12} precision={0} value={lagMonths} onChange={value => setLagMonths(value ?? 0)} /></div>
+                        <div className="impact-control impact-display-control"><Typography.Text type="secondary">{t('Display')}</Typography.Text><Segmented value={rankingView} onChange={setRankingView} options={[{ value: 'chart', label: t('Chart') }, { value: 'table', label: t('Results') }]} /></div>
+                    </>}
+
+                </>}
+            </div>}
+            {section === 'overview' && <>
+                {!pageLoading && overviewView === 'growth' && !showTrend && !showBeforeAfter && <Empty description={t('No reports available for the selected measure.')} />}
+                <div className="impact-view-heading"><div><Typography.Title level={4}>{t('Portfolio overview')}</Typography.Title><Typography.Text type="secondary">{t('Growth, delivery outcomes and the SMEs behind them.')}</Typography.Text></div></div>
             {missing.length > 0 && (
                 <Card className="dashboard-section-card motion-card impact-note">
                     {missing.map((line) => <Typography.Paragraph key={line} type="secondary">{line}</Typography.Paragraph>)}
                 </Card>
             )}
 
-            {(showTrend || showBeforeAfter) && (
+            {overviewView === 'growth' && (showTrend || showBeforeAfter) && (
                 <Row gutter={[16, 16]}>
                     {showTrend && (
                         <Col xs={24} xl={pairSpan(showBeforeAfter)}>
@@ -438,7 +476,6 @@ export default function ImpactAnalysisPage() {
                                         </Tooltip>
                                     </span>
                                 )}
-                                extra={metricToggle(activeTrend, setTrendMetric, has.revenueTrend, has.jobsTrend)}
                             >
                                 {trendChart && <ThemedHighcharts options={trendChart} />}
                             </Card>
@@ -460,13 +497,12 @@ export default function ImpactAnalysisPage() {
                                         </Tooltip>
                                     </span>
                                 )}
-                                extra={metricToggle(activeBeforeAfter, setBeforeAfterMetric, has.revenueBeforeAfter, has.jobsBeforeAfter)}
                             >
                                 {beforeAfterChart && (
                                     <>
                                         {beforeAfterHeadline()}
                                         <ThemedHighcharts options={beforeAfterChart} />
-                                        <Typography.Text type="secondary" className="impact-footnote">{t('Click a bar to see those SMEs in the table below.')}</Typography.Text>
+                                        <Typography.Text type="secondary" className="impact-footnote">{t('Click a bar to open those SMEs in the SMEs view.')}</Typography.Text>
                                     </>
                                 )}
                             </Card>
@@ -475,18 +511,18 @@ export default function ImpactAnalysisPage() {
                 </Row>
             )}
 
-            {(showComparison || showOutcomes) && (
+            {overviewView === 'outcomes' && (showComparison || showOutcomes) && (
                 <Row gutter={[16, 16]}>
                     {showComparison && (
                         <Col xs={24} xl={pairSpan(showOutcomes)}>
                             <Card loading={pageLoading} className="dashboard-section-card motion-card impact-chart-card" title={t('Supported vs not yet supported')}>
-                                {revenueComparison && (
+                                {metric === 'revenue' && revenueComparison && (
                                     <div className="impact-compare-block">
                                         <Typography.Text strong>{t('Revenue growth since joining (median)')}</Typography.Text>
                                         <ThemedHighcharts options={revenueComparison} />
                                     </div>
                                 )}
-                                {jobsComparison && (
+                                {metric === 'jobs' && jobsComparison && (
                                     <div className="impact-compare-block">
                                         <Typography.Text strong>{t('Jobs added per SME (average)')}</Typography.Text>
                                         <ThemedHighcharts options={jobsComparison} />
@@ -512,6 +548,39 @@ export default function ImpactAnalysisPage() {
                 </Row>
             )}
 
+            </>}
+            {section === 'interventions' && <Card loading={pageLoading} className="dashboard-section-card motion-card impact-chart-card" title={t('Impact by intervention')}>
+                {interventionView === 'matched' ? <MatchedImpactPanel key={activeProgramId + metric} rows={(data?.matchedImpact || []).filter(row => row.metric === metric)} programNames={data?.programNames || {}} showProgramme={isAllPrograms} /> : <>
+                <Typography.Paragraph type="secondary">
+                    {t('Largest observed changes after completed support. Declines are included; missing reports are excluded.')}
+                </Typography.Paragraph>
+                {rankedInterventions.length ? <>
+                    {rankingView === 'chart' && <div className="impact-ranking-chart"><ThemedHighcharts options={interventionChart} /></div>}
+                    {rankingView === 'table' && <ResponsiveDataView
+                        rowKey="id" rows={rankedInterventions} emptyText={t('No comparable reports')}
+                        columns={[
+                            { title: t('Intervention'), dataIndex: 'title' },
+                            { title: t('SMEs completed'), dataIndex: 'smes', align: 'right' },
+                            { title: t('SMEs compared'), dataIndex: 'compared', render: (value: number) => <Space>{value}{value < MIN_SMES_FOR_MEDIAN && <Tag>{t('Small sample')}</Tag>}</Space> },
+                            { title: t('Median change'), dataIndex: 'value', align: 'right', render: (value: number) => <ChangeTag value={value} suffix={metric === 'revenue' ? '%' : ''} /> },
+                        ]}
+                        renderCard={row => <Space direction="vertical"><Typography.Text strong>{row.title}</Typography.Text><ChangeTag value={row.value} suffix={metric === 'revenue' ? '%' : ''} /><Typography.Text>{row.compared} {t('SMEs compared')} / {row.smes} {t('completed')}</Typography.Text>{row.compared < MIN_SMES_FOR_MEDIAN && <Tag>{t('Small sample')}</Tag>}</Space>}
+                    />}
+                </> : <Empty description={t('No comparable before-and-after reports for this lag. Try a shorter lag or collect more monthly reports.')} />}
+                <Typography.Paragraph type="secondary" style={{ marginTop: 16, marginBottom: 0 }}>
+                    {interventionCohorts.length} {t('interventions with dated completions in scope')}. {t('Observed change does not prove causation.')} <Button type="link" size="small" onClick={() => setSection('method')}>{t('How this is measured')}</Button>
+                </Typography.Paragraph>
+                </>}
+            </Card>}
+            {section === 'method' && <Card title={t('How impact is measured')}>
+                <Typography.Title level={5}>Compared with similar SMEs</Typography.Title>
+                <Typography.Paragraph>Uses SME-confirmed completions, once per SME at its first completion. Compares the three months before with months 3–6 after; at least two recorded months are required on each side. Comparison SMEs have not completed that intervention by the end of the window. Matching uses sector and size, then sector, then programme.</Typography.Paragraph>
+                <Typography.Paragraph>Revenue is percentage growth; the difference is percentage points. Jobs are the change in average headcount per SME. The 90% range resamples SME-level differences 1,000 times. Reportable means at least 10 SMEs on each side; early signals need at least 5 on each side. Smaller samples show no estimate. These thresholds describe sample coverage, not proof of an effect.</Typography.Paragraph>
+                <Typography.Title level={5}>Observed change</Typography.Title>
+                <Typography.Paragraph>Ranks the median before-and-after change without a comparison group, after all recorded assignments are complete. Uses six-month windows and an optional lag. Completion and unfinished calendar months are excluded. An SME can appear under several interventions; results should not be added together.</Typography.Paragraph>
+                <Typography.Paragraph>Both views use this app's monthly SME reports and saved monthly histories. Missing values are excluded, not replaced with zero. Demo data is marked when source records identify it. Results describe associations, not causation.</Typography.Paragraph>
+            </Card>}
+            {section === 'smes' && <>
             <FilterBar
                 compact
                 primary={(
@@ -559,6 +628,7 @@ export default function ImpactAnalysisPage() {
                     )}
                 />
             </Card>
+            </>}
         </DashboardPage>
     )
 }

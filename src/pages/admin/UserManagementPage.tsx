@@ -18,6 +18,7 @@ import { cleanupOrphanUsers, createManagedUser, deleteManagedUser, listManagedUs
 import type { ManagedUser } from '@/types/operations'
 import { FEATURE_PERMISSION_OPTIONS, getRolePermissions } from '@/config/permissions'
 import { useLanguage } from '@/providers/LanguageProvider'
+import { Link } from 'react-router-dom'
 import '@/styles/user-management.css'
 
 type UserForm = Omit<ManagedUser, 'id' | 'status'> & { active: boolean }
@@ -60,9 +61,30 @@ export const UserManagementPage = () => {
     const [form] = Form.useForm<UserForm>()
     const selectedRole = Form.useWatch('role', form)
     const [modalOpen, setModalOpen] = useState(false)
+    const [editing, setEditing] = useState<ManagedUser>()
     const watchedCompany = String(Form.useWatch('companyCode', form) || '').trim()
+    // Every funder belongs to a funder organisation (one funder, any number of implementors); only a system admin
+    // chooses it. Funders made the old way (one company) keep their company and programmes until they're converted.
+    const canChooseFunderOrg = user?.role === USER_ROLES.SYSTEM_ADMIN
+    const editingOldStyleFunder = editing?.role === USER_ROLES.FUNDER && !editing.funderOrgId && !!editing.companyCode
+    const isOrgFunderForm = selectedRole === USER_ROLES.FUNDER && !editingOldStyleFunder
+    const [funderOrgOptions, setFunderOrgOptions] = useState<Array<{ value: string, label: string }>>([])
+    useEffect(() => {
+        if (!modalOpen || !canChooseFunderOrg || selectedRole !== USER_ROLES.FUNDER) return
+        let current = true
+        void getDocs(query(collection(getFirebaseDb(), 'funderOrganisations'), where('status', '==', 'confirmed')))
+            .then((snapshot) => {
+                if (!current) return
+                setFunderOrgOptions(snapshot.docs
+                    .map((row) => ({ value: row.id, label: String(row.data().name || row.id) }))
+                    .sort((left, right) => left.label.localeCompare(right.label)))
+            })
+            .catch(() => { if (current) setFunderOrgOptions([]) })
+        return () => { current = false }
+    }, [canChooseFunderOrg, modalOpen, selectedRole])
     // Programmes the account is linked to (project admins, consultants, funders): the chosen company's, empty = all.
-    const usesProgrammes = !!selectedRole && PROGRAMME_SCOPED_ROLES.includes(selectedRole)
+    // A funder organisation's member has none: what they see comes from the organisation's accepted links.
+    const usesProgrammes = !!selectedRole && PROGRAMME_SCOPED_ROLES.includes(selectedRole) && !isOrgFunderForm
     const [programmeOptions, setProgrammeOptions] = useState<Array<{ value: string, label: string }>>([])
     const [programmesFor, setProgrammesFor] = useState('')
     useEffect(() => {
@@ -90,7 +112,6 @@ export const UserManagementPage = () => {
     const [users, setUsers] = useState<ManagedUser[]>([])
     const [loading, setLoading] = useState(false)
     const [search, setSearch] = useState('')
-    const [editing, setEditing] = useState<ManagedUser>()
     const [cleanupOpen, setCleanupOpen] = useState(false)
     const [scanningOrphans, setScanningOrphans] = useState(false)
     const [cleaningOrphans, setCleaningOrphans] = useState(false)
@@ -132,13 +153,22 @@ export const UserManagementPage = () => {
 
     const openModal = (record?: ManagedUser) => {
         setEditing(record)
-        form.setFieldsValue(record ? { ...record, permissions: record.permissions || getRolePermissions(record.role), active: record.status === 'active' } : { active: true, role: USER_ROLES.OPERATIONS, permissions: getRolePermissions(USER_ROLES.OPERATIONS), assignedProgramIds: [] })
+        form.setFieldsValue(record
+            ? { ...record, permissions: record.permissions || getRolePermissions(record.role), active: record.status === 'active' }
+            : { active: true, role: USER_ROLES.OPERATIONS, permissions: getRolePermissions(USER_ROLES.OPERATIONS), assignedProgramIds: [], funderOrgId: undefined })
         setModalOpen(true)
     }
     const save = async (values: UserForm) => {
         if (!user) return
         const payload = { ...values, status: values.active ? 'active' : 'inactive' } as Omit<ManagedUser, 'id'>
         delete (payload as Partial<UserForm>).active
+        delete payload.funderOrgName
+        if (isOrgFunderForm) {
+            // An organisation's member has no company or programmes of their own.
+            Object.assign(payload, { companyCode: '', assignedProgramIds: [], funderOrgId: values.funderOrgId || '' })
+        } else {
+            delete payload.funderOrgId
+        }
         // null on update removes a stored list (updatePlatformUser); left out on create, they start on the defaults.
         if (FIXED_ACCESS_ROLES.includes(values.role)) (payload as { permissions?: unknown }).permissions = editing ? null : undefined
         try {
@@ -202,7 +232,7 @@ export const UserManagementPage = () => {
             ),
         },
         { title: t('Email'), dataIndex: 'email' },
-        { title: t('Role'), dataIndex: 'role', render: (value: UserRole) => <AdminRoleTag role={value} /> },
+        { title: t('Role'), dataIndex: 'role', render: (value: UserRole, row) => <Space orientation="vertical" size={2}><AdminRoleTag role={value} />{row.funderOrgName && <Typography.Text type="secondary" className="user-funder-org">{row.funderOrgName}</Typography.Text>}</Space> },
         {
             title: t('WhatsApp'), key: 'whatsapp', render: (_, row) => {
                 const phones = [row.phoneIsWhatsApp && row.phone, row.alternativePhoneIsWhatsApp && row.alternativePhone].filter(Boolean)
@@ -216,7 +246,7 @@ export const UserManagementPage = () => {
     return (
         <DashboardPage className="user-management-page admin-overview">
             <Row gutter={[16, 16]}>
-                <Col xs={24} sm={12} xl={6}><AdminKpiTile compact loading={loading && !users.length} icon={<TeamOutlined />} label={t('Users')} value={metrics.users} visual={<AdminShareRing size={44} value={metrics.users} total={metrics.users} />} /></Col>
+                <Col xs={24} sm={12} xl={6}><AdminKpiTile compact loading={loading && !users.length} icon={<TeamOutlined />} label={t('Users')} value={metrics.users} /></Col>
                 <Col xs={24} sm={12} xl={6}><AdminKpiTile compact loading={loading && !users.length} icon={<CheckCircleOutlined />} label={t('Active users')} value={metrics.active} visual={<AdminShareRing size={44} value={metrics.active} total={metrics.users} />} /></Col>
                 <Col xs={24} sm={12} xl={6}><AdminKpiTile compact loading={loading && !users.length} icon={<StopOutlined />} label={t('Inactive users')} value={metrics.inactive} visual={<AdminShareRing size={44} value={metrics.inactive} total={metrics.users} muted />} /></Col>
                 <Col xs={24} sm={12} xl={6}><AdminKpiTile compact loading={loading && !users.length} icon={<BankOutlined />} label={t('Companies')} value={metrics.companies} /></Col>
@@ -266,8 +296,30 @@ export const UserManagementPage = () => {
                         <AdminFormSectionHead icon={<SafetyCertificateOutlined />} title={t('Role and company')} hint={t('Choosing a role resets feature access to that role’s defaults')} />
                         <Row gutter={12}>
                             <Col xs={24} md={12}><Form.Item name="role" label={t('Role')} rules={[{ required: true }]}><Select size="large" options={roleOptions} onChange={(role: UserRole) => form.setFieldValue('permissions', getRolePermissions(role))} /></Form.Item></Col>
-                            <Col xs={24} md={12}><Form.Item name="companyCode" label={t('Company code')}><AutoComplete size="large" options={companyOptions} placeholder={t('Select or enter a company code')} allowClear /></Form.Item></Col>
+                            {isOrgFunderForm ? (
+                                <Col xs={24} md={12}>
+                                    <Form.Item
+                                        name="funderOrgId"
+                                        label={t('Funder organisation')}
+                                        rules={[{ required: true, message: t('Choose the funder organisation they work for.') }]}
+                                        extra={<Link to="/admin/funder-organisations">{t('Manage funder organisations')}</Link>}
+                                    >
+                                        <Select size="large" showSearch optionFilterProp="label" options={funderOrgOptions} placeholder={t('Choose a confirmed funder organisation')} notFoundContent={t('No confirmed funder organisations yet.')} />
+                                    </Form.Item>
+                                </Col>
+                            ) : (
+                                <Col xs={24} md={12}><Form.Item name="companyCode" label={t('Company code')}><AutoComplete size="large" options={companyOptions} placeholder={t('Select or enter a company code')} allowClear /></Form.Item></Col>
+                            )}
                         </Row>
+                        {selectedRole === USER_ROLES.FUNDER && editingOldStyleFunder && (
+                            <Alert
+                                type="info"
+                                showIcon
+                                className="admin-form-modal-alert"
+                                message={t('This funder belongs to one company (the old way)')}
+                                description={<>{t('Convert them to a funder organisation so one sign-in covers every implementor they fund.')} <Link to="/admin/funder-organisations">{t('Convert on Funder organisations')}</Link></>}
+                            />
+                        )}
                         {usesProgrammes && (
                             <Form.Item
                                 name="assignedProgramIds"
@@ -310,7 +362,9 @@ export const UserManagementPage = () => {
                     </section>
                     {selectedRole && FIXED_ACCESS_ROLES.includes(selectedRole) ? (
                         <p className="admin-form-modal-note"><AppstoreOutlined /> {selectedRole === USER_ROLES.FUNDER
-                            ? t('Funders always get read-only funder access. What they see is set by the programmes above.')
+                            ? (isOrgFunderForm
+                                ? t('Funders always get read-only funder access. They see the programmes their organisation has accepted, at every implementor.')
+                                : t('Funders always get read-only funder access. What they see is set by the programmes above.'))
                             : t('Reception admins always get the reception access for their company.')}</p>
                     ) : (
                         <section className="admin-form-modal-section">

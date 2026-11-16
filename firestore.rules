@@ -216,18 +216,38 @@ service cloud.firestore {
       return hasRole(['funder']) && myCompany() != '';
     }
 
+    // Only for company-scoped funders. A funder organisation's member has no company, so an empty programme list
+    // must never mean "all" for them (see orgFunderCanRead).
     function funderProgramAllows(programId) {
-      return currentUser().get('assignedProgramIds', []).size() == 0
-        || programId in currentUser().get('assignedProgramIds', []);
+      return currentUser().get('funderOrgId', '') == ''
+        && (currentUser().get('assignedProgramIds', []).size() == 0
+          || programId in currentUser().get('assignedProgramIds', []));
+    }
+
+    // Members of a funder organisation (funderOrganisations; see functions/src/funderOrganisations.ts): role funder,
+    // users.funderOrgId, and no company. They read only the programmes of their organisation's active links, which
+    // syncFunderAccess copies onto users.funderProgramIds / funderCompanyCodes; nothing client-side can set them.
+    // List queries must filter by companyCode == one of those companies and programId in those programmes.
+    function isOrgFunder() {
+      return hasRole(['funder'])
+        && currentUser().get('funderOrgId', '') != ''
+        && currentUser().get('companyCode', '') == '';
+    }
+
+    function orgFunderCanRead(data) {
+      return isOrgFunder()
+        && data.get('programId', '') in currentUser().get('funderProgramIds', [])
+        && data.get('companyCode', '') in currentUser().get('funderCompanyCodes', []);
     }
 
     function funderCanRead(data) {
-      return isFunder() && data.get('companyCode', '') == myCompany() && funderProgramAllows(data.get('programId', ''));
+      return (isFunder() && data.get('companyCode', '') == myCompany() && funderProgramAllows(data.get('programId', '')))
+        || orgFunderCanRead(data);
     }
 
     // Monthly performance has no company or programme of its own; it follows the participant's.
     function funderOwnsParticipant(participantId) {
-      return isFunder()
+      return (isFunder() || isOrgFunder())
         && exists(/databases/$(database)/documents/participants/$(participantId))
         && funderCanRead(get(/databases/$(database)/documents/participants/$(participantId)).data);
     }
@@ -446,7 +466,7 @@ service cloud.firestore {
       // someone else or hand out any other role.
       allow create: if isPlatformAdmin()
         || (isSelf(uid) && request.resource.data.role in ['incubatee', 'consultant']
-            && !request.resource.data.keys().hasAny(['companyCode', 'permissions', 'organisationAccessStatus', 'registrationProgramLink', 'managedAccount', 'staffJoinedAt']));
+            && !request.resource.data.keys().hasAny(['companyCode', 'permissions', 'organisationAccessStatus', 'registrationProgramLink', 'managedAccount', 'staffJoinedAt', 'funderOrgId', 'funderProgramIds', 'funderCompanyCodes']));
 
       // Nobody may grant themselves a different role, or pick their own company, by self-editing. A company code
       // scopes what a person can read, so it is only ever set by a Cloud Function that checked the programme.
@@ -460,7 +480,9 @@ service cloud.firestore {
             && request.resource.data.get('permissions', null) == resource.data.get('permissions', null)
             && request.resource.data.get('organisationId', null) == resource.data.get('organisationId', null)
             && request.resource.data.get('orgRole', null) == resource.data.get('orgRole', null)
-            && request.resource.data.get('funderId', null) == resource.data.get('funderId', null))
+            && request.resource.data.get('funderId', null) == resource.data.get('funderId', null)
+            // A funder organisation and what it may read are set only by functions/src/funderOrganisations.ts.
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['funderOrgId', 'funderProgramIds', 'funderCompanyCodes']))
         // The one role choice on the welcome page: every sign-up starts as an SME, and a new account with no
         // company, that hasn't picked a role or finished SME onboarding, may switch once to consultant.
         || (isSelf(uid) && resource.data.role == 'incubatee' && request.resource.data.role == 'consultant'
@@ -791,6 +813,23 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // AI read of one SME's gap analysis answers (gapAnalysisService.ts), id `${templateId}_${participantId}`.
+    // Staff-only and company-scoped: listStoredGapAnalyses always filters on companyCode == own company.
+    match /gapAnalyses/{analysisId} {
+      function staffOfCompany(companyCode) {
+        return isPlatformAdmin()
+          || (hasRole(operationsStaffRoles()) && belongsToCompany(companyCode))
+          || (isOwnCompanyDirector() && belongsToCompany(companyCode));
+      }
+
+      allow get, list: if staffOfCompany(resource.data.get('companyCode', ''));
+      allow create: if hasRole(operationsStaffRoles()) && belongsToCompany(request.resource.data.get('companyCode', ''));
+      allow update: if hasRole(operationsStaffRoles())
+        && belongsToCompany(resource.data.get('companyCode', ''))
+        && request.resource.data.get('companyCode', '') == resource.data.get('companyCode', '');
+      allow delete: if false;
+    }
+
     // The SME's own answers; operations reads them per-template
     // (listResponsesForTemplate) to review submissions.
     match /formResponses/{responseId} {
@@ -845,7 +884,12 @@ service cloud.firestore {
         return hasRole(['systemadmin', 'operations']) || isOwnCompanyDirector();
       }
 
-      allow get, list: if signedIn() && resource.data.companyCode == myCompany();
+      // A funder organisation's member has no company (myCompany() is ''), so they're kept off any KPI without one,
+      // and read the KPIs of the companies they fund instead (shown per implementor, never added together).
+      // A KPI document holds every programme's targets; the funder pages show only the linked programmes'.
+      allow get, list: if signedIn() && (
+        (resource.data.companyCode == myCompany() && !isOrgFunder())
+        || (isOrgFunder() && resource.data.companyCode in currentUser().get('funderCompanyCodes', [])));
       allow create: if canEditKpis() && request.resource.data.companyCode == myCompany();
       allow update: if canEditKpis()
         && resource.data.companyCode == myCompany()
@@ -1135,6 +1179,24 @@ service cloud.firestore {
       allow create: if isClientModuleStaff(request.resource.data.companyCode);
       allow update: if isClientModuleStaff(resource.data.companyCode) && keepsTrainingCompany();
       allow delete: if isClientModuleStaff(resource.data.companyCode);
+    }
+
+    // Funder organisations and their links to programmes (functions/src/funderOrganisations.ts). Written only by
+    // Cloud Functions. Implementors find organisations through searchFunderOrgs, not by reading this collection;
+    // a member reads their own organisation, a system admin all of them.
+    match /funderOrganisations/{orgId} {
+      allow get: if isSystemAdmin() || (isOrgFunder() && currentUser().get('funderOrgId', '') == orgId);
+      allow list: if isSystemAdmin();
+      allow write: if false;
+    }
+
+    // A link is read by the programme company's managing staff and by the funder organisation it names.
+    // Implementor queries filter by companyCode; funder queries by funderOrgId.
+    match /funderLinks/{linkId} {
+      allow get, list: if isSystemAdmin()
+        || (isOrgFunder() && resource.data.funderOrgId == currentUser().get('funderOrgId', ''))
+        || (hasRole(['director', 'projectadmin', 'projectmanager', 'operations']) && myCompany() != '' && resource.data.companyCode == myCompany());
+      allow write: if false;
     }
 
     // The details a training company asks of its client companies and learners (src/config/trainingDetails.ts).
@@ -1514,6 +1576,30 @@ service cloud.firestore {
     match /mail/{entryId} { allow read, write: if false; }
     match /smeIntakeAnalyses/{entryId} { allow read, write: if false; }
     match /interventionBottleneckReminderLogs/{entryId} { allow read, write: if false; }
+
+    // The AI page chat (src/services/agentChatHistoryService.ts). Everything is kept; the page shows the
+    // last 24 hours. The user saves their own turns and the agent's replies; watch and chaser cards are
+    // written by the nightly Cloud Function (Admin SDK), and a card's answer by ai-backend.
+    match /agentChatMessages/{messageId} {
+      allow get, list: if signedIn() && resource.data.uid == request.auth.uid;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['uid', 'companyCode', 'role', 'content', 'createdAt', 'proposal', 'proposalStatus'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.role in ['user', 'agent']
+        && request.resource.data.content is string
+        && request.resource.data.content.size() <= 20000
+        && request.resource.data.createdAt == request.time;
+      allow update: if signedIn() && resource.data.uid == request.auth.uid
+        && changedKeys().hasOnly(['proposalStatus', 'proposalNote']);
+      allow delete: if false;
+    }
+
+    // The agent's watches and chasers. Created, stopped and answered only through ai-backend
+    // (agent_watches.py) and run by the nightly Cloud Function; the owner can read their own.
+    match /agentWatches/{watchId} {
+      allow get, list: if signedIn() && resource.data.uid == request.auth.uid;
+      allow write: if false;
+    }
     match /agentActionProposals/{entryId} { allow read, write: if false; }
     match /agentChannelSessions/{entryId} { allow read, write: if false; }
     match /whatsappConversations/{entryId} { allow read, write: if false; }
@@ -1549,6 +1635,7 @@ service cloud.firestore {
 
       allow get, list: if signedIn() && (
         (resource.data.companyCode == myCompany() && (!hasRole(['funder']) || funderProgramAllows(resource.data.get('programId', ''))))
+        || orgFunderCanRead(resource.data)
         || isOwnParticipantId(resource.data.participantId));
       // The SME's own check-back answers (smeCheckback / smeCheckbackHistory) are written only by the SME, in the
       // app or through the WhatsApp bot (admin SDK, functions/src/smeCheckbacks.ts); staff and facilitators can't.
@@ -1654,6 +1741,7 @@ service cloud.firestore {
       // A consultant can always read appointments assigned to them, even when they have no company code of their own.
       allow get, list: if signedIn() && (
         (resource.data.companyCode == myCompany() && (!hasRole(['funder']) || funderProgramAllows(resource.data.get('programId', ''))))
+        || orgFunderCanRead(resource.data)
         || resource.data.assigneeId == request.auth.uid);
 
       allow create: if (hasRole(interventionWorkspaceRoles()) && hasAnyFeature(['assign_interventions', 'track_interventions']))

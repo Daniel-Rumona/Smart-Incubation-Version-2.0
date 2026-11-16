@@ -31,6 +31,14 @@
         { "fieldPath": "companyCode", "order": "ASCENDING" },
         { "fieldPath": "changedAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "agentChatMessages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

@@ -100,8 +100,9 @@ select {
 
 /* =========================================================
    Segmented Controls
-   One pill design for every segmented in the app. Written with
-   :where() so page-level rules can still override it.
+   One design for every segmented in the app: softly rounded
+   (not pills), the segments a little less round than the track.
+   Written with :where() so page-level rules can still override it.
    ========================================================= */
 
 :where(.ant-segmented) {
@@ -114,12 +115,12 @@ select {
    on its 6px token while the segments inside were already pills. Doubling the
    class beats that default without !important, so a page rule can still win. */
 .ant-segmented.ant-segmented {
-  border-radius: 999px;
+  border-radius: 10px;
 }
 
 :where(.ant-segmented) .ant-segmented-item,
 :where(.ant-segmented) .ant-segmented-thumb {
-  border-radius: 999px !important;
+  border-radius: 7px !important;
 }
 
 :where(.ant-segmented) .ant-segmented-item {

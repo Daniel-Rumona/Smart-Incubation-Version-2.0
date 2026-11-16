@@ -240,10 +240,10 @@ export const AgentGuidedAction = ({ kind, assignments, onClose, onSubmit }: Prop
 
   const detailsStep = selected && (
     <Form form={form} layout="vertical" requiredMark={false} onFinish={submit} className="agent-guided-step">
-      <button type="button" className="agent-guided-chosen" onClick={() => { setDirection(-1); setStep('sme') }}>
+      <button type="button" className="agent-guided-chosen" onClick={() => { setDirection(-1); setStep('sme') }} aria-label={t('Change SME')}>
+        <ArrowLeftOutlined className="agent-guided-chosen-back" aria-hidden="true" />
         <Avatar size={36} src={selected.imageUrl}>{initialsOf(selected.name)}</Avatar>
-        <span><strong>{selected.name}</strong><small>{t('Change SME')}</small></span>
-        <ArrowLeftOutlined />
+        <span className="agent-guided-chosen-copy"><strong>{selected.name}</strong><small>{t('Change SME')}</small></span>
       </button>
       <Form.Item name="interventionId" label={t('Intervention')} rules={[{ required: true, message: t('Choose an intervention.') }]}>
         <Select showSearch optionFilterProp="label" options={interventionOptions} placeholder={t('Choose an intervention')} />
