@@ -1,9 +1,12 @@
-// Generates one narration MP3 per scene with ElevenLabs: public/voiceover/<scene id>.mp3.
+// Generates one narration MP3 per scene with ElevenLabs: public/voiceover/<scene id>.mp3 for the walkthrough, and
+// public/voiceover/pitch/<scene id>.mp3 for the pitch (--pitch).
 // Reads ELEVENLABS_API_KEY (and optional VOICE_ID / MODEL_ID) from video/.env.
 // Run: node generate-voiceover.ts            (skips scenes whose MP3 already exists)
 //      node generate-voiceover.ts --force    (regenerates all of them)
 //      node generate-voiceover.ts intro kpis (regenerates just those scenes)
+//      node generate-voiceover.ts --pitch    (the same, for the pitch's scenes)
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { PITCH } from './src/pitch/script.ts'
 import { SCENES } from './src/script.ts'
 
 const env = Object.fromEntries(
@@ -26,12 +29,15 @@ const modelId = env.ELEVENLABS_MODEL_ID || 'eleven_multilingual_v2'
 
 const args = process.argv.slice(2)
 const force = args.includes('--force')
+const pitch = args.includes('--pitch')
 const only = args.filter((arg) => !arg.startsWith('--'))
 
-const outDir = new URL('./public/voiceover/', import.meta.url)
+const outDir = new URL(pitch ? './public/voiceover/pitch/' : './public/voiceover/', import.meta.url)
 mkdirSync(outDir, { recursive: true })
+// The walkthrough is read at a calm pace (0.9); the pitch a touch quicker and livelier.
+const pace = pitch ? { speed: 0.95, style: 0.3 } : { speed: 0.9, style: 0.2 }
 
-for (const scene of SCENES) {
+for (const scene of pitch ? PITCH : SCENES) {
   const file = new URL(`${scene.id}.mp3`, outDir)
   const wanted = only.length ? only.includes(scene.id) : force || !existsSync(file)
   if (!wanted) continue
@@ -42,12 +48,11 @@ for (const scene of SCENES) {
     body: JSON.stringify({
       text: scene.narration,
       model_id: modelId,
-      // A little slower than the default (1.0): a walkthrough reads better at a calm pace.
-      voice_settings: { stability: 0.5, similarity_boost: 0.75, style: 0.2, speed: 0.9 },
+      voice_settings: { stability: 0.5, similarity_boost: 0.75, ...pace },
     }),
   })
   if (!response.ok) throw new Error(`ElevenLabs ${response.status} for ${scene.id}: ${(await response.text()).slice(0, 300)}`)
 
   writeFileSync(file, Buffer.from(await response.arrayBuffer()))
-  console.log(`saved voiceover/${scene.id}.mp3`)
+  console.log(`saved ${pitch ? 'voiceover/pitch' : 'voiceover'}/${scene.id}.mp3`)
 }

@@ -37,11 +37,11 @@ export const SCENES: Scene[] = [
   {
     id: 'workspaces',
     kind: 'points',
-    title: 'Two kinds of workspace',
+    title: 'Two workspaces, one add-on',
     points: [
       { label: 'Incubation', detail: 'Programmes for SMEs: applications, diagnostics, interventions, KPIs.', tone: 'info' },
       { label: 'Training', detail: 'Classes, assessments and certificates for client companies’ staff.', tone: 'good' },
-      { label: 'ESG reporting', detail: 'An add-on: sustainability reports for clients, ready in Word.', tone: 'warn' },
+      { label: 'ESG add-on', detail: 'Switched on in either workspace: sustainability reports, ready in Word.', tone: 'warn' },
     ],
     narration:
       'Every company on the platform gets a workspace that fits its work. An incubator runs programmes for small businesses. A service provider delivers paid work to client companies, such as training. And ESG reporting can be switched on as an add-on. Each company only sees the parts it uses.',
