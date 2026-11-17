@@ -949,6 +949,25 @@ const PITCH_SHOTS = {
       await d.wait(1200)
     },
   },
+  // The funder's own agent: sign in, then ask for a funding impact brief (one of its suggested prompts).
+  'p-funder-agent': {
+    as: 'funder',
+    signInOnCamera: true,
+    ready: AGENTIC_HOME,
+    act: async (page, d) => {
+      await d.wait(1500)
+      await d.hover(page.locator('.ant-statistic, [class*=stat]').first(), 1000)
+      const prompt = page.getByText('Give me a funding impact brief', { exact: false }).first()
+      await d.click(prompt, 1500)
+      // The brief is written by the agent: wait for it, then read down it.
+      await page.locator('.agentic-conversation').getByText(/revenue|jobs|SMEs/i).nth(1).waitFor({ timeout: 70_000 }).catch(() => console.warn('  no brief'))
+      await d.wait(3000)
+      await d.scroll(400, { x: 960, y: 600, ms: 3000 })
+      await d.wait(3000)
+      await d.scroll(400, { x: 960, y: 600, ms: 3000 })
+      await d.wait(2500)
+    },
+  },
   'p-funder-portfolio': { ...SHOTS['funder-portfolio'], via: viaBar('Portfolio') },
   'p-funder-sectors': {
     as: 'funder',

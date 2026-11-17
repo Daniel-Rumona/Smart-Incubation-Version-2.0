@@ -56,12 +56,12 @@ const AGENT = '#7c3aed'
 const INCUBATION = '#2563eb'
 const TWIN = '#0ea5e9'
 const SME = '#059669'
-const TRAINING = '#10b981'
 const BOOKS = '#be185d'
 const ESG = '#d97706'
 
-// The film runs: the problem → the reveal → Incubation (sign in, the agent, then the workspace in order) → Training →
-// both digital twins → reminders and WhatsApp → Qx-Core and the ESG report → the outcome. Every product scene is the app, full screen, narrated.
+// The film runs: the problem → the reveal → Incubation (sign in, the agent, then the workspace in order) → both
+// digital twins → reminders and WhatsApp → Qx-Core and the ESG report → the outcome. Training is only mentioned along
+// the way (the workspaces scene, the training twin), not shown as a part of its own. Every product scene is the app, full screen, narrated.
 // Clip times are seconds in public/recordings/<src>.mp4 (record.mjs). Each clip is shown whole, never cropped.
 export const PITCH: PitchScene[] = [
   {
@@ -103,7 +103,7 @@ export const PITCH: PitchScene[] = [
     headline: 'Smart Incubation',
     tagline: 'Run the programme. Prove the impact.',
     narration:
-      'Smart Incubation brings all of it into one platform, run by an AI agent that does the admin, so the evidence builds up while the work gets done.',
+      'Smart Incubation brings all of it into one platform for ESD programmes and their funders, run by an AI agent that does the admin, so the evidence builds up while the work gets done.',
   },
   {
     id: 'workspaces',
@@ -231,15 +231,25 @@ export const PITCH: PitchScene[] = [
     clips: [{ src: 'p-director', from: 1.5, to: 6 }, { src: 'p-director', from: 12.5, to: 14 }, { src: 'p-director', from: 17, to: 28 }],
     narration: 'Directors sign in to see every programme on one page: growth, jobs and completion, a scorecard per programme, and the items that need their attention spelled out.',
   },
+  { id: 'chapter-funders', kind: 'chapter', section: 'incubation', headline: 'Funders and ESD', line: 'Every rand, every business, every result', narration: '' },
+  {
+    id: 'funder-agent',
+    kind: 'screen',
+    tag: 'For funders',
+    color: INCUBATION,
+    headline: 'A brief from their own agent',
+    clips: [{ src: 'p-funder-agent', from: 1.5, to: 6.5 }, { src: 'p-funder-agent', from: 15.5, to: 22 }, { src: 'p-funder-agent', from: 23, to: 26 }, { src: 'p-funder-agent', from: 30.5, to: 36 }],
+    narration: 'ESD funders and sponsors sign in to a workspace of their own, and their agent writes the brief: how many businesses are supported, how much revenue has grown, how many jobs were created, and how far the support has come.',
+  },
   {
     id: 'funders',
     kind: 'screen',
     tag: 'For funders',
     color: INCUBATION,
     headline: 'Funders see what they fund',
-    clips: [{ src: 'p-funder', from: 1, to: 6 }, { src: 'p-funder', from: 9.5, to: 12 }, { src: 'p-funder', from: 13, to: 24 }, { src: 'p-funder-portfolio', from: 2, to: 6 }, { src: 'p-funder-portfolio', from: 10, to: 16 }],
+    clips: [{ src: 'p-funder', from: 13, to: 24 }, { src: 'p-funder-portfolio', from: 2, to: 6 }, { src: 'p-funder-portfolio', from: 10, to: 16 }],
     narration:
-      'Funders sign in too, and see exactly what they fund: portfolio revenue, delivery and jobs on their own dashboard, and every business in their portfolio, with its progress and growth, at any time, without waiting for the quarter to end.',
+      'Their dashboard shows portfolio revenue, delivery and jobs, live. And every business they fund is one click away, with its revenue, its people and its progress, without waiting for the quarter to end.',
   },
   {
     id: 'funder-sectors',
@@ -258,66 +268,7 @@ export const PITCH: PitchScene[] = [
     headline: 'Impact across everything they fund',
     clips: [{ src: 'p-funder-impact', from: 1, to: 4 }, { src: 'p-funder-impact', from: 7, to: 24.8 }],
     narration:
-      'Across every programme they fund, the impact view brings it together: the money committed, the cost per job created, who owns the businesses supported, and the support delivered, with implementors compared side by side.',
-  },
-  { id: 'chapter-training', kind: 'chapter', section: 'training', headline: 'Training', line: 'For providers who train staff and clients', narration: '' },
-  {
-    id: 'classes',
-    kind: 'screen',
-    tag: 'Training',
-    color: TRAINING,
-    headline: 'A class set up in a minute',
-    clips: [{ src: 'p-classes', from: 2, to: 7 }, { src: 'p-classes', from: 18, to: 24 }, { src: 'p-classes', from: 28, to: 33 }, { src: 'p-classes', from: 44, to: 50 }, { src: 'p-learners', from: 2.5, to: 12 }],
-    narration: 'Training providers sign in to their own workspace. A class is set up in a minute: in person, online or both, with its venue, link and dates. Then learners come straight in from the attendance sheet in Excel.',
-  },
-  {
-    id: 'learner',
-    kind: 'screen',
-    tag: 'Training',
-    color: TRAINING,
-    headline: 'A simple page for every learner',
-    clips: [{ src: 'p-learner-test', from: 2, to: 6.5 }, { src: 'p-learner-test', from: 9, to: 13 }, { src: 'p-learner-test', from: 21, to: 29 }, { src: 'p-learner-test', from: 39.5, to: 45 }],
-    narration: 'Learners sign in, even on a phone, to a simple page of their own: class days, course materials and tests, written online from wherever they are and handed in with a tap.',
-  },
-  {
-    id: 'tests',
-    kind: 'screen',
-    tag: 'Training',
-    color: TRAINING,
-    headline: 'Tests that mark themselves',
-    clips: [{ src: 'p-assessments', from: 1.5, to: 4 }, { src: 'p-assessments', from: 9.5, to: 14 }, { src: 'p-assessments', from: 24.5, to: 27 }, { src: 'p-marking', from: 3.5, to: 6.5 }, { src: 'p-marking', from: 10, to: 13 }, { src: 'p-marking', from: 15, to: 18.5 }, { src: 'p-marking', from: 22, to: 26.5 }],
-    narration:
-      'Tests are imported straight from Word. Attendance is taken on the class page, multiple choice is marked the moment a learner hands in, and the trainer only marks the written answers.',
-  },
-  {
-    id: 'certificates',
-    kind: 'screen',
-    tag: 'Training',
-    color: TRAINING,
-    headline: 'Certificates anyone can check',
-    clips: [{ src: 'p-certificate', from: 1.5, to: 7 }, { src: 'p-certificate', from: 14, to: 16 }, { src: 'p-certificate', from: 17, to: 21 }, { src: 'p-certificate', from: 24.5, to: 31 }],
-    narration: 'Learners who pass get their certificate automatically, in the provider’s own colours, with a QR code anyone can scan to check it is genuine.',
-  },
-  {
-    id: 'company',
-    kind: 'screen',
-    tag: 'Training',
-    color: TRAINING,
-    headline: 'Client companies sign in too',
-    clips: [{ src: 'p-company', from: 1.5, to: 6.5 }, { src: 'p-company', from: 10, to: 16 }, { src: 'p-company', from: 17.5, to: 21 }, { src: 'p-company', from: 22, to: 24.5 }, { src: 'p-company', from: 26.5, to: 28.8 }],
-    narration:
-      'Client companies sign in too. They book their people into classes, follow attendance and results, and download their certificates and their own ESG report.',
-  },
-  {
-    id: 'revenue',
-    kind: 'screen',
-    tag: 'Training',
-    color: TRAINING,
-    headline: 'Income, and a report for funders',
-    // The funder report takes a while to load in the recording; the clip starts once it has.
-    clips: [{ src: 'p-revenue', from: 0.5, to: 4 }, { src: 'p-revenue', from: 6, to: 11 }, { src: 'p-revenue', from: 13.5, to: 16.5 }, { src: 'p-revenue', from: 21, to: 24 }, { src: 'p-revenue', from: 29.5, to: 32 }],
-    narration:
-      'Providers keep track of their income, and their own funders get a report of the work: learners trained, pass rates and who was reached, with totals only and no personal details.',
+      'Across every programme they fund, the impact view brings it together: the money committed and the cost per job created, who owns the businesses supported, the support delivered, and every implementor compared side by side, so the next rand goes where it works best.',
   },
   { id: 'chapter-twins', kind: 'chapter', section: 'platform', headline: 'Digital twins', line: 'A living model of every business and every client', narration: '' },
   {
@@ -382,15 +333,15 @@ export const PITCH: PitchScene[] = [
     headline: 'ESG reports, drafted for you',
     clips: [{ src: 'p-esg-report', from: 1, to: 4.5 }, { src: 'p-esg-report', from: 13, to: 16 }, { src: 'p-esg-report', from: 18.5, to: 21.5 }, { src: 'p-esg-footprint', from: 2.5, to: 6 }, { src: 'p-esg-footprint', from: 13.5, to: 16 }, { src: 'p-esg-footprint', from: 18, to: 24.5 }],
     narration:
-      'Finally, the ESG report. Figures from the books and the programme become a carbon footprint and a sustainability report, drafted with AI against the right standards and ready to share.',
+      'Finally, the ESG report. Figures from the books and the programme become a carbon footprint and a sustainability report, drafted with AI against the right standards and ready to share with funders.',
   },
   {
     id: 'outcomes',
     kind: 'outcomes',
-    lead: 'For ESD programmes, implementors and their funders',
+    lead: 'For ESD funders, their programmes and implementors',
     lines: ['Less admin.', 'Proof, not promises.', 'Reports in minutes, not weeks.'],
     narration:
-      'For ESD programmes, implementors and their funders, the result is the same: less admin, proof instead of promises, and reports in minutes rather than weeks.',
+      'For ESD funders, their programmes and their implementors, the result is the same: less admin, proof instead of promises, and reports in minutes rather than weeks.',
   },
   {
     id: 'close',
