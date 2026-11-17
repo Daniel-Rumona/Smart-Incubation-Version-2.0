@@ -78,8 +78,10 @@ import CompanyTrainingPage from '@/pages/training/CompanyTrainingPage'
 import CompanyCertificatesPage from '@/pages/company/CompanyCertificatesPage'
 import CompanyAssessmentsPage from '@/pages/company/CompanyAssessmentsPage'
 import CompanyDocumentsPage from '@/pages/company/CompanyDocumentsPage'
-import CompanyBusinessPage from '@/pages/company/CompanyBusinessPage'
 import CompanyEsgPage from '@/pages/company/CompanyEsgPage'
+import CompanyHomePage from '@/pages/company/CompanyHomePage'
+import CompanyTeamPage from '@/pages/company/CompanyTeamPage'
+import CompanyProfilePage from '@/pages/company/CompanyProfilePage'
 import TrainingClassPage from '@/pages/training/TrainingClassPage'
 import TrainingAssessmentsPage from '@/pages/training/TrainingAssessmentsPage'
 import RevenuePage from '@/pages/training/RevenuePage'
@@ -547,12 +549,17 @@ export const appRoutes: AppRoute[] = [
     { path: '/esg/reports/:reportId', labelKey: 'nav.esgReport', icon: <FileTextOutlined />, element: <EsgReportPage />, allowedRoles: trainingStaffRoles, requiredSetting: esgReportingSetting, audiences: ['operations'], showInNav: false, agentEnabled: true },
     { path: '/training/surveys/:surveyId', labelKey: 'nav.trainingSurvey', icon: <FormOutlined />, element: <TrainingSurveyPage />, allowedRoles: trainingStaffRoles, requiredSetting: awarenessTrainingSetting, audiences: ['operations'], showInNav: false, agentEnabled: true },
     { path: '/training/classes/:classId', labelKey: 'nav.trainingClass', icon: <CalendarOutlined />, element: <TrainingClassPage />, allowedRoles: trainingStaffRoles, requiredSetting: awarenessTrainingSetting, audiences: ['operations'], showInNav: false, agentEnabled: true },
-    { path: '/company', labelKey: 'nav.companyTraining', icon: <BankOutlined />, element: <CompanyTrainingPage />, allowedRoles: clientOrgRoles, requiredSetting: awarenessTrainingSetting, audiences: ['clientorg'], showInNav: true },
+    { path: '/company', labelKey: 'nav.companyHome', icon: <BankOutlined />, element: <CompanyHomePage />, allowedRoles: clientOrgRoles, requiredSetting: awarenessTrainingSetting, audiences: ['clientorg'], showInNav: true },
+    { path: '/company/team', labelKey: 'nav.companyTeam', icon: <TeamOutlined />, element: <CompanyTeamPage />, allowedRoles: clientOrgRoles, requiredSetting: awarenessTrainingSetting, audiences: ['clientorg'], showInNav: true },
+    // The old full page, kept for a while for anyone who bookmarked it.
+    { path: '/company/training', labelKey: 'nav.companyTraining', icon: <BankOutlined />, element: <CompanyTrainingPage />, allowedRoles: clientOrgRoles, requiredSetting: awarenessTrainingSetting, audiences: ['clientorg'], showInNav: false },
     { path: '/company/certificates', labelKey: 'nav.companyCertificates', icon: <SafetyCertificateOutlined />, element: <CompanyCertificatesPage />, allowedRoles: clientOrgRoles, requiredSetting: awarenessTrainingSetting, audiences: ['clientorg'], showInNav: true },
-    { path: '/company/assessments', labelKey: 'nav.companyAssessments', icon: <FileDoneOutlined />, element: <CompanyAssessmentsPage />, allowedRoles: clientOrgRoles, requiredSetting: awarenessTrainingSetting, audiences: ['clientorg'], showInNav: true },
-    { path: '/company/documents', labelKey: 'nav.companyDocuments', icon: <FolderOpenOutlined />, element: <CompanyDocumentsPage />, allowedRoles: clientOrgRoles, requiredSetting: awarenessTrainingSetting, audiences: ['clientorg'], showInNav: true },
-    { path: '/company/business', labelKey: 'nav.companyBusiness', icon: <FundOutlined />, element: <CompanyBusinessPage />, allowedRoles: clientOrgRoles, requiredSetting: awarenessTrainingSetting, audiences: ['clientorg'], showInNav: true },
-    { path: '/company/surveys', labelKey: 'nav.companySurveys', icon: <FormOutlined />, element: <CompanySurveysPage />, allowedRoles: clientOrgRoles, requiredSetting: awarenessTrainingSetting, audiences: ['clientorg'], showInNav: true },
+    { path: '/company/assessments', labelKey: 'nav.companyAssessments', icon: <FileDoneOutlined />, element: <CompanyAssessmentsPage />, allowedRoles: clientOrgRoles, requiredSetting: awarenessTrainingSetting, audiences: ['clientorg'], showInNav: false },
+    { path: '/company/documents', labelKey: 'nav.companyDocuments', icon: <FolderOpenOutlined />, element: <CompanyDocumentsPage />, allowedRoles: clientOrgRoles, requiredSetting: awarenessTrainingSetting, audiences: ['clientorg'], showInNav: false },
+    // Business figures now live in the company profile.
+    { path: '/company/business', labelKey: 'nav.companyBusiness', icon: <FundOutlined />, element: <Navigate to="/company/profile" replace />, allowedRoles: clientOrgRoles, requiredSetting: awarenessTrainingSetting, audiences: ['clientorg'], showInNav: false },
+    { path: '/company/profile', labelKey: 'nav.companyProfile', icon: <IdcardOutlined />, element: <CompanyProfilePage />, allowedRoles: clientOrgRoles, requiredSetting: awarenessTrainingSetting, audiences: ['clientorg'], showInNav: true },
+    { path: '/company/surveys', labelKey: 'nav.companySurveys', icon: <FormOutlined />, element: <CompanySurveysPage />, allowedRoles: clientOrgRoles, requiredSetting: awarenessTrainingSetting, audiences: ['clientorg'], showInNav: false },
     { path: '/company/surveys/:surveyId', labelKey: 'nav.companySurvey', icon: <FormOutlined />, element: <SurveyAnswerPage />, allowedRoles: clientOrgRoles, requiredSetting: awarenessTrainingSetting, audiences: ['clientorg'], showInNav: false },
     { path: '/company/esg', labelKey: 'nav.companyEsg', icon: <FileTextOutlined />, element: <CompanyEsgPage />, allowedRoles: clientOrgRoles, requiredSetting: esgReportingSetting, audiences: ['clientorg'], showInNav: true },
     // Learners of an awareness training company: their own training only.

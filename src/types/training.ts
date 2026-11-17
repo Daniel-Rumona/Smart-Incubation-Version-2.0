@@ -132,6 +132,17 @@ export type TrainingOrgDocument = {
     uploadedBy: string
 }
 
+/** Someone on a client company's team: the people it sends to training (the director too, when it is just them). */
+export type TrainingTeamMember = {
+    id: string
+    name: string
+    email: string
+    phone?: string
+    jobTitle?: string
+    /** The director themselves, when they are the one being trained. */
+    isDirector?: boolean
+}
+
 export type TrainingOrganisation = {
     id: string
     companyCode: string
@@ -142,6 +153,8 @@ export type TrainingOrganisation = {
     /** The business details the facilitator asks for, filled in by the company after its invite (or by her). */
     details: TrainingDetails
     documents: Record<string, TrainingOrgDocument>
+    /** The company's team, kept by its director or coordinators. */
+    team: TrainingTeamMember[]
     /** When the company first sent its details. */
     detailsSubmittedAt?: string
     createdAt?: string

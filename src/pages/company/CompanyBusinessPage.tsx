@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { App, Button, Card, Col, DatePicker, Form, InputNumber, Modal, Popconfirm, Row, Skeleton, Space, Typography, type TableProps } from 'antd'
+import { App, Button, Card, Col, DatePicker, Form, InputNumber, Modal, Popconfirm, Row, Space, Typography, type TableProps } from 'antd'
 import { DeleteOutlined, PlusOutlined, RiseOutlined, TeamOutlined, WalletOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import type Highcharts from 'highcharts'
@@ -7,7 +7,6 @@ import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
 import { ThemedHighcharts } from '@/components/shared/ThemedHighcharts'
-import { CompanyDetailsForm } from '@/components/training/CompanyDetailsForm'
 import { deleteOrganisationMetric, listOrganisationMetrics, saveOrganisationMetric } from '@/services/companyPortalService'
 import { useLanguage } from '@/providers/LanguageProvider'
 import { useMyOrganisation } from '@/pages/company/useMyOrganisation'
@@ -23,7 +22,7 @@ type FigureValues = { period: Dayjs, revenue: number, employees?: number }
 export default function CompanyBusinessPage() {
     const { t } = useLanguage()
     const { message } = App.useApp()
-    const { user, organisation, detailsSettings, reload } = useMyOrganisation()
+    const { user, organisation } = useMyOrganisation()
     const [form] = Form.useForm<FigureValues>()
     const [metrics, setMetrics] = useState<TrainingOrgMetric[]>()
     const [adding, setAdding] = useState(false)
@@ -133,11 +132,7 @@ export default function CompanyBusinessPage() {
                     )}
                 />
             </Card>
-            <Card title={t('Business details')}>
-                {organisation
-                    ? <CompanyDetailsForm organisation={organisation} settings={detailsSettings} part="details" onSaved={() => void reload()} />
-                    : <Skeleton active />}
-            </Card>
+            {/* Business details are in the company profile's first tab. */}
             <Modal open={adding} title={t('Add figures')} okText={t('Save')} confirmLoading={saving} onOk={() => void save()} onCancel={() => setAdding(false)} destroyOnHidden>
                 <Form form={form} layout="vertical" requiredMark={false} initialValues={{ period: dayjs().subtract(1, 'month') }}>
                     <Form.Item name="period" label={t('Month')} rules={[{ required: true, message: t('Choose the month.') }]} extra={t('Recording a month again replaces it.')}>

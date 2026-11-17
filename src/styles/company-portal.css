@@ -1,0 +1,32 @@
+/* The client company's pages: few things, big targets, plain words. Colours come from the app theme (antd tokens). */
+.cp-page { display: flex; flex-direction: column; gap: 16px; }
+.cp-hello { display: flex; flex-direction: column; gap: 2px; }
+.cp-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
+
+.cp-progress .ant-card-body { padding: 20px 24px; }
+.cp-progress-row { display: flex; flex-wrap: wrap; align-items: center; gap: 24px; }
+.cp-progress-number { font-size: 22px; font-weight: 800; }
+
+.cp-notices .ant-card-body { display: flex; flex-direction: column; gap: 10px; }
+.cp-notice { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--ant-color-border, #e5e7eb); background: var(--ant-color-bg-container, #fff); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.cp-notice:hover { border-color: var(--ant-color-primary, #7c3aed); }
+.cp-notice-icon { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; flex: none; border-radius: 10px; font-size: 16px; }
+.cp-notice-warn .cp-notice-icon { background: rgba(245, 158, 11, 0.15); color: #b45309; }
+.cp-notice-info .cp-notice-icon { background: rgba(59, 130, 246, 0.14); color: #2563eb; }
+.cp-notice-good .cp-notice-icon { background: rgba(22, 163, 74, 0.14); color: #15803d; }
+.cp-notice-text { flex: 1; min-width: 0; }
+.cp-notice-action { flex: none; font-weight: 600; color: var(--ant-color-primary, #7c3aed); white-space: nowrap; }
+
+.cp-shortcuts { display: flex; flex-wrap: wrap; gap: 10px; }
+
+.cp-team { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 14px; }
+.cp-person .ant-card-body { display: flex; flex-direction: column; gap: 12px; }
+.cp-person-top { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.cp-avatar { width: 44px; height: 44px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; color: #fff; background: #7c3aed; }
+.cp-person-name { display: flex; flex-direction: column; min-width: 0; }
+.cp-person-name .ant-typography { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-person-status .ant-tag { white-space: normal; }
+
+.cp-guide-button { margin-right: 6px; }
+.cp-guide-question { height: auto !important; min-height: 44px; white-space: normal; text-align: left; }
+.cp-guide-answer { padding: 14px; border-radius: 12px; background: rgba(124, 58, 237, 0.08); border: 1px solid rgba(124, 58, 237, 0.25); }
