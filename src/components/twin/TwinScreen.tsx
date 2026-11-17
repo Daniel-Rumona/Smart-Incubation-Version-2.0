@@ -19,11 +19,13 @@ import '@/styles/digital-twin.css'
 // The time machine's pace, as in Lepharo's twin: 4 days a second, a pause at the end, then round again.
 const WEEKS_PER_SECOND = 4 / 7
 const HOLD_AT_END_MS = 2600
+// The history is already known, so it plays three times faster; from today the twin slows to the normal pace.
+const HISTORY_SPEEDUP = 3
 
 const COLOR: Record<LayerKey | 'engagement', string> = { growth: '#34d399', support: '#60a5fa', skills: '#c4b5fd', compliance: '#fbbf24', sustainability: '#2dd4bf', readiness: '#f9a8d4', engagement: '#22c55e' }
 type Risk = 'risk' | 'watch' | 'order'
 const RISK_LABEL: Record<Risk, string> = { risk: 'At risk', watch: 'Watch', order: 'In order' }
-const toneOf = (week: ViewWeek): Risk => (week.ready || week.criticalOpen === 0 ? 'order' : week.criticalOpen === 1 ? 'watch' : 'risk')
+const toneOf = (week: ViewWeek): Risk => (week.criticalOpen === 0 ? 'order' : week.criticalOpen === 1 ? 'watch' : 'risk')
 const ago = (date: Date, now: Date) => {
   const days = Math.floor((now.getTime() - date.getTime()) / 86_400_000)
   if (days <= 0) return 'today'
@@ -72,7 +74,7 @@ export const TwinScreen = ({ kind, subjects, subject, build, onSelect }: Props) 
       if (holdUntil) {
         if (now >= holdUntil) { holdUntil = 0; position.current = 0 }
       } else {
-        position.current += elapsed * WEEKS_PER_SECOND * speed
+        position.current += elapsed * WEEKS_PER_SECOND * speed * (position.current < WEEKS_BACK ? HISTORY_SPEEDUP : 1)
         if (position.current >= weeks - 1) { position.current = weeks - 1; holdUntil = now + HOLD_AT_END_MS }
       }
       if (scanner.current) scanner.current.style.left = `${((position.current + 0.5) / weeks) * 100}%`
@@ -109,8 +111,11 @@ export const TwinScreen = ({ kind, subjects, subject, build, onSelect }: Props) 
   })
   const coreDelta = movedNow && active.score !== planWeek.score ? signed(active.score - planWeek.score) : null
   const when = active.offset < 0 ? 'Rebuilt from records' : active.offset === 0 ? 'Today' : anyMove ? 'With your moves' : 'On plan'
+  // Today's standing (with the moves picked) for the attention card; the rest of the twin takes the colour of the
+  // week under the scanner, so red weeks make the whole twin red.
   const open = twin.reasons.filter((reason) => !reason.good && !reason.fixed).length
   const risk: Risk = open >= 2 ? 'risk' : open === 1 ? 'watch' : 'order'
+  const weekRisk = toneOf(active)
   const readyText = (offset: number | null) => (offset === null ? 'Not within 26 weeks' : longDate(weekDate(today, offset)))
 
   const ask = (key: 'fast' | 'why' | 'nothing', asked?: string) => {
@@ -134,7 +139,7 @@ export const TwinScreen = ({ kind, subjects, subject, build, onSelect }: Props) 
   }
 
   return (
-    <div className={`dt-mode dt-risk-${risk}`}>
+    <div className={`dt-mode dt-risk-${weekRisk}`}>
       <header className='dt-top'>
         <div className='dt-title'>
           <div className='dt-badge' aria-hidden='true'>{subject.name.split(/\s+/).map((word) => word[0]).join('').slice(0, 2).toUpperCase()}</div>
@@ -143,7 +148,7 @@ export const TwinScreen = ({ kind, subjects, subject, build, onSelect }: Props) 
             <h1>{subject.name}</h1>
             <div className='dt-sub'>{subject.sub}</div>
           </div>
-          <span key={risk} className='dt-status'><i aria-hidden='true' />{RISK_LABEL[risk]}</span>
+          <span key={weekRisk} className='dt-status' title={`${when}, ${shortDate(active.date)}`}><i aria-hidden='true' />{RISK_LABEL[weekRisk]}</span>
           {subject.linked && (
             <Link to={subject.linked.href} className='dt-linked' title={`Open the twin of ${subject.linked.name}`}>
               <span>{subject.linked.label}</span>
@@ -184,9 +189,9 @@ export const TwinScreen = ({ kind, subjects, subject, build, onSelect }: Props) 
             <div className='dt-fine'>{kind.assumption}</div>
           </div>
 
-          <div className='dt-panel dt-attention'>
+          <div className={`dt-panel dt-attention dt-risk-${risk}`}>
             <div className='dt-attention-head'>
-              <span className='dt-eyebrow'>Needs attention</span>
+              <span className='dt-eyebrow'>Needs attention today</span>
               <span key={risk} className='dt-level'>{RISK_LABEL[risk]}</span>
             </div>
             {twin.reasons.length === 0 && <div className='dt-reason'><i className='dt-good' aria-hidden='true' /><span>Nothing needs attention. Everything is in order.</span></div>}

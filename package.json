@@ -15,6 +15,7 @@
     "walkthrough:today": "node scripts/emulators-today.mjs",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test:readiness": "node --test scripts/test-readiness.cjs",
     "preview": "vite preview"
   },
   "dependencies": {

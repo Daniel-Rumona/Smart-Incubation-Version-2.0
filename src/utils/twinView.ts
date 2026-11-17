@@ -29,7 +29,8 @@ export type ViewWeek = {
   date: Date
   score: number
   ready: boolean
-  /** Critical gates not met that week: 2+ at risk, 1 to watch, 0 in order. */
+  /** Problems that week (critical gates not met, overdue work): 2+ at risk, 1 to watch, 0 in order. The same things
+   * the "needs attention" card counts today, so a week's colour and that card agree. */
   criticalOpen: number
   layers: LayerView[]
 }
@@ -132,7 +133,7 @@ const smeLayers = (business: TwinBusiness, week: TwinWeek): LayerView[] => {
 }
 
 const smeWeeks = (business: TwinBusiness, weeks: TwinWeek[]): ViewWeek[] => weeks.map((week) => ({
-  offset: week.offset, date: week.date, score: week.funding, ready: week.band === 'ready', criticalOpen: week.criticalOpen, layers: smeLayers(business, week),
+  offset: week.offset, date: week.date, score: week.funding, ready: week.band === 'ready', criticalOpen: week.criticalOpen + week.overdue, layers: smeLayers(business, week),
 }))
 
 export const smeScore = (business: TwinBusiness) => readinessOn(business.input, business.input.now).funding.score ?? 0

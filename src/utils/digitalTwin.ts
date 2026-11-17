@@ -56,8 +56,10 @@ export type TwinWeek = {
   /** Latest monthly revenue reported by then, and its change since the first month recorded (percent). */
   revenue: number | null
   revenueChange: number | null
-  /** Critical funding gates not met that week (missing or expiring documents): 2+ at risk, 1 to watch, 0 in order. */
+  /** Critical funding gates not met that week (missing or expiring documents). */
   criticalOpen: number
+  /** Interventions past their due date and not delivered that week. */
+  overdue: number
 }
 
 /** A change the twin can try. It edits the inputs as if it had happened, then the rules are re-run. */
@@ -139,6 +141,7 @@ export const timeline = (input: TwinInput, from = -WEEKS_BACK, to = WEEKS_AHEAD)
       revenue: last ? last.value : null,
       revenueChange: revenue.length > 1 && revenue[0].value ? Math.round(((last.value - revenue[0].value) / Math.abs(revenue[0].value)) * 100) : null,
       criticalOpen: result.funding.gates.filter((gate) => gate.critical && gate.state !== 'met').length,
+      overdue: planOn(input, date).filter((item, index) => !['Completed', 'Declined', 'Not assigned'].includes(item.status) && !!input.plan[index].dueAt && (input.plan[index].dueAt as Date).getTime() < date.getTime()).length,
     })
   }
   return weeks
