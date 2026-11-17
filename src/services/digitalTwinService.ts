@@ -15,7 +15,7 @@ import { buildLivePlanItems, type LivePlanItem } from '@/utils/liveDiagnosticPla
 
 type Row = DocumentData & { id: string }
 
-export type TwinActivity = { at: Date; layer: 'growth' | 'support' | 'skills' | 'compliance' | 'engagement'; title: string; detail: string }
+export type TwinActivity = { at: Date; layer: 'growth' | 'support' | 'skills' | 'compliance' | 'sustainability' | 'engagement'; title: string; detail: string }
 
 export type TwinBusiness = {
   id: string

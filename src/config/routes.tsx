@@ -117,6 +117,7 @@ import { DiagnosticPlansPage } from '@/pages/operations/DiagnosticPlansPage'
 import RiskRegisterPage from '@/pages/operations/RiskRegisterPage'
 import SmeControlTowerPage from '@/pages/operations/SmeControlTowerPage'
 import DigitalTwinPage from '@/pages/operations/DigitalTwinPage'
+import TrainingTwinPage from '@/pages/training/TrainingTwinPage'
 import ImpactAnalysisPage from '@/pages/operations/ImpactAnalysisPage'
 import OperationsReportsPage from '@/pages/operations/OperationsReportsPage'
 import KpisPage from '@/pages/kpis/KpisPage'
@@ -521,6 +522,8 @@ export const appRoutes: AppRoute[] = [
             { path: '/training/home', labelKey: 'nav.trainingHome', icon: <HomeOutlined />, element: <TrainingHomePage />, allowedRoles: trainingStaffRoles, requiredSetting: awarenessTrainingSetting, audiences: ['operations'], showInNav: true, agentEnabled: true },
             { path: '/training/classes', labelKey: 'nav.trainingClasses', icon: <CalendarOutlined />, element: <TrainingClassesPage />, allowedRoles: trainingStaffRoles, requiredSetting: awarenessTrainingSetting, audiences: ['operations'], showInNav: true, agentEnabled: true },
             { path: '/training/assessments', labelKey: 'nav.trainingAssessments', icon: <FileDoneOutlined />, element: <TrainingAssessmentsPage />, allowedRoles: trainingStaffRoles, requiredSetting: awarenessTrainingSetting, audiences: ['operations'], showInNav: true, agentEnabled: true },
+            { path: '/training/twin', labelKey: 'nav.digitalTwin', icon: <FundProjectionScreenOutlined />, element: <TrainingTwinPage />, allowedRoles: trainingStaffRoles, requiredSetting: awarenessTrainingSetting, audiences: ['operations'], showInNav: true },
+            { path: '/training/twin/:organisationId', labelKey: 'nav.digitalTwin', icon: <FundProjectionScreenOutlined />, element: <TrainingTwinPage />, allowedRoles: trainingStaffRoles, requiredSetting: awarenessTrainingSetting, audiences: ['operations'], showInNav: false },
             { path: '/training/companies', labelKey: 'nav.trainingCompanies', icon: <BankOutlined />, element: <TrainingCompaniesPage />, allowedRoles: trainingStaffRoles, requiredSetting: awarenessTrainingSetting, audiences: ['operations'], showInNav: true, agentEnabled: true },
             { path: '/training/surveys', labelKey: 'nav.trainingSurveys', icon: <FormOutlined />, element: <TrainingSurveysPage />, allowedRoles: trainingStaffRoles, requiredSetting: awarenessTrainingSetting, audiences: ['operations'], showInNav: true, agentEnabled: true },
             { path: '/training/library', labelKey: 'nav.trainingLibrary', icon: <FolderOpenOutlined />, element: <TrainingLibraryPage />, allowedRoles: trainingStaffRoles, requiredSetting: awarenessTrainingSetting, audiences: ['operations'], showInNav: true, agentEnabled: true },
