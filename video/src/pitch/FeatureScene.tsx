@@ -73,16 +73,19 @@ export const AppWindow: React.FC<{ color: string; width?: number; style?: React.
   )
 }
 
-/** The scene's clips one after another, each given an equal share of the scene and crossfaded into the next. */
+/** The scene's clips one after another, each given a share of the scene in proportion to its length (so the whole
+ * scene plays at one even pace), and crossfaded into the next. */
 export const Clips: React.FC<{ clips: Clip[] }> = ({ clips }) => {
   const { durationInFrames } = useVideoConfig()
-  const slot = Math.floor(durationInFrames / clips.length)
+  const lengths = clips.map((clip) => Math.max(0.1, clip.to - clip.from))
+  const total = lengths.reduce((sum, length) => sum + length, 0)
+  const starts = lengths.map((_, index) => Math.round((durationInFrames * lengths.slice(0, index).reduce((sum, length) => sum + length, 0)) / total))
   return (
     <>
       {clips.map((clip, index) => {
         const last = index === clips.length - 1
-        const from = Math.max(0, index * slot - (index ? CROSSFADE : 0))
-        const length = last ? durationInFrames - from : slot + (index ? CROSSFADE : 0)
+        const from = Math.max(0, starts[index] - (index ? CROSSFADE : 0))
+        const length = last ? durationInFrames - from : starts[index + 1] - from
         return (
           <Sequence key={index} from={from} durationInFrames={length} layout="absolute-fill">
             <ClipPlayer clip={clip} fadeIn={index > 0} />
@@ -104,7 +107,7 @@ const ClipPlayer: React.FC<{ clip: Clip; fadeIn: boolean }> = ({ clip, fadeIn })
   const zoom = clip.zoom ? 1 + (clip.zoom.scale - 1) * arrive(frame, Math.round(durationInFrames * 0.2), Math.round(durationInFrames * 0.3)) : 1
 
   return (
-    <AbsoluteFill style={{ opacity: fadeIn ? arrive(frame, 0, CROSSFADE) : 1, background: '#11111a', scale: String(zoom), transformOrigin: clip.zoom ? `${clip.zoom.x * 100}% ${clip.zoom.y * 100}%` : undefined }}>
+    <AbsoluteFill style={{ opacity: fadeIn ? arrive(frame, 0, CROSSFADE) : 1, background: '#ffffff', scale: String(zoom), transformOrigin: clip.zoom ? `${clip.zoom.x * 100}% ${clip.zoom.y * 100}%` : undefined }}>
       <Sequence durationInFrames={played} layout="absolute-fill">{video}</Sequence>
       {played < durationInFrames && (
         <Sequence from={played} layout="absolute-fill">

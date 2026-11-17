@@ -18,7 +18,7 @@ export type PitchProps = { speech: Record<string, number> }
 const TRANSITION = 12
 // The reveal and the close hold a little longer after the voice, so the logo and the call to action can land.
 // A chapter card has no narration: it is just this hold, under two seconds.
-const HOLD: Partial<Record<PitchScene['kind'], number>> = { reveal: 24, close: 60, outcomes: 18, hook: 10, chapter: 26, notifications: 20, screen: 30, whatsapp: 36, dataflow: 30 }
+const HOLD: Partial<Record<PitchScene['kind'], number>> = { reveal: 24, close: 60, outcomes: 18, hook: 10, chapter: 20, notifications: 20, screen: 0, whatsapp: 36, dataflow: 30 }
 
 const voiceFile = (id: string) => `voiceover/pitch/${id}.mp3`
 // Until the narration is generated, scenes are sized from the script at about 2.5 words a second.

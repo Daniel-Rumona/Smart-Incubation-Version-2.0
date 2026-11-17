@@ -744,6 +744,20 @@ const SHOTS = {
       await d.wait(9000)
     },
   },
+  // The training side's twin: one per client company, by its training standing.
+  'training-twin': {
+    as: 'trainer',
+    url: '/training/twin?demo=video',
+    ready: 'Ask the twin',
+    act: async (page, d) => {
+      await d.wait(3000)
+      await d.hover(text(page, 'NEEDS ATTENTION TODAY', { exact: false }), 2500)
+      await d.click(text(page, 'Ask the twin'), 1500)
+      await d.click(page.locator('.dt-question').first(), 5500)
+      await d.click(page.locator('.dt-close'), 1000)
+      await d.wait(8000)
+    },
+  },
   lms: {
     as: 'sme',
     url: '/incubatee/lms?demo=video',
@@ -818,6 +832,218 @@ const SHOTS = {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// The pitch's journey (record in light theme: $env:THEME = 'light'). Each person signs in on camera in their first
+// shot (`signInOnCamera`); every shot then starts where sign-in lands (the Agentic home, or a portal's home) and
+// reaches its page on camera through the top bar or the More menu (`via`), before doing what the shot shows. Saved
+// as p-<name>.mp4, so the walkthrough's own recordings stay as they are.
+
+const topbar = (page, label) => page.locator('#guide-app-topbar').getByText(label, { exact: true }).first()
+const openMenu = (page) => page.locator('.ant-dropdown:visible, .ant-popover:visible').last()
+const viaBar = (...labels) => async (page, d) => {
+  for (const label of labels) await d.click(topbar(page, label), 2500)
+}
+const viaGroup = (group, item) => async (page, d) => {
+  await d.hover(topbar(page, group), 1100)
+  await d.click(openMenu(page).getByText(item, { exact: false }).first(), 2500)
+}
+const viaMore = (item) => async (page, d) => {
+  await d.click(topbar(page, 'More'), 1300)
+  await d.click(openMenu(page).getByText(item, { exact: true }).first(), 2500)
+}
+const AGENTIC_HOME = /ready to work on/
+
+const PITCH_SHOTS = {
+  // Operations: sign in, land on the Agentic home.
+  'p-signin': {
+    as: 'operations',
+    signInOnCamera: true,
+    ready: 'Pending decisions',
+    act: async (page, d) => {
+      await d.wait(1500)
+      await d.hover(text(page, 'Pending decisions'), 1100)
+      await d.hover(text(page, 'Ongoing interventions'), 1100)
+      await d.hover(text(page, 'Active SMEs'), 1100)
+      await d.hover(text(page, 'Which interventions are falling behind?'), 1600)
+    },
+  },
+  'p-agent-assign': { ...SHOTS['agent-assign'] },
+  'p-agent-watch': { ...SHOTS['agent-watch'] },
+  'p-agent-chaser': { ...SHOTS['agent-chaser'] },
+  // The top bar, then into the workspace's dashboard.
+  'p-nav': {
+    as: 'operations',
+    via: async () => {},
+    ready: 'Pending decisions',
+    act: async (page, d) => {
+      const bar = page.locator('#guide-app-topbar')
+      await d.wait(800)
+      for (const [group, items] of [['Incubatees', ['All', 'Applications', 'Compliance']], ['Interventions', ['Assign', 'Monitoring', 'Setup']]]) {
+        await d.hover(bar.getByText(group, { exact: true }), 900)
+        for (const item of items) await d.hover(openMenu(page).getByText(item, { exact: false }).first(), 650)
+        await d.moveTo(960, 600)
+        await d.wait(500)
+      }
+      await d.hover(bar.getByText('Reports', { exact: true }), 800)
+      await d.click(bar.getByText('More', { exact: true }), 1400)
+      for (const item of ['Impact Analysis', 'Courses', 'Diagnostic Plans', 'Control Tower', 'Digital twin']) await d.hover(page.getByText(item, { exact: true }).first(), 600)
+      await page.keyboard.press('Escape')
+      await d.click(bar.getByText('Dashboard', { exact: true }), 4000)
+      await d.hover(text(page, 'Active SMEs'), 1100)
+      await d.hover(text(page, 'Revenue & Employees'), 1300)
+      await d.hover(text(page, 'Compliance Health'), 1100)
+      await d.scroll(450, { x: 960, y: 650, ms: 2200 })
+    },
+  },
+  'p-applications': { ...SHOTS.applications, via: viaGroup('Incubatees', 'Applications') },
+  'p-diagnostic': {
+    ...SHOTS.diagnostic,
+    prepare: undefined,
+    via: viaMore('Diagnostic Plans'),
+    act: async (page, d) => {
+      await d.click(page.getByText(/^Confirmed \d+$/).first(), 1500)
+      await d.click(text(page, 'Ubuntu Harvest', { last: true }), 2500)
+      await d.hover(text(page, 'SWOT Analysis'), 1300)
+      await d.scroll(500, { x: 1130, y: 700, ms: 3000 })
+      await d.wait(1200)
+      await d.scroll(450, { x: 1130, y: 700, ms: 3000 })
+      await d.wait(1200)
+    },
+  },
+  'p-monitoring': { ...SHOTS.monitoring, via: viaGroup('Interventions', 'Monitoring') },
+  'p-readiness': { ...SHOTS.readiness, via: viaMore('Control Tower') },
+  'p-impact': {
+    as: 'operations',
+    via: viaMore('Impact Analysis'),
+    ready: 'Before and after support',
+    act: async (page, d) => {
+      await d.wait(1200)
+      await d.hover(text(page, 'Revenue growth'), 1000)
+      await d.hover(text(page, 'Jobs created'), 1000)
+      await d.hover(text(page, 'Portfolio over time'), 1300)
+      await d.scroll(500, { x: 960, y: 700, ms: 2600 })
+      await d.hover(text(page, 'Before and after support'), 1500)
+    },
+  },
+  'p-twin': { ...SHOTS.twin, url: undefined, via: viaMore('Digital twin') },
+  'p-bell': { ...SHOTS.bell },
+
+  // The consultant who delivers the support.
+  'p-consultant': { ...SHOTS.consultant, signInOnCamera: true, via: viaBar('My interventions') },
+
+  // The business owner: their workspace, then a course with the AI.
+  'p-sme': { ...SHOTS.sme, signInOnCamera: true, via: viaBar('Dashboard') },
+  'p-lms': { ...SHOTS.lms, via: viaMore('Courses') },
+
+  // The director and the funder.
+  'p-director': { ...SHOTS.director, signInOnCamera: true, via: viaBar('Dashboard') },
+  'p-funder': {
+    ...SHOTS.funder,
+    signInOnCamera: true,
+    via: viaBar('Dashboard'),
+    act: async (page, d) => {
+      await d.wait(1200)
+      await d.hover(text(page, 'SMEs supported'), 900)
+      await d.hover(text(page, 'Revenue growth'), 900)
+      await d.hover(text(page, 'Portfolio revenue'), 1200)
+      await d.scroll(450, { x: 960, y: 700, ms: 2200 })
+      await d.wait(1200)
+    },
+  },
+  'p-funder-portfolio': { ...SHOTS['funder-portfolio'], via: viaBar('Portfolio') },
+  'p-funder-sectors': {
+    as: 'funder',
+    via: viaBar('Sector performance'),
+    ready: /Sector/,
+    act: async (page, d) => {
+      await d.wait(2000)
+      await d.hover(page.locator('.ant-card').nth(0), 1200)
+      await d.hover(page.locator('.ant-card').nth(1), 1200)
+      await d.scroll(450, { x: 960, y: 700, ms: 2400 })
+      await d.wait(1200)
+      await d.click(topbar(page, 'Analytics'), 4000)
+      await d.hover(page.locator('.ant-card').nth(0), 1200)
+      await d.hover(page.locator('.ant-card').nth(2), 1200)
+      await d.scroll(450, { x: 960, y: 700, ms: 2400 })
+      await d.wait(1500)
+    },
+  },
+  // Impact opens from More; its demo mode (made-up figures for ten programmes) is then switched on.
+  'p-funder-impact': {
+    ...SHOTS['funder-impact'],
+    via: async (page, d) => {
+      await viaMore('Impact')(page, d)
+      await d.navigate('/funder/impact?demo=1', 'Funding committed', 1500)
+    },
+  },
+
+  // Training: the trainer, a learner, a certified learner and the client company.
+  'p-classes': { ...SHOTS.classes, signInOnCamera: true, via: viaBar('Classes') },
+  'p-learners': { ...SHOTS.learners },
+  'p-assessments': { ...SHOTS.assessments, via: viaBar('Assessments') },
+  'p-learner-test': {
+    ...SHOTS['learner-test'],
+    signInOnCamera: true,
+    via: async (page, d) => {
+      await d.click(topbar(page, 'Dashboard'), 3000)
+      const start = page.getByRole('button', { name: /^Start pre-assessment/ }).first()
+      if (!(await start.isVisible().catch(() => false))) await d.click(page.locator('.ant-tabs-tab', { hasText: 'Tests' }).first(), 1500)
+    },
+  },
+  'p-marking': { ...SHOTS.marking },
+  'p-certificate': {
+    as: 'certified',
+    signInOnCamera: true,
+    via: async (page, d) => {
+      await d.click(topbar(page, 'Dashboard'), 3000)
+      const tab = page.locator('.ant-tabs-tab', { hasText: 'Certificate' }).first()
+      if (await tab.isVisible().catch(() => false)) await d.click(tab, 1500)
+    },
+    ready: 'Download certificate',
+    act: async (page, d) => {
+      await d.wait(1000)
+      await d.hover(text(page, 'Download certificate'), 1500)
+      await d.navigate('/verify/seedCert0000000000001', 'TNS-2026-0001', 2500)
+      await d.scroll(300, { x: 960, y: 600, ms: 1500 })
+      await d.wait(2000)
+    },
+  },
+  'p-company': {
+    as: 'clientCompany',
+    signInOnCamera: true,
+    ready: 'What needs doing',
+    act: async (page, d) => {
+      await d.wait(1200)
+      await d.hover(text(page, 'Team certified', { exact: false }), 1200)
+      await d.hover(text(page, 'What needs doing'), 1200)
+      await d.click(topbar(page, 'Team'), 3000)
+      await d.wait(1200)
+      await d.click(topbar(page, 'Certificates'), 3000)
+      await d.click(topbar(page, 'ESG report'), 3500)
+    },
+  },
+  'p-revenue': {
+    ...SHOTS.revenue,
+    via: viaBar('Revenue'),
+    act: async (page, d) => {
+      await d.wait(1000)
+      await d.hover(text(page, 'Last 12 months'), 900)
+      await d.hover(text(page, 'Outstanding'), 900)
+      await d.scroll(450, { x: 960, y: 700, ms: 2000 })
+      await viaMore('Funder report')(page, d)
+      await page.getByText('Report for funders').first().waitFor({ timeout: 30_000 }).catch(() => undefined)
+      await d.click(page.locator('.ant-select', { hasText: 'The whole company' }).first(), 1000)
+      await d.click(page.locator('.ant-select-dropdown:visible .ant-select-item-option', { hasText: 'Green Enterprise Fund' }).first(), 2500)
+      await d.hover(text(page, 'Women trained'), 1000)
+      await d.hover(text(page, 'Youth (under 35)'), 1000)
+    },
+  },
+  'p-training-twin': { ...SHOTS['training-twin'], via: viaMore('Digital twin') },
+  'p-esg-report': { ...SHOTS['esg-report'], via: viaBar('ESG reports') },
+  'p-esg-footprint': { ...SHOTS['esg-footprint'] },
+}
+Object.assign(SHOTS, PITCH_SHOTS)
+
+// ---------------------------------------------------------------------------------------------------------------
 
 const signIn = async (page, email) => {
   await page.goto(`${APP}/auth`, { waitUntil: 'domcontentloaded', timeout: 90_000 })
@@ -842,12 +1068,20 @@ const recordShot = async (browser, name) => {
   const page = await context.newPage()
   try {
     // Sign in and let the page load and settle off camera; film only once the shot's own content is on screen.
+    // A journey shot (`via`, `signInOnCamera`) films from the sign-in page or from where sign-in lands instead.
+    const settled = () => page.waitForFunction(() => !document.querySelector('.ant-skeleton-active, .ant-skeleton, .ant-spin-spinning'), null, { timeout: 60_000, polling: 500 }).catch(() => console.warn('  still loading after 60 s'))
     if (shot.before) await shot.before()
-    if (shot.login) await shot.login(page)
+    if (shot.signInOnCamera) {
+      await page.goto(`${APP}/auth`, { waitUntil: 'domcontentloaded', timeout: 90_000 })
+      await page.locator('#auth_email').waitFor({ timeout: 60_000 })
+    } else if (shot.login) await shot.login(page)
     else await signIn(page, ACCOUNTS[shot.as])
-    if (!shot.login) await page.goto(`${APP}${shot.url}`, { waitUntil: 'domcontentloaded', timeout: 90_000 })
-    await page.getByText(shot.ready).first().waitFor({ timeout: 90_000 })
-    if (shot.prepare) await shot.prepare(page)
+    if (shot.via && !shot.signInOnCamera) await page.getByText(shot.homeReady ?? AGENTIC_HOME).first().waitFor({ timeout: 90_000 })
+    else if (!shot.signInOnCamera) {
+      if (!shot.login) await page.goto(`${APP}${shot.url}`, { waitUntil: 'domcontentloaded', timeout: 90_000 })
+      await page.getByText(shot.ready).first().waitFor({ timeout: 90_000 })
+      if (shot.prepare) await shot.prepare(page)
+    }
     // Headings render before the figures do: also wait out the loading placeholders.
     await page.waitForFunction(() => !document.querySelector('.ant-skeleton-active, .ant-skeleton, .ant-spin-spinning'), null, { timeout: 60_000, polling: 500 }).catch(() => console.warn('  still loading after 60 s'))
     await wait(2000)
@@ -865,6 +1099,21 @@ const recordShot = async (browser, name) => {
     const director = createDirector(page)
     await director.moveTo(SIZE.width * 0.55, SIZE.height * 0.45, 1)
     await wait(600)
+    if (shot.signInOnCamera) {
+      await director.type(page.locator('#auth_email'), ACCOUNTS[shot.as], { delay: 40, pause: 300 })
+      await director.type(page.locator('#auth_password'), PASSWORD, { delay: 60, pause: 300 })
+      await director.click(page.locator('button[type=submit]'), 500)
+      await page.waitForURL((url) => !url.pathname.startsWith('/auth'), { timeout: 60_000 })
+      await page.getByText(shot.via ? (shot.homeReady ?? AGENTIC_HOME) : shot.ready).first().waitFor({ timeout: 60_000 }).catch(() => console.warn('  home not shown'))
+      await settled()
+      await wait(1500)
+    }
+    if (shot.via) {
+      await shot.via(page, director)
+      await page.getByText(shot.ready).first().waitFor({ timeout: 60_000 }).catch(() => console.warn('  page not shown'))
+      await settled()
+      await wait(800)
+    }
     await shot.act(page, director)
     // Hold the last screen until the narration is over.
     const target = (speechSeconds(name) + HOLD_AFTER_SPEECH_S) * 1000

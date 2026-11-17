@@ -34,8 +34,8 @@ const only = args.filter((arg) => !arg.startsWith('--'))
 
 const outDir = new URL(pitch ? './public/voiceover/pitch/' : './public/voiceover/', import.meta.url)
 mkdirSync(outDir, { recursive: true })
-// The walkthrough is read at a calm pace (0.9); the pitch a touch quicker and livelier.
-const pace = pitch ? { speed: 0.95, style: 0.3 } : { speed: 0.9, style: 0.2 }
+// The walkthrough is read at a calm pace (0.9); the pitch at normal speed (1.0), so its 8-minute cut fits.
+const pace = pitch ? { speed: 1.0, style: 0.3 } : { speed: 0.9, style: 0.2 }
 
 for (const scene of pitch ? PITCH : SCENES) {
   const file = new URL(`${scene.id}.mp3`, outDir)
