@@ -37,6 +37,7 @@ export const DigitalTwinPage = () => {
 
   return (
     <TwinScreen
+      key={current.subject.id}
       kind={SME_KIND}
       subjects={subjects}
       subject={current.subject}

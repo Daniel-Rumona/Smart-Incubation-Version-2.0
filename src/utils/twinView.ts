@@ -59,6 +59,8 @@ export type TwinSubject = {
   peerGroup: string
   activity: TwinActivity[]
   now: Date
+  /** The same business on the platform's other side (an SME that is also a training client), when linked. */
+  linked: { label: string; name: string; href: string } | null
 }
 
 /** The words that change between the two sides. */
@@ -96,6 +98,7 @@ export const smeSubject = (business: TwinBusiness): TwinSubject => ({
   peerGroup: `${business.programId || ''}|${business.sector || ''}`,
   activity: business.activity,
   now: business.input.now,
+  linked: business.linkedOrganisation ? { label: 'Also a training client', name: business.linkedOrganisation.name, href: `/training/twin/${business.linkedOrganisation.id}` } : null,
 })
 
 const smeLayers = (business: TwinBusiness, week: TwinWeek): LayerView[] => {

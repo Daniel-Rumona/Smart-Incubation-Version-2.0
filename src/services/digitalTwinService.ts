@@ -31,6 +31,8 @@ export type TwinBusiness = {
   overdue: number
   /** LMS courses, when the workspace's records can be read. */
   courses: { completed: number; total: number } | null
+  /** The same business as a training client in this workspace, linked on the company (linkedParticipantId) or by name. */
+  linkedOrganisation: { id: string; name: string } | null
 }
 
 const text = (...values: unknown[]) => values.map((value) => String(value ?? '').trim()).find(Boolean) || ''
@@ -56,13 +58,15 @@ export const loadTwinBusinesses = async (user: FullIdentity, activeProgramId?: s
   const companyCode = text(user.companyCode)
   if (!companyCode) return []
 
-  const [participantSnap, documentSnap, assignmentSnap, programSnap, courseRead] = await Promise.all([
+  const [participantSnap, documentSnap, assignmentSnap, programSnap, courseRead, organisationRead] = await Promise.all([
     getDocs(query(collection(db, 'participants'), where('companyCode', '==', companyCode))),
     getDocs(query(collection(db, 'complianceDocuments'), where('companyCode', '==', companyCode))),
     getDocs(query(collection(db, 'assignedInterventions'), where('companyCode', '==', companyCode))),
     getDocs(query(collection(db, 'programs'), where('companyCode', '==', companyCode))),
     getDocs(query(collection(db, 'courseProgress'), where('companyCode', '==', companyCode))).then((snap) => snap, () => null),
+    getDocs(query(collection(db, 'trainingOrganisations'), where('companyCode', '==', companyCode))).then((snap) => snap, () => null),
   ])
+  const organisations = (organisationRead?.docs || []).map((row) => ({ id: row.id, name: text(row.data().name), linkedParticipantId: text(row.data().linkedParticipantId) }))
 
   const participants: Row[] = participantSnap.docs
     .map((row) => ({ id: row.id, ...row.data() }) as Row)
@@ -151,6 +155,11 @@ export const loadTwinBusinesses = async (user: FullIdentity, activeProgramId?: s
       activity: activity.filter((item) => item.at.getTime() <= now.getTime()).sort((a, b) => b.at.getTime() - a.at.getTime()).slice(0, 8),
       overdue: twinPlan.filter((item) => !['Completed', 'Declined', 'Not assigned'].includes(item.status) && item.dueAt && item.dueAt.getTime() < now.getTime()).length,
       courses: courseRead ? { completed: courses.filter((row) => text(row.status) === 'completed').length, total: courses.length } : null,
+      linkedOrganisation: (() => {
+        const name = text(participant.businessName, participant.companyName).toLowerCase()
+        const found = organisations.find((row) => row.linkedParticipantId === participant.id) || organisations.find((row) => !row.linkedParticipantId && name && row.name.toLowerCase() === name)
+        return found ? { id: found.id, name: found.name } : null
+      })(),
     }
   })
 }

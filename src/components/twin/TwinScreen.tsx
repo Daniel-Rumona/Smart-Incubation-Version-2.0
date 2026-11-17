@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { Select } from 'antd'
 import { WEEKS_BACK } from '@/utils/digitalTwin'
 import { READY_SCORE } from '@/utils/readiness'
@@ -6,12 +7,18 @@ import { longDate, shortDate, signed, weekDate, type LayerKey, type TwinBuild, t
 import '@/styles/digital-twin.css'
 
 /**
+ * Keyed by the business in the pages, so switching business starts afresh: no moves, no conversation, today.
+ *
  * The digital twin of one business, on one screen, for either side of the platform. The whole twin follows the
  * time machine: as it plays (or a week is picked), the core, the orbiting layers and the layer bars show that week,
  * rebuilt from the records or projected ahead, on plan or with the moves picked. Its colour says how it stands: red at
  * risk, amber to watch, green in order, and the picked moves count. The numbers all come from `build`, the side's
  * own rules.
  */
+
+// The time machine's pace, as in Lepharo's twin: 4 days a second, a pause at the end, then round again.
+const WEEKS_PER_SECOND = 4 / 7
+const HOLD_AT_END_MS = 2600
 
 const COLOR: Record<LayerKey | 'engagement', string> = { growth: '#34d399', support: '#60a5fa', skills: '#c4b5fd', compliance: '#fbbf24', sustainability: '#2dd4bf', readiness: '#f9a8d4', engagement: '#22c55e' }
 type Risk = 'risk' | 'watch' | 'order'
@@ -46,24 +53,40 @@ export const TwinScreen = ({ kind, subjects, subject, build, onSelect }: Props) 
   const [chatOpen, setChatOpen] = useState(false)
   const [chat, setChat] = useState<Array<{ from: 'you' | 'twin'; text: string }>>([])
   const [draft, setDraft] = useState('')
-
-  // A different business starts with a clean slate: no moves, no conversation, the time machine on today.
-  const [scope, setScope] = useState(subject.id)
-  if (scope !== subject.id) {
-    setScope(subject.id)
-    setPicked({})
-    setChat([])
-    setCursor(WEEKS_BACK)
-  }
+  const [speed, setSpeed] = useState(1)
+  // The scanner glides smoothly; its position (in weeks) lives in a ref so only a new week re-renders.
+  const position = useRef(WEEKS_BACK)
+  const scanner = useRef<HTMLDivElement>(null)
 
   const twin = useMemo(() => build(picked), [build, picked])
   const weeks = twin.base.length
-  // The time machine plays the weeks in a loop: from today to the end, then the history, and round again.
+  // From today to the end, a pause, then from the start of the history, and round again.
   useEffect(() => {
     if (!playing || !weeks) return
-    const timer = window.setInterval(() => setCursor((value) => (value + 1) % weeks), 420)
-    return () => window.clearInterval(timer)
-  }, [playing, weeks])
+    let last = performance.now()
+    let holdUntil = 0
+    let frame = 0
+    const tick = (now: number) => {
+      const elapsed = (now - last) / 1000
+      last = now
+      if (holdUntil) {
+        if (now >= holdUntil) { holdUntil = 0; position.current = 0 }
+      } else {
+        position.current += elapsed * WEEKS_PER_SECOND * speed
+        if (position.current >= weeks - 1) { position.current = weeks - 1; holdUntil = now + HOLD_AT_END_MS }
+      }
+      if (scanner.current) scanner.current.style.left = `${((position.current + 0.5) / weeks) * 100}%`
+      const rounded = Math.round(position.current)
+      setCursor((previous) => (previous === rounded ? previous : rounded))
+      frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [playing, speed, weeks])
+  // Paused, the scanner rests on the picked week.
+  useEffect(() => {
+    if (!playing && scanner.current && weeks) scanner.current.style.left = `${((cursor + 0.5) / weeks) * 100}%`
+  }, [playing, cursor, weeks])
 
   const peers = useMemo(() => {
     const group = subjects.filter((row) => row.subject.peerGroup === subject.peerGroup)
@@ -72,6 +95,7 @@ export const TwinScreen = ({ kind, subjects, subject, build, onSelect }: Props) 
     return { ahead: group.filter((row) => row.subject.id !== subject.id && row.score < mine).length, others: group.length - 1 }
   }, [subjects, subject])
 
+  const positionAt = (week: number) => { position.current = week }
   const today = subject.now
   const anyMove = Object.values(picked).some(Boolean)
   const series = twin.base.map((week, index) => (week.offset > 0 && twin.moved ? twin.moved[index] : week))
@@ -120,6 +144,12 @@ export const TwinScreen = ({ kind, subjects, subject, build, onSelect }: Props) 
             <div className='dt-sub'>{subject.sub}</div>
           </div>
           <span key={risk} className='dt-status'><i aria-hidden='true' />{RISK_LABEL[risk]}</span>
+          {subject.linked && (
+            <Link to={subject.linked.href} className='dt-linked' title={`Open the twin of ${subject.linked.name}`}>
+              <span>{subject.linked.label}</span>
+              <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.2' strokeLinecap='round' strokeLinejoin='round' aria-hidden='true'><path d='M7 17L17 7' /><path d='M8 7h9v9' /></svg>
+            </Link>
+          )}
         </div>
         <div className='dt-tools'>
           <Select
@@ -220,6 +250,7 @@ export const TwinScreen = ({ kind, subjects, subject, build, onSelect }: Props) 
                 <div className='dt-today-beam' style={{ left: `${((WEEKS_BACK + 0.5) / series.length) * 100}%` }} aria-hidden='true'>
                   <span>Today · {shortDate(today)}</span>
                 </div>
+                <div ref={scanner} className='dt-scanline' aria-hidden='true' />
                 {series.map((week, position) => {
                   const future = week.offset > 0
                   const cls = ['dt-bar', `dt-bar-${toneOf(week)}`, future ? 'dt-bar-future' : '', future && anyMove ? 'dt-bar-moved' : '', week.offset === 0 ? 'dt-bar-today' : '', position === index ? 'dt-bar-active' : ''].filter(Boolean).join(' ')
@@ -228,9 +259,9 @@ export const TwinScreen = ({ kind, subjects, subject, build, onSelect }: Props) 
                       key={week.offset}
                       type='button'
                       className={cls}
-                      style={{ height: `${Math.max(3, week.score)}%` }}
+                      style={{ height: `${Math.max(3, week.score)}%`, '--i': position } as CSSProperties}
                       aria-label={`${shortDate(week.date)}: ${kind.scoreLabel.toLowerCase()} ${week.score}`}
-                      onClick={() => { setPlaying(false); setCursor(position) }}
+                      onClick={() => { setPlaying(false); setCursor(position); positionAt(position) }}
                     />
                   )
                 })}
@@ -255,7 +286,10 @@ export const TwinScreen = ({ kind, subjects, subject, build, onSelect }: Props) 
       </div>
 
       <footer className='dt-bottom'>
-        <button type='button' className='dt-play' aria-pressed={playing} onClick={() => setPlaying(!playing)}>{playing ? 'Pause' : 'Play'}</button>
+        <div className='dt-controls'>
+          <button type='button' className='dt-play' aria-pressed={playing} onClick={() => setPlaying(!playing)}>{playing ? 'Pause' : 'Play'}</button>
+          <button type='button' className='dt-play dt-speed' aria-label={`Playback speed ${speed} times`} onClick={() => setSpeed((value) => (value >= 4 ? 1 : value * 2))}>{speed}×</button>
+        </div>
         <div className='dt-strip'>
           <div className='dt-eyebrow'>Coming up</div>
           <div className='dt-chips'>

@@ -35,6 +35,7 @@ export const TrainingTwinPage = () => {
 
   return (
     <TwinScreen
+      key={current.subject.id}
       kind={COMPANY_KIND}
       subjects={subjects}
       subject={current.subject}

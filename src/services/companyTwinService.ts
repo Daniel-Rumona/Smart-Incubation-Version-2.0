@@ -33,8 +33,8 @@ const read = async (name: string, companyCode: string): Promise<Row[]> => {
 export const loadCompanyTwins = async (user: FullIdentity, now = new Date()): Promise<CompanyTwinSource[]> => {
   const companyCode = text(user.companyCode)
   if (!companyCode) return []
-  const [organisations, learners, classes, certificates, submissions, metrics, reports] = await Promise.all(
-    ['trainingOrganisations', 'trainingLearners', 'trainingClasses', 'trainingCertificates', 'trainingSubmissions', 'trainingOrgMetrics', 'esgReports'].map((name) => read(name, companyCode)),
+  const [organisations, learners, classes, certificates, submissions, metrics, reports, participants] = await Promise.all(
+    ['trainingOrganisations', 'trainingLearners', 'trainingClasses', 'trainingCertificates', 'trainingSubmissions', 'trainingOrgMetrics', 'esgReports', 'participants'].map((name) => read(name, companyCode)),
   )
 
   const classById = new Map(classes.map((row) => {
@@ -42,6 +42,9 @@ export const loadCompanyTwins = async (user: FullIdentity, now = new Date()): Pr
     const days = Math.max(1, Number(row.dayCount) || 1)
     return [row.id, { title: text(row.courseTitle) || 'a class', start, end: start ? new Date(start.getTime() + (days - 1) * DAY_MS + 9 * 3_600_000) : null, passMark: Number(row.passMarkPct) || 50 }]
   }))
+  // The provider's pass rate across all its clients, for the cautious forecast.
+  const allFinals = submissions.filter((row) => text(row.kind) === 'post' && text(row.status) === 'marked')
+  const providerRate = allFinals.length ? allFinals.filter((row) => (Number(row.scorePct) || 0) >= (classById.get(text(row.classId))?.passMark ?? 50)).length / allFinals.length : null
   const nextClass = [...classById.values()]
     .filter((row) => row.start && row.end && row.start.getTime() > now.getTime())
     .sort((a, b) => (a.start as Date).getTime() - (b.start as Date).getTime())[0] || null
@@ -92,8 +95,12 @@ export const loadCompanyTwins = async (user: FullIdentity, now = new Date()): Pr
       metrics: ownMetrics.map(({ period, revenue, employees }) => ({ period, revenue, employees })),
       esg,
       nextClass: nextClass ? { title: nextClass.title, start: nextClass.start as Date, end: nextClass.end as Date } : null,
+      providerRate,
     }
     const details = (organisation.details || {}) as Record<string, unknown>
+    // The same business as an incubation SME in this workspace: linked on the company, or the same name.
+    const sme = participants.find((row) => row.id === text(organisation.linkedParticipantId))
+      || (!text(organisation.linkedParticipantId) ? participants.find((row) => text(row.businessName, row.companyName).toLowerCase() === nameKey) : undefined)
     return {
       input,
       subject: {
@@ -103,6 +110,7 @@ export const loadCompanyTwins = async (user: FullIdentity, now = new Date()): Pr
         peerGroup: text(details.sector) || 'all',
         activity: activity.filter((item) => item.at.getTime() <= now.getTime()).sort((a, b) => b.at.getTime() - a.at.getTime()).slice(0, 8),
         now,
+        linked: sme ? { label: 'Also an incubation SME', name: text(sme.businessName, sme.companyName), href: `/operations/participants/digital-twin/${sme.id}` } : null,
       },
     }
   })

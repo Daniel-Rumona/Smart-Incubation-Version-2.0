@@ -15,7 +15,9 @@ import { longDate, money, share, shortDate, signed, weekDate, type LayerView, ty
  * - ESG report: final, or in progress (left out when it has none).
  *
  * History is rebuilt week by week from the dates on those records. Ahead, "on plan" means the people booked on a
- * class pass at the company's current pass rate when the class ends; the screen says so. Pure: no Firestore.
+ * class pass when it ends at a cautious rate: the lower of the company's own pass rate and the provider's average
+ * across all its clients, so one good class does not make a company look better than it is. The screen says so.
+ * Pure: no Firestore.
  */
 
 const DAY_MS = 86_400_000
@@ -34,6 +36,8 @@ export type CompanyInput = {
   esg: { status: 'draft' | 'in_review' | 'final'; createdAt: Date | null; finalAt: Date | null } | null
   /** The provider's next class that has not started, for the "book them" move. */
   nextClass: { title: string; start: Date; end: Date } | null
+  /** The provider's pass rate across all its clients' marked final assessments (0-1), or null. */
+  providerRate: number | null
 }
 
 export type CompanyTwinSource = { subject: TwinSubject; input: CompanyInput }
@@ -50,7 +54,9 @@ const passRate = (input: CompanyInput, when: Date) => {
 /** Everything the gates and layers need on one date. Ahead of today, booked people pass at the current pass rate. */
 const stateOn = (input: CompanyInput, when: Date) => {
   const now = input.now.getTime()
-  const rateNow = passRate(input, input.now) ?? 0
+  // The cautious rate for the weeks ahead: the lower of the company's own and the provider's average.
+  const own = passRate(input, input.now)
+  const rateNow = own === null ? input.providerRate ?? 0 : input.providerRate === null ? own : Math.min(own, input.providerRate)
   const ended = input.learners.filter((learner) => learner.classEnd && learner.classEnd.getTime() <= when.getTime())
   const certified = input.learners.reduce((sum, learner) => {
     if (learner.certifiedAt) return sum + (learner.certifiedAt.getTime() <= when.getTime() ? 1 : 0)
@@ -155,7 +161,7 @@ export const COMPANY_KIND: TwinKind = {
   eyebrow: 'Digital twin · Training client company',
   scoreLabel: 'Training standing',
   readyPhrase: 'in good standing',
-  assumption: 'Assumes people booked on a class pass at the company’s current pass rate.',
+  assumption: 'Assumes people booked on a class pass at the lower of the company’s and the provider’s pass rate.',
   path: '/training/twin',
 }
 
@@ -218,7 +224,7 @@ export const buildCompanyTwin = (source: CompanyTwinSource, picked: Record<strin
         ? 'No move open today changes its standing. Ask why it is not in good standing yet to see what remains.'
         : `These ${helpful.length} move${helpful.length === 1 ? '' : 's'} together ${fastReady === null ? `lift its training standing to ${fastWeeks[12]?.score ?? 0} in 12 weeks` : `put ${subject.name} in good standing by ${longDate(weekDate(now, fastReady))}`}: ${helpful.map((move) => move.title.toLowerCase()).join('; ')}. I have switched them on, so the whole twin now shows that future.`,
       why: steps.length ? `Its training standing is ${score}; good standing means ${READY_SCORE} or more with the company details and documents in place. What remains: ${steps.join('; ')}.` : 'Every gate is met: it is in good standing.',
-      nothing: `On plan, its training standing goes from ${score} today to ${at12(base.filter((week) => week.offset >= 0))} in 12 weeks${baseReady === null ? ', and it is not in good standing within 26 weeks' : `, in good standing by ${longDate(weekDate(now, baseReady))}`}. This assumes people booked on a class pass at the current pass rate.`,
+      nothing: `On plan, its training standing goes from ${score} today to ${at12(base.filter((week) => week.offset >= 0))} in 12 weeks${baseReady === null ? ', and it is not in good standing within 26 weeks' : `, in good standing by ${longDate(weekDate(now, baseReady))}`}. This assumes people booked on a class pass at the lower of its own and the provider's pass rate.`,
     },
   }
 }
