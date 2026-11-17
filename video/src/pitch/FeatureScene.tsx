@@ -100,9 +100,11 @@ const ClipPlayer: React.FC<{ clip: Clip; fadeIn: boolean }> = ({ clip, fadeIn })
   const rate = Math.min(MAX_RATE, Math.max(MIN_RATE, sourceFrames / durationInFrames))
   const played = Math.min(durationInFrames, Math.floor(sourceFrames / rate))
   const video = <Video src={staticFile(`recordings/${clip.src}.mp4`)} muted trimBefore={Math.round(clip.from * FPS)} trimAfter={Math.round(clip.to * FPS)} playbackRate={rate} style={{ width: '100%', height: '100%' }} />
+  // An optional push-in on one point of the screen, over the middle of the clip.
+  const zoom = clip.zoom ? 1 + (clip.zoom.scale - 1) * arrive(frame, Math.round(durationInFrames * 0.2), Math.round(durationInFrames * 0.3)) : 1
 
   return (
-    <AbsoluteFill style={{ opacity: fadeIn ? arrive(frame, 0, CROSSFADE) : 1, background: '#11111a' }}>
+    <AbsoluteFill style={{ opacity: fadeIn ? arrive(frame, 0, CROSSFADE) : 1, background: '#11111a', scale: String(zoom), transformOrigin: clip.zoom ? `${clip.zoom.x * 100}% ${clip.zoom.y * 100}%` : undefined }}>
       <Sequence durationInFrames={played} layout="absolute-fill">{video}</Sequence>
       {played < durationInFrames && (
         <Sequence from={played} layout="absolute-fill">

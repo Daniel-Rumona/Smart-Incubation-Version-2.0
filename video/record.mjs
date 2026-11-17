@@ -175,6 +175,36 @@ const modal = (page) => page.locator('.ant-modal-wrap:not([style*="display: none
 // `as` signs in; `url` opens the page (a query string opens the workspace view instead of the Agentic home);
 // filming starts once `ready` is on screen and `prepare` has run off camera.
 
+// The agent's chat keeps the last 24 hours, so each agent shot starts from an empty one (emulator data only).
+const clearAgentChat = async () => {
+  const base = 'http://127.0.0.1:8080/v1/projects/demo-smartinc/databases/(default)/documents'
+  const headers = { Authorization: 'Bearer owner' }
+  const { documents = [] } = await (await fetch(`${base}/agentChatMessages?pageSize=500`, { headers })).json()
+  for (const doc of documents) await fetch(`http://127.0.0.1:8080/v1/${doc.name}`, { method: 'DELETE', headers })
+}
+
+// Sends a request to the agent and answers its follow-up questions (`replies`, in order) until its card shows
+// Confirm; then confirms it on camera.
+const agentTurn = async (page, d, request, replies = []) => {
+  const confirm = page.locator('.agentic-conversation button:visible', { hasText: /^Confirm/ }).last()
+  const answered = () => confirm.waitFor({ timeout: 50_000 }).then(() => true, () => false)
+  const say = async (words) => {
+    await d.type(page.locator('input[placeholder]').last(), words, { delay: 50 })
+    await page.keyboard.press('Enter')
+  }
+  await say(request)
+  let ok = await answered()
+  for (const reply of replies) {
+    if (ok) break
+    await d.wait(2500)
+    await say(reply)
+    ok = await answered()
+  }
+  if (!ok) return console.warn('  the agent never asked for confirmation')
+  await d.wait(3500)
+  await d.click(confirm, 4500)
+}
+
 const SHOTS = {
   // ---- Incubation ----
   'ops-home': {
@@ -617,6 +647,174 @@ const SHOTS = {
       await d.hover(page.locator('tr', { hasText: 'Demo Sustainability Training' }).locator('.ant-switch').first(), 1500)
     },
   },
+
+  // ---- The pitch's own shots (src/pitch/script.ts): the agent at work, navigation, the twin, the LMS, Qx-Core ----
+  nav: {
+    as: 'operations',
+    url: '/operations',
+    ready: 'Pending decisions',
+    act: async (page, d) => {
+      const bar = page.locator('#guide-app-topbar')
+      await d.wait(1000)
+      await d.hover(bar.getByText('Dashboard', { exact: true }), 900)
+      // Incubatees and Interventions open on hover (a click would close them again).
+      for (const [group, items] of [['Incubatees', ['All', 'Applications', 'Compliance']], ['Interventions', ['Assign', 'Monitoring', 'Setup']]]) {
+        await d.hover(bar.getByText(group, { exact: true }), 900)
+        const menu = page.locator('.ant-dropdown:visible').last()
+        for (const item of items) await d.hover(menu.getByText(item, { exact: false }).first(), 650)
+        await d.moveTo(960, 600)
+        await d.wait(500)
+      }
+      await d.hover(bar.getByText('Reports', { exact: true }), 800)
+      await d.click(bar.getByText('More', { exact: true }), 1400)
+      for (const item of ['Impact Analysis', 'Courses', 'Diagnostic Plans', 'Control Tower']) await d.hover(page.getByText(item, { exact: true }).first(), 650)
+      await d.click(page.getByText('Digital twin', { exact: true }).first(), 6000)
+    },
+  },
+  'agent-assign': {
+    as: 'operations',
+    url: '/operations',
+    ready: 'Pending decisions',
+    before: clearAgentChat,
+    act: async (page, d) => {
+      await d.wait(900)
+      await d.click(page.locator('.anticon-plus').last(), 900)
+      await d.click(text(page, 'Assign an intervention', { last: true }), 1800)
+      const form = modal(page)
+      await d.click(form.getByRole('button', { name: 'Select' }).first(), 1500)
+      await d.click(form.locator('.ant-select').first(), 1000)
+      // The one item of its plan not yet assigned (scripts/seed-emulators-incubators.mjs).
+      await d.click(page.locator('.ant-select-dropdown:visible .ant-select-item-option', { hasText: 'Sales Pipeline Coaching' }).first(), 1000)
+      await d.click(form.locator('.ant-select').nth(1), 1000)
+      await d.click(page.locator('.ant-select-dropdown:visible .ant-select-item-option', { hasText: 'Nomsa' }).first(), 1000)
+      await d.type(form.locator('.ant-picker input').first(), '2026-11-30', { delay: 60 })
+      // Enter sets the date and sends the form to the agent.
+      await page.keyboard.press('Enter')
+      await d.wait(600)
+      if (await form.isVisible().catch(() => false)) await d.click(form.getByRole('button', { name: /Prepare with the agent/ }), 1500)
+      // The agent drafts the assignment; nothing is saved until a person confirms.
+      const confirm = page.locator('.agentic-conversation button:visible', { hasText: /^Confirm/ }).last()
+      if (!(await confirm.waitFor({ timeout: 50_000 }).then(() => true, () => false))) {
+        await d.type(page.locator('input[placeholder]').last(), 'Due 30 November, no first appointment for now. Go ahead.', { delay: 50 })
+        await page.keyboard.press('Enter')
+        await confirm.waitFor({ timeout: 50_000 }).catch(() => console.warn('  the agent never asked for confirmation'))
+      }
+      await d.wait(3500)
+      await d.click(confirm, 4500)
+    },
+  },
+  'agent-watch': {
+    as: 'operations',
+    url: '/operations',
+    ready: 'Pending decisions',
+    before: clearAgentChat,
+    act: async (page, d) => {
+      await d.wait(900)
+      await d.click(page.locator('.anticon-plus').last(), 900)
+      await d.click(text(page, 'New watch', { last: true }), 1200)
+      await agentTurn(page, d, 'Tell me when any SME has an overdue intervention. Call it Overdue interventions.', ['Call it Overdue interventions'])
+    },
+  },
+  'agent-chaser': {
+    as: 'operations',
+    url: '/operations',
+    ready: 'Pending decisions',
+    before: clearAgentChat,
+    act: async (page, d) => {
+      await d.wait(900)
+      await d.click(page.locator('.anticon-plus').last(), 900)
+      await d.click(text(page, 'New chaser', { last: true }), 1200)
+      await agentTurn(page, d, 'Chase Bophelo Organics to finish Business Plan Refresh and the Cash Flow & Budgeting Workshop by 30 November', ['Yes, those two', 'Yes, go ahead'])
+    },
+  },
+  twin: {
+    as: 'operations',
+    url: '/operations/participants/digital-twin?demo=video',
+    ready: 'Ask the twin',
+    act: async (page, d) => {
+      // The twin plays on its own: history at speed, today, then the plan ahead.
+      await d.wait(2500)
+      await d.hover(text(page, 'NEEDS ATTENTION TODAY', { exact: false }), 2500)
+      await d.hover(page.locator('.dt-play').first(), 3500)
+      await d.click(text(page, 'Ask the twin'), 1200)
+      await d.type(page.locator('#dt-ask'), "What's the fastest way to be funding-ready?", { delay: 45 })
+      // A typed question goes to the twin's own rules; "fastest" also switches on the moves that help.
+      await d.click(page.getByRole('button', { name: 'Fastest way to be funding-ready?' }), 5500)
+      await d.click(page.locator('.dt-close'), 1000)
+      await d.wait(9000)
+    },
+  },
+  lms: {
+    as: 'sme',
+    url: '/incubatee/lms?demo=video',
+    ready: 'Cash flow basics for small businesses',
+    act: async (page, d) => {
+      await d.wait(1000)
+      await d.hover(text(page, 'Cash flow basics for small businesses', { last: true }), 900)
+      await d.click(button(page, 'Start', { last: true }), 3000)
+      await page.getByText('Three habits keep cash flowing', { exact: false }).first().waitFor({ timeout: 20_000 }).catch(() => {})
+      await d.hover(page.getByText('What cash flow is, and why profit is not cash').last(), 1500)
+      await d.hover(page.getByText('Three habits keep cash flowing', { exact: false }).first(), 2000)
+      await d.click(page.getByText(/Ask AI/).first(), 2000)
+      // The question box sits under the lesson's bottom bar: focus it and type, as a person tapping it would.
+      await d.moveTo(900, 1000)
+      await page.locator('textarea, input[placeholder]').last().focus()
+      await page.keyboard.type('We sell vegetables to shops that pay us after 60 days. How do we keep cash coming in?', { delay: 40 })
+      await d.wait(500)
+      await page.keyboard.press('Enter')
+      await page.getByText('Simplify that').first().waitFor({ timeout: 60_000 }).catch(() => console.warn('  no answer'))
+      await d.wait(1500)
+      await d.scroll(300, { x: 960, y: 500, ms: 2500 })
+      await d.wait(3000)
+    },
+  },
+  // Qx-Core, the live product, signed in as its test company (QX_EMAIL / QX_PASSWORD; never printed). It only looks
+  // and asks: it confirms nothing, since a confirmed card posts to the books.
+  qx: {
+    url: 'https://qxa.quantilytix.co.za',
+    ready: 'Dashboard',
+    login: async (page) => {
+      if (!process.env.QX_EMAIL || !process.env.QX_PASSWORD) throw new Error('Set QX_EMAIL and QX_PASSWORD to record the Qx-Core shot')
+      await page.goto('https://qxa.quantilytix.co.za', { waitUntil: 'domcontentloaded', timeout: 90_000 })
+      await page.locator('input[type=email], input[name*=mail i], input[placeholder*=mail i]').first().fill(process.env.QX_EMAIL, { timeout: 30_000 })
+      await page.locator('input[type=password]').first().fill(process.env.QX_PASSWORD)
+      await page.keyboard.press('Enter')
+      await page.waitForFunction(() => !document.body.innerText.includes('Logging in'), null, { timeout: 90_000 })
+      await wait(6000)
+    },
+    prepare: async (page) => {
+      for (const label of ['Got it, thanks', 'Remind me later']) {
+        const dismiss = page.getByText(label).first()
+        if (await dismiss.isVisible().catch(() => false)) { await dismiss.click().catch(() => {}); await wait(1200) }
+      }
+      // The menu collapses to icons, so the customer names in its recent activity stay off camera.
+      await page.mouse.click(48, 48)
+      await wait(1200)
+      await page.mouse.click(48, 204)
+      await wait(8000)
+    },
+    act: async (page, d) => {
+      await d.wait(800)
+      for (const card of ["THIS MONTH'S SALES", 'OUTSTANDING (AR)', 'CRITICAL & HIGH RISKS']) await d.hover(page.getByText(card, { exact: false }).first(), 900)
+      await d.scroll(450, { x: 1100, y: 700, ms: 2200 })
+      const icon = async (y, pause) => { await d.moveTo(48, y); await d.wait(250); await page.mouse.down(); await page.mouse.up(); await d.wait(pause) }
+      await icon(336, 3000) // Business Health
+      // Qx-Core raises its risk alert here after a few seconds: shown for a moment, then put off.
+      const later = page.getByText('Remind me later').first()
+      if (await later.waitFor({ timeout: 12_000 }).then(() => true, () => false)) {
+        await d.wait(2500)
+        await d.click(later, 1500)
+      }
+      await d.scroll(350, { x: 1100, y: 700, ms: 2000 })
+      await d.wait(1200)
+      await icon(104, 2500) // New chat
+      await d.moveTo(1000, 762)
+      await page.locator('textarea, input[placeholder]').last().focus()
+      await page.keyboard.type('Show my income statement for this month', { delay: 45 })
+      await page.keyboard.press('Enter')
+      await d.wait(25_000)
+    },
+  },
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -644,8 +842,10 @@ const recordShot = async (browser, name) => {
   const page = await context.newPage()
   try {
     // Sign in and let the page load and settle off camera; film only once the shot's own content is on screen.
-    await signIn(page, ACCOUNTS[shot.as])
-    await page.goto(`${APP}${shot.url}`, { waitUntil: 'domcontentloaded', timeout: 90_000 })
+    if (shot.before) await shot.before()
+    if (shot.login) await shot.login(page)
+    else await signIn(page, ACCOUNTS[shot.as])
+    if (!shot.login) await page.goto(`${APP}${shot.url}`, { waitUntil: 'domcontentloaded', timeout: 90_000 })
     await page.getByText(shot.ready).first().waitFor({ timeout: 90_000 })
     if (shot.prepare) await shot.prepare(page)
     // Headings render before the figures do: also wait out the loading placeholders.

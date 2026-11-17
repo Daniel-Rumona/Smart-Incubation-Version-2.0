@@ -22,7 +22,7 @@ const toChunks = (text: string): string[] => {
  * Subtitles for viewers watching muted. The narration is split into sentences and each one is shown for a share
  * of the spoken time in proportion to its length, which tracks ElevenLabs' even delivery closely enough.
  */
-export const Captions: React.FC<{ text: string; speechFrames: number; bottom?: number }> = ({ text, speechFrames, bottom = 36 }) => {
+export const Captions: React.FC<{ text: string; speechFrames: number; bottom?: number; top?: number }> = ({ text, speechFrames, bottom = 36, top }) => {
   const frame = useCurrentFrame() - LEAD_IN_FRAMES
   const sentences = toChunks(text)
   const total = sentences.reduce((sum, sentence) => sum + sentence.length, 0)
@@ -38,7 +38,7 @@ export const Captions: React.FC<{ text: string; speechFrames: number; bottom?: n
   if (!current) return null
 
   return (
-    <div style={{ position: 'absolute', left: 0, right: 0, bottom, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
+    <div style={{ position: 'absolute', left: 0, right: 0, ...(top === undefined ? { bottom } : { top }), display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
       <div
         key={current.start}
         style={{
