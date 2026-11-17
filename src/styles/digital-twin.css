@@ -119,9 +119,16 @@
 .dt-ready-plane { position: absolute; left: 2%; right: 2%; bottom: 10%; transform-origin: 50% 100%; transform: rotateX(-58deg) translateZ(-1px); border-top: 1px dashed rgba(110, 231, 183, 0.8); background: linear-gradient(180deg, rgba(52, 211, 153, 0.08), transparent 70%); pointer-events: none; }
 .dt-ready-plane span { position: absolute; right: 0; top: -18px; font-size: 11px; color: #6ee7b7; }
 .dt-bar { flex: 1 1 0; min-width: 0; padding: 0; border: 0; cursor: pointer; border-radius: 3px 3px 0 0; background: linear-gradient(180deg, #c4b5fd, #6d28d9 55%, rgba(76, 29, 149, 0.4)); box-shadow: 0 0 8px rgba(139, 92, 246, 0.45); opacity: 0.85; transition: height 0.6s ease, opacity 0.2s, box-shadow 0.2s; }
-.dt-bar-future { background: linear-gradient(180deg, rgba(196, 181, 253, 0.55), rgba(109, 40, 217, 0.12)); box-shadow: none; outline: 1px dashed rgba(196, 181, 253, 0.55); outline-offset: -1px; }
-.dt-bar-moved { background: linear-gradient(180deg, #5eead4, #0f766e 60%, rgba(15, 118, 110, 0.35)); outline: 0; box-shadow: 0 0 10px rgba(45, 212, 191, 0.5); }
-.dt-bar-ready { background: linear-gradient(180deg, #a7f3d0, #059669 60%, rgba(5, 150, 105, 0.35)); box-shadow: 0 0 12px rgba(52, 211, 153, 0.6); outline: 0; }
+/* Each week in its own risk colour; the days ahead are glass in the same colour until a move makes them solid. */
+.dt-bar-risk { --bar: #fb7185; --bar-deep: #be123c; --bar-glow: rgba(244, 63, 94, 0.55); }
+.dt-bar-watch { --bar: #fcd34d; --bar-deep: #b45309; --bar-glow: rgba(245, 158, 11, 0.55); }
+.dt-bar-order { --bar: #6ee7b7; --bar-deep: #047857; --bar-glow: rgba(16, 185, 129, 0.55); }
+.dt-bar-risk, .dt-bar-watch, .dt-bar-order { background: linear-gradient(180deg, var(--bar), var(--bar-deep) 60%, rgba(0, 0, 0, 0.25)); box-shadow: 0 0 10px var(--bar-glow); }
+.dt-bar-future { background: linear-gradient(180deg, color-mix(in srgb, var(--bar) 45%, transparent), color-mix(in srgb, var(--bar-deep) 10%, transparent)); box-shadow: none; outline: 1px dashed color-mix(in srgb, var(--bar) 70%, transparent); outline-offset: -1px; }
+.dt-bar-moved { background: linear-gradient(180deg, var(--bar), var(--bar-deep) 60%, rgba(0, 0, 0, 0.25)); outline: 1px solid rgba(255, 255, 255, 0.35); outline-offset: -1px; box-shadow: 0 0 14px var(--bar-glow); }
+.dt-today-beam { position: absolute; bottom: 0; top: -14%; width: 0; z-index: 2; pointer-events: none; }
+.dt-today-beam::before { content: ''; position: absolute; left: -2px; top: 0; bottom: 0; width: 4px; border-radius: 2px; background: linear-gradient(180deg, transparent, #fff 18%, #fff 82%, rgba(255, 255, 255, 0.2)); box-shadow: 0 0 18px 6px rgba(255, 255, 255, 0.55), 0 0 40px 12px rgba(196, 181, 253, 0.35); animation: dt-beam 2.4s ease-in-out infinite; }
+.dt-today-beam span { position: absolute; top: -4px; left: 8px; white-space: nowrap; padding: 3px 9px; border-radius: 99px; font-size: 11px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: #0b0b12; background: #fff; box-shadow: 0 0 14px rgba(255, 255, 255, 0.7); }
 .dt-bar-today { box-shadow: 0 0 0 1px #fff, 0 0 16px rgba(255, 255, 255, 0.7); }
 .dt-bar-active { opacity: 1; box-shadow: 0 0 0 1px #ede9fe, 0 0 22px 4px rgba(237, 233, 254, 0.85); }
 .dt-bar:focus-visible { outline: 2px solid #fff; }
@@ -159,6 +166,7 @@
   from { transform: translate(-50%, -50%) rotateZ(calc(-1 * var(--a))) rotateX(-64deg); }
   to { transform: translate(-50%, -50%) rotateZ(calc(-1 * var(--a) - 360deg)) rotateX(-64deg); }
 }
+@keyframes dt-beam { 0%, 100% { opacity: 0.75; } 50% { opacity: 1; } }
 @keyframes dt-breathe { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-6px) scale(1.03); } }
 @keyframes dt-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 @keyframes dt-beacon { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.45; transform: scale(0.75); } }

@@ -328,9 +328,14 @@ export const DigitalTwinPage = () => {
               <div className='dt-grid-lines' aria-hidden='true' />
               <div className='dt-ready-plane' style={{ height: `${READY_SCORE}%` }} aria-hidden='true'><span>Funding-ready ({READY_SCORE})</span></div>
               <div className='dt-bars'>
+                <div className='dt-today-beam' style={{ left: `${((WEEKS_BACK + 0.5) / series.length) * 100}%` }} aria-hidden='true'>
+                  <span>Today · {shortDate(today)}</span>
+                </div>
                 {series.map((week, position) => {
                   const future = week.offset > 0
-                  const cls = ['dt-bar', future ? 'dt-bar-future' : '', future && anyMove ? 'dt-bar-moved' : '', week.band === 'ready' ? 'dt-bar-ready' : '', week.offset === 0 ? 'dt-bar-today' : '', position === index ? 'dt-bar-active' : ''].filter(Boolean).join(' ')
+                  // Each week in its own risk colour: what was (or will be) missing that week.
+                  const tone = week.band === 'ready' || week.criticalOpen === 0 ? 'order' : week.criticalOpen === 1 ? 'watch' : 'risk'
+                  const cls = ['dt-bar', `dt-bar-${tone}`, future ? 'dt-bar-future' : '', future && anyMove ? 'dt-bar-moved' : '', week.offset === 0 ? 'dt-bar-today' : '', position === index ? 'dt-bar-active' : ''].filter(Boolean).join(' ')
                   return (
                     <button
                       key={week.offset}
