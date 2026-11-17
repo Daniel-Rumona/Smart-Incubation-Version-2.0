@@ -1,3 +1,4 @@
+import { requirementKeyFor } from '@/config/complianceDocuments'
 import type { LivePlanItem } from '@/utils/liveDiagnosticPlan'
 
 /**
@@ -6,8 +7,11 @@ import type { LivePlanItem } from '@/utils/liveDiagnosticPlan'
  * records. Nothing here is stored or self-declared: it is recomputed from those records each time, and every
  * gate says what it was based on, so operations can see exactly what to fix.
  *
- * Each track is a list of gates. A gate is met, partial, missing, or unknown (no evidence either way, left out of
- * the score). The band is Ready only when every critical gate is met and the score is high enough.
+ * Each track is a list of gates. A gate is met, partial, missing, or unknown. Unknown has two meanings: a check that
+ * does not apply to this SME (no support of that kind in its plan: `notApplicable`, left out of the score), or one
+ * that applies but has no evidence yet (revenue not recorded, years of trading not captured), which counts as not met:
+ * a score must never look complete because the evidence is missing. The band is Ready only when every critical gate
+ * is met and the score is high enough. Documents are matched by the platform's own catalogue (with its aliases).
  */
 export type GateState = 'met' | 'partial' | 'missing' | 'unknown'
 export type ReadinessBand = 'ready' | 'almost' | 'not_ready'
@@ -23,6 +27,8 @@ export type Gate = {
   action?: string
   /** A critical gate must be met before the SME can be Ready. */
   critical?: boolean
+  /** The check does not apply to this SME (left out of the score), as opposed to having no evidence yet. */
+  notApplicable?: boolean
 }
 
 export type ReadinessTrack = {
@@ -74,8 +80,16 @@ const toDate = (value: unknown): Date | null => {
 
 /* ---------- gate builders ---------- */
 
+// The best document of a kind decides the gate: verified beats pending beats anything else.
+const DOCUMENT_RANK: Record<string, number> = { valid: 3, approved: 3, pending: 2, uploaded: 2, queried: 1 }
+const documentKey = (doc: ReadinessDocument) => requirementKeyFor(doc.key) || requirementKeyFor(doc.type)
+const matchesDocument = (doc: ReadinessDocument, match: string[]) =>
+  [doc.key, doc.type].some(value => match.includes(requirementKeyFor(value)) || match.includes(slug(value))) || match.includes(documentKey(doc))
+
 const documentGate = (input: ReadinessInput, spec: { key: string; label: string; action: string; critical?: boolean; match: string[] }): Gate => {
-  const found = input.documents.find(doc => spec.match.includes(slug(doc.key)) || spec.match.includes(slug(doc.type)))
+  const found = input.documents
+    .filter(doc => matchesDocument(doc, spec.match))
+    .sort((a, b) => (DOCUMENT_RANK[String(b.currentStatus || '').trim().toLowerCase()] || 0) - (DOCUMENT_RANK[String(a.currentStatus || '').trim().toLowerCase()] || 0))[0]
   const base = { key: spec.key, label: spec.label, critical: spec.critical }
   if (!found) return { ...base, state: 'missing', detail: 'Not uploaded', action: `Upload ${spec.label.toLowerCase()}` }
   const status = String(found.currentStatus || '').trim().toLowerCase()
@@ -95,7 +109,7 @@ const documentGate = (input: ReadinessInput, spec: { key: string; label: string;
 const planGate = (items: LivePlanItem[], spec: { key: string; label: string; action: string; critical?: boolean; empty: string }): Gate => {
   const base = { key: spec.key, label: spec.label, critical: spec.critical }
   const live = items.filter(item => item.status !== 'Declined')
-  if (!live.length) return { ...base, state: 'unknown', detail: spec.empty }
+  if (!live.length) return { ...base, state: 'unknown', detail: spec.empty, notApplicable: true }
   const completed = live.filter(item => item.status === 'Completed')
   if (completed.length === live.length) {
     if (completed.some(item => !item.outcome?.result)) return { ...base, state: 'partial', detail: 'Delivered, outcome not yet checked', action: 'Record the follow-up result' }
@@ -110,11 +124,11 @@ const planGate = (items: LivePlanItem[], spec: { key: string; label: string; act
 
 const revenueGate = (rows: ReadinessInput['revenueMonthly']): Gate => {
   const base = { key: 'revenue-trend', label: 'Revenue trend' }
-  if (rows.length < 6) return { ...base, state: 'unknown', detail: 'Fewer than 6 months of revenue recorded' }
+  if (rows.length < 6) return { ...base, state: 'unknown', detail: 'Fewer than 6 months of revenue recorded', action: 'Record at least 6 months of revenue' }
   const average = (list: typeof rows) => list.reduce((sum, row) => sum + row.value, 0) / list.length
   const recent = average(rows.slice(-3))
   const before = average(rows.slice(-6, -3))
-  if (!before) return { ...base, state: 'unknown', detail: 'No earlier revenue to compare with' }
+  if (!before) return { ...base, state: 'unknown', detail: 'No earlier revenue to compare with', action: 'Record earlier months of revenue' }
   const change = ((recent - before) / before) * 100
   const text = `${change >= 0 ? '+' : ''}${Math.round(change)}% over the last 3 months`
   if (change > 5) return { ...base, state: 'met', detail: text }
@@ -124,7 +138,7 @@ const revenueGate = (rows: ReadinessInput['revenueMonthly']): Gate => {
 
 const trackRecordGate = (years?: number | null): Gate => {
   const base = { key: 'track-record', label: 'Track record' }
-  if (typeof years !== 'number' || years <= 0) return { ...base, state: 'unknown', detail: 'Years of trading not recorded' }
+  if (typeof years !== 'number' || years <= 0) return { ...base, state: 'unknown', detail: 'Years of trading not recorded', action: 'Record years of trading' }
   if (years >= 2) return { ...base, state: 'met', detail: `${years} years trading` }
   return { ...base, state: 'partial', detail: `${years} year trading (funders usually want 2+)` }
 }
@@ -134,7 +148,7 @@ const digitalGate = (presence?: ReadinessInput['digitalPresence']): Gate => {
   const channels = ['website', 'facebook', 'instagram', 'x', 'linkedIn', 'other']
   const answers = channels.map(channel => presence?.[channel])
   const answered = answers.filter(answer => answer === true || answer === false)
-  if (!answered.length) return { ...base, state: 'unknown', detail: 'Digital presence not captured yet' }
+  if (!answered.length) return { ...base, state: 'unknown', detail: 'Digital presence not captured yet', action: 'Capture the online presence' }
   const yes = answers.filter(answer => answer === true).length
   if (presence?.website === true && yes >= 2) return { ...base, state: 'met', detail: `Website and ${yes - 1} other channel${yes - 1 === 1 ? '' : 's'}` }
   if (yes > 0) return { ...base, state: 'partial', detail: presence?.website === true ? 'Website only' : `${yes} channel${yes === 1 ? '' : 's'}, no website`, action: 'Build out online presence' }
@@ -143,11 +157,12 @@ const digitalGate = (presence?: ReadinessInput['digitalPresence']): Gate => {
 
 /* ---------- scoring ---------- */
 
-const POINTS: Record<GateState, number | null> = { met: 1, partial: 0.5, missing: 0, unknown: null }
+// No evidence yet scores like missing; only a check that does not apply is left out.
+const POINTS: Record<GateState, number> = { met: 1, partial: 0.5, missing: 0, unknown: 0 }
 
 export const scoreTrack = (gates: Gate[]): ReadinessTrack => {
-  const known = gates.filter(gate => POINTS[gate.state] !== null)
-  const score = known.length ? Math.round((known.reduce((sum, gate) => sum + (POINTS[gate.state] as number), 0) / known.length) * 100) : null
+  const counted = gates.filter(gate => !gate.notApplicable)
+  const score = counted.length ? Math.round((counted.reduce((sum, gate) => sum + POINTS[gate.state], 0) / counted.length) * 100) : null
   const criticalMet = gates.filter(gate => gate.critical).every(gate => gate.state === 'met')
   const band: ReadinessBand = score !== null && score >= READY_SCORE && criticalMet ? 'ready' : score !== null && score >= ALMOST_SCORE ? 'almost' : 'not_ready'
   return { gates, score, band }
@@ -157,7 +172,7 @@ const inArea = (items: LivePlanItem[], area: string) => items.filter(item => are
 const pitchItems = (items: LivePlanItem[]) => items.filter(item => /pitch|investor|funding|investment/i.test(item.title))
 
 export const assessReadiness = (input: ReadinessInput): SmeReadiness => {
-  const tax = documentGate(input, { key: 'tax-clearance', label: 'Tax clearance', action: 'Renew tax clearance', critical: true, match: ['tax-clearance'] })
+  const tax = documentGate(input, { key: 'tax-compliance', label: 'Tax compliance', action: 'Renew tax compliance', critical: true, match: ['tax-compliance', 'tax-clearance'] })
 
   const funding = scoreTrack([
     tax,
@@ -180,7 +195,7 @@ export const assessReadiness = (input: ReadinessInput): SmeReadiness => {
 
   const order = (gate: Gate) => (gate.critical ? 0 : 1) + (gate.state === 'missing' ? 0 : 0.5)
   const nextSteps = ([['funding', funding], ['market', market]] as Array<[TrackKey, ReadinessTrack]>)
-    .flatMap(([track, value]) => value.gates.filter(gate => gate.action && (gate.state === 'missing' || gate.state === 'partial')).map(gate => ({ track, gate })))
+    .flatMap(([track, value]) => value.gates.filter(gate => gate.action && !gate.notApplicable && gate.state !== 'met').map(gate => ({ track, gate })))
     // the shared tax gate appears in both tracks; list it once
     .filter((step, index, all) => all.findIndex(other => other.gate.key === step.gate.key) === index)
     .sort((a, b) => order(a.gate) - order(b.gate))

@@ -1,5 +1,7 @@
 import type { TwinActivity } from '@/services/digitalTwinService'
 import { WEEKS_AHEAD, WEEKS_BACK, type TwinEvent } from '@/utils/digitalTwin'
+import { requirementKeyFor } from '@/config/complianceDocuments'
+import { DEFAULT_DETAILS_SETTINGS } from '@/config/trainingDetails'
 import { READY_SCORE, scoreTrack, type Gate } from '@/utils/readiness'
 import { longDate, money, share, shortDate, signed, weekDate, type LayerView, type TwinBuild, type TwinKind, type TwinSubject, type ViewReason, type ViewWeek } from '@/utils/twinView'
 
@@ -8,11 +10,12 @@ import { longDate, money, share, shortDate, signed, weekDate, type LayerView, ty
  * worked out from its own records by gates scored the same way as funding readiness (met 1, partial 0.5, missing 0,
  * unknown left out; standing at 75 or more with every critical gate met):
  *
- * - Company details sent (critical) and company documents on file (critical, 2 or more).
- * - Staff trained: of its people whose class has ended, the share certified.
- * - Pass rate: of its marked final assessments, the share passed.
+ * - Company details sent (critical) and the documents the provider asks for on file (critical: CIPC registration,
+ *   B-BBEE certificate and tax compliance by default).
+ * - Staff trained: of its people whose class has ended, the share certified (does not apply until a class ends).
+ * - Pass rate: of its marked final assessments, the share passed (does not apply until one is marked).
  * - Business figures: months of revenue and employees recorded (3 or more).
- * - ESG report: final, or in progress (left out when it has none).
+ * - ESG report: final, or in progress (does not apply when it has none).
  *
  * History is rebuilt week by week from the dates on those records. Ahead, "on plan" means the people booked on a
  * class pass when it ends at a cautious rate: the lower of the company's own pass rate and the provider's average
@@ -22,7 +25,9 @@ import { longDate, money, share, shortDate, signed, weekDate, type LayerView, ty
 
 const DAY_MS = 86_400_000
 const WEEK_MS = 7 * DAY_MS
-const DOCUMENTS_NEEDED = 2
+// The documents the provider asks a client company for (the facilitator's default list).
+const REQUIRED_DOCUMENTS = DEFAULT_DETAILS_SETTINGS.companyDocuments
+const DOCUMENTS_NEEDED = REQUIRED_DOCUMENTS.length
 
 export type CompanyLearner = { id: string; name: string; classEnd: Date | null; certifiedAt: Date | null }
 export type CompanyInput = {
@@ -64,7 +69,7 @@ const stateOn = (input: CompanyInput, when: Date) => {
     if (learner.classEnd && learner.classEnd.getTime() > now && learner.classEnd.getTime() <= when.getTime()) return sum + rateNow
     return sum
   }, 0)
-  const documents = input.documents.filter((doc) => by(doc.uploadedAt, when)).length
+  const documents = new Set(input.documents.filter((doc) => by(doc.uploadedAt, when)).map((doc) => requirementKeyFor(doc.key)).filter((key) => REQUIRED_DOCUMENTS.includes(key))).size
   const months = input.metrics.filter((row) => row.period <= monthKey(when))
   const esg = input.esg && by(input.esg.createdAt, when) ? (input.esg.finalAt && input.esg.finalAt.getTime() <= when.getTime() ? 'final' : input.esg.status === 'final' ? 'in_review' : input.esg.status) : null
   return { ended: ended.length, total: input.learners.length, certified, rate: passRate(input, when), documents, months, esg, details: by(input.detailsAt, when) && !!input.detailsAt }
@@ -76,10 +81,10 @@ const gatesOn = (input: CompanyInput, when: Date): Gate[] => {
   return [
     { key: 'details', label: 'Company details', critical: true, state: state.details ? 'met' : 'missing', detail: state.details ? 'Sent' : 'Not sent yet', action: 'Ask the company to send its details' },
     { key: 'documents', label: 'Company documents', critical: true, state: state.documents >= DOCUMENTS_NEEDED ? 'met' : state.documents ? 'partial' : 'missing', detail: `${state.documents} of ${DOCUMENTS_NEEDED} on file`, action: 'Upload the company documents' },
-    { key: 'trained', label: 'Staff trained', state: trained === null ? 'unknown' : trained >= 0.8 ? 'met' : trained >= 0.4 ? 'partial' : 'missing', detail: trained === null ? 'No class finished yet' : `${Math.round(state.certified)} of ${state.ended} certified`, action: 'Book the staff not yet certified on a class' },
-    { key: 'pass', label: 'Pass rate', state: state.rate === null ? 'unknown' : state.rate >= 0.8 ? 'met' : state.rate >= 0.5 ? 'partial' : 'missing', detail: state.rate === null ? 'No assessments marked yet' : `${Math.round(state.rate * 100)}% passed`, action: 'Offer a refresher before the reassessment' },
+    { key: 'trained', label: 'Staff trained', notApplicable: trained === null, state: trained === null ? 'unknown' : trained >= 0.8 ? 'met' : trained >= 0.4 ? 'partial' : 'missing', detail: trained === null ? 'No class finished yet' : `${Math.round(state.certified)} of ${state.ended} certified`, action: 'Book the staff not yet certified on a class' },
+    { key: 'pass', label: 'Pass rate', notApplicable: state.rate === null, state: state.rate === null ? 'unknown' : state.rate >= 0.8 ? 'met' : state.rate >= 0.5 ? 'partial' : 'missing', detail: state.rate === null ? 'No assessments marked yet' : `${Math.round(state.rate * 100)}% passed`, action: 'Offer a refresher before the reassessment' },
     { key: 'figures', label: 'Business figures', state: state.months.length >= 3 ? 'met' : state.months.length ? 'partial' : 'missing', detail: `${state.months.length} month${state.months.length === 1 ? '' : 's'} recorded`, action: 'Record the latest business figures' },
-    { key: 'esg', label: 'ESG report', state: state.esg === null ? 'unknown' : state.esg === 'final' ? 'met' : 'partial', detail: state.esg === null ? 'No report' : state.esg === 'final' ? 'Final' : state.esg === 'in_review' ? 'In review' : 'Draft', action: 'Finalise the ESG report' },
+    { key: 'esg', label: 'ESG report', notApplicable: state.esg === null, state: state.esg === null ? 'unknown' : state.esg === 'final' ? 'met' : 'partial', detail: state.esg === null ? 'No report' : state.esg === 'final' ? 'Final' : state.esg === 'in_review' ? 'In review' : 'Draft', action: 'Finalise the ESG report' },
   ]
 }
 
@@ -126,10 +131,12 @@ const movesOf = (input: CompanyInput): CompanyMove[] => {
   const now = input.now
   const moves: CompanyMove[] = []
   if (!input.detailsAt) moves.push({ key: 'details', title: 'Get the company’s details sent', kind: 'Company', detail: 'not sent yet', apply: (current) => ({ ...current, detailsAt: now }) })
-  if (input.documents.length < DOCUMENTS_NEEDED) {
+  const missingDocuments = REQUIRED_DOCUMENTS.filter((key) => !input.documents.some((doc) => requirementKeyFor(doc.key) === key))
+  if (missingDocuments.length) {
     moves.push({
-      key: 'documents', title: 'Upload the company documents', kind: 'Company', detail: `${input.documents.length} of ${DOCUMENTS_NEEDED} on file`,
-      apply: (current) => ({ ...current, documents: [...current.documents, ...Array.from({ length: DOCUMENTS_NEEDED - current.documents.length }, (_, index) => ({ key: `twin-${index}`, uploadedAt: now }))] }),
+      key: 'documents', title: `Upload the ${missingDocuments.length} missing company document${missingDocuments.length === 1 ? '' : 's'}`, kind: 'Company',
+      detail: `${DOCUMENTS_NEEDED - missingDocuments.length} of ${DOCUMENTS_NEEDED} on file`,
+      apply: (current) => ({ ...current, documents: [...current.documents, ...missingDocuments.map((key) => ({ key, uploadedAt: now }))] }),
     })
   }
   const untrained = input.learners.filter((learner) => !learner.certifiedAt && (!learner.classEnd || learner.classEnd.getTime() <= now.getTime()))

@@ -1,3 +1,4 @@
+import { catalogueEntryFor, requirementKeyFor } from '@/config/complianceDocuments'
 import { assessReadiness, type ReadinessBand, type ReadinessDocument } from '@/utils/readiness'
 import type { LivePlanItem } from '@/utils/liveDiagnosticPlan'
 
@@ -146,32 +147,34 @@ export const timeline = (input: TwinInput, from = -WEEKS_BACK, to = WEEKS_AHEAD)
 /** The first week from now (0 = today) in which the business is funding-ready, or null within the horizon. */
 export const readyWeek = (weeks: TwinWeek[]) => weeks.find((week) => week.offset >= 0 && week.band === 'ready')?.offset ?? null
 
-const DOC_LABEL: Record<string, string> = {
-  'tax-clearance': 'tax clearance', 'cipc-registration': 'company registration (CIPC)', cipc: 'company registration (CIPC)',
-  'bank-confirmation': 'bank confirmation', 'b-bbee-certificate': 'B-BBEE certificate', 'bbbee-certificate': 'B-BBEE certificate',
-}
+/** A document's name as the platform's catalogue calls it (with its aliases), in lower case for a sentence. */
 export const documentLabel = (doc: { key?: unknown; type?: unknown; documentName?: unknown }) => {
-  const slug = String(doc.key || doc.type || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')
-  return DOC_LABEL[slug] || String(doc.documentName || doc.type || doc.key || 'document').trim()
+  const entry = catalogueEntryFor(doc.key) || catalogueEntryFor(doc.type)
+  const name = entry?.name || String(doc.documentName || doc.type || doc.key || 'document').trim()
+  return /^(B-BBEE|CIPC|ID)/.test(name) ? name : name[0].toLowerCase() + name.slice(1)
 }
+const documentKind = (doc: { key?: unknown; type?: unknown }) => requirementKeyFor(doc.key) || requirementKeyFor(doc.type)
+const STATUS_RANK: Record<string, number> = { valid: 3, approved: 3, pending: 2, uploaded: 2, queried: 1 }
+const rankOf = (doc: TwinDocument) => STATUS_RANK[String(doc.currentStatus || '').toLowerCase()] || 0
 
 const short = (date: Date) => date.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', timeZone: 'Africa/Johannesburg' })
 
-// The documents the readiness rules ask for, so a missing one can be offered as a move.
+// The documents the readiness rules ask for (catalogue keys), so a missing one can be offered as a move.
 const REQUIRED_DOCUMENTS = [
-  { key: 'tax-clearance', label: 'tax clearance', match: ['tax-clearance'] },
-  { key: 'cipc-registration', label: 'company registration (CIPC)', match: ['cipc-registration', 'cipc'] },
-  { key: 'bank-confirmation', label: 'bank confirmation', match: ['bank-confirmation'] },
-  { key: 'b-bbee-certificate', label: 'B-BBEE certificate', match: ['b-bbee-certificate', 'bbbee-certificate', 'bbbee', 'b-bbee'] },
+  { key: 'tax-compliance', label: 'tax compliance (PIN or clearance)' },
+  { key: 'cipc-registration', label: 'CIPC registration' },
+  { key: 'bank-confirmation', label: 'bank confirmation letter' },
+  { key: 'b-bbee-certificate', label: 'B-BBEE certificate' },
 ]
-const slugOf = (value: unknown) => String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+const VERIFYING = ['pending', 'uploaded', 'queried']
 
 /** Every move open to this business today. */
 export const availableMoves = (input: TwinInput): TwinMove[] => {
   const now = input.now.getTime()
   const moves: TwinMove[] = []
   REQUIRED_DOCUMENTS.forEach((required) => {
-    const onFile = input.documents.some((doc) => required.match.includes(slugOf(doc.key)) || required.match.includes(slugOf(doc.type)))
+    // Only when no document of that kind is on file at all; one awaiting verification gets its own move below.
+    const onFile = input.documents.some((doc) => documentKind(doc) === required.key)
     if (onFile) return
     const expires = new Date(now + 365 * DAY_MS)
     moves.push({
@@ -185,19 +188,31 @@ export const availableMoves = (input: TwinInput): TwinMove[] => {
       }),
     })
   })
+  // One move per kind of document on file that is not in order, acting on the best copy of that kind.
+  const best = new Map<string, TwinDocument>()
   input.documents.forEach((doc) => {
+    const kind = documentKind(doc) || doc.id
+    const held = best.get(kind)
+    if (!held || rankOf(doc) > rankOf(held)) best.set(kind, doc)
+  })
+  best.forEach((doc) => {
     const status = String(doc.currentStatus || '').toLowerCase()
-    const expiring = doc.expiresAt && doc.expiresAt.getTime() - now <= 120 * DAY_MS
-    if (!(status !== 'valid' || expiring)) return
+    const valid = status === 'valid' || status === 'approved'
+    const expiring = valid && !!doc.expiresAt && doc.expiresAt.getTime() - now <= 120 * DAY_MS
+    if (valid && !expiring) return
+    const verifying = VERIFYING.includes(status)
     const renewed = new Date(now + 365 * DAY_MS)
     moves.push({
       key: `doc:${doc.id}`,
-      title: `Renew the ${doc.label} now`,
+      title: verifying ? `Get the ${doc.label} verified` : valid ? `Renew the ${doc.label} before it expires` : `Replace the ${doc.label}`,
       kind: 'Compliance',
-      detail: status === 'valid' && doc.expiresAt ? `expires ${short(doc.expiresAt)}` : status === 'expired' ? 'expired' : `currently ${status || 'not verified'}`,
+      detail: verifying ? (status === 'queried' ? 'uploaded, queried' : 'uploaded, awaiting verification') : valid && doc.expiresAt ? `expires ${short(doc.expiresAt)}` : status || 'not valid',
+      // Verifying keeps the document's own expiry date; renewing or replacing gives a new one a year out.
       apply: (current) => ({
         ...current,
-        documents: current.documents.map((row) => (row.id === doc.id ? { ...row, currentStatus: 'valid', expiryDate: renewed, expiresAt: renewed, issuedAt: current.now } : row)),
+        documents: current.documents.map((row) => (row.id === doc.id
+          ? (verifying ? { ...row, currentStatus: 'valid' } : { ...row, currentStatus: 'valid', expiryDate: renewed, expiresAt: renewed, issuedAt: current.now })
+          : row)),
       }),
     })
   })
