@@ -41,7 +41,21 @@ export type TwinInput = {
   digitalPresence?: Record<string, boolean | null | undefined>
 }
 
-export type TwinWeek = { offset: number; date: Date; funding: number; market: number; band: ReadinessBand }
+export type TwinWeek = {
+  offset: number
+  date: Date
+  funding: number
+  market: number
+  band: ReadinessBand
+  /** The layers as they stood (or will stand) that week. */
+  documentsValid: number
+  documentsTotal: number
+  delivered: number
+  planTotal: number
+  /** Latest monthly revenue reported by then, and its change since the first month recorded (percent). */
+  revenue: number | null
+  revenueChange: number | null
+}
 
 /** A change the twin can try. It edits the inputs as if it had happened, then the rules are re-run. */
 export type TwinMove = {
@@ -109,7 +123,19 @@ export const timeline = (input: TwinInput, from = -WEEKS_BACK, to = WEEKS_AHEAD)
   for (let offset = from; offset <= to; offset++) {
     const date = atWeek(input.now, offset)
     const result = readinessOn(input, date)
-    weeks.push({ offset, date, funding: result.funding.score ?? 0, market: result.market.score ?? 0, band: result.funding.band })
+    const documents = documentsOn(input, date)
+    const plan = planOn(input, date).filter((item) => item.status !== 'Declined')
+    const revenue = input.revenueMonthly.filter((row) => row.period <= monthKey(date))
+    const last = revenue[revenue.length - 1]
+    weeks.push({
+      offset, date, funding: result.funding.score ?? 0, market: result.market.score ?? 0, band: result.funding.band,
+      documentsValid: documents.filter((doc) => String(doc.currentStatus || '').toLowerCase() === 'valid' && (!doc.expiresAt || doc.expiresAt.getTime() > date.getTime())).length,
+      documentsTotal: documents.length,
+      delivered: plan.filter((item) => item.status === 'Completed').length,
+      planTotal: plan.length,
+      revenue: last ? last.value : null,
+      revenueChange: revenue.length > 1 && revenue[0].value ? Math.round(((last.value - revenue[0].value) / Math.abs(revenue[0].value)) * 100) : null,
+    })
   }
   return weeks
 }

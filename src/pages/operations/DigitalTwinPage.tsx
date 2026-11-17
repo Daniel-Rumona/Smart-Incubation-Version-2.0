@@ -5,16 +5,17 @@ import { useActiveProgramId } from '@/hooks/useActiveProgramId'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { loadTwinBusinesses, type TwinBusiness } from '@/services/digitalTwinService'
 import {
-  WEEKS_AHEAD, applyMoves, availableMoves, rankMoves, readinessOn, readyWeek, timeline, upcomingEvents,
+  WEEKS_AHEAD, WEEKS_BACK, applyMoves, availableMoves, rankMoves, readinessOn, readyWeek, timeline, upcomingEvents, type TwinWeek,
 } from '@/utils/digitalTwin'
 import { READY_SCORE } from '@/utils/readiness'
 import '@/styles/digital-twin.css'
 
 /**
- * The digital twin of one SME, on one screen: its funding readiness as a 3D time machine (weeks rebuilt from its
- * records, then the weeks ahead on plan or with the moves picked), the six layers orbiting its core, the moves the
- * twin has tried, and a twin assistant in a side bar. Every number comes from src/utils/digitalTwin.ts, which runs
- * the control tower's own readiness rules.
+ * The digital twin of one SME, on one screen. The whole twin follows the time machine: as it plays (or a week is
+ * picked), the core, the orbiting layers and the layer bars show that week, rebuilt from the records or projected
+ * ahead, on plan or with the moves picked. Its colour says how it stands: red at risk, amber to watch, green in order,
+ * and the picked moves count, so fixing the problems turns it green. Every number comes from src/utils/digitalTwin.ts,
+ * which runs the control tower's own readiness rules.
  */
 
 // Dates and money through one formatter each, with the locale set explicitly.
@@ -30,29 +31,45 @@ const ago = (date: Date, now: Date) => {
   if (days < 30) return `${days}d ago`
   return shortDate(date)
 }
+const signed = (value: number) => `${value > 0 ? '+' : ''}${value}`
 
 const COLOR = { growth: '#34d399', support: '#60a5fa', skills: '#c4b5fd', compliance: '#fbbf24', sustainability: '#2dd4bf', readiness: '#f9a8d4', engagement: '#22c55e' } as const
 type LayerKey = 'growth' | 'support' | 'skills' | 'compliance' | 'sustainability' | 'readiness'
-type Layer = { key: LayerKey; name: string; short: string; value: string; source: string }
+type Layer = { key: LayerKey; name: string; short: string; value: string; pct: number; delta: string | null; source: string }
+type Risk = 'risk' | 'watch' | 'order'
+const RISK_LABEL: Record<Risk, string> = { risk: 'At risk', watch: 'Watch', order: 'In order' }
 
-const layersOf = (business: TwinBusiness, funding: number, market: number): Layer[] => {
-  const { input, courses } = business
-  const revenue = input.revenueMonthly
-  const last = revenue[revenue.length - 1]
-  const change = revenue.length > 1 && revenue[0].value ? Math.round(((last.value - revenue[0].value) / Math.abs(revenue[0].value)) * 100) : null
-  const plan = input.plan.filter((item) => item.status !== 'Declined')
-  const done = plan.filter((item) => item.status === 'Completed').length
-  const valid = input.documents.filter((doc) => String(doc.currentStatus || '').toLowerCase() === 'valid').length
-  const nextExpiry = input.documents
-    .filter((doc) => doc.expiresAt && doc.expiresAt.getTime() > input.now.getTime())
-    .sort((a, b) => (a.expiresAt as Date).getTime() - (b.expiresAt as Date).getTime())[0]
+/** The six layers in one week, with what the moves changed against the plan in that same week. */
+const layersFor = (business: TwinBusiness, week: TwinWeek, plan: TwinWeek, moved: boolean): Layer[] => {
+  const share = (part: number, whole: number) => (whole ? Math.round((part / whole) * 100) : 0)
+  const diff = (now: number, before: number) => (moved && now !== before ? signed(now - before) : null)
+  const courses = business.courses
   return [
-    { key: 'growth', name: 'Growth', short: change === null ? '—' : `${change >= 0 ? '+' : ''}${change}%`, value: last ? `${money(last.value)} in ${last.period}` : 'No revenue yet', source: 'Monthly revenue (books integration next)' },
-    { key: 'support', name: 'Support', short: `${done}/${plan.length}`, value: plan.length ? `${done} of ${plan.length} delivered${business.overdue ? `, ${business.overdue} overdue` : ''}` : 'No growth plan yet', source: 'Growth plan and interventions' },
-    { key: 'skills', name: 'Skills', short: courses && courses.total ? `${courses.completed}/${courses.total}` : '—', value: courses && courses.total ? `${courses.completed} of ${courses.total} courses done` : 'No LMS courses yet', source: 'LMS courses' },
-    { key: 'compliance', name: 'Compliance', short: `${valid}/${input.documents.length}`, value: input.documents.length ? `${valid} of ${input.documents.length} valid${nextExpiry ? `, next expiry ${shortDate(nextExpiry.expiresAt as Date)}` : ''}` : 'No documents', source: 'Compliance documents' },
-    { key: 'sustainability', name: 'Sustainability', short: '—', value: 'Not measured yet', source: 'ESG reporting add-on' },
-    { key: 'readiness', name: 'Readiness', short: `${funding}·${market}`, value: `Funding ${funding}, market ${market}`, source: 'Readiness rules (as the Control Tower)' },
+    {
+      key: 'growth', name: 'Growth', short: week.revenueChange === null ? '—' : `${signed(week.revenueChange)}%`,
+      value: week.revenue === null ? 'No revenue yet' : `${money(week.revenue)} a month`,
+      pct: week.revenueChange === null ? 0 : Math.max(4, Math.min(100, 50 + week.revenueChange)), delta: null, source: 'Monthly revenue (books integration next)',
+    },
+    {
+      key: 'support', name: 'Support', short: `${week.delivered}/${week.planTotal}`,
+      value: week.planTotal ? `${week.delivered} of ${week.planTotal} delivered` : 'No growth plan yet',
+      pct: share(week.delivered, week.planTotal), delta: diff(week.delivered, plan.delivered), source: 'Growth plan and interventions',
+    },
+    {
+      key: 'skills', name: 'Skills', short: courses && courses.total ? `${courses.completed}/${courses.total}` : '—',
+      value: courses && courses.total ? `${courses.completed} of ${courses.total} courses done` : 'No LMS courses yet',
+      pct: courses && courses.total ? share(courses.completed, courses.total) : 0, delta: null, source: 'LMS courses',
+    },
+    {
+      key: 'compliance', name: 'Compliance', short: `${week.documentsValid}/${week.documentsTotal}`,
+      value: week.documentsTotal ? `${week.documentsValid} of ${week.documentsTotal} documents valid` : 'No documents',
+      pct: share(week.documentsValid, week.documentsTotal), delta: diff(week.documentsValid, plan.documentsValid), source: 'Compliance documents',
+    },
+    { key: 'sustainability', name: 'Sustainability', short: '—', value: 'Not measured yet', pct: 0, delta: null, source: 'ESG reporting add-on' },
+    {
+      key: 'readiness', name: 'Readiness', short: `${week.funding}·${week.market}`, value: `Funding ${week.funding}, market ${week.market}`,
+      pct: week.funding, delta: diff(week.funding, plan.funding), source: 'Readiness rules (as the Control Tower)',
+    },
   ]
 }
 
@@ -71,7 +88,7 @@ export const DigitalTwinPage = () => {
   const [error, setError] = useState('')
   const [picked, setPicked] = useState<Record<string, boolean>>({})
   const [playing, setPlaying] = useState(true)
-  const [cursor, setCursor] = useState(0)
+  const [cursor, setCursor] = useState(WEEKS_BACK)
   const [chatOpen, setChatOpen] = useState(false)
   const [chat, setChat] = useState<Array<{ from: 'you' | 'twin'; text: string }>>([])
   const [draft, setDraft] = useState('')
@@ -93,13 +110,14 @@ export const DigitalTwinPage = () => {
     const score = (row: TwinBusiness) => readinessOn(row.input, row.input.now).funding.score ?? 0
     return [...businesses].sort((a, b) => score(b) - score(a))[0]
   }, [businesses, participantId])
-  // A different business starts with a clean slate: no moves, no conversation, the time machine at its start.
+
+  // A different business starts with a clean slate: no moves, no conversation, the time machine on today.
   const [scope, setScope] = useState<string | null>(null)
   if (business && scope !== business.id) {
     setScope(business.id)
     setPicked({})
     setChat([])
-    setCursor(0)
+    setCursor(WEEKS_BACK)
   }
 
   const twin = useMemo(() => {
@@ -111,17 +129,19 @@ export const DigitalTwinPage = () => {
     const base = timeline(input)
     const withMoves = moved ? timeline(moved) : null
     return {
-      now: readinessOn(input, input.now), moves, ranked: rankMoves(input, moves), base, withMoves,
+      today: readinessOn(input, input.now),
+      todayMoved: moved ? readinessOn(moved, input.now) : null,
+      moves, chosen, ranked: rankMoves(input, moves), base, withMoves,
       baseReady: readyWeek(base), movesReady: withMoves ? readyWeek(withMoves) : null,
       events: upcomingEvents(moved || input, 12).slice(0, 4),
     }
   }, [business, picked])
 
   const weeks = twin ? twin.base.length : 0
-  // The time machine plays the weeks in a loop: history first, then the days ahead.
+  // The time machine plays the weeks in a loop: from today to the end, then the history, and round again.
   useEffect(() => {
     if (!playing || !weeks) return
-    const timer = window.setInterval(() => setCursor((value) => (value + 1) % weeks), 260)
+    const timer = window.setInterval(() => setCursor((value) => (value + 1) % weeks), 420)
     return () => window.clearInterval(timer)
   }, [playing, weeks])
 
@@ -138,33 +158,42 @@ export const DigitalTwinPage = () => {
   if (!businesses) return <div className='dt-mode dt-center'><Skeleton active paragraph={{ rows: 10 }} /></div>
   if (!business || !twin) return <div className='dt-mode dt-center'><Empty description='No SMEs in this workspace yet.' /></div>
 
-  const funding = twin.now.funding.score ?? 0
-  const market = twin.now.market.score ?? 0
-  const layers = layersOf(business, funding, market)
   const today = business.input.now
   const weekDate = (offset: number) => new Date(today.getTime() + offset * 7 * 86_400_000)
-  const anyMove = Object.values(picked).some(Boolean)
+  const anyMove = twin.chosen.length > 0
   const series = twin.base.map((week, index) => (week.offset > 0 && twin.withMoves ? twin.withMoves[index] : week))
-  const active = series[Math.min(cursor, series.length - 1)]
-  const readyHeight = (READY_SCORE / 100) * 100
+  const index = Math.min(cursor, series.length - 1)
+  const active = series[index]
+  const planWeek = twin.base[index]
+  const movedNow = anyMove && active.offset > 0
+  const layers = layersFor(business, active, planWeek, movedNow)
+  const coreDelta = movedNow && active.funding !== planWeek.funding ? signed(active.funding - planWeek.funding) : null
+  const when = active.offset < 0 ? 'Rebuilt from records' : active.offset === 0 ? 'Today' : anyMove ? 'With your moves' : 'On plan'
 
+  // Needs attention today; a reason the picked moves would fix is struck through and no longer counts.
+  const gateFixed = (key: string) => !!twin.todayMoved?.funding.gates.find((gate) => gate.key === key && gate.state === 'met')
+  const overdueFixed = twin.chosen.some((move) => move.kind === 'Intervention')
+  const revenueChange = twin.base[WEEKS_BACK].revenueChange
   const reasons = [
-    ...(business.overdue ? [{ good: false, text: `${business.overdue} intervention${business.overdue === 1 ? '' : 's'} overdue` }] : []),
-    ...twin.now.funding.gates.filter((gate) => gate.critical && gate.state !== 'met').map((gate) => ({ good: false, text: `${gate.label}: ${gate.detail.toLowerCase()}` })),
-    ...(layers[0].short.startsWith('+') ? [{ good: true, text: `Revenue ${layers[0].short} over the months recorded` }] : []),
-  ].slice(0, 3)
-  const level = reasons.filter((reason) => !reason.good).length >= 3 ? 'High' : reasons.some((reason) => !reason.good) ? 'Medium' : 'Low'
+    ...(business.overdue ? [{ good: false, fixed: overdueFixed, text: `${business.overdue} intervention${business.overdue === 1 ? '' : 's'} overdue` }] : []),
+    ...twin.today.funding.gates.filter((gate) => gate.critical && gate.state !== 'met').map((gate) => ({ good: false, fixed: gateFixed(gate.key), text: `${gate.label}: ${gate.detail.toLowerCase()}` })),
+    ...(revenueChange !== null && revenueChange < -5 ? [{ good: false, fixed: false, text: `Revenue ${revenueChange}% over the months recorded` }] : []),
+    ...(revenueChange !== null && revenueChange > 0 ? [{ good: true, fixed: false, text: `Revenue ${signed(revenueChange)}% over the months recorded` }] : []),
+  ].slice(0, 4)
+  const open = reasons.filter((reason) => !reason.good && !reason.fixed).length
+  const risk: Risk = open >= 2 ? 'risk' : open === 1 ? 'watch' : 'order'
 
   const helpful = twin.ranked.filter((move) => (move.weeksSooner ?? 0) > 0 || move.scoreGain > 0)
+  const funding = twin.today.funding.score ?? 0
   const answerFor = (key: string) => {
     if (key === 'fast') {
       if (!helpful.length) return 'No single move open today changes the funding-ready date. Ask "Why is it not ready yet?" to see what stands in the way.'
       const all = timeline(applyMoves(business.input, twin.moves.filter((move) => helpful.some((row) => row.key === move.key))), 0, WEEKS_AHEAD)
       const week = readyWeek(all)
-      return `These ${helpful.length} move${helpful.length === 1 ? '' : 's'} together ${week === null ? `lift funding readiness to ${all[12]?.funding ?? 0} in 12 weeks` : `make ${business.businessName} funding-ready by ${longDate(weekDate(week))}`}: ${helpful.map((move) => move.title.toLowerCase()).join('; ')}. I have switched them on, so the time machine shows that future.`
+      return `These ${helpful.length} move${helpful.length === 1 ? '' : 's'} together ${week === null ? `lift funding readiness to ${all[12]?.funding ?? 0} in 12 weeks` : `make ${business.businessName} funding-ready by ${longDate(weekDate(week))}`}: ${helpful.map((move) => move.title.toLowerCase()).join('; ')}. I have switched them on, so the whole twin now shows that future.`
     }
     if (key === 'why') {
-      const steps = twin.now.nextSteps.slice(0, 4).map((step) => step.gate.action || step.gate.label)
+      const steps = twin.today.nextSteps.slice(0, 4).map((step) => step.gate.action || step.gate.label)
       return steps.length ? `Funding readiness is ${funding}; ready means ${READY_SCORE} or more with every critical gate met. What stands in the way: ${steps.join('; ')}.` : 'Every gate the readiness rules check is met.'
     }
     const expiring = upcomingEvents(business.input, 12).filter((event) => event.tone === 'expiry')
@@ -189,9 +218,10 @@ export const DigitalTwinPage = () => {
     }
     ask(match.row.key, text)
   }
+  const readyText = (offset: number | null) => (offset === null ? 'Not within 26 weeks' : longDate(weekDate(offset)))
 
   return (
-    <div className='dt-mode'>
+    <div className={`dt-mode dt-risk-${risk}`}>
       <header className='dt-top'>
         <div className='dt-title'>
           <div className='dt-badge' aria-hidden='true'>{business.businessName.split(/\s+/).map((word) => word[0]).join('').slice(0, 2).toUpperCase()}</div>
@@ -200,6 +230,7 @@ export const DigitalTwinPage = () => {
             <h1>{business.businessName}</h1>
             <div className='dt-sub'>{[business.ownerName, business.sector, business.programName].filter(Boolean).join(' · ')}</div>
           </div>
+          <span key={risk} className='dt-status'><i aria-hidden='true' />{RISK_LABEL[risk]}</span>
         </div>
         <div className='dt-tools'>
           <Select
@@ -222,28 +253,46 @@ export const DigitalTwinPage = () => {
 
       <div className='dt-main'>
         <aside className='dt-side' aria-label='Where it is heading'>
-          <div className='dt-panel'>
+          <div className='dt-panel dt-shimmer'>
             <div className='dt-eyebrow'>On plan, funding-ready by</div>
-            <div className='dt-date'>{twin.baseReady === null ? 'Not within 26 weeks' : longDate(weekDate(twin.baseReady))}</div>
+            <div key={readyText(twin.baseReady)} className='dt-date dt-flip'>{readyText(twin.baseReady)}</div>
             {anyMove && (
               <div className='dt-moved'>
                 <span>With your moves</span>
-                <strong>{twin.movesReady === null ? 'Not within 26 weeks' : longDate(weekDate(twin.movesReady))}</strong>
+                <strong key={readyText(twin.movesReady)} className='dt-flip'>{readyText(twin.movesReady)}</strong>
               </div>
             )}
             <div className='dt-fine'>Assumes open interventions are delivered on their due dates.</div>
           </div>
-          <div className='dt-panel'>
-            <div className='dt-eyebrow'>Needs attention · {level}</div>
-            {reasons.map((reason) => <div key={reason.text} className='dt-reason'><i className={reason.good ? 'dt-good' : 'dt-warn'} aria-hidden='true' />{reason.text}</div>)}
+
+          <div className='dt-panel dt-attention'>
+            <div className='dt-attention-head'>
+              <span className='dt-eyebrow'>Needs attention</span>
+              <span key={risk} className='dt-level'>{RISK_LABEL[risk]}</span>
+            </div>
+            {reasons.length === 0 && <div className='dt-reason'><i className='dt-good' aria-hidden='true' /><span>Nothing needs attention. Everything is in order.</span></div>}
+            {reasons.map((reason, position) => (
+              <div key={reason.text} className={`dt-reason${reason.fixed ? ' dt-fixed' : ''}`} style={{ animationDelay: `${position * 90}ms` }}>
+                <i className={reason.fixed || reason.good ? 'dt-good' : 'dt-warn'} aria-hidden='true' />
+                <span>{reason.text}{reason.fixed && <em> · fixed by your move</em>}</span>
+              </div>
+            ))}
             {peers && <div className='dt-fine'>Ahead of {peers.ahead} of {peers.others} peers in this programme and sector.</div>}
           </div>
+
           <div className='dt-panel dt-layers'>
+            <div className='dt-eyebrow'>{when} · {shortDate(active.date)}</div>
             {layers.map((layer) => (
               <div key={layer.key} className='dt-layer' title={layer.source}>
-                <i style={{ background: COLOR[layer.key], boxShadow: `0 0 8px ${COLOR[layer.key]}` }} aria-hidden='true' />
-                <b>{layer.name}</b>
-                <span>{layer.value}</span>
+                <div className='dt-layer-top'>
+                  <i style={{ background: COLOR[layer.key], boxShadow: `0 0 8px ${COLOR[layer.key]}` }} aria-hidden='true' />
+                  <b>{layer.name}</b>
+                  <span key={layer.value} className='dt-layer-value dt-pop'>{layer.value}</span>
+                  {layer.delta && <span key={`${layer.key}${layer.delta}`} className='dt-delta'>{layer.delta}</span>}
+                </div>
+                <div className='dt-track' aria-hidden='true'>
+                  <div className='dt-fill' style={{ width: `${layer.pct}%`, background: COLOR[layer.key], boxShadow: `0 0 10px ${COLOR[layer.key]}` }} />
+                </div>
               </div>
             ))}
           </div>
@@ -251,23 +300,25 @@ export const DigitalTwinPage = () => {
 
         <section className='dt-stage' aria-label='Twin core and time machine'>
           <div className='dt-readout' aria-live='polite'>
-            <span>{active.offset < 0 ? 'Rebuilt from records' : active.offset === 0 ? 'Today' : anyMove ? 'With your moves' : 'On plan'}</span>
+            <span>{when}</span>
             <b>{longDate(active.date)}</b>
             <span>Funding readiness <strong>{active.funding}</strong>{active.band === 'ready' ? ' · ready' : ''}</span>
           </div>
           <div className='dt-scene'>
             <div className='dt-orbit-wrap'>
-              <div className='dt-core'>
-                <strong>{funding}</strong>
-                <span>Funding readiness</span>
+              <div className={`dt-core${active.band === 'ready' ? ' dt-core-ready' : ''}`}>
+                <strong key={active.funding} className='dt-pop'>{active.funding}</strong>
+                <span>{active.offset === 0 ? 'Funding readiness' : shortDate(active.date)}</span>
+                {coreDelta && <em key={coreDelta} className='dt-core-delta'>{coreDelta} with moves</em>}
               </div>
               <div className='dt-orbit'>
-                {layers.map((layer, index) => (
-                  <div key={layer.key} className='dt-sat' style={{ '--a': `${index * 60}deg` } as CSSProperties}>
-                    <div className='dt-sat-face'>
+                {layers.map((layer, position) => (
+                  <div key={layer.key} className='dt-sat' style={{ '--a': `${position * 60}deg` } as CSSProperties}>
+                    <div className={`dt-sat-face${layer.delta ? ' dt-sat-up' : ''}`}>
                       <i style={{ background: COLOR[layer.key], boxShadow: `0 0 10px ${COLOR[layer.key]}` }} aria-hidden='true' />
                       <b>{layer.name}</b>
-                      <span>{layer.short}</span>
+                      <span key={layer.short} className='dt-pop'>{layer.short}</span>
+                      {layer.delta && <em>{layer.delta}</em>}
                     </div>
                   </div>
                 ))}
@@ -275,12 +326,11 @@ export const DigitalTwinPage = () => {
             </div>
             <div className='dt-floor'>
               <div className='dt-grid-lines' aria-hidden='true' />
-              <div className='dt-ready-plane' style={{ height: `${readyHeight}%` }} aria-hidden='true'><span>Funding-ready ({READY_SCORE})</span></div>
+              <div className='dt-ready-plane' style={{ height: `${READY_SCORE}%` }} aria-hidden='true'><span>Funding-ready ({READY_SCORE})</span></div>
               <div className='dt-bars'>
-                {series.map((week, index) => {
+                {series.map((week, position) => {
                   const future = week.offset > 0
-                  const ready = week.band === 'ready'
-                  const cls = ['dt-bar', future ? 'dt-bar-future' : '', future && anyMove ? 'dt-bar-moved' : '', ready ? 'dt-bar-ready' : '', week.offset === 0 ? 'dt-bar-today' : '', index === cursor ? 'dt-bar-active' : ''].filter(Boolean).join(' ')
+                  const cls = ['dt-bar', future ? 'dt-bar-future' : '', future && anyMove ? 'dt-bar-moved' : '', week.band === 'ready' ? 'dt-bar-ready' : '', week.offset === 0 ? 'dt-bar-today' : '', position === index ? 'dt-bar-active' : ''].filter(Boolean).join(' ')
                   return (
                     <button
                       key={week.offset}
@@ -288,7 +338,7 @@ export const DigitalTwinPage = () => {
                       className={cls}
                       style={{ height: `${Math.max(3, week.funding)}%` }}
                       aria-label={`${shortDate(week.date)}: funding readiness ${week.funding}`}
-                      onClick={() => { setPlaying(false); setCursor(index) }}
+                      onClick={() => { setPlaying(false); setCursor(position) }}
                     />
                   )
                 })}
@@ -299,7 +349,7 @@ export const DigitalTwinPage = () => {
 
         <aside className='dt-side' aria-label='Moves'>
           <div className='dt-panel dt-moves'>
-            <div className='dt-eyebrow'>Moves the twin has tried</div>
+            <div className='dt-eyebrow'>What if: moves the twin has tried</div>
             {twin.ranked.length === 0 && <div className='dt-fine'>No moves open: nothing to renew or bring forward.</div>}
             {twin.ranked.slice(0, 6).map((move) => (
               <button key={move.key} type='button' aria-pressed={!!picked[move.key]} className={`dt-move${picked[move.key] ? ' dt-on' : ''}`} onClick={() => setPicked((current) => ({ ...current, [move.key]: !current[move.key] }))}>
@@ -325,8 +375,8 @@ export const DigitalTwinPage = () => {
           <div className='dt-eyebrow'>Live pulse</div>
           <div className='dt-chips'>
             {business.activity.length === 0 && <span className='dt-fine'>Nothing recorded yet.</span>}
-            {business.activity.slice(0, 3).map((item, index) => (
-              <span key={`${item.title}-${item.at.getTime()}-${index}`} className={`dt-chip${index === 0 ? ' dt-new' : ''}`} title={item.detail}>
+            {business.activity.slice(0, 3).map((item, position) => (
+              <span key={`${item.title}-${item.at.getTime()}-${position}`} className={`dt-chip${position === 0 ? ' dt-new' : ''}`} title={item.detail}>
                 <i style={{ background: COLOR[item.layer], boxShadow: `0 0 8px ${COLOR[item.layer]}` }} aria-hidden='true' />{item.title} <em>{ago(item.at, today)}</em>
               </span>
             ))}
@@ -341,7 +391,7 @@ export const DigitalTwinPage = () => {
         </div>
         <div className='dt-chat-body'>
           {chat.length === 0 && <div className='dt-fine'>Answers come from the twin's own rules, so every number matches the screen.</div>}
-          {chat.map((message, index) => <div key={index} className={`dt-msg dt-msg-${message.from}`}>{message.text}</div>)}
+          {chat.map((message, position) => <div key={position} className={`dt-msg dt-msg-${message.from}`}>{message.text}</div>)}
         </div>
         <div className='dt-chips'>
           {QUESTIONS.map((question) => <button key={question.key} type='button' className='dt-question' onClick={() => ask(question.key)}>{question.text}</button>)}
