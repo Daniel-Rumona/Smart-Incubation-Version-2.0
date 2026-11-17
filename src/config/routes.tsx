@@ -116,6 +116,7 @@ import { FunderPortfolioPage } from '@/pages/funder/FunderPortfolioPage'
 import { DiagnosticPlansPage } from '@/pages/operations/DiagnosticPlansPage'
 import RiskRegisterPage from '@/pages/operations/RiskRegisterPage'
 import SmeControlTowerPage from '@/pages/operations/SmeControlTowerPage'
+import DigitalTwinPage from '@/pages/operations/DigitalTwinPage'
 import ImpactAnalysisPage from '@/pages/operations/ImpactAnalysisPage'
 import OperationsReportsPage from '@/pages/operations/OperationsReportsPage'
 import KpisPage from '@/pages/kpis/KpisPage'
@@ -426,6 +427,8 @@ export const appRoutes: AppRoute[] = [
             { path: '/operations/participants/metrics', labelKey: 'nav.metrics', icon: <BarChartOutlined />, element: <SmeMetricsPage />, allowedRoles: operationsRoles, requiredPermission: 'view_participants', audiences: ['operations'], showInNav: true },
             { path: '/operations/participants/control-tower', labelKey: 'nav.controlTower', icon: <FundProjectionScreenOutlined />, element: <SmeControlTowerPage />, allowedRoles: operationsRoles, requiredPermission: 'view_participants', audiences: ['operations'], showInNav: true },
             { path: '/operations/participants/control-tower/:participantId', labelKey: 'nav.controlTower', icon: <FundProjectionScreenOutlined />, element: <SmeControlTowerPage />, allowedRoles: operationsRoles, requiredPermission: 'view_participants', audiences: ['operations'], showInNav: false },
+            { path: '/operations/participants/digital-twin', labelKey: 'nav.digitalTwin', icon: <FundProjectionScreenOutlined />, element: <DigitalTwinPage />, allowedRoles: operationsRoles, requiredPermission: 'view_participants', audiences: ['operations'], showInNav: true },
+            { path: '/operations/participants/digital-twin/:participantId', labelKey: 'nav.digitalTwin', icon: <FundProjectionScreenOutlined />, element: <DigitalTwinPage />, allowedRoles: operationsRoles, requiredPermission: 'view_participants', audiences: ['operations'], showInNav: false },
             { path: '/operations/participants/compliance', labelKey: 'nav.compliance', icon: <SafetyCertificateOutlined />, element: <CompliancePage />, allowedRoles: complianceRoles, requiredPermission: 'view_compliance', audiences: ['operations'], showInNav: true },
             { path: '/operations/participants/new', labelKey: 'operations.participants.add', icon: <UserOutlined />, element: <ParticipantOnboardingPage />, allowedRoles: applicationReviewRoles, requiredPermission: 'view_participants', audiences: ['operations'], showInNav: false },
         ],

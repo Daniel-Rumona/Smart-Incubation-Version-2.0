@@ -30,6 +30,7 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     'nav.applicationTracker': 'Applications',
     'nav.metrics': 'Metrics',
     'nav.controlTower': 'Control Tower',
+    'nav.digitalTwin': 'Digital twin',
     'nav.tracker': 'Tracker',
     'nav.staff': 'Staff',
     'nav.viewAll': 'View All',

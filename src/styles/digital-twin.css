@@ -1,0 +1,138 @@
+/* The digital twin: one screen, no page scroll. A dark holographic stage in either app theme: the core floats over a
+   3D floor where each week stands as a glowing column, and the six layers orbit the core. */
+.dt-mode {
+  position: relative;
+  height: calc(100dvh - 92px);
+  min-height: 560px;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 14px 18px;
+  box-sizing: border-box;
+  background: radial-gradient(ellipse at 50% 38%, #1b1438 0%, #0b0b12 62%);
+  color: #f4f4f8;
+  border-radius: 18px;
+}
+.dt-center { display: flex; align-items: center; justify-content: center; }
+.dt-eyebrow { font-size: 11px; color: #a1a1b5; letter-spacing: 0.08em; text-transform: uppercase; }
+.dt-fine { font-size: 12px; color: #8f8fa6; margin-top: 6px; }
+.dt-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Top line */
+.dt-top { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-width: 0; }
+.dt-title { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.dt-title-text { min-width: 0; }
+.dt-mode h1 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.02em; color: #f4f4f8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dt-sub { font-size: 13px; color: #a1a1b5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dt-badge { width: 42px; height: 42px; flex: none; border-radius: 12px; background: #7c3aed; display: flex; align-items: center; justify-content: center; font-weight: 800; }
+.dt-tools { display: flex; align-items: center; gap: 10px; flex: none; }
+.dt-select { width: 230px; }
+.dt-ai { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 99px; border: 1px solid #6d4fd6; background: linear-gradient(135deg, #7c3aed, #4c1d95); color: #fff; font: inherit; font-weight: 700; cursor: pointer; box-shadow: 0 0 22px rgba(124, 58, 237, 0.55); }
+.dt-ai:hover { box-shadow: 0 0 30px rgba(167, 139, 250, 0.8); }
+
+/* Three columns */
+.dt-main { display: grid; grid-template-columns: minmax(230px, 290px) minmax(0, 1fr) minmax(250px, 320px); gap: 14px; min-height: 0; }
+.dt-side { display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow: hidden; }
+.dt-panel { background: rgba(18, 18, 28, 0.82); border: 1px solid #262640; border-radius: 16px; padding: 12px 14px; backdrop-filter: blur(6px); }
+.dt-date { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; margin-top: 4px; line-height: 1.15; }
+.dt-moved { margin-top: 8px; padding: 8px 10px; border-radius: 12px; background: rgba(52, 211, 153, 0.1); border: 1px solid rgba(52, 211, 153, 0.45); display: flex; flex-direction: column; font-size: 12px; color: #6ee7b7; }
+.dt-moved strong { font-size: 19px; color: #a7f3d0; }
+.dt-reason { display: flex; gap: 8px; align-items: baseline; font-size: 13px; color: #d4d4e0; margin-top: 6px; line-height: 1.35; }
+.dt-reason i { width: 7px; height: 7px; border-radius: 50%; flex: none; display: inline-block; }
+.dt-warn { background: #fbbf24; }
+.dt-good { background: #34d399; }
+.dt-layers { display: flex; flex-direction: column; gap: 7px; min-height: 0; overflow: hidden; }
+.dt-layer { display: grid; grid-template-columns: 10px auto; column-gap: 8px; row-gap: 1px; align-items: center; font-size: 12px; }
+.dt-layer i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.dt-layer b { font-size: 13px; }
+.dt-layer span { grid-column: 2; color: #a1a1b5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.dt-moves { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow: hidden; }
+.dt-move { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 8px 10px; border-radius: 13px; border: 1px solid #2a2a40; background: rgba(12, 12, 20, 0.85); color: #f4f4f8; cursor: pointer; text-align: left; font: inherit; }
+.dt-move:hover { border-color: #4c3a8a; }
+.dt-move.dt-on { border-color: #34d399; background: rgba(52, 211, 153, 0.09); box-shadow: 0 0 16px rgba(52, 211, 153, 0.18); }
+.dt-box { width: 20px; height: 20px; flex: none; border-radius: 6px; border: 1px solid #4a4a62; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; color: #0b0b12; }
+.dt-on .dt-box { background: #34d399; border-color: #34d399; }
+.dt-move-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.dt-move-text b { font-size: 13px; line-height: 1.25; }
+.dt-move-text small { font-size: 11px; color: #a1a1b5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dt-effect { font-size: 12px; font-weight: 700; color: #6ee7b7; white-space: nowrap; }
+
+/* The stage */
+.dt-stage { position: relative; min-height: 0; border-radius: 20px; border: 1px solid #262640; overflow: hidden; background: radial-gradient(ellipse at 50% 30%, #241a52 0%, #100d22 55%, #0b0b12 100%); }
+.dt-readout { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 5; display: flex; gap: 10px; align-items: baseline; padding: 6px 14px; border-radius: 99px; background: rgba(12, 12, 20, 0.8); border: 1px solid #3a2f6b; font-size: 12px; color: #c4c4d4; white-space: nowrap; }
+.dt-readout b { color: #f4f4f8; font-size: 13px; }
+.dt-readout strong { color: #c4b5fd; font-size: 14px; }
+.dt-scene { position: absolute; inset: 0; perspective: 1100px; }
+
+.dt-orbit-wrap { position: absolute; left: 50%; top: 31%; width: 0; height: 0; transform-style: preserve-3d; }
+.dt-core { position: absolute; left: -70px; top: -70px; width: 140px; height: 140px; border-radius: 50%; z-index: 3; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: radial-gradient(circle at 36% 30%, #c4b5fd 0%, #7c3aed 42%, #3b1a85 78%); box-shadow: 0 0 40px rgba(139, 92, 246, 0.8), 0 0 90px rgba(139, 92, 246, 0.35), inset -10px -14px 26px rgba(20, 8, 60, 0.6); animation: dt-breathe 3.4s ease-in-out infinite; }
+.dt-core strong { font-size: 38px; line-height: 1; font-weight: 800; text-shadow: 0 0 12px rgba(255, 255, 255, 0.5); }
+.dt-core span { font-size: 11px; font-weight: 600; margin-top: 3px; }
+.dt-orbit { position: absolute; left: -260px; top: -260px; width: 520px; height: 520px; border-radius: 50%; border: 1px dashed rgba(167, 139, 250, 0.45); box-shadow: 0 0 30px rgba(139, 92, 246, 0.25) inset; transform-style: preserve-3d; transform: rotateX(64deg); animation: dt-orbit 48s linear infinite; }
+.dt-sat { position: absolute; left: 50%; top: 50%; width: 0; height: 0; transform-style: preserve-3d; transform: rotateZ(var(--a)) translateX(260px); }
+.dt-sat-face { position: absolute; transform: translate(-50%, -50%) rotateZ(calc(-1 * var(--a))) rotateX(-64deg); animation: dt-counter 48s linear infinite; display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 12px; background: rgba(14, 12, 28, 0.9); border: 1px solid #3a2f6b; white-space: nowrap; font-size: 12px; box-shadow: 0 0 14px rgba(139, 92, 246, 0.3); }
+.dt-sat-face i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.dt-sat-face span { color: #c4c4d4; }
+
+.dt-floor { position: absolute; left: 3%; right: 3%; bottom: 3%; height: 50%; transform-origin: 50% 100%; transform: rotateX(58deg); transform-style: preserve-3d; border-radius: 14px; background: linear-gradient(180deg, rgba(76, 29, 149, 0.05), rgba(76, 29, 149, 0.28)); border: 1px solid rgba(167, 139, 250, 0.25); }
+.dt-grid-lines { position: absolute; inset: 0; border-radius: 14px; background-image: linear-gradient(rgba(167, 139, 250, 0.16) 1px, transparent 1px), linear-gradient(90deg, rgba(167, 139, 250, 0.16) 1px, transparent 1px); background-size: 100% 20%, 3.8% 100%; }
+.dt-bars { position: absolute; left: 2%; right: 2%; bottom: 10%; height: 100%; display: flex; align-items: flex-end; gap: 0.35%; transform-origin: 50% 100%; transform: rotateX(-58deg); transform-style: preserve-3d; }
+.dt-ready-plane { position: absolute; left: 2%; right: 2%; bottom: 10%; transform-origin: 50% 100%; transform: rotateX(-58deg) translateZ(-1px); border-top: 1px dashed rgba(110, 231, 183, 0.8); background: linear-gradient(180deg, rgba(52, 211, 153, 0.08), transparent 70%); pointer-events: none; }
+.dt-ready-plane span { position: absolute; right: 0; top: -18px; font-size: 11px; color: #6ee7b7; }
+.dt-bar { flex: 1 1 0; min-width: 0; padding: 0; border: 0; cursor: pointer; border-radius: 3px 3px 0 0; background: linear-gradient(180deg, #c4b5fd, #6d28d9 55%, rgba(76, 29, 149, 0.4)); box-shadow: 0 0 8px rgba(139, 92, 246, 0.45); opacity: 0.85; transition: height 0.6s ease, opacity 0.2s, box-shadow 0.2s; }
+.dt-bar-future { background: linear-gradient(180deg, rgba(196, 181, 253, 0.55), rgba(109, 40, 217, 0.12)); box-shadow: none; outline: 1px dashed rgba(196, 181, 253, 0.55); outline-offset: -1px; }
+.dt-bar-moved { background: linear-gradient(180deg, #5eead4, #0f766e 60%, rgba(15, 118, 110, 0.35)); outline: 0; box-shadow: 0 0 10px rgba(45, 212, 191, 0.5); }
+.dt-bar-ready { background: linear-gradient(180deg, #a7f3d0, #059669 60%, rgba(5, 150, 105, 0.35)); box-shadow: 0 0 12px rgba(52, 211, 153, 0.6); outline: 0; }
+.dt-bar-today { box-shadow: 0 0 0 1px #fff, 0 0 16px rgba(255, 255, 255, 0.7); }
+.dt-bar-active { opacity: 1; box-shadow: 0 0 0 1px #ede9fe, 0 0 22px 4px rgba(237, 233, 254, 0.85); }
+.dt-bar:focus-visible { outline: 2px solid #fff; }
+
+/* Bottom line */
+.dt-bottom { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: center; min-width: 0; }
+.dt-play { min-height: 44px; min-width: 88px; padding: 0 16px; border-radius: 99px; border: 1px solid #3a3a52; background: #1b1b29; color: #f4f4f8; font: inherit; font-weight: 700; cursor: pointer; }
+.dt-strip { min-width: 0; }
+.dt-chips { display: flex; flex-wrap: nowrap; gap: 8px; margin-top: 6px; overflow: hidden; }
+.dt-chip { display: inline-flex; align-items: center; gap: 6px; flex: none; max-width: 100%; font-size: 12px; border: 1px solid #2a2a40; border-radius: 99px; padding: 5px 11px; color: #d4d4e0; background: rgba(12, 12, 20, 0.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dt-chip b { color: #f4f4f8; }
+.dt-chip i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
+.dt-chip em { font-style: normal; color: #8f8fa6; }
+.dt-chip-expiry { border-color: rgba(251, 191, 36, 0.55); }
+.dt-new { animation: dt-in 0.6s ease-out both; border-color: #4c3a8a; }
+
+/* The twin assistant: a side bar over the stage */
+.dt-chat { position: absolute; top: 10px; right: 10px; bottom: 10px; width: min(380px, calc(100% - 20px)); z-index: 20; display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 18px; background: rgba(14, 12, 28, 0.96); border: 1px solid #4c3a8a; box-shadow: -20px 0 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(124, 58, 237, 0.25); animation: dt-slide 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.dt-chat-head { display: flex; align-items: center; justify-content: space-between; }
+.dt-close { width: 44px; height: 44px; border-radius: 12px; border: 1px solid #3a3a52; background: transparent; color: #f4f4f8; font-size: 22px; cursor: pointer; }
+.dt-chat-body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.dt-msg { padding: 10px 12px; border-radius: 14px; font-size: 13px; line-height: 1.5; animation: dt-in 0.35s ease-out both; }
+.dt-msg-you { align-self: flex-end; max-width: 85%; background: #4c1d95; color: #fff; }
+.dt-msg-twin { background: #171427; border: 1px solid #3a2f6b; color: #e4e4ee; }
+.dt-chat .dt-chips { flex-wrap: wrap; overflow: visible; }
+.dt-question { min-height: 36px; padding: 6px 12px; border-radius: 99px; border: 1px solid #4c3a8a; background: #1d1640; color: #ddd6fe; font: inherit; font-size: 12px; cursor: pointer; }
+.dt-chat-form { display: flex; gap: 8px; }
+.dt-chat-form input { flex: 1; min-height: 44px; border-radius: 12px; border: 1px solid #3a3a52; background: #0f0f18; color: #f4f4f8; padding: 0 12px; font: inherit; font-size: 14px; }
+.dt-send { min-height: 44px; padding: 0 16px; border-radius: 12px; border: 0; background: #7c3aed; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+
+.dt-mode button:focus-visible, .dt-mode input:focus-visible { outline: 2px solid #c4b5fd; outline-offset: 2px; }
+
+@keyframes dt-orbit { from { transform: rotateX(64deg) rotateZ(0deg); } to { transform: rotateX(64deg) rotateZ(360deg); } }
+@keyframes dt-counter {
+  from { transform: translate(-50%, -50%) rotateZ(calc(-1 * var(--a))) rotateX(-64deg); }
+  to { transform: translate(-50%, -50%) rotateZ(calc(-1 * var(--a) - 360deg)) rotateX(-64deg); }
+}
+@keyframes dt-breathe { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-6px) scale(1.03); } }
+@keyframes dt-slide { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: none; } }
+@keyframes dt-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .dt-orbit, .dt-sat-face, .dt-core, .dt-new, .dt-msg, .dt-chat { animation: none; }
+}
+/* Narrow screens: the side columns drop below the stage, the page may scroll there. */
+@media (max-width: 1100px) {
+  .dt-mode { height: auto; overflow: visible; }
+  .dt-main { grid-template-columns: 1fr; }
+  .dt-stage { height: 460px; }
+  .dt-bottom { grid-template-columns: 1fr; }
+}
