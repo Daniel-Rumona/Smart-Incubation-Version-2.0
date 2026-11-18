@@ -72,7 +72,7 @@ export const AppUpdateModal = () => {
             open={open}
             centered
             closable={false}
-            maskClosable={false}
+            mask={{ closable: false }}
             keyboard={false}
             title={t('New update available')}
             footer={

@@ -33,7 +33,7 @@ export const CertificateDownloadButton = ({ certificate, label, ...buttonProps }
     return (
         <>
             <div ref={qrRef} aria-hidden style={{ position: 'fixed', left: -10000, top: 0, pointerEvents: 'none' }}>
-                <QRCode value={verifyUrl} type="canvas" size={480} bordered={false} color="#1f2a30" bgColor="#ffffff" errorLevel="M" />
+                <QRCode value={verifyUrl} type="canvas" size={480} variant="borderless" color="#1f2a30" bgColor="#ffffff" errorLevel="M" />
             </div>
             <Button icon={<DownloadOutlined />} loading={busy} onClick={() => void download()} {...buttonProps}>
                 {label || t('Download certificate')}

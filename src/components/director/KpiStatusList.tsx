@@ -21,7 +21,7 @@ export const KpiStatusList = ({ items, emptyText }: { items: KpiStatusItem[], em
                         <Typography.Text>{item.name}</Typography.Text>
                         <Typography.Text type="secondary">{item.periodLabel}</Typography.Text>
                     </span>
-                    <Tag bordered={false} color={KPI_STATUS[item.status].color}>{t(KPI_STATUS[item.status].label)}</Tag>
+                    <Tag variant="borderless" color={KPI_STATUS[item.status].color}>{t(KPI_STATUS[item.status].label)}</Tag>
                 </li>
             ))}
         </ul>

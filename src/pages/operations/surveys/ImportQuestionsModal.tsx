@@ -93,7 +93,7 @@ export const ImportQuestionsModal = ({ open, category, hasExistingFields, onClos
             onCancel={close}
             title={t('Import questions from a document')}
             width={720}
-            maskClosable={!analysing}
+            mask={{ closable: !analysing }}
             className="survey-import-modal"
             footer={(
                 <ModalActions>

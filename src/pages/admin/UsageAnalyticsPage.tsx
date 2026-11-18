@@ -297,13 +297,13 @@ export const UsageAnalyticsPage = () => {
             {section === 'overview' && <>
                 <Row gutter={[16, 16]}>
                     <Col xs={24} lg={16}>
-                        <Card className="admin-card" bordered={false} loading={loading}>
+                        <Card className="admin-card" variant="borderless" loading={loading}>
                             {cardHead(t('usage.activityTrend'), t('Page visits and minutes per day'))}
                             {filteredPageViews.length ? <ThemedHighcharts options={trendChartOptions} /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />}
                         </Card>
                     </Col>
                     <Col xs={24} lg={8}>
-                        <Card className="admin-card" bordered={false} loading={loading}>
+                        <Card className="admin-card" variant="borderless" loading={loading}>
                             {cardHead(t('Time by role'), t('Share of logged-in time'))}
                             {roleTime.length ? (
                                 <>
@@ -323,7 +323,7 @@ export const UsageAnalyticsPage = () => {
                 </Row>
                 <Row gutter={[16, 16]} className="usage-analytics-row">
                     <Col xs={24} lg={12}>
-                        <Card className="admin-card" bordered={false} loading={loading}>
+                        <Card className="admin-card" variant="borderless" loading={loading}>
                             {cardHead(t('usage.pagesChart'), t('Ranked by time spent'))}
                             {pageRows.length ? (
                                 <ol className="usage-rank-list">
@@ -342,7 +342,7 @@ export const UsageAnalyticsPage = () => {
                         </Card>
                     </Col>
                     <Col xs={24} lg={12}>
-                        <Card className="admin-card" bordered={false} loading={loading}>
+                        <Card className="admin-card" variant="borderless" loading={loading}>
                             {cardHead(t('Most active users'), t('Ranked by logged-in time'))}
                             {userRows.length ? (
                                 <ol className="usage-rank-list">
@@ -364,11 +364,11 @@ export const UsageAnalyticsPage = () => {
             </>}
 
             {section === 'users' && <>
-                <Card className="admin-card usage-analytics-table-card" bordered={false}>
+                <Card className="admin-card usage-analytics-table-card" variant="borderless">
                     {cardHead(t('usage.usersChart'), t('Top 8 users, in minutes'))}
                     {userRows.length ? <ThemedHighcharts options={usersChartOptions} /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />}
                 </Card>
-                <Card className="admin-card usage-analytics-table-card" bordered={false}>
+                <Card className="admin-card usage-analytics-table-card" variant="borderless">
                     {cardHead(t('usage.usersTable'))}
                     <ResponsiveDataView
                         rowKey="key"
@@ -387,11 +387,11 @@ export const UsageAnalyticsPage = () => {
             </>}
 
             {section === 'pages' && <>
-                <Card className="admin-card usage-analytics-table-card" bordered={false}>
+                <Card className="admin-card usage-analytics-table-card" variant="borderless">
                     {cardHead(t('usage.pagesChart'), t('Top 8 pages, in minutes'))}
                     {pageRows.length ? <ThemedHighcharts options={pagesChartOptions} /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />}
                 </Card>
-                <Card className="admin-card usage-analytics-table-card" bordered={false}>
+                <Card className="admin-card usage-analytics-table-card" variant="borderless">
                     {cardHead(t('usage.pagesTable'))}
                     <ResponsiveDataView
                         rowKey="key"

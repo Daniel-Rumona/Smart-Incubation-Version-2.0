@@ -112,7 +112,7 @@ export const ConsultantAvailableWorkPage = () => {
                 </span>
             ),
         },
-        { title: t('Area'), key: 'area', width: 160, render: (_, item) => (item.area ? <Tag bordered={false}>{item.area}</Tag> : <Typography.Text type="secondary">—</Typography.Text>) },
+        { title: t('Area'), key: 'area', width: 160, render: (_, item) => (item.area ? <Tag variant="borderless">{item.area}</Tag> : <Typography.Text type="secondary">—</Typography.Text>) },
         { title: t('Programme'), key: 'programme', width: 200, render: (_, item) => item.programName || <Typography.Text type="secondary">—</Typography.Text> },
         { title: '', key: 'action', width: 140, align: 'right', render: (_, item) => pickUpButton(item) },
     ]
@@ -157,7 +157,7 @@ export const ConsultantAvailableWorkPage = () => {
                                     {stepLabel(item) && <Typography.Text type="secondary">{stepLabel(item)}</Typography.Text>}
                                     <Typography.Text>{item.smeName}</Typography.Text>
                                     <span className="available-work-meta">
-                                        {item.area && <Tag bordered={false}>{item.area}</Tag>}
+                                        {item.area && <Tag variant="borderless">{item.area}</Tag>}
                                         {item.programName && <Typography.Text type="secondary">{item.programName}</Typography.Text>}
                                     </span>
                                     {pickUpButton(item, true)}

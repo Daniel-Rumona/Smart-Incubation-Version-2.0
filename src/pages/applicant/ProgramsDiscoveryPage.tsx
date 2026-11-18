@@ -45,7 +45,8 @@ export const ProgramsDiscoveryPage = () => {
                 setPrograms(programRows)
                 setProfileComplete(isApplicantProfileComplete(profile))
                 setAppliedProgramIds(new Set(applications.map((application) => application.programId).filter((id): id is string => Boolean(id))))
-            } catch {
+            } catch (error) {
+                console.error('Error loading programmes', error)
                 message.error(t('applicant.programs.error'))
             } finally {
                 setLoading(false)

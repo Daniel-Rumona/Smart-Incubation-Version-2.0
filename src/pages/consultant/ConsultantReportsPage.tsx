@@ -516,7 +516,7 @@ export const ConsultantReportsPage = () => {
     const formatDate = (date: Date | null) => (date ? dayjs(date).format('DD MMM YYYY') : '-')
     const statusTag = (row: ReportRow) => {
         const key = statusKeyOf(row)
-        return <Tag bordered={false} style={{ marginInlineEnd: 0 }}><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 999, background: colors[key], marginInlineEnd: 6 }} />{statusLabels[key]}</Tag>
+        return <Tag variant="borderless" style={{ marginInlineEnd: 0 }}><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 999, background: colors[key], marginInlineEnd: 6 }} />{statusLabels[key]}</Tag>
     }
 
     const assignmentColumns: ColumnsType<ReportRow> = [
@@ -905,147 +905,147 @@ export const ConsultantReportsPage = () => {
 
             <div style={{ opacity: refreshing ? 0.6 : 1, transition: 'opacity 200ms cubic-bezier(0.23, 1, 0.32, 1)' }}>
                 {section === 'delivery' && (
-                <div className="consultant-report-section">
-                    {verdictCard([
-                        enough(current.total) && figure('rate', `${current.rate}%`, t('completion'), enough(previous?.total) && delta(current.rate, previous?.rate, points, true), false),
-                        current.medianDays !== null && figure('days', daysLabel(current.medianDays), t('median turnaround'), delta(current.medianDays, previous?.medianDays, daysLabel, false), false),
-                        current.rating !== null && figure('rating', `${current.rating.toFixed(1)} / 5`, t('client rating'), delta(current.rating, previous?.rating, (value) => value.toFixed(1), true, 1), false),
-                    ])}
+                    <div className="consultant-report-section">
+                        {verdictCard([
+                            enough(current.total) && figure('rate', `${current.rate}%`, t('completion'), enough(previous?.total) && delta(current.rate, previous?.rate, points, true), false),
+                            current.medianDays !== null && figure('days', daysLabel(current.medianDays), t('median turnaround'), delta(current.medianDays, previous?.medianDays, daysLabel, false), false),
+                            current.rating !== null && figure('rating', `${current.rating.toFixed(1)} / 5`, t('client rating'), delta(current.rating, previous?.rating, (value) => value.toFixed(1), true, 1), false),
+                        ])}
 
-                    <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-                        <Col xs={24} xl={15}>
-                            <Card loading={firstLoad} className="dashboard-section-card motion-card" title={<Space><AreaChartOutlined /> {t('Assigned vs completed, running total')}</Space>} extra={detailsButton('trend', !filteredRows.length)} style={{ height: '100%' }}>
-                                {filteredRows.length ? <ThemedHighcharts options={trendChart} /> : <Empty description={t('consultant.reports.empty')} />}
-                            </Card>
-                        </Col>
-                        <Col xs={24} xl={9}>
-                            <div className="report-side-stack">
-                                <Card loading={firstLoad} className="dashboard-section-card motion-card" title={<Space><BarChartOutlined /> {t('Where your {count} assignments stand', undefined, { count: scopedRows.length })}</Space>} extra={detailsButton('status', !scopedRows.length)}>
-                                    {scopedRows.length ? (
-                                        <>
-                                            <div className="report-status-bar" role="img" aria-label={STATUS_ORDER.map((key) => `${byStatus(key).length} ${statusLabels[key]}`).join(', ')}>
-                                                {STATUS_ORDER.filter((key) => byStatus(key).length).map((key) => (
-                                                    <span key={key} style={{ flexGrow: byStatus(key).length, background: colors[key] }} title={`${statusLabels[key]}: ${byStatus(key).length}`} />
-                                                ))}
-                                            </div>
-                                            <div className="report-status-legend">
-                                                {STATUS_ORDER.map((key) => (
-                                                    <span key={key} className={byStatus(key).length ? undefined : 'is-empty'}>
-                                                        <i style={{ background: colors[key] }} />
-                                                        <strong>{byStatus(key).length}</strong> {statusLabels[key]}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        </>
-                                    ) : <Empty description={t('consultant.reports.empty')} />}
+                        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+                            <Col xs={24} xl={15}>
+                                <Card loading={firstLoad} className="dashboard-section-card motion-card" title={<Space><AreaChartOutlined /> {t('Assigned vs completed, running total')}</Space>} extra={detailsButton('trend', !filteredRows.length)} style={{ height: '100%' }}>
+                                    {filteredRows.length ? <ThemedHighcharts options={trendChart} /> : <Empty description={t('consultant.reports.empty')} />}
                                 </Card>
+                            </Col>
+                            <Col xs={24} xl={9}>
+                                <div className="report-side-stack">
+                                    <Card loading={firstLoad} className="dashboard-section-card motion-card" title={<Space><BarChartOutlined /> {t('Where your {count} assignments stand', undefined, { count: scopedRows.length })}</Space>} extra={detailsButton('status', !scopedRows.length)}>
+                                        {scopedRows.length ? (
+                                            <>
+                                                <div className="report-status-bar" role="img" aria-label={STATUS_ORDER.map((key) => `${byStatus(key).length} ${statusLabels[key]}`).join(', ')}>
+                                                    {STATUS_ORDER.filter((key) => byStatus(key).length).map((key) => (
+                                                        <span key={key} style={{ flexGrow: byStatus(key).length, background: colors[key] }} title={`${statusLabels[key]}: ${byStatus(key).length}`} />
+                                                    ))}
+                                                </div>
+                                                <div className="report-status-legend">
+                                                    {STATUS_ORDER.map((key) => (
+                                                        <span key={key} className={byStatus(key).length ? undefined : 'is-empty'}>
+                                                            <i style={{ background: colors[key] }} />
+                                                            <strong>{byStatus(key).length}</strong> {statusLabels[key]}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </>
+                                        ) : <Empty description={t('consultant.reports.empty')} />}
+                                    </Card>
 
-                                <Card loading={firstLoad} className="dashboard-section-card motion-card" title={<Space><WarningOutlined /> {t('Needs your attention')}</Space>} extra={lateNow.length > 0 ? <Button type="text" size="small" onClick={() => setDetails('overdue')}>{t('All overdue')}</Button> : null}>
-                                    {attentionList(3)}
-                                </Card>
-                            </div>
-                        </Col>
-                    </Row>
-                </div>
+                                    <Card loading={firstLoad} className="dashboard-section-card motion-card" title={<Space><WarningOutlined /> {t('Needs your attention')}</Space>} extra={lateNow.length > 0 ? <Button type="text" size="small" onClick={() => setDetails('overdue')}>{t('All overdue')}</Button> : null}>
+                                        {attentionList(3)}
+                                    </Card>
+                                </div>
+                            </Col>
+                        </Row>
+                    </div>
                 )}
 
                 {section === 'timeliness' && (
-                <div className="consultant-report-section">
-                    {verdictCard([
-                        current.medianDays !== null && figure('days', daysLabel(current.medianDays), t('median turnaround'), delta(current.medianDays, previous?.medianDays, daysLabel, false), true),
-                        enough(current.doneCount) && figure('ontime', `${current.onTimeRate}%`, t('on time'), enough(previous?.doneCount) && delta(current.onTimeRate, previous?.onTimeRate, points, true), true),
-                    ])}
+                    <div className="consultant-report-section">
+                        {verdictCard([
+                            current.medianDays !== null && figure('days', daysLabel(current.medianDays), t('median turnaround'), delta(current.medianDays, previous?.medianDays, daysLabel, false), true),
+                            enough(current.doneCount) && figure('ontime', `${current.onTimeRate}%`, t('on time'), enough(previous?.doneCount) && delta(current.onTimeRate, previous?.onTimeRate, points, true), true),
+                        ])}
 
-                    <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-                        <Col xs={24} xl={15}>
-                            <Card loading={firstLoad} className="dashboard-section-card motion-card" title={<Space><WarningOutlined /> {t('Needs your attention')}</Space>} extra={detailsButton('overdue', !overdueItems.length)} style={{ height: '100%' }}>
-                                {overdueItems.length > 0 && (
-                                    <>
-                                        <Text type="secondary">{t('Open work past its due date, by how many days late.')}</Text>
-                                        <ThemedHighcharts options={{ ...overdueChart, chart: { ...overdueChart.chart, height: 200 } }} />
-                                    </>
-                                )}
-                                <div className={overdueItems.length ? 'report-attention-after-chart' : undefined}>{attentionList(5)}</div>
-                            </Card>
-                        </Col>
-                        <Col xs={24} xl={9}>
-                            <Card loading={firstLoad} className="dashboard-section-card motion-card" title={<Space><ClockCircleOutlined /> {t('Turnaround time')}</Space>} extra={detailsButton('turnaround', !finished.length)} style={{ height: '100%' }}>
-                                {current.medianDays !== null ? (
-                                    <Space direction="vertical" size={16} style={{ width: '100%' }}>
-                                        <div>
-                                            <span className="report-hero-figure">{current.medianDays}</span>
-                                            <Text type="secondary" style={{ marginLeft: 8 }}>{t('days, median')}</Text>
-                                            <Text type="secondary" style={{ display: 'block', marginTop: 4 }}>{t('From the day an intervention is assigned to the day it is completed.')}</Text>
-                                        </div>
-                                        <div>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                                                <Text>{t('Delivered on time')}</Text>
-                                                <Text type="secondary" style={{ fontSize: 12 }}>{onTime.length}/{finished.length}</Text>
+                        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+                            <Col xs={24} xl={15}>
+                                <Card loading={firstLoad} className="dashboard-section-card motion-card" title={<Space><WarningOutlined /> {t('Needs your attention')}</Space>} extra={detailsButton('overdue', !overdueItems.length)} style={{ height: '100%' }}>
+                                    {overdueItems.length > 0 && (
+                                        <>
+                                            <Text type="secondary">{t('Open work past its due date, by how many days late.')}</Text>
+                                            <ThemedHighcharts options={{ ...overdueChart, chart: { ...overdueChart.chart, height: 200 } }} />
+                                        </>
+                                    )}
+                                    <div className={overdueItems.length ? 'report-attention-after-chart' : undefined}>{attentionList(5)}</div>
+                                </Card>
+                            </Col>
+                            <Col xs={24} xl={9}>
+                                <Card loading={firstLoad} className="dashboard-section-card motion-card" title={<Space><ClockCircleOutlined /> {t('Turnaround time')}</Space>} extra={detailsButton('turnaround', !finished.length)} style={{ height: '100%' }}>
+                                    {current.medianDays !== null ? (
+                                        <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                                            <div>
+                                                <span className="report-hero-figure">{current.medianDays}</span>
+                                                <Text type="secondary" style={{ marginLeft: 8 }}>{t('days, median')}</Text>
+                                                <Text type="secondary" style={{ display: 'block', marginTop: 4 }}>{t('From the day an intervention is assigned to the day it is completed.')}</Text>
                                             </div>
-                                            <Progress percent={onTimeRate} showInfo={false} strokeColor={rateColor(onTimeRate, 75, 50)} />
-                                        </div>
-                                        <ThemedHighcharts options={{ ...turnaroundChart, chart: { ...turnaroundChart.chart, height: 180 } }} />
-                                    </Space>
-                                ) : <Text type="secondary">{t('Turnaround shows after your first completed intervention in this period.')}</Text>}
-                            </Card>
-                        </Col>
-                    </Row>
-                </div>
+                                            <div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                                                    <Text>{t('Delivered on time')}</Text>
+                                                    <Text type="secondary" style={{ fontSize: 12 }}>{onTime.length}/{finished.length}</Text>
+                                                </div>
+                                                <Progress percent={onTimeRate} showInfo={false} strokeColor={rateColor(onTimeRate, 75, 50)} />
+                                            </div>
+                                            <ThemedHighcharts options={{ ...turnaroundChart, chart: { ...turnaroundChart.chart, height: 180 } }} />
+                                        </Space>
+                                    ) : <Text type="secondary">{t('Turnaround shows after your first completed intervention in this period.')}</Text>}
+                                </Card>
+                            </Col>
+                        </Row>
+                    </div>
                 )}
 
                 {section === 'engagement' && (
-                <div className="consultant-report-section">
-                    {verdictCard([
-                        enough(attendance.held) && figure('attendance', `${attendance.rate}%`, t('attendance'), enough(previousAttendance?.held) && delta(attendance.rate, previousAttendance?.rate, points, true), true),
-                        attendance.held > 0 && figure('held', attendance.held, attendance.held === 1 ? t('appointment held') : t('appointments held'), delta(attendance.held, previousAttendance?.held, String, true), true),
-                        current.rating !== null && figure('rating', `${current.rating.toFixed(1)} / 5`, t('client rating'), delta(current.rating, previous?.rating, (value) => value.toFixed(1), true, 1), true),
-                    ])}
+                    <div className="consultant-report-section">
+                        {verdictCard([
+                            enough(attendance.held) && figure('attendance', `${attendance.rate}%`, t('attendance'), enough(previousAttendance?.held) && delta(attendance.rate, previousAttendance?.rate, points, true), true),
+                            attendance.held > 0 && figure('held', attendance.held, attendance.held === 1 ? t('appointment held') : t('appointments held'), delta(attendance.held, previousAttendance?.held, String, true), true),
+                            current.rating !== null && figure('rating', `${current.rating.toFixed(1)} / 5`, t('client rating'), delta(current.rating, previous?.rating, (value) => value.toFixed(1), true, 1), true),
+                        ])}
 
-                    <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-                        <Col xs={24} xl={15}>
-                            <Card loading={firstLoad} className="dashboard-section-card motion-card" title={<Space><CalendarOutlined /> {t('Appointment attendance by month')}</Space>} extra={detailsButton('attendance', !attendance.held)} style={{ height: '100%' }}>
-                                {attendance.held ? (
-                                    <>
-                                        <Text type="secondary">{t('{present} present, {absent} absent.', undefined, { present: attendance.present, absent: attendance.absent })}</Text>
-                                        <ThemedHighcharts options={attendanceChart} />
-                                    </>
-                                ) : <Text type="secondary">{t('Attendance shows once you have held an appointment in this period.')}</Text>}
-                            </Card>
-                        </Col>
-                        <Col xs={24} xl={9}>
-                            <div className="report-side-stack">
-                                <Card loading={firstLoad} className="dashboard-section-card motion-card" title={<Space><StarOutlined /> {t('Client ratings')}</Space>} extra={detailsButton('ratings', !rated.length)}>
-                                    {rated.length ? (
+                        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+                            <Col xs={24} xl={15}>
+                                <Card loading={firstLoad} className="dashboard-section-card motion-card" title={<Space><CalendarOutlined /> {t('Appointment attendance by month')}</Space>} extra={detailsButton('attendance', !attendance.held)} style={{ height: '100%' }}>
+                                    {attendance.held ? (
                                         <>
-                                            <div>
-                                                <span className="report-hero-figure">{avgRating.toFixed(1)}</span>
-                                                <Text type="secondary" style={{ marginLeft: 8 }}>{t('out of 5 on average')}</Text>
-                                                <Text type="secondary" style={{ display: 'block', marginTop: 4 }}>{rated.length === 1 ? t('From one rated assignment.') : t('From {count} rated assignments.', undefined, { count: rated.length })}</Text>
-                                            </div>
-                                            <ThemedHighcharts options={{ ...ratingsChart, chart: { ...ratingsChart.chart, height: 180 } }} />
+                                            <Text type="secondary">{t('{present} present, {absent} absent.', undefined, { present: attendance.present, absent: attendance.absent })}</Text>
+                                            <ThemedHighcharts options={attendanceChart} />
                                         </>
-                                    ) : <Text type="secondary">{t('Ratings show once SMEs rate your completed work.')}</Text>}
+                                    ) : <Text type="secondary">{t('Attendance shows once you have held an appointment in this period.')}</Text>}
                                 </Card>
+                            </Col>
+                            <Col xs={24} xl={9}>
+                                <div className="report-side-stack">
+                                    <Card loading={firstLoad} className="dashboard-section-card motion-card" title={<Space><StarOutlined /> {t('Client ratings')}</Space>} extra={detailsButton('ratings', !rated.length)}>
+                                        {rated.length ? (
+                                            <>
+                                                <div>
+                                                    <span className="report-hero-figure">{avgRating.toFixed(1)}</span>
+                                                    <Text type="secondary" style={{ marginLeft: 8 }}>{t('out of 5 on average')}</Text>
+                                                    <Text type="secondary" style={{ display: 'block', marginTop: 4 }}>{rated.length === 1 ? t('From one rated assignment.') : t('From {count} rated assignments.', undefined, { count: rated.length })}</Text>
+                                                </div>
+                                                <ThemedHighcharts options={{ ...ratingsChart, chart: { ...ratingsChart.chart, height: 180 } }} />
+                                            </>
+                                        ) : <Text type="secondary">{t('Ratings show once SMEs rate your completed work.')}</Text>}
+                                    </Card>
 
-                                <Card loading={firstLoad} className="dashboard-section-card motion-card" title={<Space><MessageOutlined /> {t('What SMEs said')}</Space>}>
-                                    {latestComments.length ? (
-                                        <div className="report-quotes">
-                                            {latestComments.map((item) => (
-                                                <figure key={item.row.id} className="report-quote">
-                                                    <blockquote>{item.comments}</blockquote>
-                                                    <figcaption>
-                                                        {item.row.participant} · {item.row.title}
-                                                        {item.rating != null && <span> · {item.rating} / 5</span>}
-                                                    </figcaption>
-                                                </figure>
-                                            ))}
-                                        </div>
-                                    ) : <Text type="secondary">{t('Comments show here when SMEs leave feedback on your work.')}</Text>}
-                                </Card>
-                            </div>
-                        </Col>
-                    </Row>
-                </div>
+                                    <Card loading={firstLoad} className="dashboard-section-card motion-card" title={<Space><MessageOutlined /> {t('What SMEs said')}</Space>}>
+                                        {latestComments.length ? (
+                                            <div className="report-quotes">
+                                                {latestComments.map((item) => (
+                                                    <figure key={item.row.id} className="report-quote">
+                                                        <blockquote>{item.comments}</blockquote>
+                                                        <figcaption>
+                                                            {item.row.participant} · {item.row.title}
+                                                            {item.rating != null && <span> · {item.rating} / 5</span>}
+                                                        </figcaption>
+                                                    </figure>
+                                                ))}
+                                            </div>
+                                        ) : <Text type="secondary">{t('Comments show here when SMEs leave feedback on your work.')}</Text>}
+                                    </Card>
+                                </div>
+                            </Col>
+                        </Row>
+                    </div>
                 )}
             </div>
 

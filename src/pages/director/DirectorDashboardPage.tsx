@@ -33,7 +33,7 @@ const ATTENTION_ICONS: Record<AttentionItem['key'], React.ReactNode> = {
     high_risk: <WarningOutlined />,
 }
 
-const completionColor =(rate: number) => (rate >= 75 ? '#16a34a' : rate >= 40 ? '#f59e0b' : '#ef4444')
+const completionColor = (rate: number) => (rate >= 75 ? '#16a34a' : rate >= 40 ? '#f59e0b' : '#ef4444')
 
 /**
  * The director's briefing for the active programme (or all of them): growth, KPIs and delivery up top, one row per
@@ -109,15 +109,15 @@ const DirectorDashboard: React.FC = () => {
             </div>
         )
     const kpiCell = (row: DirectorProgrammeRow) => row.kpis.withTarget
-        ? <Tag bordered={false} color={row.kpis.behind ? 'orange' : 'green'}>{kpiText(row.kpis)}</Tag>
+        ? <Tag variant="borderless" color={row.kpis.behind ? 'orange' : 'green'}>{kpiText(row.kpis)}</Tag>
         : <Typography.Text type="secondary">—</Typography.Text>
     const growthCell = (row: DirectorProgrammeRow) => row.revenueGrowth === null
         ? <Typography.Text type="secondary">—</Typography.Text>
-        : <Tag bordered={false} color={row.revenueGrowth > 0 ? 'green' : row.revenueGrowth < 0 ? 'red' : undefined}>{signed(row.revenueGrowth)}%</Tag>
+        : <Tag variant="borderless" color={row.revenueGrowth > 0 ? 'green' : row.revenueGrowth < 0 ? 'red' : undefined}>{signed(row.revenueGrowth)}%</Tag>
     const flagsCell = (row: DirectorProgrammeRow) => (
         <span className="director-flags">
-            {row.overdue > 0 && <Tag bordered={false} color="red">{t('{count} overdue', undefined, { count: row.overdue })}</Tag>}
-            {row.highRisk > 0 && <Tag bordered={false} color="orange">{t('{count} high risk', undefined, { count: row.highRisk })}</Tag>}
+            {row.overdue > 0 && <Tag variant="borderless" color="red">{t('{count} overdue', undefined, { count: row.overdue })}</Tag>}
+            {row.highRisk > 0 && <Tag variant="borderless" color="orange">{t('{count} high risk', undefined, { count: row.highRisk })}</Tag>}
             {!row.overdue && !row.highRisk && <Typography.Text type="secondary">—</Typography.Text>}
         </span>
     )

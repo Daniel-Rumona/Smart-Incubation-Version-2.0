@@ -245,11 +245,13 @@ export const CompliancePage = () => {
                 if (!targets.has(row.id)) return row
                 const scanned = result.results?.find((item) => item.participantId === row.participantId)
                 const serverFindings = scanned?.findings || []
-                return { ...row, scan: {
-                    source: serverFindings.length ? 'server' as const : 'local' as const,
-                    scannedAt: scanned?.summary.scannedAt || checkedAt,
-                    findings: row.documents.map((document) => serverFindings.find((finding) => finding.documentId === document.id) || localComplianceFinding(document)),
-                } }
+                return {
+                    ...row, scan: {
+                        source: serverFindings.length ? 'server' as const : 'local' as const,
+                        scannedAt: scanned?.summary.scannedAt || checkedAt,
+                        findings: row.documents.map((document) => serverFindings.find((finding) => finding.documentId === document.id) || localComplianceFinding(document)),
+                    }
+                }
             }))
             message.success(t(hasServerFindings
                 ? 'Scan complete. Document findings are shown on the cards.'
@@ -328,50 +330,52 @@ export const CompliancePage = () => {
                         <Button type="primary" icon={<PlusOutlined />} onClick={() => openDocumentModal(selected)}>{t('operations.compliance.addDocument')}</Button>
                     </Space>}
                 </div>
-            {selected ? <><div className="compliance-missing-requirements">
-                {selected.requirements.filter((requirement) => requirement.required && !selected.documents.some((document) => requirementKeyFor(document.type || document.key) === requirement.key)).map((requirement) => (
-                    <div className="compliance-agreement-row" key={requirement.key}>
-                        <div><Typography.Text strong>{requirement.name}</Typography.Text><Typography.Text type="secondary">{t('Missing required document')}</Typography.Text></div>
-                        <Button icon={<PlusOutlined />} onClick={() => openDocumentModal(selected, undefined, requirement.name)}>{t('operations.compliance.addDocument')}</Button>
-                    </div>
-                ))}
-            </div><div className="compliance-agreements"><Typography.Text strong>{t('Signed agreements')}</Typography.Text><div className="compliance-agreements-list">{(Object.keys(COMPANY_AGREEMENTS) as CompanyAgreementKey[]).map((key) => { const record = agreementsFor(selected)[key]; return <div key={key} className="compliance-agreement-row"><div><Typography.Text strong>{COMPANY_AGREEMENTS[key].title}</Typography.Text><Typography.Text type="secondary">{record ? t('Signed {date}', undefined, { date: record.acceptedAt ? dayjs(record.acceptedAt).format('D MMM YYYY, HH:mm') : '' }) : t('Not signed yet')}</Typography.Text></div>{record ? <Button icon={<DownloadOutlined />} loading={downloading === record.id} onClick={() => void downloadAgreement(record, selected)}>{t('Word document')}</Button> : <Tag color="orange">{t('Not signed')}</Tag>}</div> })}</div></div><section className="compliance-document-list" aria-label={t('operations.compliance.documents')}>
-                <Typography.Text strong>{t('operations.compliance.documents')}</Typography.Text>
-                {selected.scan && !selected.scan.findings.length && <Typography.Paragraph type="secondary">{t('The last scan returned no document findings. Update the scan backend and scan again.')}</Typography.Paragraph>}
-                {selectedDocuments.length ? selectedDocuments.map((document) => {
-                    const reviewStatus = complianceReviewStatus(document)
-                    const validated = reviewStatus === 'verified'
-                    const status = REVIEW_STATUS[reviewStatus]
-                    const finding = selected.scan?.findings.find((item) => item.documentId === document.id)
-                    const findingCurrent = finding && (finding.url || '') === (document.url || '') && (finding.expiryDate || '') === (document.expiryDate || '') && finding.currentStatus === document.currentStatus && finding.verificationStatus === document.verificationStatus
-                    return <article className="compliance-document-card" key={document.id}>
-                        <div className="compliance-document-heading">
-                            <div className="compliance-document-name"><FileProtectOutlined /><div>
-                                <Typography.Text strong>{document.type}</Typography.Text>
-                            </div></div>
-                            <Tag color={status.color}>{t(status.label)}</Tag>
+                {selected ? <><div className="compliance-missing-requirements">
+                    {selected.requirements.filter((requirement) => requirement.required && !selected.documents.some((document) => requirementKeyFor(document.type || document.key) === requirement.key)).map((requirement) => (
+                        <div className="compliance-agreement-row" key={requirement.key}>
+                            <div><Typography.Text strong>{requirement.name}</Typography.Text><Typography.Text type="secondary">{t('Missing required document')}</Typography.Text></div>
+                            <Button icon={<PlusOutlined />} onClick={() => openDocumentModal(selected, undefined, requirement.name)}>{t('operations.compliance.addDocument')}</Button>
                         </div>
-                        <div className="compliance-document-meta">
-                            <span>{t('common.expiry')}: <strong>{document.expiryDate ? dayjs(document.expiryDate).format('D MMM YYYY') : t('N/A')}</strong></span>
-                        </div>
-                        {document.verificationStatus === 'queried' && document.verificationComment && <div className="compliance-document-query"><QuestionCircleOutlined /><span>{document.verificationComment}</span></div>}
-                        {hasComplianceFile(document) && finding && <div className="compliance-scan-finding">
-                            <FileSearchOutlined />
-                            <div><Typography.Text strong>{t(finding.reviewKind === 'content' ? 'AI document review' : finding.reviewKind === 'unavailable' ? 'AI review unavailable' : 'File and date check')} · {selected.scan?.scannedAt ? dayjs(selected.scan.scannedAt).format('D MMM, HH:mm') : ''}</Typography.Text>
-                            <Typography.Paragraph>{t(findingCurrent ? finding.message : 'This document changed since the last scan. Scan again for current findings.')}</Typography.Paragraph>
-                            <Typography.Text type="secondary">{t(finding.reviewKind === 'content' ? 'AI findings are advisory. Review the document before verifying.' : finding.reviewKind === 'unavailable' ? 'No AI approval was made.' : 'Content was not reviewed. The backend needs the AI content-review update.')}</Typography.Text></div>
-                        </div>}
-                        <div className="compliance-document-actions">
-                            {document.url && <Button icon={<EyeOutlined />} href={document.url} target="_blank" rel="noopener noreferrer">{t('View document')}</Button>}
-                            <Button icon={hasComplianceFile(document) ? <EditOutlined /> : <UploadOutlined />} onClick={() => openDocumentModal(selected, document)}>{t(hasComplianceFile(document) ? 'common.edit' : 'Upload document')}</Button>
-                            {hasComplianceFile(document) && <Button type={validated ? 'default' : 'primary'} icon={validated ? <QuestionCircleOutlined /> : <CheckCircleOutlined />} onClick={() => openVerification(document)}>{t(validated ? 'operations.compliance.query' : 'operations.compliance.verify')}</Button>}
-                        </div>
-                    </article>
-                }) : <Empty description={t('operations.compliance.noDocuments')} />}
-            </section></> : <Empty />}
+                    ))}
+                </div><div className="compliance-agreements"><Typography.Text strong>{t('Signed agreements')}</Typography.Text><div className="compliance-agreements-list">{(Object.keys(COMPANY_AGREEMENTS) as CompanyAgreementKey[]).map((key) => { const record = agreementsFor(selected)[key]; return <div key={key} className="compliance-agreement-row"><div><Typography.Text strong>{COMPANY_AGREEMENTS[key].title}</Typography.Text><Typography.Text type="secondary">{record ? t('Signed {date}', undefined, { date: record.acceptedAt ? dayjs(record.acceptedAt).format('D MMM YYYY, HH:mm') : '' }) : t('Not signed yet')}</Typography.Text></div>{record ? <Button icon={<DownloadOutlined />} loading={downloading === record.id} onClick={() => void downloadAgreement(record, selected)}>{t('Word document')}</Button> : <Tag color="orange">{t('Not signed')}</Tag>}</div> })}</div></div><section className="compliance-document-list" aria-label={t('operations.compliance.documents')}>
+                        <Typography.Text strong>{t('operations.compliance.documents')}</Typography.Text>
+                        {selected.scan && !selected.scan.findings.length && <Typography.Paragraph type="secondary">{t('The last scan returned no document findings. Update the scan backend and scan again.')}</Typography.Paragraph>}
+                        {selectedDocuments.length ? selectedDocuments.map((document) => {
+                            const reviewStatus = complianceReviewStatus(document)
+                            const validated = reviewStatus === 'verified'
+                            const status = REVIEW_STATUS[reviewStatus]
+                            const finding = selected.scan?.findings.find((item) => item.documentId === document.id)
+                            const findingCurrent = finding && (finding.url || '') === (document.url || '') && (finding.expiryDate || '') === (document.expiryDate || '') && finding.currentStatus === document.currentStatus && finding.verificationStatus === document.verificationStatus
+                            return <article className="compliance-document-card" key={document.id}>
+                                <div className="compliance-document-heading">
+                                    <div className="compliance-document-name"><FileProtectOutlined /><div>
+                                        <Typography.Text strong>{document.type}</Typography.Text>
+                                    </div></div>
+                                    <Tag color={status.color}>{t(status.label)}</Tag>
+                                </div>
+                                <div className="compliance-document-meta">
+                                    <span>{t('common.expiry')}: <strong>{document.expiryDate ? dayjs(document.expiryDate).format('D MMM YYYY') : t('N/A')}</strong></span>
+                                </div>
+                                {document.verificationStatus === 'queried' && document.verificationComment && <div className="compliance-document-query"><QuestionCircleOutlined /><span>{document.verificationComment}</span></div>}
+                                {hasComplianceFile(document) && finding && <div className="compliance-scan-finding">
+                                    <FileSearchOutlined />
+                                    <div><Typography.Text strong>{t(finding.reviewKind === 'content' ? 'AI document review' : finding.reviewKind === 'unavailable' ? 'AI review unavailable' : 'File and date check')} · {selected.scan?.scannedAt ? dayjs(selected.scan.scannedAt).format('D MMM, HH:mm') : ''}</Typography.Text>
+                                        <Typography.Paragraph>{t(findingCurrent ? finding.message : 'This document changed since the last scan. Scan again for current findings.')}</Typography.Paragraph>
+                                        <Typography.Text type="secondary">{t(finding.reviewKind === 'content' ? 'AI findings are advisory. Review the document before verifying.' : finding.reviewKind === 'unavailable' ? 'No AI approval was made.' : 'Content was not reviewed. The backend needs the AI content-review update.')}</Typography.Text></div>
+                                </div>}
+                                <div className="compliance-document-actions">
+                                    {document.url && <Button icon={<EyeOutlined />} href={document.url} target="_blank" rel="noopener noreferrer">{t('View document')}</Button>}
+                                    <Button icon={hasComplianceFile(document) ? <EditOutlined /> : <UploadOutlined />} onClick={() => openDocumentModal(selected, document)}>{t(hasComplianceFile(document) ? 'common.edit' : 'Upload document')}</Button>
+                                    {hasComplianceFile(document) && <Button type={validated ? 'default' : 'primary'} icon={validated ? <QuestionCircleOutlined /> : <CheckCircleOutlined />} onClick={() => openVerification(document)}>{t(validated ? 'operations.compliance.query' : 'operations.compliance.verify')}</Button>}
+                                </div>
+                            </article>
+                        }) : <Empty description={t('operations.compliance.noDocuments')} />}
+                    </section></> : <Empty />}
             </Card>
         </div>
-        <Modal open={documentModalOpen} title={lockedDocumentType ? `${t(editing && hasComplianceFile(editing) ? 'operations.compliance.editDocument' : 'Upload document')}: ${lockedDocumentType}` : t('operations.compliance.addDocument')} footer={null} onCancel={() => { if (!uploading) setDocumentModalOpen(false) }} closable={!uploading} maskClosable={!uploading} keyboard={!uploading}>
+        <Modal open={documentModalOpen} title={lockedDocumentType ? `${t(editing && hasComplianceFile(editing) ? 'operations.compliance.editDocument' : 'Upload document')}: ${lockedDocumentType}` : t('operations.compliance.addDocument')} footer={null} onCancel={() => { if (!uploading) setDocumentModalOpen(false) }} closable={!uploading}
+            mask={{ closable: !uploading }}
+            keyboard={!uploading}>
             {documentParticipant && <Typography.Paragraph type="secondary">{documentParticipant.businessName}</Typography.Paragraph>}
             <Form form={form} disabled={uploading} layout="vertical" onFinish={(values) => void save(values)}>
                 <Form.Item name="participantId" label={t('operations.compliance.participant')} rules={documentParticipant ? [] : [{ required: true }]} style={documentParticipant ? { display: 'none' } : undefined}><Select showSearch optionFilterProp="label" options={participants.map((participant) => ({ value: participant.id, label: participant.businessName }))} /></Form.Item>
@@ -382,7 +386,9 @@ export const CompliancePage = () => {
                 <Button block type="primary" htmlType="submit" loading={uploading}>{t(uploading ? 'common.saving' : 'operations.compliance.saveDocument')}</Button>
             </Form>
         </Modal>
-        <Modal open={!!verifyDocument} title={t('Review document')} onCancel={() => { if (!verifying) setVerifyDocument(undefined) }} closable={!verifying} maskClosable={!verifying} keyboard={!verifying} footer={null} width={520}>
+        <Modal open={!!verifyDocument} title={t('Review document')} onCancel={() => { if (!verifying) setVerifyDocument(undefined) }}
+            mask={{ closable: !verifying }}
+            keyboard={!verifying} footer={null} width={520}>
             <div className="compliance-review-summary"><FileProtectOutlined /><div>
                 <Typography.Text strong>{verifyDocument?.type}</Typography.Text>
                 <Typography.Text type="secondary">{verifyDocument?.fileName || verifyDocument?.documentName}</Typography.Text>
@@ -397,7 +403,7 @@ export const CompliancePage = () => {
                 <div className={`compliance-review-explanation compliance-review-explanation--${verificationDecision}`}>
                     {verificationDecision === 'verified' ? <CheckCircleOutlined /> : <QuestionCircleOutlined />}
                     <div><Typography.Text strong>{t(verificationDecision === 'verified' ? 'Confirm this document is valid' : 'Request a correction or clarification')}</Typography.Text>
-                    <Typography.Paragraph>{t(verificationDecision === 'verified' ? 'This marks the document as verified and valid for compliance.' : 'Explain what needs to change. The document will be marked as queried and will no longer count as valid.')}</Typography.Paragraph></div>
+                        <Typography.Paragraph>{t(verificationDecision === 'verified' ? 'This marks the document as verified and valid for compliance.' : 'Explain what needs to change. The document will be marked as queried and will no longer count as valid.')}</Typography.Paragraph></div>
                 </div>
                 {verificationDecision === 'queried' && <Form.Item name="reason" label={t('What needs to be corrected?')} rules={[{ required: true, whitespace: true, message: t('operations.compliance.queryReasonRequired') }]}>
                     <TextArea disabled={verifying} rows={4} placeholder={t('For example: Please upload a clearer copy showing the full registration number.')} />

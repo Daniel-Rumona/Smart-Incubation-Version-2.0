@@ -243,7 +243,7 @@ export const CompanyPlansPage = () => {
                     const count = rows.filter((row) => row.plan.tier === tier).length
                     return (
                         <Col key={tier} xs={24} sm={24} lg={8}>
-                            <Card className={`admin-card company-plan-card is-${tier}`} bordered={false} loading={loading}>
+                            <Card className={`admin-card company-plan-card is-${tier}`} variant="borderless" loading={loading}>
                                 <div className="company-plan-head">
                                     <span className="company-plan-icon">{TIER_ICONS[tier]}</span>
                                     <div className="company-plan-heading-copy">
@@ -269,7 +269,7 @@ export const CompanyPlansPage = () => {
                 })}
             </Row>
 
-            <Card className="admin-card company-plans-companies" bordered={false}>
+            <Card className="admin-card company-plans-companies" variant="borderless">
                 <div className="company-plans-section-heading company-plans-company-heading">
                     <div>
                         <Typography.Title level={4}>{t('Company assignments')}</Typography.Title>
@@ -311,7 +311,7 @@ export const CompanyPlansPage = () => {
                 okButtonProps={{ disabled: !editingTier || sameFeatures(draftFeatures, planFeatures[editingTier]), loading: savingTier }}
                 cancelButtonProps={{ disabled: savingTier }}
                 closable={!savingTier}
-                maskClosable={!savingTier}
+                mask={{ closable: !savingTier }}
                 centered
                 width={620}
                 className="company-plans-modal"
@@ -348,7 +348,7 @@ export const CompanyPlansPage = () => {
                 okButtonProps={{ loading: savingCompany, disabled: !draftCompanyPlan }}
                 cancelButtonProps={{ disabled: savingCompany }}
                 closable={!savingCompany}
-                maskClosable={!savingCompany}
+                mask={{ closable: !savingCompany }}
                 centered
                 width={580}
                 className="company-plans-modal"

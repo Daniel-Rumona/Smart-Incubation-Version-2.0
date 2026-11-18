@@ -363,7 +363,7 @@ export default function ProgramApplicationPage() {
 
     return (
         <div className="program-application-page">
-            <Card className="program-application-header" bordered={false}>
+            <Card className="program-application-header" variant="borderless">
                 <div className="program-application-heading">
                     <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)} aria-label={t('Back')}>{t('Back')}</Button>
 

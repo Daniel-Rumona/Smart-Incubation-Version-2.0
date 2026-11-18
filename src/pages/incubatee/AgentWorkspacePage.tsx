@@ -656,7 +656,7 @@ const AgentWorkspaceContent = ({ agentId = 'business-plan' }: Props) => {
                 width={520}
                 footer={null}
                 closable={!sending}
-                maskClosable={!sending}
+                mask={{ closable: !sending }}
                 className="agent-document-upload-modal"
                 title={t('Upload supporting document')}
             >

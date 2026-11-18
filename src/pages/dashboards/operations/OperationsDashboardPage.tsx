@@ -1342,7 +1342,7 @@ export default function OperationsDashboard() {
     const interventionCard = (
         <Card
             className="dashboard-section-card"
-            bordered={false}
+            variant="borderless"
             loading={cardLoading}
             title={
                 <Space>
@@ -1369,7 +1369,7 @@ export default function OperationsDashboard() {
     const riskClassificationCard = (
         <Card
             className="dashboard-section-card"
-            bordered={false}
+            variant="borderless"
             loading={cardLoading}
             title={
                 <Space>
@@ -1400,7 +1400,7 @@ export default function OperationsDashboard() {
         <Card
             className="dashboard-section-card"
             style={{ height: 'auto' }}
-            bordered={false}
+            variant="borderless"
             loading={cardLoading}
             title={
                 <Space>
@@ -1449,7 +1449,7 @@ export default function OperationsDashboard() {
     return (
         <DashboardPage className="dashboard-home-page operations-dashboard-page">
             {cardLoading ? (
-                <Card loading={identityLoading || initialLoading} className="dashboard-section-card" bordered={false}>
+                <Card loading={identityLoading || initialLoading} className="dashboard-section-card" variant="borderless">
                     <div style={{ minHeight: 180, display: 'grid', placeItems: 'center' }}>
                         <Spin description={t('Refreshing operations dashboard...')} />
                     </div>

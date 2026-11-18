@@ -572,13 +572,13 @@ const AgentRegistryPage = () => {
                     </div>
 
                     {!agents.length ? (
-                        <Card className="admin-card" bordered={false}>
+                        <Card className="admin-card" variant="borderless">
                             <Empty description={t('No agents have been registered.')} image={Empty.PRESENTED_IMAGE_SIMPLE}>
                                 <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>{t('Register first agent')}</Button>
                             </Empty>
                         </Card>
                     ) : !filteredAgents.length ? (
-                        <Card className="admin-card" bordered={false}>
+                        <Card className="admin-card" variant="borderless">
                             <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('No agents match your filters.')}>
                                 <Button onClick={clearFilters}>{t('Clear filters')}</Button>
                             </Empty>
@@ -590,7 +590,7 @@ const AgentRegistryPage = () => {
                                 const assignable = agent.status === 'active' && agent.supportsAssignment
                                 const implementation = getAgentImplementation(agent.implementationKey)
                                 return (
-                                    <Card key={agent.id} className={`admin-card agent-card agent-row is-${agent.status}`} bordered={false}>
+                                    <Card key={agent.id} className={`admin-card agent-card agent-row is-${agent.status}`} variant="borderless">
                                         <div className="agent-row-main">
                                             <span className="admin-kpi-icon"><RobotOutlined /></span>
                                             <div className="agent-card-title">

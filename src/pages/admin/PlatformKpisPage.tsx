@@ -290,7 +290,7 @@ export const PlatformKpisPage = () => {
             {loading ? (
                 <div className="platform-kpis-workspace"><Card><Skeleton active /></Card><Card><Skeleton active /></Card></div>
             ) : !active.length ? (
-                <Card className="admin-card platform-kpis-empty" bordered={false}>
+                <Card className="admin-card platform-kpis-empty" variant="borderless">
                     <span className="admin-kpi-icon"><AimOutlined /></span>
                     <h3>{t('No system KPIs yet')}</h3>
                     <p>{t('Start with a recommended set: adoption and engagement show whether what ships gets used; reliability and engineering show whether it is built well. Targets can be tuned after.')}</p>

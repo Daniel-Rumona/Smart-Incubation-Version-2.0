@@ -314,7 +314,7 @@ export const WelcomePage = () => {
     if (loading) {
         return (
             <main className="welcome-page">
-                <Card className="welcome-shell" bordered={false}>
+                <Card className="welcome-shell" variant="borderless">
                     <PageSkeleton variant="detail" label={t('welcome.loading')} />
                 </Card>
             </main>
@@ -716,7 +716,7 @@ export const WelcomePage = () => {
                     <span className="welcome-control-label">{themeMode === 'dark' ? t('common.lightMode', 'Light') : t('common.darkMode', 'Dark')}</span>
                 </Button>
             </div>
-            <Card className="welcome-shell" bordered={false}>
+            <Card className="welcome-shell" variant="borderless">
                 <section key={activeStep} className="welcome-conversation-stage">
                     <div className={`welcome-guide-message${activeStep === 'intro' ? ' is-intro' : ''}`}>
                         <Text className="welcome-guide-label">{t('THUSO · YOUR SETUP GUIDE')}</Text>

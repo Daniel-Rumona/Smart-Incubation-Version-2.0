@@ -1008,211 +1008,211 @@ export const InterventionsAssignemnts = () => {
             <Modal open={!!selected} onCancel={() => { setSelected(undefined); setDetailKey(null) }} title={selected?.beneficiaryName} footer={null} width={920}>
                 {selected && (
                     <AnimatePresence mode="wait" initial={false}>
-                    {detailRow ? (
-                        <InterventionDetailPanel
-                            key="detail"
-                            title={detailRow.title}
-                            area={detailRow.area}
-                            executionMode={detailRow.executionMode}
-                            live={detailRow.live}
-                            assignments={detailAssignments as unknown as Array<Record<string, unknown>>}
-                            appointments={appointments.filter((appointment) => detailAssignments.some((assignment) => assignment.id === appointment.assignedInterventionId))}
-                            onBack={() => setDetailKey(null)}
-                            backLabel={t('All interventions')}
-                            actions={canAssign && detailAssignments.some(assignmentIsActive) && (
-                                <div className="id-operations-list">
-                                    {detailAssignments.filter(assignmentIsActive).map((assignment) => (
-                                        <div key={assignment.id} className="id-operations-row">
-                                            <Typography.Text strong>
-                                                {assignmentPlanLabel(assignment as unknown as Record<string, unknown>, detailRow.live) || detailRow.title} · {assignment.assigneeName || t('Unassigned')}
-                                            </Typography.Text>
-                                            <div>
-                                                <InterventionOpsActions
-                                                    embedded
-                                                    assignment={assignment}
-                                                    title={assignmentPlanLabel(assignment as unknown as Record<string, unknown>, detailRow.live) || detailRow.title}
-                                                    participantName={selected.beneficiaryName}
-                                                    isCompleted={assignmentStepComplete(assignment)}
-                                                    onChanged={() => { void refresh() }}
-                                                />
+                        {detailRow ? (
+                            <InterventionDetailPanel
+                                key="detail"
+                                title={detailRow.title}
+                                area={detailRow.area}
+                                executionMode={detailRow.executionMode}
+                                live={detailRow.live}
+                                assignments={detailAssignments as unknown as Array<Record<string, unknown>>}
+                                appointments={appointments.filter((appointment) => detailAssignments.some((assignment) => assignment.id === appointment.assignedInterventionId))}
+                                onBack={() => setDetailKey(null)}
+                                backLabel={t('All interventions')}
+                                actions={canAssign && detailAssignments.some(assignmentIsActive) && (
+                                    <div className="id-operations-list">
+                                        {detailAssignments.filter(assignmentIsActive).map((assignment) => (
+                                            <div key={assignment.id} className="id-operations-row">
+                                                <Typography.Text strong>
+                                                    {assignmentPlanLabel(assignment as unknown as Record<string, unknown>, detailRow.live) || detailRow.title} · {assignment.assigneeName || t('Unassigned')}
+                                                </Typography.Text>
+                                                <div>
+                                                    <InterventionOpsActions
+                                                        embedded
+                                                        assignment={assignment}
+                                                        title={assignmentPlanLabel(assignment as unknown as Record<string, unknown>, detailRow.live) || detailRow.title}
+                                                        participantName={selected.beneficiaryName}
+                                                        isCompleted={assignmentStepComplete(assignment)}
+                                                        onChanged={() => { void refresh() }}
+                                                    />
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        />
-                    ) : (
-                    <motion.div key="list" initial={{ opacity: 0, x: -24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.2, ease: 'easeOut' }}>
-                    <Space direction="vertical" size={16} style={{ width: '100%' }}>
-                        <Row gutter={[12, 12]}>
-                            {manageMetrics.total > 0 && (
-                                <Col flex="1" key="required">
-                                    <DashboardMetricCard
-                                        icon={<DatabaseOutlined />}
-                                        label={t('Required')}
-                                        value={manageMetrics.total}
-                                        hint={manageFilter === 'All' ? t('Showing all') : t('Click to show all')}
-                                        clickable
-                                        onClick={() => setManageFilter('All')}
-                                    />
-                                </Col>
-                            )}
-                            {manageMetrics.assignedCount > 0 && (
-                                <Col flex="1" key="assigned">
-                                    <DashboardMetricCard
-                                        icon={<CheckCircleOutlined />}
-                                        label={t('Assigned')}
-                                        value={manageMetrics.assignedCount}
-                                        hint={manageFilter === 'Assigned' ? t('Filter active — click to clear') : t('Click to filter')}
-                                        clickable
-                                        onClick={() => setManageFilter((current) => current === 'Assigned' ? 'All' : 'Assigned')}
-                                    />
-                                </Col>
-                            )}
-                            {manageMetrics.unassignedCount > 0 && (
-                                <Col flex="1" key="unassigned">
-                                    <DashboardMetricCard
-                                        icon={<ExclamationCircleOutlined />}
-                                        label={t('Unassigned')}
-                                        value={manageMetrics.unassignedCount}
-                                        hint={manageFilter === 'Unassigned' ? t('Filter active — click to clear') : t('Click to filter')}
-                                        clickable
-                                        onClick={() => setManageFilter((current) => current === 'Unassigned' ? 'All' : 'Unassigned')}
-                                    />
-                                </Col>
-                            )}
-                            {manageMetrics.inProgressCount > 0 && (
-                                <Col flex="1" key="inprogress">
-                                    <DashboardMetricCard
-                                        icon={<ToolOutlined />}
-                                        label={t('In progress')}
-                                        value={manageMetrics.inProgressCount}
-                                        hint={manageFilter === 'InProgress' ? t('Filter active — click to clear') : t('Click to filter')}
-                                        clickable
-                                        onClick={() => setManageFilter((current) => current === 'InProgress' ? 'All' : 'InProgress')}
-                                    />
-                                </Col>
-                            )}
-                            {manageMetrics.completedCount > 0 && (
-                                <Col flex="1" key="completed">
-                                    <DashboardMetricCard
-                                        icon={<CheckCircleOutlined />}
-                                        label={t('Completed')}
-                                        value={manageMetrics.completedCount}
-                                        hint={manageFilter === 'Completed' ? t('Filter active — click to clear') : t('Click to filter')}
-                                        clickable
-                                        onClick={() => setManageFilter((current) => current === 'Completed' ? 'All' : 'Completed')}
-                                    />
-                                </Col>
-                            )}
-                        </Row>
-                        {managedRows.some((row) => row.declineRequestAssignment) && (
-                            <Alert
-                                type="warning"
-                                showIcon
-                                message={t('The SME asked to change or drop an intervention')}
-                                description={managedRows
-                                    .filter((row) => row.declineRequestAssignment)
-                                    .map((row) => `${row.title} (${changeRequestLabel(row.declineRequestAssignment).toLowerCase()})${declineRequestOf(row.declineRequestAssignment)?.reasonText ? `: ${declineRequestOf(row.declineRequestAssignment)?.reasonText}` : ''}`)
-                                    .join(' · ')}
-                            />
-                        )}
-                        <ResponsiveDataView
-                            rowKey="id"
-                            rows={filteredManagedRows}
-                            loading={assignmentsLoading}
-                            onRowClick={(row) => setDetailKey(row.id)}
-                            rowClassName={() => 'id-row-clickable'}
-                            emptyText={manageFilter === 'All' ? t('No required interventions found for this SME.') : t('No interventions match this filter.')}
-                            columns={[
-                                { title: t('Intervention'), dataIndex: 'title' },
-                                { title: t('Area'), dataIndex: 'area', render: (value?: string) => value || t('N/A') },
-                                { title: t('Execution'), render: (_, row) => <Tag color={row.executionMode === 'multi_step' ? 'purple' : 'default'}>{row.executionMode === 'multi_step' ? `Multi-step (${row.steps?.length || 0})` : t('Single session')}</Tag> },
-                                {
-                                    title: t('Status'),
-                                    render: (_, row) => {
-                                        if (row.declinedTag) {
-                                            return (
-                                                <Space direction="vertical" size={0}>
-                                                    <Tag color="red">{t('Declined by SME')}</Tag>
-                                                    {row.declinedTag.workRetained && <Typography.Text type="secondary">{t('Work kept')}</Typography.Text>}
-                                                </Space>
-                                            )
-                                        }
-                                        const label = rowIsCompleted(row) ? 'Completed' : rowIsInProgress(row) ? 'In progress' : 'Unassigned'
-                                        const color = rowIsCompleted(row) ? 'green' : rowIsInProgress(row) ? 'blue' : 'default'
-                                        const detail = row.executionMode === 'multi_step'
-                                            ? (row.activeStep
-                                                ? `Step ${Number(row.activeStep.stepIndex || 0) + 1}: ${row.activeStep.assignedStepTitle || ''}`
-                                                : row.nextStep
-                                                    ? `Next: ${row.nextStep.title}`
-                                                    : `${row.matchingAssignments?.length || 0}/${row.steps?.length || 0} steps assigned`)
-                                            : undefined
-                                        return (
-                                            <Space direction="vertical" size={0}>
-                                                <Space size={4} wrap>
-                                                    <Tag color={color}>{label}</Tag>
-                                                    {row.declineRequestAssignment && <Tag color="orange">{changeRequestLabel(row.declineRequestAssignment)}</Tag>}
-                                                </Space>
-                                                {detail && <Typography.Text type="secondary">{detail}</Typography.Text>}
-                                                {rowIsInProgress(row) && row.live ? <Progress percent={row.live.progress} size="small" style={{ minWidth: 120, margin: 0 }} /> : null}
-                                            </Space>
-                                        )
-                                    },
-                                },
-                                {
-                                    title: t('Assignee'),
-                                    render: (_, row) => {
-                                        const current = row.executionMode === 'multi_step' ? row.activeStep : row.assigned
-                                        if (!current) return <Typography.Text type="secondary">{t('Not assigned')}</Typography.Text>
-                                        return <Space direction="vertical" size={2}><Tag color={current.deliveryActorType === 'agent' ? 'purple' : 'blue'} style={{ marginInlineEnd: 0 }}>{current.deliveryActorType === 'agent' ? t('Agent') : t('Human')}</Tag><Typography.Text>{current.assigneeName || t('Unnamed')}</Typography.Text></Space>
-                                    },
-                                },
-                                { title: t('Actions'), render: (_, row) => row.declinedTag ? <Tag color="red">{t('Declined')}</Tag> : row.declineRequestAssignment ? requestActions(row) : row.assigned && row.executionMode !== 'multi_step' ? <Tag color="green">{t('Assigned')}</Tag> : canAssignNow(row) ? <Button icon={<PlusOutlined />} onClick={(event) => { event.stopPropagation(); startAssign(row) }}>{row.executionMode === 'multi_step' ? row.matchingAssignments?.length ? t('Assign next step') : t('Assign first step') : t('Assign')}</Button> : null },
-                            ]}
-                            renderCard={(row) => {
-                                const current = row.executionMode === 'multi_step' ? row.activeStep : row.assigned
-                                const statusLabel = rowIsCompleted(row) ? 'Completed' : rowIsInProgress(row) ? 'In progress' : 'Unassigned'
-                                const statusColor = rowIsCompleted(row) ? 'green' : rowIsInProgress(row) ? 'blue' : 'default'
-                                return (
-                                    // Plain flex div, not Space: this card mixes tags/text with a conditional
-                                    // Button, which trips the global .ant-space:has(>.ant-space-item>.ant-btn)
-                                    // modal-body rule (see the appointmentGate step above for the full story).
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, cursor: 'pointer' }} onClick={() => setDetailKey(row.id)}>
-                                        <Typography.Text strong>{row.title}</Typography.Text>
-                                        <Space wrap>
-                                            <Tag>{row.area || t('General support')}</Tag>
-                                            <Tag>{row.executionMode === 'multi_step' ? `Multi-step (${row.steps?.length || 0})` : t('Single session')}</Tag>
-                                            {row.declinedTag ? <Tag color="red">{t('Declined by SME')}</Tag> : <Tag color={statusColor}>{statusLabel}</Tag>}
-                                            {row.declineRequestAssignment && <Tag color="orange">{changeRequestLabel(row.declineRequestAssignment)}</Tag>}
-                                        </Space>
-                                        {rowIsInProgress(row) && row.live ? <Progress percent={row.live.progress} size="small" style={{ margin: 0 }} /> : null}
-                                        {row.executionMode === 'multi_step' && (
-                                            <Typography.Text type="secondary">
-                                                {row.activeStep ? `Step ${Number(row.activeStep.stepIndex || 0) + 1}: ${row.activeStep.assignedStepTitle}` : row.nextStep ? `Next: ${row.nextStep.title}` : `${row.matchingAssignments?.length || 0}/${row.steps?.length || 0} steps assigned`}
-                                            </Typography.Text>
-                                        )}
-                                        {row.declinedTag ? (
-                                            <Tag color="red" style={{ width: 'fit-content' }}>{t('Cannot be reassigned')}</Tag>
-                                        ) : row.declineRequestAssignment ? (
-                                            requestActions(row)
-                                        ) : current ? (
-                                            <Space direction="vertical" size={2}>
-                                                <Tag color={current.deliveryActorType === 'agent' ? 'purple' : 'blue'} style={{ marginInlineEnd: 0 }}>{current.deliveryActorType === 'agent' ? t('Agent') : t('Human')}</Tag>
-                                                <Typography.Text type="secondary">{current.assigneeName}</Typography.Text>
-                                            </Space>
-                                        ) : canAssignNow(row) ? (
-                                            <Button icon={<PlusOutlined />} onClick={(event) => { event.stopPropagation(); startAssign(row) }}>
-                                                {row.executionMode === 'multi_step' ? (row.matchingAssignments?.length ? t('Assign next step') : t('Assign first step')) : t('Assign')}
-                                            </Button>
-                                        ) : null}
+                                        ))}
                                     </div>
-                                )
-                            }}
-                        />
-                    </Space>
-                    </motion.div>
-                    )}
+                                )}
+                            />
+                        ) : (
+                            <motion.div key="list" initial={{ opacity: 0, x: -24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.2, ease: 'easeOut' }}>
+                                <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                                    <Row gutter={[12, 12]}>
+                                        {manageMetrics.total > 0 && (
+                                            <Col flex="1" key="required">
+                                                <DashboardMetricCard
+                                                    icon={<DatabaseOutlined />}
+                                                    label={t('Required')}
+                                                    value={manageMetrics.total}
+                                                    hint={manageFilter === 'All' ? t('Showing all') : t('Click to show all')}
+                                                    clickable
+                                                    onClick={() => setManageFilter('All')}
+                                                />
+                                            </Col>
+                                        )}
+                                        {manageMetrics.assignedCount > 0 && (
+                                            <Col flex="1" key="assigned">
+                                                <DashboardMetricCard
+                                                    icon={<CheckCircleOutlined />}
+                                                    label={t('Assigned')}
+                                                    value={manageMetrics.assignedCount}
+                                                    hint={manageFilter === 'Assigned' ? t('Filter active — click to clear') : t('Click to filter')}
+                                                    clickable
+                                                    onClick={() => setManageFilter((current) => current === 'Assigned' ? 'All' : 'Assigned')}
+                                                />
+                                            </Col>
+                                        )}
+                                        {manageMetrics.unassignedCount > 0 && (
+                                            <Col flex="1" key="unassigned">
+                                                <DashboardMetricCard
+                                                    icon={<ExclamationCircleOutlined />}
+                                                    label={t('Unassigned')}
+                                                    value={manageMetrics.unassignedCount}
+                                                    hint={manageFilter === 'Unassigned' ? t('Filter active — click to clear') : t('Click to filter')}
+                                                    clickable
+                                                    onClick={() => setManageFilter((current) => current === 'Unassigned' ? 'All' : 'Unassigned')}
+                                                />
+                                            </Col>
+                                        )}
+                                        {manageMetrics.inProgressCount > 0 && (
+                                            <Col flex="1" key="inprogress">
+                                                <DashboardMetricCard
+                                                    icon={<ToolOutlined />}
+                                                    label={t('In progress')}
+                                                    value={manageMetrics.inProgressCount}
+                                                    hint={manageFilter === 'InProgress' ? t('Filter active — click to clear') : t('Click to filter')}
+                                                    clickable
+                                                    onClick={() => setManageFilter((current) => current === 'InProgress' ? 'All' : 'InProgress')}
+                                                />
+                                            </Col>
+                                        )}
+                                        {manageMetrics.completedCount > 0 && (
+                                            <Col flex="1" key="completed">
+                                                <DashboardMetricCard
+                                                    icon={<CheckCircleOutlined />}
+                                                    label={t('Completed')}
+                                                    value={manageMetrics.completedCount}
+                                                    hint={manageFilter === 'Completed' ? t('Filter active — click to clear') : t('Click to filter')}
+                                                    clickable
+                                                    onClick={() => setManageFilter((current) => current === 'Completed' ? 'All' : 'Completed')}
+                                                />
+                                            </Col>
+                                        )}
+                                    </Row>
+                                    {managedRows.some((row) => row.declineRequestAssignment) && (
+                                        <Alert
+                                            type="warning"
+                                            showIcon
+                                            message={t('The SME asked to change or drop an intervention')}
+                                            description={managedRows
+                                                .filter((row) => row.declineRequestAssignment)
+                                                .map((row) => `${row.title} (${changeRequestLabel(row.declineRequestAssignment).toLowerCase()})${declineRequestOf(row.declineRequestAssignment)?.reasonText ? `: ${declineRequestOf(row.declineRequestAssignment)?.reasonText}` : ''}`)
+                                                .join(' · ')}
+                                        />
+                                    )}
+                                    <ResponsiveDataView
+                                        rowKey="id"
+                                        rows={filteredManagedRows}
+                                        loading={assignmentsLoading}
+                                        onRowClick={(row) => setDetailKey(row.id)}
+                                        rowClassName={() => 'id-row-clickable'}
+                                        emptyText={manageFilter === 'All' ? t('No required interventions found for this SME.') : t('No interventions match this filter.')}
+                                        columns={[
+                                            { title: t('Intervention'), dataIndex: 'title' },
+                                            { title: t('Area'), dataIndex: 'area', render: (value?: string) => value || t('N/A') },
+                                            { title: t('Execution'), render: (_, row) => <Tag color={row.executionMode === 'multi_step' ? 'purple' : 'default'}>{row.executionMode === 'multi_step' ? `Multi-step (${row.steps?.length || 0})` : t('Single session')}</Tag> },
+                                            {
+                                                title: t('Status'),
+                                                render: (_, row) => {
+                                                    if (row.declinedTag) {
+                                                        return (
+                                                            <Space direction="vertical" size={0}>
+                                                                <Tag color="red">{t('Declined by SME')}</Tag>
+                                                                {row.declinedTag.workRetained && <Typography.Text type="secondary">{t('Work kept')}</Typography.Text>}
+                                                            </Space>
+                                                        )
+                                                    }
+                                                    const label = rowIsCompleted(row) ? 'Completed' : rowIsInProgress(row) ? 'In progress' : 'Unassigned'
+                                                    const color = rowIsCompleted(row) ? 'green' : rowIsInProgress(row) ? 'blue' : 'default'
+                                                    const detail = row.executionMode === 'multi_step'
+                                                        ? (row.activeStep
+                                                            ? `Step ${Number(row.activeStep.stepIndex || 0) + 1}: ${row.activeStep.assignedStepTitle || ''}`
+                                                            : row.nextStep
+                                                                ? `Next: ${row.nextStep.title}`
+                                                                : `${row.matchingAssignments?.length || 0}/${row.steps?.length || 0} steps assigned`)
+                                                        : undefined
+                                                    return (
+                                                        <Space direction="vertical" size={0}>
+                                                            <Space size={4} wrap>
+                                                                <Tag color={color}>{label}</Tag>
+                                                                {row.declineRequestAssignment && <Tag color="orange">{changeRequestLabel(row.declineRequestAssignment)}</Tag>}
+                                                            </Space>
+                                                            {detail && <Typography.Text type="secondary">{detail}</Typography.Text>}
+                                                            {rowIsInProgress(row) && row.live ? <Progress percent={row.live.progress} size="small" style={{ minWidth: 120, margin: 0 }} /> : null}
+                                                        </Space>
+                                                    )
+                                                },
+                                            },
+                                            {
+                                                title: t('Assignee'),
+                                                render: (_, row) => {
+                                                    const current = row.executionMode === 'multi_step' ? row.activeStep : row.assigned
+                                                    if (!current) return <Typography.Text type="secondary">{t('Not assigned')}</Typography.Text>
+                                                    return <Space direction="vertical" size={2}><Tag color={current.deliveryActorType === 'agent' ? 'purple' : 'blue'} style={{ marginInlineEnd: 0 }}>{current.deliveryActorType === 'agent' ? t('Agent') : t('Human')}</Tag><Typography.Text>{current.assigneeName || t('Unnamed')}</Typography.Text></Space>
+                                                },
+                                            },
+                                            { title: t('Actions'), render: (_, row) => row.declinedTag ? <Tag color="red">{t('Declined')}</Tag> : row.declineRequestAssignment ? requestActions(row) : row.assigned && row.executionMode !== 'multi_step' ? <Tag color="green">{t('Assigned')}</Tag> : canAssignNow(row) ? <Button icon={<PlusOutlined />} onClick={(event) => { event.stopPropagation(); startAssign(row) }}>{row.executionMode === 'multi_step' ? row.matchingAssignments?.length ? t('Assign next step') : t('Assign first step') : t('Assign')}</Button> : null },
+                                        ]}
+                                        renderCard={(row) => {
+                                            const current = row.executionMode === 'multi_step' ? row.activeStep : row.assigned
+                                            const statusLabel = rowIsCompleted(row) ? 'Completed' : rowIsInProgress(row) ? 'In progress' : 'Unassigned'
+                                            const statusColor = rowIsCompleted(row) ? 'green' : rowIsInProgress(row) ? 'blue' : 'default'
+                                            return (
+                                                // Plain flex div, not Space: this card mixes tags/text with a conditional
+                                                // Button, which trips the global .ant-space:has(>.ant-space-item>.ant-btn)
+                                                // modal-body rule (see the appointmentGate step above for the full story).
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, cursor: 'pointer' }} onClick={() => setDetailKey(row.id)}>
+                                                    <Typography.Text strong>{row.title}</Typography.Text>
+                                                    <Space wrap>
+                                                        <Tag>{row.area || t('General support')}</Tag>
+                                                        <Tag>{row.executionMode === 'multi_step' ? `Multi-step (${row.steps?.length || 0})` : t('Single session')}</Tag>
+                                                        {row.declinedTag ? <Tag color="red">{t('Declined by SME')}</Tag> : <Tag color={statusColor}>{statusLabel}</Tag>}
+                                                        {row.declineRequestAssignment && <Tag color="orange">{changeRequestLabel(row.declineRequestAssignment)}</Tag>}
+                                                    </Space>
+                                                    {rowIsInProgress(row) && row.live ? <Progress percent={row.live.progress} size="small" style={{ margin: 0 }} /> : null}
+                                                    {row.executionMode === 'multi_step' && (
+                                                        <Typography.Text type="secondary">
+                                                            {row.activeStep ? `Step ${Number(row.activeStep.stepIndex || 0) + 1}: ${row.activeStep.assignedStepTitle}` : row.nextStep ? `Next: ${row.nextStep.title}` : `${row.matchingAssignments?.length || 0}/${row.steps?.length || 0} steps assigned`}
+                                                        </Typography.Text>
+                                                    )}
+                                                    {row.declinedTag ? (
+                                                        <Tag color="red" style={{ width: 'fit-content' }}>{t('Cannot be reassigned')}</Tag>
+                                                    ) : row.declineRequestAssignment ? (
+                                                        requestActions(row)
+                                                    ) : current ? (
+                                                        <Space direction="vertical" size={2}>
+                                                            <Tag color={current.deliveryActorType === 'agent' ? 'purple' : 'blue'} style={{ marginInlineEnd: 0 }}>{current.deliveryActorType === 'agent' ? t('Agent') : t('Human')}</Tag>
+                                                            <Typography.Text type="secondary">{current.assigneeName}</Typography.Text>
+                                                        </Space>
+                                                    ) : canAssignNow(row) ? (
+                                                        <Button icon={<PlusOutlined />} onClick={(event) => { event.stopPropagation(); startAssign(row) }}>
+                                                            {row.executionMode === 'multi_step' ? (row.matchingAssignments?.length ? t('Assign next step') : t('Assign first step')) : t('Assign')}
+                                                        </Button>
+                                                    ) : null}
+                                                </div>
+                                            )
+                                        }}
+                                    />
+                                </Space>
+                            </motion.div>
+                        )}
                     </AnimatePresence>
                 )}
             </Modal>
@@ -1258,7 +1258,7 @@ export const InterventionsAssignemnts = () => {
                                         showSearch
                                         optionFilterProp="label"
                                         options={assigneeOptions}
-                                        optionRender={(option) => <span>{option.label}{option.data.match && <Tag color="green" bordered={false} style={{ marginInlineStart: 8 }}>{t('Covers {area}', undefined, { area: assignArea })}</Tag>}</span>}
+                                        optionRender={(option) => <span>{option.label}{option.data.match && <Tag color="green" variant="borderless" style={{ marginInlineStart: 8 }}>{t('Covers {area}', undefined, { area: assignArea })}</Tag>}</span>}
                                     />
                                 </Form.Item>
                             )}

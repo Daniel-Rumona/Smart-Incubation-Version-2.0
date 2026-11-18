@@ -103,7 +103,7 @@ export const OverdueUpdatesModal = ({ open, onClose, user, activeProgramId, prog
                                     <div>
                                         <Typography.Text strong>{name}</Typography.Text>
                                         <div className="director-overdue-meta">
-                                            <Tag bordered={false} color="red">{t('{count} overdue', undefined, { count: group.items.length })}</Tag>
+                                            <Tag variant="borderless" color="red">{t('{count} overdue', undefined, { count: group.items.length })}</Tag>
                                             <Typography.Text type="secondary">
                                                 {group.oldestDaysLate === 1 ? t('Oldest is 1 day late') : t('Oldest is {days} days late', undefined, { days: group.oldestDaysLate })}
                                             </Typography.Text>
@@ -148,7 +148,7 @@ export const OverdueUpdatesModal = ({ open, onClose, user, activeProgramId, prog
                                                     {item.assignee ? `${item.sme} · ${item.assignee}` : item.sme}
                                                 </Typography.Text>
                                             </span>
-                                            <Tag bordered={false} color={item.daysLate > 14 ? 'red' : 'orange'}>
+                                            <Tag variant="borderless" color={item.daysLate > 14 ? 'red' : 'orange'}>
                                                 {item.daysLate === 1 ? t('1 day late') : t('{days} days late', undefined, { days: item.daysLate })}
                                             </Tag>
                                         </li>

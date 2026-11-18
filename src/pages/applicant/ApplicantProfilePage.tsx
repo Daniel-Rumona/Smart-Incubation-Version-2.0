@@ -29,6 +29,7 @@ import ApplicantProfileReviewStep from '@/components/applicant/ApplicantProfileR
 import BusinessProfileSections from '@/components/applicant/BusinessProfileSections'
 import { BUSINESS_PROFILE_SECTIONS, hasProfileValue, type BusinessProfileSectionKey } from '@/components/applicant/businessProfileSectionsConfig'
 import { REQUIRED_PROFILE_FIELDS } from '@/utils/applicantProfileCompletion'
+import { reconcilePrimaryDirector, ownershipForDirectors } from '@/utils/primaryDirector'
 import '@/styles/applicant/applicant-profile.css'
 import '@/styles/applicant/business-profile.css'
 
@@ -80,10 +81,10 @@ const stepItems = [
 
 /** What each setup step asks for, its required fields, and a line on why it matters. */
 const stepGuide: Array<{ title: string, hint: string, required: Array<keyof ApplicantProfileFormValues> }> = [
-    { title: 'About you', hint: 'Who the programme team will be working with.', required: ['participantName', 'email', 'gender'] },
+    { title: 'About you', hint: 'Who the programme team will be working with.', required: ['participantName', 'email', 'gender', 'idNumber'] },
     { title: 'Contact details', hint: 'How the programme team reaches you.', required: ['phone'] },
-    { title: 'Your business', hint: 'What a programme team reads first.', required: ['businessName', 'sector', 'natureOfBusiness', 'yearsOfTrading'] },
-    { title: 'Registration and compliance', hint: 'Optional, but many programmes ask for it.', required: [] },
+    { title: 'Your business', hint: 'What a programme team reads first.', required: ['businessName', 'sector', 'natureOfBusiness'] },
+    { title: 'Registration and compliance', hint: 'Add your trading history and registration details.', required: ['yearsOfTrading'] },
     { title: 'Where you operate', hint: 'Some programmes are for specific provinces or communities.', required: ['province', 'city', 'businessAddress'] },
     { title: 'Check and save', hint: 'Look everything over before you save.', required: [] },
 ]
@@ -217,6 +218,8 @@ export const ApplicantProfilePage = ({ mode = 'applicant' }: ApplicantProfilePag
                 setLoading(true)
                 const profile = await getApplicantProfileBundle(user.uid, user.email)
                 const values = normalizeLoadedProfile(profile, user)
+                values.directors = reconcilePrimaryDirector(values.directors || [], user.uid, { ...values, email: user.email || values.email })
+                Object.assign(values, ownershipForDirectors(values.directors))
                 form.setFieldsValue(values)
                 setFormSnapshot(values)
                 setLoadedValues(values)
@@ -261,6 +264,12 @@ export const ApplicantProfilePage = ({ mode = 'applicant' }: ApplicantProfilePag
     })
 
     const handleValuesChange = () => {
+        if (!user) return
+        const current = form.getFieldsValue(true) as ApplicantProfileFormValues
+        const directors = reconcilePrimaryDirector(current.directors || [], user.uid, { ...current, email: accountEmail })
+        if (directors !== current.directors) {
+            form.setFieldsValue({ directors, ...ownershipForDirectors(directors) })
+        }
         setFormSnapshot(form.getFieldsValue(true))
     }
 
@@ -270,7 +279,9 @@ export const ApplicantProfilePage = ({ mode = 'applicant' }: ApplicantProfilePag
     }
 
     const handleApplyExtractedFields = (values: Partial<ApplicantProfileFormValues>, extractedMissingFields: string[]) => {
-        form.setFieldsValue({ ...values, email: accountEmail })
+        const merged = { ...form.getFieldsValue(true), ...values, email: accountEmail } as ApplicantProfileFormValues
+        merged.directors = reconcilePrimaryDirector(merged.directors || [], user?.uid || '', merged)
+        form.setFieldsValue({ ...merged, ...ownershipForDirectors(merged.directors) })
         setTimeout(() => setFormSnapshot(form.getFieldsValue(true)), 0)
         setMissingFields(extractedMissingFields)
         // The assistant keeps asking follow-ups, so its sheet stays open; the sections behind it
@@ -309,6 +320,9 @@ export const ApplicantProfilePage = ({ mode = 'applicant' }: ApplicantProfilePag
                 fullName: current.fullName || current.participantName,
                 aiRawDump,
             } as ApplicantProfileFormValues
+
+            values.directors = reconcilePrimaryDirector(values.directors || [], user.uid, values)
+            Object.assign(values, ownershipForDirectors(values.directors))
 
             if (values.registrationStatus === 'not_registered') {
                 values.registrationNumber = undefined
@@ -374,7 +388,7 @@ export const ApplicantProfilePage = ({ mode = 'applicant' }: ApplicantProfilePag
         <ResponsiveModal
             open={aiOpen}
             onClose={() => setAiOpen(false)}
-            title={t('Fill with AI')}
+            title={t('Thuso')}
             width={720}
             destroyOnHidden={false}
             footer={<Button onClick={() => setAiOpen(false)}>{t('Done')}</Button>}
@@ -428,14 +442,14 @@ export const ApplicantProfilePage = ({ mode = 'applicant' }: ApplicantProfilePag
                             </div>
                         )}
                     </div>
-                    <Button icon={<RobotOutlined />} disabled={Boolean(editingSection)} onClick={() => setAiOpen(true)}>{t('Fill with AI')}</Button>
+                    <Button icon={<RobotOutlined />} disabled={Boolean(editingSection)} onClick={() => setAiOpen(true)}>{t('Use Thuso')}</Button>
                 </section>
 
                 {aiPending ? (
                     <section className="business-profile-notice is-ai">
                         <RobotOutlined className="business-profile-notice-icon" aria-hidden="true" />
                         <div className="business-profile-notice-text">
-                            <Text strong>{t('AI filled in some details')}</Text>
+                            <Text strong>{t('Thuso filled in some details')}</Text>
                             <Text type="secondary">{t('Check them below, then save. Nothing is stored until you do.')}</Text>
                         </div>
                         <div className="business-profile-notice-actions">
@@ -534,14 +548,14 @@ export const ApplicantProfilePage = ({ mode = 'applicant' }: ApplicantProfilePag
                 <RobotOutlined className="business-profile-notice-icon" aria-hidden="true" />
                 <div className="business-profile-notice-text">
                     <Text strong>{t('Short on time?')}</Text>
-                    <Text type="secondary">{t('Describe your business in a few sentences, and AI fills in what it can for you to check.')}</Text>
+                    <Text type="secondary">{t('Describe your business in a few sentences, and Thuso fills in what it can for you to review.')}</Text>
                 </div>
                 <div className="business-profile-notice-actions">
-                    <Button icon={<RobotOutlined />} onClick={() => setAiOpen(true)}>{t('Fill with AI')}</Button>
+                    <Button icon={<RobotOutlined />} onClick={() => setAiOpen(true)}>{t('Use Thuso')}</Button>
                 </div>
             </section>
 
-            <Card className="applicant-setup" bordered={false}>
+            <Card className="applicant-setup" variant="borderless">
                 <div className="applicant-setup-layout">
                     {isMobile ? (
                         <Segmented block value={activeStep} onChange={(value) => goToStep(Number(value))} options={mobileStepItems} />
@@ -572,7 +586,7 @@ export const ApplicantProfilePage = ({ mode = 'applicant' }: ApplicantProfilePag
                         layout="vertical"
                         requiredMark
                         preserve
-                        onValuesChange={handleValuesChange}
+                        onValuesChange={(changed: Partial<ApplicantProfileFormValues>) => handleValuesChange(changed)}
                         className="applicant-setup-form"
                         validateMessages={{
                             required: '${label} is required',
@@ -585,7 +599,7 @@ export const ApplicantProfilePage = ({ mode = 'applicant' }: ApplicantProfilePag
                         </div>
 
                         {activeStep < lastStep ? (
-                            <ApplicantProfileManualForm activeStep={activeStep} email={accountEmail} />
+                            <ApplicantProfileManualForm activeStep={activeStep} email={accountEmail} primaryDirectorUid={user?.uid || ''} />
                         ) : (
                             <ApplicantProfileReviewStep values={liveValues} />
                         )}

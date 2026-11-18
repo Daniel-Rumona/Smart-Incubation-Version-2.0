@@ -332,9 +332,9 @@ export const KpisPage = () => {
         const unit = row.kpi.unit
         const amount = unit === 'percent' ? t('{count} pts', undefined, { count: size })
             : unit === 'currency' ? formatCurrencyZAR(size)
-            : unit === 'days' ? formatValue('days', size)
-            : unit === 'rating' ? size.toFixed(1)
-            : size.toLocaleString()
+                : unit === 'days' ? formatValue('days', size)
+                    : unit === 'rating' ? size.toFixed(1)
+                        : size.toLocaleString()
         const tone = diff === 0 ? 'flat' : (diff > 0) === (row.kpi.direction === 'higher') ? 'good' : 'bad'
         return { tone, text: `${amount}`, direction: diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat', against: row.previous.period.label }
     }
@@ -596,7 +596,7 @@ export const KpisPage = () => {
                     <span className="kpi-card-value">{formatValue(kpi.unit, row.group === 'company' ? actual.value : shownValue(row))}</span>
                     <span className="kpi-card-target">
                         {targetText(row)}
-                        {target?.source === 'programme' && <Tag bordered={false} className="kpi-card-source">{t('Programme target')}</Tag>}
+                        {target?.source === 'programme' && <Tag variant="borderless" className="kpi-card-source">{t('Programme target')}</Tag>}
                     </span>
                 </div>
 

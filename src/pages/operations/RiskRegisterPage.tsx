@@ -328,8 +328,8 @@ const RiskCard = ({ row, onClick }: { row: RiskRow, onClick: () => void }) => {
             <span className="risk-card-foot">
                 <Typography.Text type="secondary" ellipsis>{t('Owner: {owner}', undefined, { owner: row.owner === 'Operations' ? t('Operations') : row.owner })}</Typography.Text>
                 <span className="risk-card-tags">
-                    {others.length > 0 && <Tag bordered={false}>{t('+{count} more', undefined, { count: others.length })}</Tag>}
-                    <Tag bordered={false} color={row.daysOverdue ? 'red' : undefined}>{dueLabel(row, t)}</Tag>
+                    {others.length > 0 && <Tag variant="borderless">{t('+{count} more', undefined, { count: others.length })}</Tag>}
+                    <Tag variant="borderless" color={row.daysOverdue ? 'red' : undefined}>{dueLabel(row, t)}</Tag>
                 </span>
             </span>
         </button>

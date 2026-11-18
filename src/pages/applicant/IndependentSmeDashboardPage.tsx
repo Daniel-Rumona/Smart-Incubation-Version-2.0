@@ -225,7 +225,7 @@ export default function IndependentSmeDashboardPage() {
                             {needs.slice(0, 6).map((item) => (
                                 <div key={item.key} className="sme-dash-row">
                                     <div className="sme-dash-row-text"><Text strong>{item.title}</Text><Text type="secondary" className="sme-dash-detail">{item.detail}</Text></div>
-                                    {item.tag && <Tag bordered={false} color={item.tag.color} className="sme-dash-tag">{item.tag.text}</Tag>}
+                                    {item.tag && <Tag variant="borderless" color={item.tag.color} className="sme-dash-tag">{item.tag.text}</Tag>}
                                     <Button size="small" onClick={item.action.onClick}>{item.action.label}</Button>
                                 </div>
                             ))}

@@ -1158,7 +1158,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
             {suggestionItems.length > 0 && (
                 <Card
                     className="roadmap-card"
-                    title={<Space size={8}>{t('Suggested next')}<Tag bordered={false} color="purple">{t('AI suggestion')}</Tag></Space>}
+                    title={<Space size={8}>{t('Suggested next')}<Tag variant="borderless" color="purple">{t('AI suggestion')}</Tag></Space>}
                     extra={<Text type="secondary" className="roadmap-card-note">{suggestionsFromIntake ? t('From your earlier intake') : t('From your business profile')}</Text>}
                 >
                     <div className="roadmap-suggestions">
@@ -1171,7 +1171,7 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                                     const request = requestedSteps.get(cleanDocumentKey(item.title));
                                     return request ? (
                                         <div className="roadmap-suggestion-actions">
-                                            <Tag bordered={false} color="gold" style={{ margin: 0 }}>{t('Requested from {name}', undefined, { name: request.targetName })}</Tag>
+                                            <Tag variant="borderless" color="gold" style={{ margin: 0 }}>{t('Requested from {name}', undefined, { name: request.targetName })}</Tag>
                                             <Button type="link" size="small" style={{ padding: 0 }} onClick={() => navigate(`/applicant/marketplace?view=requests&request=${request.id}`)}>{t('View request')}</Button>
                                         </div>
                                     ) : (
@@ -1460,4 +1460,3 @@ const SMEIntakeRoadmapPage: React.FC = () => {
 };
 
 export default SMEIntakeRoadmapPage;
-

@@ -130,7 +130,7 @@ export default function ImportSmesModal({ open, programId, programName, onClose,
             width={860}
             title={`${t('Import SMEs into')} ${programName}`}
             onCancel={close}
-            maskClosable={!running}
+            mask={{ closable: !running }}
             closable={!running}
             footer={(
                 <Space>
@@ -173,8 +173,8 @@ export default function ImportSmesModal({ open, programId, programName, onClose,
                                 width: 200,
                                 render: (_, row) => row.result === 'added' ? <Tag color="green">{t('Added')}</Tag>
                                     : row.result === 'failed' ? <Tag color="red" title={row.error}>{t('Failed')}</Tag>
-                                    : row.problem ? <Tag color="orange">{t(row.problem)}</Tag>
-                                    : <Tag>{t('Ready')}</Tag>,
+                                        : row.problem ? <Tag color="orange">{t(row.problem)}</Tag>
+                                            : <Tag>{t('Ready')}</Tag>,
                             },
                         ]}
                     />

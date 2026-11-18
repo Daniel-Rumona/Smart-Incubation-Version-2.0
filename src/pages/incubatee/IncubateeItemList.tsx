@@ -34,7 +34,7 @@ export const IncubateeItemList = ({ items, emptyText }: { items: DashboardItem[]
                         <Tag
                             className="incubatee-item-status"
                             color={TAG_COLOR[tone]}
-                            bordered={false}
+                            variant="borderless"
                         >
                             {formatStatus(item.status)}
                         </Tag>
