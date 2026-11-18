@@ -36,6 +36,7 @@ from survey_import_agent import create_survey_import_router
 from gap_analysis_agent import create_gap_analysis_router
 from course_builder_agent import create_course_builder_router
 from client_modules import is_training_page, library_context, persona_for
+from training_tools import TRAINING_FALLBACK, TRAINING_TOOLS_INTRO, training_tools_for
 from esg_report_agent import create_esg_report_router
 from intervention_outcome_agent import create_intervention_outcome_router
 from request_auth import create_request_authenticator
@@ -1143,9 +1144,25 @@ async def page_agent(payload: AgentRequest, authorization: str | None = Header(d
         if library:
             model_payload["library"] = library
 
+    # A training company's staff and learners get read-only tools over their own company's records
+    # (training_tools.py); funders and client companies answer from the report their page sends.
+    if agentic and actions_enabled() and client_persona:
+        training_tools = training_tools_for(identity)
+        if training_tools:
+            turn = run_agent_turn(
+                db, build_actor(db, identity),
+                persona=base_persona,
+                base_payload=model_payload,
+                call_model=_call_gemini,
+                extract_json=_extract_json_object,
+                tools=training_tools,
+                intro=TRAINING_TOOLS_INTRO,
+                fallback_reply=TRAINING_FALLBACK,
+            )
+            return {"reply": turn["reply"], "actionKey": None, "proposal": None}
+
     # Staff who may manage appointments/interventions get the tool-using path. The model can only
-    # propose writes; the user confirms them via /api/agent/actions/{id}/confirm. Client-module
-    # assistants have no tools of their own yet, so they answer from the page context only.
+    # propose writes; the user confirms them via /api/agent/actions/{id}/confirm.
     if agentic and actions_enabled() and not client_persona:
         actor = build_actor(db, identity)
         if tools_for(actor):

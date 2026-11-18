@@ -1127,15 +1127,19 @@ def confirm_proposal(db: Any, store: ProposalStore, actor: Actor, proposal_id: s
 # --------------------------------------------------------------------------- planner
 
 
-def _system_prompt(persona: str, tools: list[Tool], actor: Actor) -> str:
+OPERATIONS_INTRO = "You can also help operations staff set up appointments and interventions using tools. "
+OPERATIONS_FALLBACK = "I couldn't complete that from what I have. Could you give me the SME, intervention and timing again?"
+
+
+def _system_prompt(persona: str, tools: list[Tool], actor: Actor, intro: str = OPERATIONS_INTRO) -> str:
     catalogue = "\n".join(f"- {t.name} [{t.kind}]: {t.description} arguments: {t.arguments}" for t in tools)
     return (
         f"{persona}\n\n"
-        "You can also help operations staff set up appointments and interventions using tools. "
+        f"{intro}"
         "Reply with ONE JSON object only: {\"reply\": string, \"toolCall\": null | {\"name\": string, \"arguments\": object}}.\n"
         "Rules:\n"
-        "- Use only the tools listed. Read tools return data to you on the next turn; use them to look up SMEs, "
-        "assignments, delivery owners and appointments instead of guessing ids. Never invent ids, names, dates or times.\n"
+        "- Use only the tools listed. Read tools return data to you on the next turn; use them to look records up "
+        "instead of guessing ids. Never invent ids, names, dates or times.\n"
         "- Write tools do NOT execute. Calling one prepares a proposal that the user must confirm with a button. "
         "Never say something was done; say it is ready for them to confirm. Never ask the user to type 'confirm'.\n"
         "- If a required detail is missing or ambiguous (which SME, which delivery owner, date, time, format, "
@@ -1155,10 +1159,14 @@ def run_agent_turn(
     db: Any, actor: Actor, *, persona: str, base_payload: dict[str, Any],
     call_model: Callable[..., str], extract_json: Callable[[str], dict[str, Any] | None],
     store: ProposalStore | None = None,
+    tools: list[Tool] | None = None,
+    intro: str = OPERATIONS_INTRO,
+    fallback_reply: str = OPERATIONS_FALLBACK,
 ) -> dict[str, Any]:
+    """One planner turn. ``tools`` replaces the registered incubation tools (a client module brings its own)."""
     store = store or ProposalStore(db)
-    tools = {t.name: t for t in tools_for(actor)}
-    system = _system_prompt(persona, list(tools.values()), actor)
+    tools = {t.name: t for t in (tools if tools is not None else tools_for(actor))}
+    system = _system_prompt(persona, list(tools.values()), actor, intro)
     tool_results: list[dict[str, Any]] = []
 
     for _ in range(MAX_TOOL_ROUNDS):
@@ -1188,7 +1196,7 @@ def run_agent_turn(
             record["result"] = {"ok": False, "error": str(exc)}
         tool_results.append(record)
 
-    return {"reply": "I couldn't complete that from what I have. Could you give me the SME, intervention and timing again?", "proposal": None}
+    return {"reply": fallback_reply, "proposal": None}
 
 
 # --------------------------------------------------------------------------- router
