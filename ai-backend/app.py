@@ -325,8 +325,9 @@ def _compact_document(doc: firestore.DocumentSnapshot) -> dict[str, Any]:
     return compact
 
 
-def _collection_snapshot(name: str, limit_count: int = MAX_DOCS_PER_COLLECTION) -> list[dict[str, Any]]:
-    docs = db.collection(name).limit(limit_count).stream()
+def _collection_snapshot(name: str, company_code: str, limit_count: int = MAX_DOCS_PER_COLLECTION) -> list[dict[str, Any]]:
+    """A few records of one company only: the assistant must never see another company's people or programmes."""
+    docs = db.collection(name).where("companyCode", "==", company_code).limit(limit_count).stream()
     return [_compact_document(doc) for doc in docs]
 
 
@@ -342,17 +343,17 @@ def _page_collections(page_key: str) -> list[str]:
     return mapping.get(page_key, ["programs", "participants", "applications", "smeIntakeSubmissions"])
 
 
-def _firestore_context_for_page(page: PageContext) -> dict[str, Any]:
+def _firestore_context_for_page(page: PageContext, company_code: str | None) -> dict[str, Any]:
     collections: dict[str, Any] = {}
 
-    # Client-module pages (awareness training) carry their own company-scoped data in the page context;
-    # the shared collection snapshots below would add other companies' records.
-    if is_training_page(page.pageKey):
+    # Client-module pages (awareness training) carry their own company-scoped data in the page context.
+    # Without a company (platform staff, service calls) nothing is added: staff never see a client's records here.
+    if is_training_page(page.pageKey) or not company_code:
         return collections
 
     for collection_name in _page_collections(page.pageKey):
         try:
-            collections[collection_name] = _collection_snapshot(collection_name)
+            collections[collection_name] = _collection_snapshot(collection_name, company_code)
         except Exception as exc:
             collections[collection_name] = {"error": str(exc)}
 
@@ -1120,7 +1121,7 @@ async def page_agent(payload: AgentRequest, authorization: str | None = Header(d
     # A company running a client module (awareness training) gets an assistant that speaks for its workspace.
     base_persona, client_persona = persona_for(db, identity, payload.page.pageKey, AGENT_PERSONA)
 
-    firestore_context = _firestore_context_for_page(payload.page)
+    firestore_context = _firestore_context_for_page(payload.page, identity.company_code)
     actions = [action.model_dump() for action in payload.page.allowedActions or []] if agentic else []
     user_message = _resolve_followup_message(payload.message, payload.history, payload.page)
     model_payload = {
