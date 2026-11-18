@@ -8,8 +8,17 @@
 //
 // It sets the emulator hosts itself and only uses the demo-smartinc project, so it cannot reach a real Firebase
 // project. Records use fixed ids: re-running restores them (anything else you created stays).
+//
+// The same demo data in the LIVE project, smart-incubation-71f96 (needs its service-account key):
+//   node scripts/seed-emulators.mjs --live scripts/new-service-account.json            # dry run: writes nothing,
+//                                                                                       # lists clashes with real data
+//   node scripts/seed-emulators.mjs --live scripts/new-service-account.json --apply    # writes, and saves a removal list
+//   node scripts/remove-live-demo.mjs scripts/new-service-account.json <removal list> --apply   # takes it all out again
+// On live it never wipes anything, always uses the fictional training provider (code DTS, never a client's name, logo
+// or code), stores no phone numbers (the deployed WhatsApp reminders would message them), never changes an existing
+// real account, and creates no platform superuser: it only makes prince@quantilytix.co.za a system admin.
 import { createRequire } from 'node:module'
-import { readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import dayjs from 'dayjs'
 import { seedIncubators } from './seed-emulators-incubators.mjs'
@@ -18,27 +27,45 @@ import { seedCompaniesAndLibrary } from './seed-emulators-companies.mjs'
 import { seedSurveys } from './seed-emulators-surveys.mjs'
 import { seedTrainingOnly } from './seed-emulators-training-only.mjs'
 
-const PROJECT_ID = 'demo-smartinc'
-const BUCKET = `${PROJECT_ID}.appspot.com`
+const LIVE_PROJECT = 'smart-incubation-71f96'
+const liveArg = process.argv.indexOf('--live')
+const LIVE = liveArg !== -1
+const APPLY = process.argv.includes('--apply')
+// A live dry run goes through every step but writes nothing; it reads live data only to look for clashes.
+const DRY = LIVE && !APPLY
+const serviceAccount = LIVE ? JSON.parse(readFileSync(process.argv[liveArg + 1] || 'missing', 'utf8')) : null
+if (LIVE && serviceAccount.project_id !== LIVE_PROJECT) {
+    console.error(`The service account is for ${serviceAccount.project_id}, not ${LIVE_PROJECT}. Nothing was written.`)
+    process.exit(1)
+}
+if (LIVE && process.argv.includes('--reset')) {
+    console.error('--reset is never allowed on the live project. Nothing was written.')
+    process.exit(1)
+}
+
+const PROJECT_ID = LIVE ? LIVE_PROJECT : 'demo-smartinc'
+const BUCKET = LIVE ? `${LIVE_PROJECT}.firebasestorage.app` : `${PROJECT_ID}.appspot.com`
 const HOST = '127.0.0.1'
 const PASSWORD = 'Password@1'
 const APP_URL = 'http://localhost:5173'
 
-Object.assign(process.env, {
-    FIRESTORE_EMULATOR_HOST: `${HOST}:8080`,
-    FIREBASE_AUTH_EMULATOR_HOST: `${HOST}:9099`,
-    FIREBASE_STORAGE_EMULATOR_HOST: `${HOST}:9199`,
-    GCLOUD_PROJECT: PROJECT_ID,
-})
-delete process.env.GOOGLE_APPLICATION_CREDENTIALS
+if (!LIVE) {
+    Object.assign(process.env, {
+        FIRESTORE_EMULATOR_HOST: `${HOST}:8080`,
+        FIREBASE_AUTH_EMULATOR_HOST: `${HOST}:9099`,
+        FIREBASE_STORAGE_EMULATOR_HOST: `${HOST}:9199`,
+        GCLOUD_PROJECT: PROJECT_ID,
+    })
+    delete process.env.GOOGLE_APPLICATION_CREDENTIALS
+}
 
 const require = createRequire(new URL('../functions/package.json', import.meta.url))
-const { initializeApp } = require('firebase-admin/app')
+const { cert, initializeApp } = require('firebase-admin/app')
 const { getAuth } = require('firebase-admin/auth')
 const { FieldValue, Timestamp, getFirestore } = require('firebase-admin/firestore')
 const { getStorage } = require('firebase-admin/storage')
 
-const reset = process.argv.includes('--reset')
+const reset = !LIVE && process.argv.includes('--reset')
 
 const emulatorUp = async (port) => {
     try {
@@ -49,7 +76,7 @@ const emulatorUp = async (port) => {
     }
 }
 
-for (const [name, port] of [['Firestore', 8080], ['Auth', 9099], ['Storage', 9199]]) {
+for (const [name, port] of LIVE ? [] : [['Firestore', 8080], ['Auth', 9099], ['Storage', 9199]]) {
     if (!await emulatorUp(port)) {
         console.error(`The ${name} emulator is not running on ${HOST}:${port}. Start the emulators first: npm run emulators`)
         process.exit(1)
@@ -62,10 +89,59 @@ if (reset) {
     console.log('Wiped the emulator database and sign-ins.')
 }
 
-initializeApp({ projectId: PROJECT_ID, storageBucket: BUCKET })
+initializeApp(LIVE ? { credential: cert(serviceAccount), projectId: PROJECT_ID, storageBucket: BUCKET } : { projectId: PROJECT_ID, storageBucket: BUCKET })
 const auth = getAuth()
-const db = getFirestore()
-const bucket = getStorage().bucket(BUCKET)
+const realDb = getFirestore()
+const realBucket = getStorage().bucket(BUCKET)
+
+// On live every write goes through here: it is recorded (for the clash check and the removal list), stripped of phone
+// numbers and tagged as live demo data, and, in a dry run, not sent at all. On the emulators it passes straight through.
+const written = new Set()
+const storedFiles = []
+const createdUids = []
+const skippedPeople = []
+const PHONE_FIELD = /^(phone|phoneNumber|mobile|cell|whatsapp(Number|Phone)?)$/i
+const clean = (value) => {
+    if (!LIVE) return value
+    if (Array.isArray(value)) return value.map(clean)
+    if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+        return Object.fromEntries(Object.entries(value)
+            .filter(([key]) => !PHONE_FIELD.test(key))
+            .map(([key, item]) => [key, key === 'seededBy' ? 'live-demo' : clean(item)]))
+    }
+    return value
+}
+// Every live record carries the demo tag, so the removal script can tell it from real data.
+const tag = (data) => ({ ...clean(data), seededBy: 'live-demo' })
+const db = LIVE ? {
+    doc: (path) => {
+        written.add(path)
+        const ref = realDb.doc(path)
+        return { path, get: () => ref.get(), set: async (data, options) => { if (!DRY) await ref.set(tag(data), options || {}) } }
+    },
+    // Reads only (the seed queries what it wrote before).
+    collection: (name) => realDb.collection(name),
+    batch: () => {
+        const ops = []
+        return {
+            set: (ref, data, options) => { written.add(ref.path); ops.push([ref.path, data, options]) },
+            commit: async () => {
+                if (DRY) return
+                // Live batches take at most 500 writes.
+                for (let start = 0; start < ops.length; start += 400) {
+                    const chunk = realDb.batch()
+                    for (const [path, data, options] of ops.slice(start, start + 400)) chunk.set(realDb.doc(path), tag(data), options || {})
+                    await chunk.commit()
+                }
+            },
+        }
+    },
+} : realDb
+const bucket = LIVE ? {
+    file: (path) => ({
+        save: async (data, options) => { storedFiles.push(path); if (!DRY) await realBucket.file(path).save(data, options) },
+    }),
+} : realBucket
 
 const now = () => new Date().toISOString()
 const today = dayjs().startOf('day')
@@ -78,7 +154,9 @@ const at = (offset, hour = 9) => today.add(offset, 'day').hour(hour).toISOString
 const upload = async (path, data, contentType) => {
     const token = randomUUID()
     await bucket.file(path).save(data, { contentType, metadata: { metadata: { firebaseStorageDownloadTokens: token } } })
-    return `http://${HOST}:9199/v0/b/${BUCKET}/o/${encodeURIComponent(path)}?alt=media&token=${token}`
+    return LIVE
+        ? `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o/${encodeURIComponent(path)}?alt=media&token=${token}`
+        : `http://${HOST}:9199/v0/b/${BUCKET}/o/${encodeURIComponent(path)}?alt=media&token=${token}`
 }
 
 /** A one-page PDF with a line of text: the stand-in for a learner's ID copy. */
@@ -107,10 +185,11 @@ const asset = (name) => readFileSync(new URL(`../emulators/seed-assets/${name}`,
 
 // ---- Companies and accounts --------------------------------------------------------------------------------------
 
-const TNS = 'TNS'
+// On live the demo provider has a code of its own: TNS may be a real client's.
+const TNS = LIVE ? 'DTS' : 'TNS'
 // `SEED_FOR_VIDEO=1` (video/record.mjs) gives the training provider a fictional name, trainer and logo, so no client's
 // real name or logo appears on camera. Everything else, ids included, stays the same.
-const FOR_VIDEO = process.env.SEED_FOR_VIDEO === '1'
+const FOR_VIDEO = LIVE || process.env.SEED_FOR_VIDEO === '1'
 const TNS_NAME = FOR_VIDEO ? 'Demo Sustainability Training' : 'Tau Namagadi Sustainable Solutions'
 const TRAINER = FOR_VIDEO
     ? { name: 'Tumi Facilitator', email: 'trainer@demo-sustainability.test', logo: 'demo-training-logo.png' }
@@ -118,6 +197,17 @@ const TRAINER = FOR_VIDEO
 
 const ensureSignIn = async ({ uid, email, name }) => {
     const values = { email, password: PASSWORD, displayName: name, emailVerified: true, disabled: false }
+    if (LIVE) {
+        // A real account with this email is never touched: that demo person is skipped instead.
+        const existing = await auth.getUserByEmail(email).catch((error) => (error?.code === 'auth/user-not-found' ? null : Promise.reject(error)))
+        const sameUid = existing ? null : await auth.getUser(uid).catch((error) => (error?.code === 'auth/user-not-found' ? null : Promise.reject(error)))
+        if ((existing && existing.uid !== uid) || sameUid) {
+            skippedPeople.push(email)
+            return false
+        }
+        if (!existing) createdUids.push(uid)
+        if (DRY) return true
+    }
     try {
         await auth.getUser(uid)
         await auth.updateUser(uid, values)
@@ -132,6 +222,7 @@ const ensureSignIn = async ({ uid, email, name }) => {
             throw createError
         }
     }
+    return true
 }
 
 const agreementId = (scope, uid, key) =>
@@ -144,7 +235,7 @@ const AGREEMENT_TITLES = {
 
 /** The sign-in, profile and signed agreements of someone who has already been through the welcome steps. */
 const seedPerson = async ({ uid, email, name, role, companyCode, companyName, signature, extra = {} }) => {
-    await ensureSignIn({ uid, email, name })
+    if (!(await ensureSignIn({ uid, email, name }))) return
     const signatureFields = signature
         ? { signatureURL: signature.url, signature: { url: signature.url, storagePath: signature.path, updatedAt: now() }, signatureStrokes: null, signatureUpdatedAt: now() }
         : {}
@@ -224,8 +315,8 @@ await db.doc(`companies/${TNS}`).set({
 })
 
 const accounts = [
-    { uid: 'qtx-systemadmin', email: 'admin@smartinc.test', name: 'Quantilytix Admin', role: 'systemadmin', signature: sharedSignature, note: 'Platform: Admin > Workspace types' },
-    { uid: 'qtx-prince', email: 'prince@quantilytix.co.za', name: 'Prince', role: 'systemadmin', signature: sharedSignature, note: 'Platform admin (Prince): Admin > Workspace types' },
+    ...(LIVE ? [] : [{ uid: 'qtx-systemadmin', email: 'admin@smartinc.test', name: 'Quantilytix Admin', role: 'systemadmin', signature: sharedSignature, note: 'Platform: Admin > Workspace types' },
+    { uid: 'qtx-prince', email: 'prince@quantilytix.co.za', name: 'Prince', role: 'systemadmin', signature: sharedSignature, note: 'Platform admin (Prince): Admin > Workspace types' }]),
     { uid: keletsoUid, email: TRAINER.email, name: TRAINER.name, role: 'projectadmin', companyCode: TNS, companyName: TNS_NAME, signature, note: `${TNS_NAME}: the facilitator` },
 ]
 
@@ -517,7 +608,7 @@ for (const entry of learners.filter((item) => item.uid)) {
 }
 
 const batch = db.batch()
-for (const [path, data] of writes) batch.set(db.doc(path), data)
+for (const [path, data] of writes) batch.set(LIVE ? realDb.doc(path) : db.doc(path), data)
 await batch.commit()
 
 // ESG reports, revenue and the funder for the training company.
@@ -548,6 +639,42 @@ const signIns = [
     ...trainingOnly.signIns,
     ...incubators.signIns,
 ]
+// Live: Prince becomes a system admin. An existing account keeps its own password and everything else; a new one gets
+// the demo password.
+if (LIVE) {
+    const prince = await auth.getUserByEmail('prince@quantilytix.co.za').catch((error) => (error?.code === 'auth/user-not-found' ? null : Promise.reject(error)))
+    if (prince) {
+        if (!DRY) {
+            await realDb.doc(`users/${prince.uid}`).set({ role: 'systemadmin', updatedAt: FieldValue.serverTimestamp() }, { merge: true })
+            await realDb.doc(`userIdentities/${prince.uid}`).set({ role: 'systemadmin', updatedAt: FieldValue.serverTimestamp() }, { merge: true })
+        }
+        console.log(`prince@quantilytix.co.za: existing account ${DRY ? 'would be made' : 'made'} a system admin (password unchanged).`)
+    } else {
+        await seedPerson({ uid: 'qtx-prince', email: 'prince@quantilytix.co.za', name: 'Prince', role: 'systemadmin', signature: sharedSignature })
+        console.log(`prince@quantilytix.co.za: ${DRY ? 'would be created' : 'created'} as a system admin, password ${PASSWORD}.`)
+    }
+
+    // Clash check (dry run only: after writing, every path exists): every record the demo would write, looked up on
+    // live. A record that exists and is not live demo data is a real client's, and must not be overwritten.
+    const paths = [...written]
+    const clashes = []
+    for (let start = 0; DRY && start < paths.length; start += 100) {
+        const snapshots = await realDb.getAll(...paths.slice(start, start + 100).map((path) => realDb.doc(path)))
+        for (const snapshot of snapshots) {
+            if (snapshot.exists && snapshot.get('seededBy') !== 'live-demo') clashes.push(snapshot.ref.path)
+        }
+    }
+    console.log(`\n${DRY ? 'DRY RUN, nothing written.' : 'Written to live.'} ${paths.length} records, ${storedFiles.length} files, ${createdUids.length} new sign-ins.`)
+    if (skippedPeople.length) console.log(`Skipped (a real account already uses the email): ${skippedPeople.join(', ')}`)
+    console.log(clashes.length ? `CLASHES with real data (${clashes.length}): ${clashes.slice(0, 30).join(', ')}` : 'No clashes with real data.')
+    if (!DRY) {
+        const list = new URL(`./seed-output-live-demo-${new Date().toISOString().replace(/[:.]/g, '-')}.json`, import.meta.url)
+        writeFileSync(list, JSON.stringify({ project: PROJECT_ID, docs: paths, files: storedFiles, uids: createdUids }, null, 2))
+        console.log(`Removal list: ${list.pathname}`)
+    }
+    process.exit(clashes.length ? 2 : 0)
+}
+
 console.log(`\nSeeded ${writes.length} training records, ${esg.records} ESG and revenue records, ${companies.records} company and library records, ${surveys.records} survey records, ${trainingOnly.records} training-only records, ${incubators.records} incubator records and ${signIns.length} sign-ins. Password for every account: ${PASSWORD}\n`)
 console.table(signIns)
 console.log(`App:                 ${APP_URL}   (npm run dev:emulators)`)
