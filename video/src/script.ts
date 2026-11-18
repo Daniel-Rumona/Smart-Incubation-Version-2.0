@@ -37,11 +37,11 @@ export const SCENES: Scene[] = [
   {
     id: 'workspaces',
     kind: 'points',
-    title: 'Two kinds of workspace',
+    title: 'Two workspaces, one add-on',
     points: [
       { label: 'Incubation', detail: 'Programmes for SMEs: applications, diagnostics, interventions, KPIs.', tone: 'info' },
       { label: 'Training', detail: 'Classes, assessments and certificates for client companies’ staff.', tone: 'good' },
-      { label: 'ESG reporting', detail: 'An add-on: sustainability reports for clients, ready in Word.', tone: 'warn' },
+      { label: 'ESG add-on', detail: 'Switched on in either workspace: sustainability reports, ready in Word.', tone: 'warn' },
     ],
     narration:
       'Every company on the platform gets a workspace that fits its work. An incubator runs programmes for small businesses. A service provider delivers paid work to client companies, such as training. And ESG reporting can be switched on as an add-on. Each company only sees the parts it uses.',
@@ -63,7 +63,7 @@ export const SCENES: Scene[] = [
     role: 'Operations',
     footage: 'ops-home',
     narration:
-      'The operations team signs in to an assistant that already knows the day: decisions waiting, interventions under way, and active SMEs. One click on Workspace opens the full dashboard, with SME health, revenue and employees, compliance, and every intervention, assigned, completed or overdue.',
+      'The operations team signs in to an assistant that already knows the day: decisions waiting, interventions under way, and active SMEs. One click on Dashboard opens the full picture, with SME health, revenue and employees, compliance, and every intervention, assigned, completed or overdue.',
   },
   {
     id: 'applications',
@@ -108,7 +108,7 @@ export const SCENES: Scene[] = [
     role: 'SME owner',
     footage: 'sme',
     narration:
-      'The SME owner has a workspace of their own. It shows what is waiting on them, the progress of their growth plan, who is helping with what, and the documents still needed for compliance. Reminders reach them in the app, by email and on WhatsApp, in English or isiZulu.',
+      'The SME owner has a workspace of their own. It shows what is waiting on them, the progress of their growth plan, who is helping with what, and the documents still needed for compliance. Reminders reach them in the app, by email and on WhatsApp, in local languages like Zulu.',
   },
   {
     id: 'monitoring',

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Alert, App, Button, Checkbox, Empty, Space, Steps, Tag, Typography, Upload } from 'antd'
+import { Alert, App, Button, Checkbox, Empty, Space, Steps, Tag, Typography, Upload, Tabs, Badge } from 'antd'
 import { CheckCircleOutlined, EnvironmentOutlined, EyeOutlined, LoginOutlined, SafetyCertificateOutlined, UploadOutlined, VideoCameraOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
@@ -218,13 +218,6 @@ export default function LearnerHomePage() {
     return (
         <DashboardPage className="training-page">
             {failed && <Alert type="warning" showIcon closable style={{ marginBottom: 12 }} message={t('Some of your training details could not be loaded. Refresh the page to try again.')} />}
-            {(() => {
-                const asked = fieldsFor(LEARNER_DETAIL_FIELDS, learnerFields)
-                const records = ordered.map((enrolment) => enrolment.learner)
-                const missing = asked.filter((field) => !records.some((learner) => learner.details?.[field.key] !== undefined && learner.details?.[field.key] !== ''))
-                return missing.length > 0 && <LearnerDetailsCard learners={records} fields={asked} provider={provider} onSaved={() => void load()} />
-            })()}
-            <div style={{ marginBottom: 14 }}><MySurveysCard basePath="/learner/surveys" classIds={ordered.map((enrolment) => enrolment.trainingClass.id)} /></div>
             {ordered.map((enrolment) => {
                 const { learner, trainingClass } = enrolment
                 const today = trainingDayOn(trainingClass)
@@ -272,19 +265,21 @@ export default function LearnerHomePage() {
                             </Space>
                         </MotionCard>
 
-                        <MotionCard title={t('Attendance')}>
-                            <Steps
-                                size="small"
-                                responsive
-                                items={trainingDays(trainingClass.dayCount).map((day) => ({
-                                    title: t('Day {day}', undefined, { day }),
-                                    description: [dayjs(trainingClass.startDate).add(Number(day) - 1, 'day').format('ddd D MMM'), hoursLabel(hoursOfDay(trainingClass, day))].filter(Boolean).join(' · '),
-                                    status: learner.attendance[day]?.present ? 'finish' : today === day ? 'process' : 'wait',
-                                }))}
-                            />
-                        </MotionCard>
-
-                        <MotionCard title={t('Assessments')}>
+                        {(() => {
+                            // One card of tabs instead of five: it opens on what matters now.
+                            const own = submissions.filter((submission) => submission.learnerId === learner.id)
+                            const testWaiting = own.some((submission) => submission.status === 'in_progress')
+                                || (['pre', 'post'] as TrainingTestKind[]).some((kind) => learnerMayStart(trainingClass, kind, own.filter((submission) => submission.kind === kind)))
+                            const hasCertificate = certificates.some((row) => row.learnerId === learner.id && row.status === 'valid')
+                            const materials = itemsForCourse(library, trainingClass.courseTitle)
+                            const first = testWaiting ? 'tests' : hasCertificate ? 'certificate' : !idDocument ? 'id' : 'attendance'
+                            return (
+                                <MotionCard className="learner-tabs">
+                                    <Tabs
+                                        tabBarGutter={18}
+                                        defaultActiveKey={first}
+                                        items={[
+                                            { key: 'tests', label: <span>{t('Tests')}{testWaiting && <Badge status="processing" style={{ marginLeft: 6 }} />}</span>, children: (<>
                             <Space orientation="vertical" size={12} style={{ width: '100%' }}>
                                 {!enrolment.assessment && <Alert type="info" showIcon message={t('Your facilitator has not set up the assessment for this class yet.')} />}
                                 {testRow(enrolment, 'pre')}
@@ -295,15 +290,20 @@ export default function LearnerHomePage() {
                                         : t('To pass: at least {pct}% in the post-assessment.', undefined, { pct: trainingClass.passMarkPct })}
                                 </Typography.Text>
                             </Space>
-                        </MotionCard>
-
-                        {itemsForCourse(library, trainingClass.courseTitle).length > 0 && (
-                            <MotionCard title={t('Course materials')}>
-                                <LibraryList items={itemsForCourse(library, trainingClass.courseTitle)} emptyText={t('No course materials yet.')} />
-                            </MotionCard>
-                        )}
-
-                        <MotionCard title={t('Certificate')}>
+                        </>) },
+                                            { key: 'attendance', label: t('Days'), children: (<>
+                            <Steps
+                                size="small"
+                                responsive
+                                items={trainingDays(trainingClass.dayCount).map((day) => ({
+                                    title: t('Day {day}', undefined, { day }),
+                                    description: [dayjs(trainingClass.startDate).add(Number(day) - 1, 'day').format('ddd D MMM'), hoursLabel(hoursOfDay(trainingClass, day))].filter(Boolean).join(' · '),
+                                    status: learner.attendance[day]?.present ? 'finish' : today === day ? 'process' : 'wait',
+                                }))}
+                            />
+                        </>) },
+                                            ...(materials.length ? [{ key: 'materials', label: t('Materials'), children: (<LibraryList items={materials} emptyText={t('No course materials yet.')} />) }] : []),
+                                            { key: 'certificate', label: t('Certificate'), children: (<>
                             {(() => {
                                 const certificate = certificates.find((row) => row.learnerId === learner.id && row.status === 'valid')
                                 if (!certificate) return <Typography.Text type="secondary">{t('Your certificate of completion appears here as soon as you pass.')}</Typography.Text>
@@ -320,9 +320,8 @@ export default function LearnerHomePage() {
                                     </Space>
                                 )
                             })()}
-                        </MotionCard>
-
-                        <MotionCard title={t('ID copy')}>
+                        </>) },
+                                            { key: 'id', label: t('ID'), children: (<>
                             <Space orientation="vertical" size={10} style={{ width: '100%' }}>
                                 {idDocument ? (
                                     <Space wrap>
@@ -356,10 +355,23 @@ export default function LearnerHomePage() {
                                     </>
                                 )}
                             </Space>
-                        </MotionCard>
+                        </>) },
+                                        ]}
+                                    />
+                                </MotionCard>
+                            )
+                        })()}
                     </Space>
                 )
             })}
+            {/* Their details and surveys come after the class: the class, sign-in and tests first. */}
+            {(() => {
+                const asked = fieldsFor(LEARNER_DETAIL_FIELDS, learnerFields)
+                const records = ordered.map((enrolment) => enrolment.learner)
+                const missing = asked.filter((field) => !records.some((learner) => learner.details?.[field.key] !== undefined && learner.details?.[field.key] !== ''))
+                return missing.length > 0 && <LearnerDetailsCard learners={records} fields={asked} provider={provider} onSaved={() => void load()} />
+            })()}
+            <div style={{ marginBottom: 14 }}><MySurveysCard basePath="/learner/surveys" classIds={ordered.map((enrolment) => enrolment.trainingClass.id)} /></div>
         </DashboardPage>
     )
 }

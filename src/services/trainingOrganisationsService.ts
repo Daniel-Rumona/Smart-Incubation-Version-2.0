@@ -4,7 +4,7 @@ import { firebaseApp, getFirebaseDb } from '@/config/firebase'
 import { cleanLearnerDetails } from '@/services/trainingDetailsService'
 import { canManageTraining, toTrainingClass, toTrainingLearner, trainingCompanyOf } from '@/services/trainingService'
 import type { FullIdentity } from '@/types/identity'
-import type { TrainingDetails, TrainingLearnerValues, TrainingOrgDocument, TrainingOrgMember, TrainingOrgRole, TrainingOrganisation, TrainingOrganisationValues } from '@/types/training'
+import type { TrainingDetails, TrainingLearnerValues, TrainingOrgDocument, TrainingOrgMember, TrainingOrgRole, TrainingOrganisation, TrainingOrganisationValues, TrainingTeamMember } from '@/types/training'
 
 /**
  * Client companies of an awareness training company.
@@ -49,6 +49,17 @@ const toDocuments = (value: unknown): Record<string, TrainingOrgDocument> => {
     }))
 }
 
+const toTeam = (value: unknown): TrainingTeamMember[] => (Array.isArray(value) ? value : []).flatMap((item) => {
+    const row = (item || {}) as Record<string, unknown>
+    const name = text(row.name)
+    return text(row.id) && name ? [{
+        id: text(row.id), name, email: text(row.email).toLowerCase(),
+        ...(text(row.phone) ? { phone: text(row.phone) } : {}),
+        ...(text(row.jobTitle) ? { jobTitle: text(row.jobTitle) } : {}),
+        ...(row.isDirector === true ? { isDirector: true } : {}),
+    }] : []
+})
+
 export const toTrainingOrganisation = (id: string, data: Record<string, unknown>): TrainingOrganisation => ({
     id,
     companyCode: text(data.companyCode),
@@ -58,6 +69,7 @@ export const toTrainingOrganisation = (id: string, data: Record<string, unknown>
     phone: text(data.phone) || undefined,
     details: toDetails(data.details),
     documents: toDocuments(data.documents),
+    team: toTeam(data.team),
     detailsSubmittedAt: text(data.detailsSubmittedAt) || undefined,
     createdAt: text(data.createdAt) || undefined,
     updatedAt: text(data.updatedAt) || undefined,
@@ -194,6 +206,16 @@ export const getMyOrganisation = async (user: FullIdentity) => {
     const own = ownOrganisationOf(user)
     const snapshot = await getDoc(doc(getFirebaseDb(), ORGANISATIONS, own.organisationId))
     return snapshot.exists() ? toTrainingOrganisation(snapshot.id, snapshot.data()) : null
+}
+
+/** Saves the company's team list (its director or coordinators; firestore.rules allows only this field and the stamp). */
+export const saveOrganisationTeam = async (user: FullIdentity, team: TrainingTeamMember[]) => {
+    const own = ownOrganisationOf(user)
+    const clean = team.slice(0, 300).map((member) => ({
+        id: member.id, name: member.name.trim(), email: member.email.trim().toLowerCase(),
+        phone: member.phone?.trim() || null, jobTitle: member.jobTitle?.trim() || null, isDirector: member.isDirector === true,
+    }))
+    await updateDoc(doc(getFirebaseDb(), ORGANISATIONS, own.organisationId), { team: clean, updatedAt: now(), updatedBy: user.uid })
 }
 
 /** The company's people across every class (their own records only). */

@@ -280,7 +280,12 @@ export const seedIncubators = async ({ db, Timestamp, FieldValue, seedPerson, si
             const confirmedAt = acceptedAt.toISOString()
             put(`diagnosticPlans/${applicationId}`, {
                 companyCode: code, participantId, applicationId, programId: programme.id,
-                interventions: required.map((item) => ({ interventionId: item.interventionId, title: item.title, areaOfSupport: item.areaOfSupport, executionMode: 'single_session', steps: [] })),
+                interventions: [
+                    ...required.map((item) => ({ interventionId: item.interventionId, title: item.title, areaOfSupport: item.areaOfSupport, executionMode: 'single_session', steps: [] })),
+                    // The demo incubator's plans also hold one item not yet assigned, so assigning support (by hand or
+                    // through the agent) has something to do. It is never in `required` (those sit at even offsets).
+                    ...(code === 'DEMO' ? [titles[(index + 1) % titles.length]].map((item) => ({ interventionId: slug(item.title), title: item.title, areaOfSupport: item.area, executionMode: 'single_session', steps: [] })) : []),
+                ],
                 confirmed: true, status: 'Confirmed', confirmedAt,
                 confirmedBy: {
                     operations: { name: people.operations.name, confirmedAt },
@@ -359,7 +364,58 @@ export const seedIncubators = async ({ db, Timestamp, FieldValue, seedPerson, si
                 status: 'in_progress', priority: 'high', dueAt: ts(daysFromNow(5)), startAt: ts(daysFromNow(-2)), assigneeIds: [people.operations.uid], archived: false,
                 createdBy: director.uid, createdAt: ts(daysFromNow(-3)),
             })
+            // The bell in the top bar, as the daily jobs fill it (deadlineDigest.ts, followUps.ts, agentWatches.ts),
+            // so the in-app inbox is not empty when testing locally.
+            const smeNames = company.smes.map((sme) => sme.business)
+            const bell = [
+                {
+                    id: 'deadlines', type: 'intervention_deadlines', title: '1 overdue and 2 due soon interventions', counts: { overdue: 1, dueSoon: 2 },
+                    body: `Business Plan Refresh (${smeNames[0]}): 3 days overdue\nMarketing Strategy Development (${smeNames[0]}): due in 2 days\nSales Pipeline Coaching (${smeNames[1]}): due in 4 days`,
+                    link: '/operations/interventions/monitoring', ageHours: 2,
+                },
+                {
+                    id: 'watch', type: 'agent_watch', title: `${smeNames[2]} has not accepted its support yet`,
+                    body: 'Assigned 9 days ago. A reminder went out on WhatsApp yesterday.', ageHours: 20,
+                },
+                {
+                    id: 'followups', type: 'intervention_follow_ups', title: '2 follow-ups due', counts: { overdue: 0 },
+                    body: `Cash Flow & Budgeting Workshop (${smeNames[0]}): due this week\nBookkeeping Systems Setup (${smeNames[1]}): due this week`,
+                    link: '/operations/interventions/monitoring', ageHours: 30,
+                },
+            ]
+            for (const item of bell) {
+                const { id, ageHours, ...rest } = item
+                put(`staffNotifications/${people.operations.uid}_seed_${id}`, {
+                    ...rest, recipientUid: people.operations.uid, companyCode: code, readAt: null,
+                    createdAt: ts(new Date(Date.now() - ageHours * 3_600_000)), updatedAt: FieldValue.serverTimestamp(),
+                })
+            }
         }
+        // A published LMS course for the first programme of the demo incubator, so its SMEs have something to learn from.
+        const firstProgramme = Object.values(programmes)[0]
+        if (code === 'DEMO') put(`courseTemplates/${code.toLowerCase()}-course-cashflow`, {
+            title: 'Cash flow basics for small businesses',
+            description: 'Know where your money goes each month, plan for the lean months and keep your books in order.',
+            category: 'Financial Literacy', status: 'published', programId: firstProgramme.id, companyCode: code,
+            lessons: [
+                {
+                    id: 'l1', title: 'What cash flow is, and why profit is not cash', aiReviewEnabled: true,
+                    body: 'Cash flow is the money that actually comes into and goes out of your business in a month. A business can be profitable on paper and still run out of cash, because customers pay late while rent, salaries and suppliers are due now.\n\nThree habits keep cash flowing: invoice the day the work is done, follow up every unpaid invoice after 30 days, and keep at least one month of fixed costs in reserve.',
+                    quiz: [
+                        { id: 'q1', type: 'single', required: true, question: 'A business can make a profit and still run out of cash. Why?', options: ['Customers pay later than costs are due', 'Profit is always paid in cash', 'Tax is charged on cash'], correctOptions: ['Customers pay later than costs are due'] },
+                    ],
+                },
+                {
+                    id: 'l2', title: 'A simple monthly cash flow forecast',
+                    body: 'List the money you expect in each month (sales you will actually be paid for) and the money going out (rent, salaries, stock, loan repayments). The difference is your net cash flow. Do it for the next three months and update it every month-end.',
+                },
+                {
+                    id: 'l3', title: 'Keeping your books in order',
+                    body: 'Record every sale and every expense, keep your bank statements, and reconcile them each month. Good books make funding applications, tax and your growth plan much easier.',
+                },
+            ],
+            createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), createdBy: director.uid,
+        })
         put(`kpis/${code.toLowerCase()}-kpi-completion`, {
             companyCode: code, name: 'Intervention completion rate', description: 'Share of assigned interventions completed.', kind: 'system', metric: 'completion_rate',
             interventionIds: [], rule: null, atLeast: null, unit: 'percent', direction: 'higher', cadence: 'quarter', target: 75,

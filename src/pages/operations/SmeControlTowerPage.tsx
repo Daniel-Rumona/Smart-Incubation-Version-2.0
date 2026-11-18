@@ -133,7 +133,7 @@ function SmeDetail({ sme, lens, onBack }: { sme: ControlTowerSme; lens: TrackKey
                   </div>
                 ))}
               </div>
-            ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('Nothing outstanding. This SME meets every gate that has evidence.')} />}
+            ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('Nothing outstanding. This SME meets every check that applies to it.')} />}
           </Card>
         </Col>
       </Row>

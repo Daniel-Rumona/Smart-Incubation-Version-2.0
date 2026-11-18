@@ -162,7 +162,7 @@ export default function TrainingCompaniesPage() {
                 : t('{company} saved.', undefined, { company: values.name }))
             setEditing(null)
             if (giveAccess && !editing.organisation && values.contactEmail) {
-                await giveDirectorAccess({ id, companyCode: String(user.companyCode), name: values.name.trim(), contactName: values.contactName, contactEmail: values.contactEmail, details: {}, documents: {} }, values.contactName || values.name, values.contactEmail)
+                await giveDirectorAccess({ id, companyCode: String(user.companyCode), name: values.name.trim(), contactName: values.contactName, contactEmail: values.contactEmail, details: {}, documents: {}, team: [] }, values.contactName || values.name, values.contactEmail)
             } else {
                 await load()
             }

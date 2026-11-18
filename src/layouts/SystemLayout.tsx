@@ -50,6 +50,7 @@ import { getFirebaseDb, isFirebaseConfigured } from '@/config/firebase'
 import { LoadingOverlay } from '@/components/shared/LoadingOverlay'
 import ResponsiveModal from '@/components/shared/ResponsiveModal'
 import { AgentFab } from '@/components/agent/AgentFab'
+import { CompanyGuide } from '@/components/company/CompanyGuide'
 import { GuideMe } from '@/components/guide/GuideMe'
 import { PageGuideProvider } from '@/components/guide/PageGuideContext'
 import { AgenticHomePage } from '@/pages/agentic/AgenticHomePage'
@@ -209,7 +210,7 @@ const QUICK_LINK_PATHS: Partial<Record<UserRole, Array<string | QuickLinkGroupSp
     [USER_ROLES.ADMIN]: ['/shared/applications', '/shared/interventions/appointments', '/shared/participants'],
     [USER_ROLES.SYSTEM_ADMIN]: ['/admin/users', '/admin/usage', '/admin/agent-registry'],
     // A training company's client company: all of its pages (phones show the first three).
-    [USER_ROLES.CLIENT_ORG]: ['/company/certificates', '/company/assessments', '/company/documents', '/company/business', '/company/esg'],
+    [USER_ROLES.CLIENT_ORG]: ['/company/team', '/company/certificates', '/company/profile', '/company/esg'],
 }
 // Home is Programmes; the profile lives under My profile. Marketplace shows only for independent SMEs (the route's own rules).
 const APPLICANT_QUICK_LINK_PATHS = ['/applicant/marketplace', '/applicant/application-tracker', '/applicant/roadmap']
@@ -963,7 +964,7 @@ export const SystemLayout = () => {
                                             onOpenChange={setGuideOpen}
                                         />
 
-                                        {shellMode === 'workspace' && showAssistant && <AgentFab placement="topbar" />}
+                                        {shellMode === 'workspace' && (showAssistant ? <AgentFab placement="topbar" /> : user?.role === USER_ROLES.CLIENT_ORG ? <CompanyGuide /> : null)}
 
                                         <NotificationBell />
 
@@ -988,7 +989,7 @@ export const SystemLayout = () => {
 
                                         <NotificationBell />
 
-                                        {shellMode === 'workspace' && showAssistant && <AgentFab placement="topbar" />}
+                                        {shellMode === 'workspace' && (showAssistant ? <AgentFab placement="topbar" /> : user?.role === USER_ROLES.CLIENT_ORG ? <CompanyGuide /> : null)}
 
                                         <Button
                                             type="text"

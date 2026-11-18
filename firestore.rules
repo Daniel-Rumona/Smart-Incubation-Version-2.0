@@ -1242,7 +1242,8 @@ service cloud.firestore {
       function isOwnDetailsUpdate() {
         let after = request.resource.data;
         return isOwnOrganisation(resource.data.companyCode, organisationId)
-          && changedKeys().hasOnly(['details', 'documents', 'detailsSubmittedAt', 'updatedAt', 'updatedBy'])
+          && changedKeys().hasOnly(['details', 'documents', 'detailsSubmittedAt', 'team', 'updatedAt', 'updatedBy'])
+          && after.get('team', []) is list && after.get('team', []).size() <= 300
           && after.get('details', {}).keys().hasOnly(companyDetailKeys())
           && after.get('updatedBy', '') == request.auth.uid;
       }
