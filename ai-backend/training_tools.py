@@ -22,8 +22,10 @@ LIST_LIMIT = 40
 
 TRAINING_TOOLS_INTRO = (
     "You can look up this training workspace's own records with read-only tools. Use them when the page context does "
-    "not already hold the answer; a tool's result grounds a number just as the page context does. You cannot change "
-    "anything: if asked to, say where in the app to do it. "
+    "not already hold the answer; a tool's result grounds a number just as the page context does. Answer straight "
+    "away: when no class, learner or company is named, cover all of them (training_to_do lists everything outstanding "
+    "across all classes, including learners without an ID copy) and offer to narrow it down afterwards; never ask which "
+    "class first. You cannot change anything: if asked to, say where in the app to do it. "
 )
 TRAINING_FALLBACK = "I couldn't find that in your training records. Could you tell me which class, learner or company you mean?"
 
@@ -306,6 +308,13 @@ def tool_training_to_do(db: Any, actor: Actor, args: dict[str, Any]) -> dict[str
         {"learner": _text(l.get("name")), "class": ws.class_label(l.get("classId"))}
         for l in learners.values() if (l.get("idDocument") or {}).get("status") == "pending"
     ]
+    # Not uploaded, or queried by the facilitator and still to be uploaded again.
+    without_id = [
+        {"learner": _text(l.get("name")), "organisation": _text(l.get("organisation")), "class": ws.class_label(l.get("classId")),
+         **({"queried": True} if (l.get("idDocument") or {}).get("status") == "queried" else {})}
+        for l in sorted(learners.values(), key=lambda row: (_text(row.get("classId")), _text(row.get("name"))))
+        if (l.get("idDocument") or {}).get("status") in (None, "", "queried")
+    ]
     groups_to_mark = []
     for training_class in ws("trainingClasses"):
         if not training_class.get("groupAssignmentRequired") or class_phase(training_class) == "upcoming":
@@ -321,9 +330,11 @@ def tool_training_to_do(db: Any, actor: Actor, args: dict[str, Any]) -> dict[str
     return {
         "testsToMark": to_mark[:LIST_LIMIT],
         "idCopiesToCheck": id_copies[:LIST_LIMIT],
+        "learnersWithoutIdCopy": without_id[:LIST_LIMIT],
         "groupAssignmentsToMark": groups_to_mark[:LIST_LIMIT],
         "learnersNotYetInvited": not_invited[:LIST_LIMIT],
-        "totals": {"testsToMark": len(to_mark), "idCopiesToCheck": len(id_copies), "groupAssignmentsToMark": len(groups_to_mark), "learnersNotYetInvited": len(not_invited)},
+        "totals": {"testsToMark": len(to_mark), "idCopiesToCheck": len(id_copies), "learnersWithoutIdCopy": len(without_id),
+                   "groupAssignmentsToMark": len(groups_to_mark), "learnersNotYetInvited": len(not_invited)},
     }
 
 
@@ -552,7 +563,7 @@ STAFF_TOOLS = [
     Tool("training_classes", "read", "List the company's classes with dates, delivery, learner counts, tests to mark and pass rules (gives classId).", '{"phase"?: "upcoming"|"running"|"finished"}', _STAFF, run=tool_training_classes),
     Tool("training_class_detail", "read", "One class and every learner in it: company, attendance, pre and post scores, attempts, group assignment, result, ID copy and certificate. Without classId: the running class, else the latest.", '{"classId"?}', _STAFF, run=tool_training_class_detail),
     Tool("find_learners", "read", "Find learners by part of their name or their company, with their class and result.", '{"query"}', _STAFF, run=tool_find_learners),
-    Tool("training_to_do", "read", "What needs the facilitator: assessments to mark, ID copies to check, group assignments to mark and learners not yet invited.", "{}", _STAFF, run=tool_training_to_do),
+    Tool("training_to_do", "read", "Everything outstanding across all classes: assessments to mark, ID copies to check, learners without an ID copy, group assignments to mark and learners not yet invited.", "{}", _STAFF, run=tool_training_to_do),
     Tool("results_by_organisation", "read", "Results per client company: learners, passed, certificates, average post score and attendance. Optionally one class or one company.", '{"classId"?, "organisation"?}', _STAFF, run=tool_results_by_organisation),
     Tool("training_certificates", "read", "Certificates issued, with number, learner, company, course, dates and status.", '{"query"?: "learner, company, course or number"}', _STAFF, run=tool_training_certificates),
     Tool("survey_results", "read", "Without surveyId: the surveys and their response counts. With surveyId: rating averages, counts and written comments per question.", '{"surveyId"?}', _STAFF, run=tool_survey_results),

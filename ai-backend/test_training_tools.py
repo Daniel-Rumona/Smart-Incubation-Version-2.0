@@ -176,6 +176,14 @@ class Results(unittest.TestCase):
         self.assertEqual([r["learner"] for r in result["idCopiesToCheck"]], ["Zanele D"])
         self.assertEqual([r["learner"] for r in result["learnersNotYetInvited"]], ["Kabelo N"])
 
+    def test_to_do_lists_learners_without_an_id_copy_including_queried_ones(self):
+        data = workspace()
+        data["trainingLearners"]["emre"]["idDocument"] = {"status": "queried"}
+        data["trainingLearners"]["pule"]["idDocument"] = {"status": "verified"}
+        result = tt.tool_training_to_do(FakeDB(data), actor(), {})
+        self.assertEqual([(r["learner"], r.get("queried", False)) for r in result["learnersWithoutIdCopy"]], [("Emre K", True), ("Kabelo N", False)])
+        self.assertEqual(result["totals"]["learnersWithoutIdCopy"], 2)
+
     def test_results_by_organisation(self):
         rows = {r["organisation"]: r for r in tt.tool_results_by_organisation(self.db, actor(), {"classId": "c-done"})["organisations"]}
         self.assertEqual(rows["Kgalagadi"], {"organisation": "Kgalagadi", "learners": 1, "passed": 1, "certificates": 1, "averagePostScorePct": 85, "attendancePct": 100})
@@ -222,6 +230,8 @@ class ThroughTheAgentTurn(unittest.TestCase):
         self.assertIn("read-only tools", seen[0][0])
         self.assertNotIn("appointments and interventions", seen[0][0])
         self.assertNotIn("assign_intervention", seen[0][0])
+        self.assertIn("never ask which class first", seen[0][0])
+        self.assertIn("never ask the user to confirm or narrow down a lookup", seen[0][0])
         self.assertEqual(seen[1][1]["toolResults"][0]["result"]["totals"]["testsToMark"], 1)
 
     def test_an_incubation_tool_is_not_available_to_the_training_assistant(self):
