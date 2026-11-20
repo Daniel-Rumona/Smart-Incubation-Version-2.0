@@ -29,6 +29,7 @@ import { CLIENT_ORG_ROLE, canInviteFunder, canInviteOrganisationMember, canReuse
 import { ClientFunderError, clientFunderSummary } from './clientFunderSummary.js'
 import { DemoRequestError, submitDemoRequestHandler } from './demoRequests.js'
 import { JoinError, buildConfirmedSetPlan, enrolInDirectProgram, forcedProgramInterventions, getProgramLinkInfo, joinProgram, type JoinInput } from './programJoin.js'
+import { isReservedTestAddress } from './testAddresses.js'
 import {
   processWhatsAppInboundEvent,
   processWhatsAppMessageStatusEvent,
@@ -800,6 +801,8 @@ const canManageProjectStaff = (
 async function getSuppressedEmail(email: string) {
   const normalized = normalizeEmail(email)
   if (!normalized) return null
+  // Demo and seed accounts (*.test, example.com, ...): never sent, so they cannot bounce and get the sender blocked.
+  if (isReservedTestAddress(normalized)) return { email: normalized, reason: 'reserved_test_address', failureCount: 0 }
 
   const snap = await getFirestore()
     .collection('emailSuppressions')
