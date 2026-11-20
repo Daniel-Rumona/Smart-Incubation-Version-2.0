@@ -559,7 +559,7 @@ const StoragePage: React.FC = () => {
                 <>
                     <Row gutter={[16, 16]}>
                         <Col xs={24} sm={12} xl={6}>
-                            <AdminKpiTile
+                            <AdminKpiTile onMobile
                                 compact
                                 loading={overviewLoading && !overview}
                                 icon={<FileOutlined />}
@@ -569,7 +569,7 @@ const StoragePage: React.FC = () => {
                             />
                         </Col>
                         <Col xs={24} sm={12} xl={6}>
-                            <AdminKpiTile compact loading={overviewLoading && !overview} icon={<CloudOutlined />} label='Space used' value={formatBytes(totals.bytes)} />
+                            <AdminKpiTile onMobile compact loading={overviewLoading && !overview} icon={<CloudOutlined />} label='Space used' value={formatBytes(totals.bytes)} />
                         </Col>
                         <Col xs={24} sm={12} xl={6}>
                             <AdminKpiTile

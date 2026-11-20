@@ -8,7 +8,7 @@ import '@/styles/admin-dashboard.css'
 export type AdminKpiTrend = { amount: string; direction: 'up' | 'down' | 'flat'; tone: 'good' | 'bad' | 'neutral'; text: string }
 
 /** A figure in a soft rounded card: icon disc, large number, optional change badge and a small chart on the right. */
-export function AdminKpiTile({ icon, label, value, trend, note, loading, visual, compact }: {
+export function AdminKpiTile({ icon, label, value, trend, note, loading, visual, compact, onMobile }: {
     icon: ReactNode
     label: string
     /** Numbers get thousands separators; text (a duration, a page name) is shown as is. */
@@ -21,9 +21,11 @@ export function AdminKpiTile({ icon, label, value, trend, note, loading, visual,
     visual?: ReactNode
     /** A slimmer card for rows of quick figures: less padding, smaller figure, one-line label. */
     compact?: boolean
+    /** One of the row's on-the-go figures: phones show the marked tiles two side by side (a row with none marked shows its first two). */
+    onMobile?: boolean
 }) {
     return (
-        <Card className={compact ? 'admin-card admin-kpi is-compact' : 'admin-card admin-kpi'} variant="borderless">
+        <Card className={['admin-card admin-kpi', compact ? 'is-compact' : '', onMobile ? 'is-mobile-key' : ''].filter(Boolean).join(' ')} variant="borderless">
             {loading ? <Skeleton active paragraph={{ rows: 1 }} /> : (
                 <div className="admin-kpi-body">
                     <div className="admin-kpi-copy">

@@ -527,10 +527,10 @@ const AgentRegistryPage = () => {
     return (
         <DashboardPage className="agent-registry-page admin-overview">
             <Row gutter={[16, 16]}>
-                <Col xs={24} sm={12} xl={6}><AdminKpiTile compact icon={<RobotOutlined />} label={t('Active agents')} value={metrics.active} visual={<AdminShareRing size={44} value={metrics.active} total={metrics.total} />} /></Col>
+                <Col xs={24} sm={12} xl={6}><AdminKpiTile onMobile compact icon={<RobotOutlined />} label={t('Active agents')} value={metrics.active} visual={<AdminShareRing size={44} value={metrics.active} total={metrics.total} />} /></Col>
                 <Col xs={24} sm={12} xl={6}><AdminKpiTile compact icon={<ApiOutlined />} label={t('External API')} value={metrics.external} /></Col>
                 <Col xs={24} sm={12} xl={6}><AdminKpiTile compact icon={<DollarOutlined />} label={t('Billable')} value={metrics.billable} /></Col>
-                <Col xs={24} sm={12} xl={6}><AdminKpiTile compact loading={ratingsLoading} icon={<StarOutlined />} label={t('Average rating')} value={ratings.length ? `${overallRating.toFixed(1)} / 5` : '—'} /></Col>
+                <Col xs={24} sm={12} xl={6}><AdminKpiTile onMobile compact loading={ratingsLoading} icon={<StarOutlined />} label={t('Average rating')} value={ratings.length ? `${overallRating.toFixed(1)} / 5` : '—'} /></Col>
             </Row>
 
 

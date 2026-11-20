@@ -403,6 +403,34 @@ html[data-theme='dark'] .admin-modal {
 
 /* ---------- Shared bits (AdminKpiTile.tsx) ---------- */
 
+/* Phones: two tiles side by side, the ones marked onMobile (.is-mobile-key) or a row's first two; the rest are hidden
+   (the same rule as DashboardMetricCard rows in dashboard.css). The tile drops its chart and icon to fit half a row. */
+@media (max-width: 767px) {
+    .ant-row:has(> .ant-col > .admin-kpi):not(:has(.is-mobile-key)) > :nth-child(n + 3),
+    .ant-row:has(> .ant-col > .admin-kpi):has(.is-mobile-key) > :not(:has(> .is-mobile-key)) {
+        display: none !important;
+    }
+
+    .ant-row:has(> .ant-col > .admin-kpi) > .ant-col {
+        flex: 0 0 50%;
+        max-width: 50%;
+    }
+
+    .admin-kpi.ant-card .ant-card-body { padding: 14px 16px; }
+    .admin-kpi .admin-kpi-body > :not(.admin-kpi-copy),
+    .admin-kpi .admin-kpi-icon { display: none; }
+    .admin-kpi .admin-kpi-label.ant-typography {
+        margin-bottom: 6px;
+        overflow: hidden;
+        font-size: 12.5px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .admin-kpi .admin-kpi-value { font-size: 24px; }
+    .admin-kpi .admin-kpi-value.is-text { font-size: 16px; -webkit-line-clamp: 1; }
+    .admin-kpi .admin-kpi-value-line { gap: 6px; }
+}
+
 /* Text figures (a duration, a page name) are smaller than counts and wrap onto a second line rather than being cut. */
 .admin-kpi-value.is-text {
     display: -webkit-box;

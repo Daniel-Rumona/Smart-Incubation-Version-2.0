@@ -159,9 +159,9 @@ export const SystemAdminDashboardPage = () => {
 
             <Row gutter={[16, 16]}>
                 <Col xs={24} sm={12} xl={6}><AdminKpiTile loading={loading} icon={<TeamOutlined />} label={t('admin.dashboard.users')} value={summary?.users || 0} trend={trend(summary?.users, summary?.previous.users)} visual={<MiniBars months={recentMonths} pick={(month) => month.totalUsers} />} /></Col>
-                <Col xs={24} sm={12} xl={6}><AdminKpiTile loading={loading} icon={<CheckCircleOutlined />} label={t('admin.dashboard.activeUsers')} value={summary?.activeUsers || 0} trend={trend(summary?.activeUsers, summary?.previous.activeUsers)} visual={<MiniBars months={recentMonths} pick={(month) => month.activeUsers} />} /></Col>
+                <Col xs={24} sm={12} xl={6}><AdminKpiTile onMobile loading={loading} icon={<CheckCircleOutlined />} label={t('admin.dashboard.activeUsers')} value={summary?.activeUsers || 0} trend={trend(summary?.activeUsers, summary?.previous.activeUsers)} visual={<MiniBars months={recentMonths} pick={(month) => month.activeUsers} />} /></Col>
                 <Col xs={24} sm={12} xl={6}><AdminKpiTile loading={loading} icon={<BankOutlined />} label={t('admin.dashboard.companies')} value={summary?.companies || 0} trend={trend(summary?.companies, summary?.previous.companies)} visual={<MiniBars months={recentMonths} pick={(month) => month.companies} />} /></Col>
-                <Col xs={24} sm={12} xl={6}><AdminKpiTile loading={loading} icon={<WarningOutlined />} label={t('admin.dashboard.recentErrors')} value={summary?.errors || 0} trend={trend(summary?.errors, summary?.previous.errors, false)} visual={<MiniBars months={recentMonths} pick={(month) => month.errors} />} /></Col>
+                <Col xs={24} sm={12} xl={6}><AdminKpiTile onMobile loading={loading} icon={<WarningOutlined />} label={t('admin.dashboard.recentErrors')} value={summary?.errors || 0} trend={trend(summary?.errors, summary?.previous.errors, false)} visual={<MiniBars months={recentMonths} pick={(month) => month.errors} />} /></Col>
             </Row>
 
             <Row gutter={[16, 16]} className="admin-overview-row">

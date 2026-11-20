@@ -1,5 +1,6 @@
 import { collection, getDocs } from 'firebase/firestore'
 import { getFirebaseDb } from '@/config/firebase'
+import { countsTowardUsage } from '@/services/usageTrackingService'
 import type { FullIdentity } from '@/types/identity'
 
 export type AdminDashboardError = {
@@ -84,7 +85,7 @@ export const getAdminDashboardSummary = async (user: FullIdentity, range?: [Date
   const applications = { docs: allApplications.docs.filter((record) => ofCompany(record.data())) }
   const companyUids = new Set(users.docs.flatMap((record) => [record.id, String(record.data().uid || '')]).filter(Boolean))
   const companyEmails = new Set(users.docs.map((record) => String(record.data().email || '').trim().toLowerCase()).filter(Boolean))
-  const sessions = allSessions && { docs: allSessions.docs.filter((record) => !company || companyUids.has(String(record.data().uid || record.id))) }
+  const sessions = allSessions && { docs: allSessions.docs.filter((record) => countsTowardUsage(record.data()) && (!company || companyUids.has(String(record.data().uid || record.id)))) }
   const sentToCompany = (data: Record<string, unknown>) => {
     if (!company) return true
     return [data.recipients, data.to, data.email].flat().some((address) => typeof address === 'string' && companyEmails.has(address.trim().toLowerCase()))

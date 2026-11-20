@@ -154,7 +154,7 @@ export const FunderDashboardPage = () => {
 
             <Row gutter={[16, 16]}>
                 <Col xs={12} md={6} className="funder-kpi-extra">
-                    <AdminKpiTile
+                    <AdminKpiTile onMobile
                         compact
                         loading={loading}
                         icon={<TeamOutlined />}
@@ -175,7 +175,7 @@ export const FunderDashboardPage = () => {
                     />
                 </Col>
                 <Col xs={12} md={6}>
-                    <AdminKpiTile
+                    <AdminKpiTile onMobile
                         compact
                         loading={loading}
                         icon={<DollarOutlined />}

@@ -253,7 +253,7 @@ export const FunderImpactPage = () => {
                     />
                 </Col>
                 <Col xs={12} md={6}>
-                    <AdminKpiTile
+                    <AdminKpiTile onMobile
                         compact
                         loading={loading}
                         icon={<RiseOutlined />}
@@ -263,7 +263,7 @@ export const FunderImpactPage = () => {
                     />
                 </Col>
                 <Col xs={12} md={6}>
-                    <AdminKpiTile
+                    <AdminKpiTile onMobile
                         compact
                         loading={loading}
                         icon={<RiseOutlined />}

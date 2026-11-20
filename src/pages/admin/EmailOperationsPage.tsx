@@ -175,8 +175,8 @@ export const EmailOperationsPage = () => {
     return <DashboardPage className="email-operations-page admin-overview">
         <Row gutter={[16, 16]}>
             <Col xs={24} sm={12} xl={6}><AdminKpiTile loading={!data && (loading || !scope.ready)} icon={<CheckCircleOutlined />} label={t('emailOps.sent')} value={summary?.sent || 0} visual={<AdminMiniBars bars={weekBars((row) => row.status === 'sent')} />} /></Col>
-            <Col xs={24} sm={12} xl={6}><AdminKpiTile loading={!data && (loading || !scope.ready)} icon={<MailOutlined />} label={t('Delivery rate')} value={attempted ? `${Math.round(((summary?.sent || 0) / attempted) * 100)}%` : '—'} visual={<AdminShareRing value={summary?.sent || 0} total={attempted} />} /></Col>
-            <Col xs={24} sm={12} xl={6}><AdminKpiTile loading={!data && (loading || !scope.ready)} icon={<CloseCircleOutlined />} label={t('Failed or rejected')} value={problems} visual={<AdminMiniBars bars={weekBars((row) => isProblem(row.status))} />} /></Col>
+            <Col xs={24} sm={12} xl={6}><AdminKpiTile onMobile loading={!data && (loading || !scope.ready)} icon={<MailOutlined />} label={t('Delivery rate')} value={attempted ? `${Math.round(((summary?.sent || 0) / attempted) * 100)}%` : '—'} visual={<AdminShareRing value={summary?.sent || 0} total={attempted} />} /></Col>
+            <Col xs={24} sm={12} xl={6}><AdminKpiTile onMobile loading={!data && (loading || !scope.ready)} icon={<CloseCircleOutlined />} label={t('Failed or rejected')} value={problems} visual={<AdminMiniBars bars={weekBars((row) => isProblem(row.status))} />} /></Col>
             <Col xs={24} sm={12} xl={6}><AdminKpiTile loading={!data && (loading || !scope.ready)} icon={<StopOutlined />} label={t('emailOps.suppressed')} value={summary?.suppressed || 0} /></Col>
         </Row>
 

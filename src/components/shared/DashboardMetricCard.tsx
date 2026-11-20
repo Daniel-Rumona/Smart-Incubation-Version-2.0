@@ -18,12 +18,12 @@ type DashboardMetricCardProps = {
     /** Highlights the card as the current filter selection. */
     active?: boolean
     loading?: boolean
-    /** Set to false to omit this card entirely on mobile. Defaults to true. */
-    onMobile?: boolean
     /**
-     * Phones show two metrics as full cards and the rest as a slim one-line strip (count + label). By default
-     * the first two in the row are the full ones; 'key' keeps this card full wherever it sits, 'strip' slims it.
+     * Phones show two metrics side by side and hide the rest. true marks this as one of the row's on-the-go metrics;
+     * false hides it on phones. A row with nothing marked shows its first two.
      */
+    onMobile?: boolean
+    /** @deprecated Use onMobile. 'key' is the same as onMobile; 'strip' leaves the card unmarked. */
     mobileProminence?: 'key' | 'strip'
     onClick?: () => void
     /**
@@ -122,7 +122,7 @@ export default function DashboardMetricCard({
     clickable = false,
     active = false,
     loading = false,
-    onMobile = true,
+    onMobile,
     mobileProminence,
     onClick,
     trend,
@@ -130,7 +130,7 @@ export default function DashboardMetricCard({
 }: DashboardMetricCardProps) {
     const isMobile = !Grid.useBreakpoint().md
 
-    if (isMobile && !onMobile) {
+    if (isMobile && onMobile === false) {
         return null
     }
 
@@ -143,7 +143,7 @@ export default function DashboardMetricCard({
         loading ? 'is-loading' : '',
         !loading && (clickable || onClick) ? 'is-clickable' : '',
         !loading && active ? 'is-active' : '',
-        mobileProminence ? `is-mobile-${mobileProminence}` : '',
+        onMobile || mobileProminence === 'key' ? 'is-mobile-key' : '',
     ]
         .filter(Boolean)
         .join(' ')

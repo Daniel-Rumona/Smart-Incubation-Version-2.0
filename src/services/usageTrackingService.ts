@@ -62,6 +62,22 @@ const asDate = (value: unknown, fallback = new Date(0)) => {
   return fallback
 }
 
+/** The team's own people, whose time on the platform isn't customer usage. */
+const EXCLUDED_PEOPLE = [['daniel', 'rumona'], ['daniel', 'mazorodze']]
+
+/**
+ * Whether an account's activity counts towards usage statistics. Left out: anyone on the quantilytix.co.za domain,
+ * test and example addresses, and the team members in EXCLUDED_PEOPLE (by name, or both names in the address).
+ */
+export const countsTowardUsage = ({ email, displayName }: { email?: string | null; displayName?: string | null }) => {
+  const address = String(email || '').trim().toLowerCase()
+  if (address.endsWith('@quantilytix.co.za') || address.endsWith('.quantilytix.co.za')) return false
+  if (address.includes('test') || address.includes('example')) return false
+  const name = String(displayName || '').toLowerCase()
+  const local = address.split('@')[0]
+  return !EXCLUDED_PEOPLE.some((parts) => parts.every((part) => name.includes(part)) || parts.every((part) => local.includes(part)))
+}
+
 export const createUsageId = (prefix: string) => {
   const randomPart = typeof crypto !== 'undefined' && 'randomUUID' in crypto
     ? crypto.randomUUID()
@@ -74,6 +90,7 @@ export const createUsageId = (prefix: string) => {
 // account switch, so skip writes for anyone else and never let analytics surface as an uncaught rejection.
 const writeOwnUsageDoc = async (collectionName: string, id: string, uid: string, data: Record<string, unknown>) => {
   if (!isFirebaseConfigured || getFirebaseAuth().currentUser?.uid !== uid) return
+  if (!countsTowardUsage({ email: String(data.email || ''), displayName: String(data.displayName || '') })) return
 
   try {
     await setDoc(doc(getFirebaseDb(), collectionName, id), data, { merge: true })
@@ -131,7 +148,7 @@ export const listUsageSessions = async (): Promise<UsageSessionRecord[]> => {
 
   const snapshot = await getDocs(collection(getFirebaseDb(), 'usageSessions'))
 
-  return snapshot.docs.map((snapshotDoc) => {
+  return snapshot.docs.filter((snapshotDoc) => countsTowardUsage(snapshotDoc.data())).map((snapshotDoc) => {
     const data = snapshotDoc.data()
     const startedAt = asDate(data.startedAt)
     const endedAt = asDate(data.endedAt, startedAt)
@@ -156,7 +173,7 @@ export const listUsagePageViews = async (): Promise<UsagePageViewRecord[]> => {
 
   const snapshot = await getDocs(collection(getFirebaseDb(), 'usagePageViews'))
 
-  return snapshot.docs.map((snapshotDoc) => {
+  return snapshot.docs.filter((snapshotDoc) => countsTowardUsage(snapshotDoc.data())).map((snapshotDoc) => {
     const data = snapshotDoc.data()
     const startedAt = asDate(data.startedAt)
     const endedAt = asDate(data.endedAt, startedAt)
