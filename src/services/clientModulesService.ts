@@ -21,7 +21,14 @@ const modulesOf = (data: Record<string, unknown>) => Object.fromEntries(
 export const listCompanyModules = async (user: FullIdentity): Promise<CompanyModulesRow[]> => {
     if (!isPlatformAdmin(user)) throw new Error('forbidden')
     const snapshot = await getDocs(collection(getFirebaseDb(), 'companies'))
-    return snapshot.docs
+    // One row per company code. Saves go to companies/{code}, so when a stray document repeats a code (e.g. an old
+    // auto-id copy), the document named after the code is the one shown.
+    const byCode = new Map<string, (typeof snapshot.docs)[number]>()
+    snapshot.docs.forEach((row) => {
+        const code = String(row.data().companyCode || row.id).trim()
+        if (!byCode.has(code) || row.id === code) byCode.set(code, row)
+    })
+    return [...byCode.values()]
         .map((row) => {
             const data = row.data()
             const code = String(data.companyCode || row.id).trim()
