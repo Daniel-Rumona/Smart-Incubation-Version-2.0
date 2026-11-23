@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Alert, App, Button, Card, Checkbox, Col, Form, Input, Modal, Row, Select, Space, Table, Tag, Tooltip, Typography } from 'antd'
-import { BankOutlined, EditOutlined, FileTextOutlined, ManOutlined, PlusOutlined, PrinterOutlined, RiseOutlined, SafetyCertificateOutlined, TeamOutlined, UserAddOutlined, WalletOutlined, WomanOutlined } from '@ant-design/icons'
+import { BankOutlined, EditOutlined, FileTextOutlined, ManOutlined, PlusOutlined, PrinterOutlined, RiseOutlined, RobotOutlined, SafetyCertificateOutlined, TeamOutlined, UserAddOutlined, WalletOutlined, WomanOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import type Highcharts from 'highcharts'
 import DashboardPage from '@/components/shared/DashboardPage'
@@ -13,6 +13,7 @@ import { usesFirebaseEmulators } from '@/config/firebase'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { getFunderSummary, inviteFunder, listFunders, listTrainingFunders, saveTrainingFunder } from '@/services/clientRevenueService'
 import { useRegisterAgentPageContext } from '@/shared/hooks/useRegisterAgentPageContext'
+import { trainingAiAvailable, writeFunderSummary } from '@/services/trainingAiService'
 import { useLanguage } from '@/providers/LanguageProvider'
 import { rand } from '@/utils/trainingFormat'
 import type { ClientFunderSummary, TrainingFunder, TrainingFunderAccount } from '@/types/clientRevenue'
@@ -131,6 +132,9 @@ export default function FunderReportPage() {
     const [accounts, setAccounts] = useState<TrainingFunderAccount[]>([])
     const [viewAs, setViewAs] = useState<string>('')
     const isStaff = user?.role === 'projectadmin' || user?.role === 'operations'
+    // A written summary of the report's totals (ai-backend/training_agent.py); kept only on screen and in the print.
+    const [narrative, setNarrative] = useState<{ text: string, unmatchedFigures: string[] } | null>(null)
+    const [writing, setWriting] = useState(false)
 
     useEffect(() => {
         let cancelled = false
@@ -195,6 +199,20 @@ export default function FunderReportPage() {
         dataSummary: summary ? { organisations: summary.organisations.slice(0, 20).map(({ esgReports, ...organisation }) => (showEsg ? { ...organisation, esgReports } : organisation)), beeLevels: summary.businesses.beeLevels } : {},
     })
 
+    const [narrativeFailed, setNarrativeFailed] = useState(false)
+    const writeNarrative = async () => {
+        if (!summary) return
+        setWriting(true)
+        setNarrativeFailed(false)
+        try {
+            setNarrative(await writeFunderSummary(summary, showEsg))
+        } catch {
+            setNarrativeFailed(true)
+        } finally {
+            setWriting(false)
+        }
+    }
+
     const genderTotal = (people?.female || 0) + (people?.male || 0)
     const share = (count: number) => (genderTotal ? ` (${Math.round((count / genderTotal) * 100)}%)` : '')
 
@@ -222,17 +240,38 @@ export default function FunderReportPage() {
                         {isStaff && (
                             <Select
                                 value={viewAs}
-                                onChange={(value) => { setViewAs(value); setSummary(undefined) }}
+                                onChange={(value) => { setViewAs(value); setSummary(undefined); setNarrative(null) }}
                                 style={{ minWidth: 240 }}
                                 aria-label={t('Show the report for')}
                                 options={[{ value: '', label: t('The whole company') }, ...funders.map((funder) => ({ value: funder.id, label: t('As {funder} sees it', undefined, { funder: funder.name }) }))]}
                             />
+                        )}
+                        {trainingAiAvailable && summary && (
+                            <Button icon={<RobotOutlined />} loading={writing} onClick={() => void writeNarrative()}>{narrative ? t('Rewrite summary') : t('Write summary')}</Button>
                         )}
                         <Button icon={<PrinterOutlined />} onClick={() => window.print()}>{t('Print or save as PDF')}</Button>
                     </Space>
                 </Space>
             </Card>
             {summary === null && <Alert type="error" showIcon message={t('The report could not be loaded.')} style={{ marginBottom: 16 }} />}
+            {narrativeFailed && <Alert type="error" showIcon closable onClose={() => setNarrativeFailed(false)} message={t('The summary could not be written. Try again.')} style={{ marginBottom: 16 }} />}
+            {narrative && (
+                <Card
+                    title={t('Summary')}
+                    extra={<Typography.Text type="secondary" copyable={{ text: narrative.text }}>{t('Written by AI from the figures in this report')}</Typography.Text>}
+                    style={{ marginBottom: 16 }}
+                >
+                    {narrative.unmatchedFigures.length > 0 && (
+                        <Alert
+                            type="warning"
+                            showIcon
+                            style={{ marginBottom: 12 }}
+                            message={t('Check these figures before sharing: they are not in the report ({figures}).', undefined, { figures: narrative.unmatchedFigures.join(', ') })}
+                        />
+                    )}
+                    {narrative.text.split(/\n\s*\n/).map((paragraph, index) => <Typography.Paragraph key={index}>{paragraph.trim()}</Typography.Paragraph>)}
+                </Card>
+            )}
             <Row gutter={[14, 14]} className="dashboard-metrics-row">
                 <Col xs={12} lg={6}><DashboardMetricCard loading={!summary} icon={<RiseOutlined />} label={t('Revenue, last 12 months')} mobileTitle={t('Revenue')} value={rand(summary?.revenue.last12Months || 0)} /></Col>
                 <Col xs={12} lg={6}><DashboardMetricCard loading={!summary} icon={<WalletOutlined />} label={t('Paid · outstanding')} value={`${rand(summary?.revenue.paid || 0)} · ${rand(summary?.revenue.outstanding || 0)}`} /></Col>

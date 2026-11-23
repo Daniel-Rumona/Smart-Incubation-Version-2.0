@@ -18,6 +18,8 @@ export type SystemSettingsRecord = {
   smeDivisionModel?: SmeDivisionModel
   branchScopedManagement?: boolean
   interventionDeliveryRoles?: InterventionDeliveryRole[]
+  /** Who runs the programme (director setup): 'solo' means the director works alone, so team pages leave the menu. */
+  teamSize?: 'solo' | 'small' | 'large'
   /** Roles the director let manage departments/offices and the logo. */
   delegation?: { structure?: string[]; branding?: string[] }
   logoUrl?: string

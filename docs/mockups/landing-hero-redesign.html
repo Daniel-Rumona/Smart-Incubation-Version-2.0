@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Landing hero redesign</title>
+<style>
+  :root {
+    --accent: #6d5dfb; --accent-2: #4f7df3; --green: #16a34a;
+    --bg: #f5f6fb; --surface: #fff; --surface-2: #eef0f8; --ink: #172033; --muted: #5b6478; --line: rgba(109,93,251,.14);
+    --ease: cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  [data-theme="dark"] { --bg: #0f1117; --surface: #1b1e2a; --surface-2: #232737; --ink: #eef0f6; --muted: #a1a9bd; --line: rgba(139,92,246,.24); --green: #4ade80; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 system-ui, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
+  button { font: inherit; color: inherit; }
+  .controls { position: sticky; top: 0; z-index: 9; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; padding: 12px; background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+  .seg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); }
+  .seg button { border: 0; background: none; color: var(--muted); font-weight: 650; font-size: 13px; padding: 7px 14px; border-radius: 999px; cursor: pointer; }
+  .seg button.on { color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+  .note { font-size: 12px; color: var(--muted); }
+  .stage { display: flex; flex-wrap: wrap; gap: 28px; justify-content: center; align-items: flex-start; padding: 24px 16px 48px; }
+  .label { font: 700 11px/1 system-ui; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px 4px; }
+  .screen { overflow: hidden; border: 1px solid var(--line); background: var(--bg); position: relative; }
+  .desktop .screen { width: 1180px; max-width: calc(100vw - 32px); border-radius: 22px; }
+  .phone .screen { width: 375px; border-radius: 36px; }
+  .glow { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(600px 380px at 15% 10%, rgba(109,93,251,.12), transparent 70%), radial-gradient(520px 380px at 90% 70%, rgba(59,130,246,.10), transparent 70%); }
+
+  /* top bar (unchanged, context) */
+  .top { position: relative; display: flex; justify-content: space-between; align-items: center; padding: 18px 28px 0; }
+  .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; }
+  .mark { width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+  .pills { display: flex; gap: 6px; } .pill { padding: 7px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); font-size: 13px; font-weight: 650; }
+
+  /* hero */
+  .hero { position: relative; display: grid; grid-template-columns: 1.05fr .95fr; gap: 40px; align-items: center; padding: 44px 48px 48px; }
+  h1 { margin: 0; font-size: 54px; line-height: 1.04; letter-spacing: -.03em; }
+  h1 em { font-style: normal; background: linear-gradient(135deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .sub { margin: 16px 0 26px; font-size: 18px; color: var(--muted); max-width: 520px; }
+
+  /* the three ways in: equal weight, each says who it's for */
+  .doors { display: grid; gap: 10px; max-width: 560px; }
+  .door { display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); text-align: left; cursor: pointer; transition: transform .16s var(--ease), box-shadow .2s var(--ease), border-color .2s var(--ease); }
+  .door:hover { border-color: rgba(109,93,251,.4); box-shadow: 0 10px 26px rgba(15,23,42,.08); }
+  .door:active { transform: scale(.98); }
+  .door .ico { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; font-size: 20px; color: var(--accent); background: rgba(109,93,251,.1); }
+  .door strong { display: block; font-size: 15.5px; }
+  .door small { display: block; color: var(--muted); font-size: 13px; }
+  .door .go { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; font-size: 13.5px; font-weight: 700; color: var(--accent); background: rgba(109,93,251,.1); white-space: nowrap; }
+  .door.primary { border-color: transparent; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; box-shadow: 0 10px 26px rgba(109,93,251,.28); }
+  .door.primary .ico { color: #fff; background: rgba(255,255,255,.18); }
+  .door.primary small { color: rgba(255,255,255,.82); }
+  .door.primary .go { color: var(--accent); background: #fff; }
+
+  /* product preview: the "diagnostic complete" moment lives inside the window as a live activity row */
+  .win { border-radius: 22px; border: 1px solid var(--line); background: var(--surface); box-shadow: 0 30px 60px rgba(15,23,42,.12); overflow: hidden; }
+  .chrome { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--line); font-weight: 700; font-size: 14px; }
+  .chrome i { width: 9px; height: 9px; border-radius: 50%; background: rgba(15,23,42,.14); }
+  .chrome .tag { margin-left: auto; font-size: 11px; font-weight: 800; letter-spacing: .06em; color: var(--muted); background: var(--surface-2); padding: 3px 9px; border-radius: 999px; }
+  .body { padding: 14px; display: grid; gap: 12px; }
+  .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .kpi { padding: 10px 12px; border-radius: 14px; background: var(--surface-2); } .kpi small { color: var(--muted); font-size: 12px; } .kpi b { display: block; font-size: 22px; }
+  .bars { display: flex; align-items: flex-end; gap: 8px; height: 66px; padding: 10px 12px; border-radius: 14px; border: 1px solid var(--line); }
+  .bars span { flex: 1; border-radius: 6px 6px 3px 3px; background: linear-gradient(180deg, var(--accent), var(--accent-2)); opacity: .85; }
+  .row { display: grid; grid-template-columns: 30px 1fr auto; align-items: center; gap: 10px; font-size: 13.5px; }
+  .row .av { width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; color: #fff; font-weight: 800; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+  .row .bar { grid-column: 2 / -1; height: 5px; border-radius: 999px; background: var(--surface-2); margin-top: -6px; } .row .bar i { display: block; height: 100%; border-radius: inherit; background: var(--accent-2); }
+  .row .st { color: var(--muted); font-size: 12.5px; }
+  .activity { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; background: rgba(22,163,74,.08); border: 1px solid rgba(22,163,74,.2); font-size: 13px; }
+  .activity .ok { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: var(--green); font-size: 12px; font-weight: 900; flex: none; }
+  .activity small { display: block; color: var(--muted); }
+  .activity .when { margin-left: auto; color: var(--muted); font-size: 12px; }
+
+  /* phone */
+  .phone .top { padding: 16px 16px 0; } .phone .pills .pill:not(:last-child) { width: 34px; padding: 7px 0; text-align: center; }
+  .phone .hero { grid-template-columns: 1fr; padding: 22px 16px 24px; gap: 22px; }
+  .phone h1 { font-size: 34px; } .phone .sub { font-size: 15.5px; margin: 12px 0 18px; }
+  .phone .door { grid-template-columns: 40px 1fr 18px; padding: 12px 14px; }
+  .phone .door .ico { width: 40px; height: 40px; }
+  .phone .door .go { padding: 0; background: none !important; font-size: 0; }
+  .phone .door .go::after { content: '›'; font-size: 22px; line-height: 1; color: var(--accent); }
+  .phone .door.primary .go::after { color: #fff; }
+  .phone .win { max-height: 230px; -webkit-mask-image: linear-gradient(180deg, #000 70%, transparent); mask-image: linear-gradient(180deg, #000 70%, transparent); }
+
+  .callout { max-width: 1180px; margin: 0 auto 40px; padding: 0 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .callout div { padding: 12px 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); font-size: 13px; } .callout b { display: block; margin-bottom: 2px; }
+  @media (max-width: 760px) { .desktop { display: none; } .stage { padding: 0; } .phone .screen { width: 100%; border: 0; border-radius: 0; } .label, .note { display: none; } }
+</style>
+</head>
+<body>
+<div class="controls">
+  <div class="seg" id="theme"><button class="on" data-v="light">Light</button><button data-v="dark">Dark</button></div>
+  <span class="note">Mock-up · the landing hero, redesigned around three ways in</span>
+</div>
+<div class="stage">
+  <section class="desktop"><p class="label">Desktop</p><div class="screen" id="desktop"><div class="glow"></div><div class="top"><span class="brand"><span class="mark">💡</span>Smart Incubation</span><span class="pills"><span class="pill">☾</span><span class="pill">🌐 EN</span><span class="pill" style="color:var(--accent)">Sign in</span></span></div><section class="hero"><div><h1>Run your incubation programme <em>in one place</em></h1><p class="sub">Applications, diagnostics, support and funder reports in one shared journey.</p>
+  <div class="doors">
+    <button class="door primary"><span class="ico">▦</span><span><strong>I run a programme</strong><small>Incubators, ESD teams and funders</small></span><span class="go">Book a demo →</span></button>
+    <button class="door"><span class="ico">◆</span><span><strong>I'm an SME</strong><small>Use your incubator's link, or apply here</small></span><span class="go">Apply →</span></button>
+    <button class="door"><span class="ico">●</span><span><strong>I have an account</strong><small>Staff, SMEs, facilitators and funders</small></span><span class="go">Sign in →</span></button>
+  </div></div>
+  <div class="win">
+    <div class="chrome"><i></i><i></i><i></i><span style="margin-left:6px">Programme overview</span><span class="tag">SAMPLE DATA</span></div>
+    <div class="body">
+      <div class="kpis"><div class="kpi"><small>Active SMEs</small><b>48</b></div><div class="kpi"><small>Interventions</small><b>126</b></div><div class="kpi"><small>On track</small><b>87%</b></div></div>
+      <div class="bars"><span style="height:35%"></span><span style="height:55%"></span><span style="height:45%"></span><span style="height:75%"></span><span style="height:68%"></span><span style="height:95%"></span></div>
+      <div class="row"><span class="av">U</span><b>Ubuntu Bakery</b><span class="st">Diagnostic</span><span class="bar"><i style="width:30%"></i></span></div>
+      <div class="row"><span class="av">K</span><b>Khanya Solar</b><span class="st">In support</span><span class="bar"><i style="width:64%"></i></span></div>
+      <div class="activity"><span class="ok">✓</span><span><b>Diagnostic complete · Ubuntu Bakery</b><small>Support plan ready for review</small></span><span class="when">2 min ago</span></div>
+    </div>
+  </div></section></div></section>
+  <section class="phone"><p class="label">Phone</p><div class="screen" id="phone"><div class="glow"></div><div class="top"><span class="brand"><span class="mark">💡</span>Smart Incubation</span><span class="pills"><span class="pill">☾</span><span class="pill">🌐 EN</span><span class="pill" style="color:var(--accent)">Sign in</span></span></div><section class="hero"><div><h1>Run your incubation programme <em>in one place</em></h1><p class="sub">Applications, diagnostics, support and funder reports in one shared journey.</p>
+  <div class="doors">
+    <button class="door primary"><span class="ico">▦</span><span><strong>I run a programme</strong><small>Incubators, ESD teams and funders</small></span><span class="go">Book a demo →</span></button>
+    <button class="door"><span class="ico">◆</span><span><strong>I'm an SME</strong><small>Use your incubator's link, or apply here</small></span><span class="go">Apply →</span></button>
+    <button class="door"><span class="ico">●</span><span><strong>I have an account</strong><small>Staff, SMEs, facilitators and funders</small></span><span class="go">Sign in →</span></button>
+  </div></div>
+  <div class="win">
+    <div class="chrome"><i></i><i></i><i></i><span style="margin-left:6px">Programme overview</span><span class="tag">SAMPLE DATA</span></div>
+    <div class="body">
+      <div class="kpis"><div class="kpi"><small>Active SMEs</small><b>48</b></div><div class="kpi"><small>Interventions</small><b>126</b></div><div class="kpi"><small>On track</small><b>87%</b></div></div>
+      <div class="bars"><span style="height:35%"></span><span style="height:55%"></span><span style="height:45%"></span><span style="height:75%"></span><span style="height:68%"></span><span style="height:95%"></span></div>
+      <div class="row"><span class="av">U</span><b>Ubuntu Bakery</b><span class="st">Diagnostic</span><span class="bar"><i style="width:30%"></i></span></div>
+      <div class="row"><span class="av">K</span><b>Khanya Solar</b><span class="st">In support</span><span class="bar"><i style="width:64%"></i></span></div>
+      <div class="activity"><span class="ok">✓</span><span><b>Diagnostic complete · Ubuntu Bakery</b><small>Support plan ready for review</small></span><span class="when">2 min ago</span></div>
+    </div>
+  </div></section></div></section>
+</div>
+<div class="callout">
+  <div><b>1 · Three equal ways in</b>Each visitor sees their own door: incubators and funders book a demo, SMEs apply, and people with an account sign in. Nobody is a grey footnote.</div>
+  <div><b>2 · Each door says who it's for</b>"I run a programme", "I'm an SME", "I have an account". People pick themselves rather than decode two buttons and two hint lines.</div>
+  <div><b>3 · The SME link hint lives on the SME door</b>"Use your incubator's link, or apply here" becomes that door's description, where an SME will actually read it.</div>
+  <div><b>4 · The "Diagnostic complete" moment moves inside the window</b>A green activity row at the bottom of the product preview, with "2 min ago": it reads as something the product just did, not a stray popup.</div>
+</div>
+<script>
+// Markup is written into the page above so it shows even where scripts are off; this only drives the theme switch.
+document.getElementById('theme').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; document.documentElement.dataset.theme = b.dataset.v; document.querySelectorAll('#theme button').forEach((x) => x.classList.toggle('on', x === b)) })
+</script>
+</body>
+</html>

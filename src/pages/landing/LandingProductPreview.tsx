@@ -17,7 +17,6 @@ const bars = [42, 58, 50, 72, 66, 88]
 const smes = [
     { name: 'Ubuntu Bakery', status: 'Diagnostic', progress: 30 },
     { name: 'Khanya Solar', status: 'In support', progress: 64 },
-    { name: 'Siyakha Logistics', status: 'Graduating', progress: 92 },
 ]
 
 const LandingProductPreview: React.FC = () => {
@@ -79,21 +78,23 @@ const LandingProductPreview: React.FC = () => {
                             </div>
                         ))}
                     </div>
+
+                    {/* Something the product just did, inside the window (it used to float outside it as a toast). */}
+                    <motion.div
+                        className="landing-preview-activity"
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.45, delay: 1.1, ease: [0.23, 1, 0.32, 1] }}
+                    >
+                        <CheckCircleFilled />
+                        <div>
+                            <strong>{t('Diagnostic complete')} · Ubuntu Bakery</strong>
+                            <small>{t('Support plan ready for review')}</small>
+                        </div>
+                        <em>{t('2 min ago')}</em>
+                    </motion.div>
                 </div>
             </div>
-
-            <motion.div
-                className="landing-preview-toast"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.45, delay: 1.1 }}
-            >
-                <CheckCircleFilled />
-                <div>
-                    <strong>{t('Diagnostic complete')}</strong>
-                    <small>{t('Support plan ready for review')}</small>
-                </div>
-            </motion.div>
         </div>
     )
 }

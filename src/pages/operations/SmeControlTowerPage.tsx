@@ -168,7 +168,7 @@ export default function SmeControlTowerPage() {
     let cancelled = false
     loadControlTower(user, activeProgramId)
       .then(rows => { if (!cancelled) setSmes(rows) })
-      .catch(() => { if (!cancelled) { setSmes([]); message.error(t('The control tower could not be loaded.')) } })
+      .catch(() => { if (!cancelled) { setSmes([]); message.error(t('The Readiness Hub could not be loaded.')) } })
     return () => { cancelled = true }
   }, [user, activeProgramId]) // eslint-disable-line react-hooks/exhaustive-deps
 

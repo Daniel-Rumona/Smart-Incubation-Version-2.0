@@ -664,8 +664,8 @@ export const ParticipantsPage: React.FC = () => {
                 })
             }
 
-            // Staff may read every compliance document; a director only their own company's, which the query must say.
-            const complianceScope = role === 'director' ? [where('companyCode', '==', companyCode)] : []
+            // Everyone but a platform admin reads one company's compliance documents, which the query must say.
+            const complianceScope = companyCode ? [where('companyCode', '==', companyCode)] : []
             const complianceDocsByParticipant: Record<string, AnyDoc[]> = {}
             for (const chunk of chunkArray(participantIds, 10)) {
                 const documents = await optionalDocs(() => getDocs(
@@ -1215,7 +1215,7 @@ export const ParticipantsPage: React.FC = () => {
             const [applicantProfileSnap, businessProfileSnap, complianceSnap, diagnosticPlanSnap, assignmentSnap] = await Promise.all([
                 applicantProfileId && !isReception ? getDoc(doc(db, 'applicantProfiles', applicantProfileId)) : Promise.resolve(null),
                 businessProfileId && !isReception ? getDoc(doc(db, 'businessProfiles', businessProfileId)) : Promise.resolve(null),
-                isReception ? Promise.resolve(null) : getDocs(query(collection(db, 'complianceDocuments'), where('participantId', '==', record.id))),
+                isReception ? Promise.resolve(null) : getDocs(query(collection(db, 'complianceDocuments'), where('participantId', '==', record.id), where('companyCode', '==', String((user as any)?.companyCode || '').trim()))),
                 applicationDocId && !isReception ? getDoc(doc(db, 'diagnosticPlans', applicationDocId)) : Promise.resolve(null),
                 getDocs(query(collection(db, 'assignedInterventions'), where('companyCode', '==', String((user as any)?.companyCode || '').trim()), where('participantId', '==', record.id)))
             ])
@@ -1915,7 +1915,7 @@ export const ParticipantsPage: React.FC = () => {
                             icon={<BarChartOutlined />}
                             onClick={() => navigate(`/operations/participants/control-tower/${record.id}`)}
                         >
-                            {t('Control Tower')}
+                            {t('Readiness Hub')}
                         </Button>
                     </Space>
                 )

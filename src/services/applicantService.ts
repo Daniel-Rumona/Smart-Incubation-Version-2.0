@@ -11,7 +11,7 @@ import {
   writeBatch,
 } from 'firebase/firestore'
 import { getFirebaseDb } from '@/config/firebase'
-import { listTeamRegisteredCompanyCodes, resolveSmeCompanyCode } from '@/services/companiesService'
+import { listCompanyDirectory, resolveSmeCompanyCode } from '@/services/companiesService'
 import type { FullIdentity } from '@/types/identity'
 import { ownershipFromDirectors } from '@/utils/businessDirectors'
 import type {
@@ -132,14 +132,20 @@ export const saveApplicantProfile = async (uid: string, email: string, values: A
  * so they see QTX's programs rather than every company's intake.
  */
 export const listApplicantPrograms = async (user?: Pick<FullIdentity, 'companyCode'> & Partial<Pick<FullIdentity, 'smeJourney' | 'assignedProgramIds'>> | null) => {
-  const [snapshot, teamRegistered] = await Promise.all([
+  const [snapshot, companies] = await Promise.all([
     getDocs(collection(getFirebaseDb(), 'programs')),
-    listTeamRegisteredCompanyCodes().catch(() => new Set<string>()),
+    listCompanyDirectory().catch(() => []),
   ])
   const activeStatuses = new Set(['active', 'planned', 'upcoming'])
   const companyCode = resolveSmeCompanyCode(user)
 
-  const rows = toRows<ApplicantProgram>(snapshot)
+  const companyByCode = new Map(companies.map((company) => [company.code, company]))
+  const teamRegistered = new Set(companies.filter((company) => company.smeOnboardingModel === 'consultants_register_smes').map((company) => company.code))
+  // The implementor (the company running the programme), so an SME knows who they are applying to.
+  const rows = toRows<ApplicantProgram>(snapshot).map((program) => {
+    const company = companyByCode.get(String(program.companyCode || '').trim())
+    return company ? { ...program, implementorName: company.name } : program
+  })
 
   // A programme SME (link or chosen programme) sees only their own programme(s), even if it has since
   // closed, so they can still follow their application.
@@ -169,22 +175,25 @@ export const listMyApplications = async (uid: string) => {
 
 export const listApplicantApplications = async (uid: string, email: string) => {
   const bundle = await getApplicantProfileBundle(uid, email)
+  // Only fields the applications rule can prove ownership on (participantId / uid / userId, and email
+  // once verified). applicantProfileId / businessProfileId lookups are always denied for an SME.
   const lookups = [
     ['uid', uid],
     ['userId', uid],
+    ['participantId', uid],
     ['email', email],
-    ...(bundle ? [
-      ['applicantProfileId', bundle.applicantProfile.id],
-      ['businessProfileId', bundle.businessProfile.id],
-      ['participantId', bundle.businessProfile.id],
-    ] : []),
+    ...(bundle && bundle.businessProfile.id !== uid ? [['participantId', bundle.businessProfile.id]] : []),
   ].filter((entry): entry is [string, string] => typeof entry[1] === 'string' && Boolean(entry[1]))
   const applications = new Map<string, ApplicantApplication>()
 
-  for (const [field, value] of lookups) {
-    const snapshot = await getDocs(query(collection(getFirebaseDb(), 'applications'), where(field, '==', value)))
-    for (const application of toRows<ApplicantApplication>(snapshot)) applications.set(application.id, application)
-  }
+  await Promise.all(lookups.map(async ([field, value]) => {
+    try {
+      const snapshot = await getDocs(query(collection(getFirebaseDb(), 'applications'), where(field, '==', value)))
+      for (const application of toRows<ApplicantApplication>(snapshot)) applications.set(application.id, application)
+    } catch {
+      // e.g. the email lookup before the SME has verified their email; the uid lookups still count.
+    }
+  }))
   return [...applications.values()]
 }
 

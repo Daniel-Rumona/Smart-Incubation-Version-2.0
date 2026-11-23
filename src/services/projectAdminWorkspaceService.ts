@@ -9,6 +9,9 @@ import { matchesActiveProgram } from '@/services/workspaceProgramsService'
 dayjs.extend(isSameOrAfter)
 dayjs.extend(isSameOrBefore)
 
+/** Programme name given to interventions an SME booked itself through the provider marketplace, outside any programme. */
+export const EXTERNAL_WORK_PROGRAM_NAME = 'External work'
+
 export type ProjectAdminApplication = {
   id: string
   businessName: string
@@ -325,7 +328,10 @@ export const loadProjectAdminWorkspace = async (
       title: String(data.interventionTitle || 'Untitled intervention'),
       owner: String(data.assigneeName || 'Unassigned'),
       programId,
-      programName: resolveProgramName(programId, data.programName, undefined),
+      // An SME's own booking from the provider marketplace has no programme; name it for what it is, not "Unassigned".
+      programName: !programId && !String(data.programName || '').trim() && data.source === 'marketplace'
+        ? EXTERNAL_WORK_PROGRAM_NAME
+        : resolveProgramName(programId, data.programName, undefined),
       status: String(data.status || data.completionStatus || data.coordinatorCompletionStatus || 'pending'),
       progress: numberValue(data.progress),
       dueDate: toDate(data.dueDate),

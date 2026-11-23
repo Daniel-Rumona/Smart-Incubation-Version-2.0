@@ -22,6 +22,8 @@ import ResponsiveModal from '@/components/shared/ResponsiveModal'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import { requirementKeyFor } from '@/config/complianceDocuments'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
+import { useUiMode } from '@/hooks/useUiMode'
+import { IncubateeComplianceSimple } from './IncubateeComplianceSimple'
 import { useLanguage } from '@/providers/LanguageProvider'
 import {
     loadMyCompliance,
@@ -80,6 +82,10 @@ export const DocumentHub = () => {
     const { message } = App.useApp()
     const { user } = useFullIdentity()
     const [searchParams, setSearchParams] = useSearchParams()
+    // The SME's saved view (`?view=simple|full` overrides it for demos and screenshots).
+    const { mode: savedUiMode } = useUiMode()
+    const viewParam = searchParams.get('view')
+    const simpleLayout = (viewParam === 'simple' || viewParam === 'full' ? viewParam : savedUiMode) === 'simple'
 
     const [compliance, setCompliance] = useState<MyCompliance | null>(null)
     const [loadFailed, setLoadFailed] = useState(false)
@@ -286,6 +292,70 @@ export const DocumentHub = () => {
         { key: 'expiring', group: 'good', label: t('Expiring soon'), value: expiringCount, icon: <CalendarOutlined /> },
     ]
 
+    // One form for uploading, replacing and re-dating, shared by Simple and Full view.
+    const uploadModal = (
+        <ResponsiveModal
+            open={Boolean(active)}
+            title={active ? (active.url ? t('Update {name}', undefined, { name: t(active.name) }) : t('Upload {name}', undefined, { name: t(active.name) })) : null}
+            onClose={closeModal}
+            footer={(
+                <ModalActions>
+                    <Button type="primary" loading={saving} disabled={!canSave} onClick={() => void save()}>
+                        {file || !active?.url ? t('Upload') : t('Save dates')}
+                    </Button>
+                </ModalActions>
+            )}
+        >
+            {active && (
+                <div className="compliance-modal">
+                    {active.status === 'queried' && active.comment && (
+                        <Alert type="warning" showIcon message={t('Operations asked for changes')} description={active.comment} />
+                    )}
+                    {active.url && (
+                        <div className="compliance-modal-current">
+                            {statusTag(active)}
+                            <a href={active.url} target="_blank" rel="noopener noreferrer"><EyeOutlined /> {active.fileName || t('Current file')}</a>
+                        </div>
+                    )}
+
+                    <div className="compliance-modal-dates">
+                        <label>
+                            <span>{t('Issue date')}</span>
+                            <DatePicker value={issueDate} onChange={setIssueDate} style={{ width: '100%' }} disabledDate={(day) => day.isAfter(dayjs(), 'day')} />
+                        </label>
+                        <label>
+                            <span>{t('Expiry date')} <Text type="secondary">({t('if it has one')})</Text></span>
+                            <DatePicker value={expiryDate} onChange={setExpiryDate} style={{ width: '100%' }} status={datesInvalid ? 'error' : undefined} />
+                        </label>
+                    </div>
+                    {datesInvalid && <Text type="danger">{t('The expiry date must be after the issue date.')}</Text>}
+
+                    <Dragger
+                        accept={ACCEPTED_FILES}
+                        beforeUpload={beforeUpload}
+                        maxCount={1}
+                        fileList={file ? [{ uid: 'compliance-file', name: file.name, status: 'done' }] : []}
+                        onRemove={() => setFile(null)}
+                    >
+                        <p className="ant-upload-drag-icon"><UploadOutlined /></p>
+                        <p className="ant-upload-text">{active.url ? t('Drop a new file to replace the current one') : t('Drop the file here or click to choose')}</p>
+                        <p className="ant-upload-hint">{t('PDF or image, up to {size} MB. A new file goes back to operations for review.', undefined, { size: MAX_FILE_MB })}</p>
+                    </Dragger>
+                </div>
+            )}
+        </ResponsiveModal>
+    )
+
+    if (simpleLayout) {
+        return (
+            <DashboardPage className="incubatee-page incubatee-compliance-page">
+                {header}
+                <IncubateeComplianceSimple documents={documents} nextDocument={nextDocument} onOpen={openDocument} />
+                {uploadModal}
+            </DashboardPage>
+        )
+    }
+
     return (
         <DashboardPage className="incubatee-page incubatee-compliance-page">
             {header}
@@ -401,56 +471,7 @@ export const DocumentHub = () => {
                 </section>
             ))}
 
-            <ResponsiveModal
-                open={Boolean(active)}
-                title={active ? (active.url ? t('Update {name}', undefined, { name: t(active.name) }) : t('Upload {name}', undefined, { name: t(active.name) })) : null}
-                onClose={closeModal}
-                footer={(
-                    <ModalActions>
-                        <Button type="primary" loading={saving} disabled={!canSave} onClick={() => void save()}>
-                            {file || !active?.url ? t('Upload') : t('Save dates')}
-                        </Button>
-                    </ModalActions>
-                )}
-            >
-                {active && (
-                    <div className="compliance-modal">
-                        {active.status === 'queried' && active.comment && (
-                            <Alert type="warning" showIcon message={t('Operations asked for changes')} description={active.comment} />
-                        )}
-                        {active.url && (
-                            <div className="compliance-modal-current">
-                                {statusTag(active)}
-                                <a href={active.url} target="_blank" rel="noopener noreferrer"><EyeOutlined /> {active.fileName || t('Current file')}</a>
-                            </div>
-                        )}
-
-                        <div className="compliance-modal-dates">
-                            <label>
-                                <span>{t('Issue date')}</span>
-                                <DatePicker value={issueDate} onChange={setIssueDate} style={{ width: '100%' }} disabledDate={(day) => day.isAfter(dayjs(), 'day')} />
-                            </label>
-                            <label>
-                                <span>{t('Expiry date')} <Text type="secondary">({t('if it has one')})</Text></span>
-                                <DatePicker value={expiryDate} onChange={setExpiryDate} style={{ width: '100%' }} status={datesInvalid ? 'error' : undefined} />
-                            </label>
-                        </div>
-                        {datesInvalid && <Text type="danger">{t('The expiry date must be after the issue date.')}</Text>}
-
-                        <Dragger
-                            accept={ACCEPTED_FILES}
-                            beforeUpload={beforeUpload}
-                            maxCount={1}
-                            fileList={file ? [{ uid: 'compliance-file', name: file.name, status: 'done' }] : []}
-                            onRemove={() => setFile(null)}
-                        >
-                            <p className="ant-upload-drag-icon"><UploadOutlined /></p>
-                            <p className="ant-upload-text">{active.url ? t('Drop a new file to replace the current one') : t('Drop the file here or click to choose')}</p>
-                            <p className="ant-upload-hint">{t('PDF or image, up to {size} MB. A new file goes back to operations for review.', undefined, { size: MAX_FILE_MB })}</p>
-                        </Dragger>
-                    </div>
-                )}
-            </ResponsiveModal>
+            {uploadModal}
         </DashboardPage>
     )
 }

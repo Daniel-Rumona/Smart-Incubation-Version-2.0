@@ -71,13 +71,31 @@ export const hasParticipantForUser = async ({ uid, email }: ApplicationOwner) =>
   return false
 }
 
+/** Whether one of the SME's own applications has been accepted (covers an accepted SME whose participant record can't be found by their ids). */
+const hasAcceptedApplication = async ({ uid }: ApplicationOwner) => {
+  const db = getFirebaseDb()
+  for (const field of applicationOwnerFields) {
+    try {
+      const snapshot = await getDocs(query(collection(db, 'applications'), where(field, '==', uid)))
+      if (snapshot.docs.some((row) => String(row.data().applicationStatus || '').toLowerCase() === 'accepted')) return true
+    } catch (error) {
+      if (!isPermissionDenied(error)) throw withLookup(error, `applications where ${field}`)
+    }
+  }
+  return false
+}
+
+/**
+ * An SME moves from the applicant workspace to the incubatee workspace when a programme accepts them,
+ * not when they apply: while an application is pending they keep their consultants, agents and marketplace.
+ */
 export const isApplicantWorkspaceUser = async ({ uid, email }: ApplicationOwner, explicitIsApplicant?: unknown) => {
   if (typeof explicitIsApplicant === 'boolean') return explicitIsApplicant
 
   try {
     if (await hasParticipantForUser({ uid, email })) return false
 
-    return !(await hasApplicationForUser({ uid, email }))
+    return !(await hasAcceptedApplication({ uid, email }))
   } catch (error) {
     const lookup = error && typeof error === 'object' && 'lookup' in error ? ` (${String(error.lookup)})` : ''
     console.warn(`Could not resolve applicant/incubatee workspace state${lookup}. Defaulting to incubatee workspace.`, error)

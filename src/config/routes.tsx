@@ -41,6 +41,7 @@ import {
     TeamOutlined,
     UserOutlined,
     UserSwitchOutlined,
+    RiseOutlined,
 } from '@ant-design/icons'
 import type { ComponentType } from 'react'
 import AuthPage from '@/pages/auth/AuthPage'
@@ -117,6 +118,7 @@ import { FunderImpactPage } from '@/pages/funder/FunderImpactPage'
 import { FunderPortfolioPage } from '@/pages/funder/FunderPortfolioPage'
 import { DiagnosticPlansPage } from '@/pages/operations/DiagnosticPlansPage'
 import RiskRegisterPage from '@/pages/operations/RiskRegisterPage'
+import GrowthLadderPage from '@/pages/shared/GrowthLadderPage'
 import SmeControlTowerPage from '@/pages/operations/SmeControlTowerPage'
 import DigitalTwinPage from '@/pages/operations/DigitalTwinPage'
 import TrainingTwinPage from '@/pages/training/TrainingTwinPage'
@@ -344,7 +346,7 @@ export const appRoutes: AppRoute[] = [
         showInNav: true
     },
     { path: '/incubatee', labelKey: 'nav.dashboard', icon: <DashboardOutlined />, element: <IncubateeDashboardPage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], showInNav: true },
-    { path: '/incubatee/metrics', labelKey: 'nav.metrics', icon: <BarChartOutlined />, element: <IncubateeMetricsPage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], showInNav: true },
+    { path: '/incubatee/metrics', labelKey: 'nav.metrics', icon: <BarChartOutlined />, element: <IncubateeMetricsPage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], sharedWithExternalSupport: true, showInNav: true },
     { path: '/incubatee/diagnostic-plan', labelKey: 'nav.myDiagnosticPlan', icon: <FileSearchOutlined />, element: <IncubateeDiagnosticPlanPage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], showInNav: true },
     // Opened from the dashboard once per sign-in while the growth plan waits for the SME's confirmation.
     { path: '/incubatee/plan-ready', labelKey: 'nav.myDiagnosticPlan', icon: <FileSearchOutlined />, element: <IncubateePlanReadyPage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], showInNav: false },
@@ -358,15 +360,16 @@ export const appRoutes: AppRoute[] = [
     // Independent SMEs get the same library of their own documents, listed once they have any.
     { path: '/applicant/documents', labelKey: 'nav.documentLibrary', icon: <FolderOpenOutlined />, element: <InterventionDocumentsPage />, allowedRoles: incubateeRoles, audiences: ['applicant'], smeJourneys: ['independent'], showInNavWhenHasDocuments: true, showInNav: true },
     { path: '/incubatee/tracker', labelKey: 'nav.interventions', icon: <FormOutlined />, element: <IncubateeInterventionsPage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], showInNav: false },
-    { path: '/incubatee/surveys', labelKey: 'nav.surveys', icon: <FormOutlined />, element: <IncubateeSurveysPage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], showInNav: true },
-    { path: '/incubatee/surveys/:id', labelKey: 'nav.surveys', icon: <FormOutlined />, element: <SurveyResponsePage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], showInNav: false },
-    { path: '/incubatee/lms', labelKey: 'nav.courses', icon: <ReadOutlined />, element: <IncubateeCoursesPage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], showInNav: true },
-    { path: '/incubatee/lms/:id', labelKey: 'nav.courses', icon: <ReadOutlined />, element: <CourseLessonPage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], showInNav: false },
+    { path: '/incubatee/surveys', labelKey: 'nav.surveys', icon: <FormOutlined />, element: <IncubateeSurveysPage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], sharedWithExternalSupport: true, showInNav: true },
+    { path: '/incubatee/surveys/:id', labelKey: 'nav.surveys', icon: <FormOutlined />, element: <SurveyResponsePage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], sharedWithExternalSupport: true, showInNav: false },
+    { path: '/incubatee/lms', labelKey: 'nav.courses', icon: <ReadOutlined />, element: <IncubateeCoursesPage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], sharedWithExternalSupport: true, showInNav: true },
+    { path: '/incubatee/lms/:id', labelKey: 'nav.courses', icon: <ReadOutlined />, element: <CourseLessonPage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], sharedWithExternalSupport: true, showInNav: false },
     { path: '/incubatee/compliance', labelKey: 'nav.compliance', icon: <SafetyCertificateOutlined />, element: <IncubateeCompliancePage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], showInNav: true },
     // Training SMEs follow their set list here instead of the growth plan and interventions tracker.
     { path: '/incubatee/roadmap', labelKey: 'nav.roadmap', icon: <HeatMapOutlined />, element: <IncubateeTrainingRoadmapPage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], showInNav: true, trainingSmesOnly: true },
-    // Other SMEs answer appointment invitations on their interventions page, which Training SMEs don't have in their menu.
-    { path: '/incubatee/appointments', labelKey: 'nav.appointments', icon: <CalendarOutlined />, element: <IncubateeAppointmentsPage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], showInNav: true, trainingSmesOnly: true },
+    // Every SME's booked sessions, accepted ones included (the interventions page only shows invitations still to answer).
+    // Training SMEs, who have no interventions page in their menu, also answer invitations here.
+    { path: '/incubatee/appointments', labelKey: 'nav.appointments', icon: <CalendarOutlined />, element: <IncubateeAppointmentsPage />, allowedRoles: incubateeRoles, audiences: ['incubatee'], showInNav: true },
     { path: '/consultant', labelKey: 'nav.dashboard', icon: <DashboardOutlined />, element: <ConsultantDashboardPage />, allowedRoles: consultantRoles, requiredPermission: 'view_dashboard', audiences: ['operations'], showInNav: true },
     { path: '/consultant/profile', labelKey: 'nav.consultantProfile', icon: <UserOutlined />, element: <ConsultantProfilePage />, allowedRoles: consultantRoles, audiences: ['operations'], showInNav: false },
     { path: '/consultant/requests', labelKey: 'nav.consultantRequests', icon: <MessageOutlined />, element: <ConsultantRequestsPage />, allowedRoles: consultantRoles, audiences: ['operations'], marketplaceConsultantsOnly: true, showInNav: true },
@@ -438,6 +441,8 @@ export const appRoutes: AppRoute[] = [
     },
     { path: '/operations/connection-requests', labelKey: 'nav.connectionRequests', icon: <TeamOutlined />, element: <ConsultantConnectionRequestsPage />, allowedRoles: operationsRoles, audiences: ['operations'], platformOwnerOnly: true, showInNav: true },
     { path: '/operations/risk-register', labelKey: 'nav.riskRegister', icon: <ExclamationCircleOutlined />, element: <RiskRegisterPage />, allowedRoles: operationsRoles, requiredPermission: 'view_reports', audiences: ['operations'], showInNav: true },
+    // One ladder for every programme (services/growthLadder.ts): directors read it, operations staff also graduate SMEs from it.
+    { path: '/shared/growth-ladder', labelKey: 'nav.growthLadder', icon: <RiseOutlined />, element: <GrowthLadderPage />, allowedRoles: operationsRoles, requiredPermission: 'view_reports', audiences: ['operations', 'platform'], showInNav: true },
     { path: '/operations/impact-analysis', labelKey: 'nav.impactAnalysis', icon: <FundProjectionScreenOutlined />, element: <ImpactAnalysisPage />, allowedRoles: operationsRoles, requiredPermission: 'view_reports', audiences: ['operations'], showInNav: true },
     {
         path: '/operations/interventions',

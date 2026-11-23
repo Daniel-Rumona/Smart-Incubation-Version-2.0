@@ -177,7 +177,8 @@ export const loadDirectorBriefing = async (
   const required = portfolio.reduce((sum, sme) => sum + sme.execution.required, 0)
   const completed = portfolio.reduce((sum, sme) => sum + sme.execution.completed, 0)
   const overdue = programmes.reduce((sum, row) => sum + row.overdue, 0)
-  const unresponsive = portfolio.reduce((sum, sme) => sum + sme.execution.unresponsive, 0)
+  // SMEs (not interventions), so the count matches the filtered portfolio it links to.
+  const unresponsive = portfolio.filter((sme) => sme.execution.unresponsive > 0).length
   const highRisk = portfolio.filter((sme) => sme.risk === 'High').length
 
   // Most serious first; each points at the page that explains it.
@@ -192,8 +193,8 @@ export const loadDirectorBriefing = async (
     .filter((row) => row.completion !== null && row.completion < LOW_COMPLETION)
     .sort((a, b) => (a.completion || 0) - (b.completion || 0))
     .forEach((row) => attention.push({ key: 'low_completion', count: row.completion || 0, programme: row.name, path: '/director/programs' }))
-  if (unresponsive) attention.push({ key: 'unresponsive', count: unresponsive, path: '/director/portfolio' })
-  if (highRisk) attention.push({ key: 'high_risk', count: highRisk, path: '/director/portfolio' })
+  if (unresponsive) attention.push({ key: 'unresponsive', count: unresponsive, path: '/director/portfolio?followUp=unresponsive' })
+  if (highRisk) attention.push({ key: 'high_risk', count: highRisk, path: '/director/portfolio?risk=High' })
 
   return {
     revenueGrowth: impact.revenueGrowth,

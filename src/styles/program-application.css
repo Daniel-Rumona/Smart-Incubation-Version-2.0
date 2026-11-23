@@ -52,6 +52,10 @@
     box-shadow: 0 12px 34px rgba(15, 23, 42, 0.06);
 }
 
+.program-application-header {
+    border-radius: 14px;
+}
+
 .program-application-header .ant-typography {
     margin-top: 0;
 }
@@ -66,7 +70,7 @@
    2. Compact Header & Global Actions
    ========================================================================== */
 .program-application-header>.ant-card-body {
-    padding: 18px 24px;
+    padding: 8px 16px;
 }
 
 /* Back and the progress arc get matching fixed-width edge columns (sized to
@@ -84,6 +88,21 @@
 .program-application-heading > .ant-btn {
     justify-self: start;
     flex-shrink: 0;
+}
+
+.program-application-title-wrap {
+    justify-self: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 0;
+    max-width: 100%;
+    line-height: 1.2;
+}
+
+.program-application-draft-status {
+    font-size: 11px;
+    color: #94a3b8;
 }
 
 .program-application-heading .program-application-title {
@@ -108,7 +127,7 @@
    just past the visible arc is what lets a bigger, more readable arc still
    read as a slim header instead of doubling the row's height. */
 .program-application-progress-arc {
-    height: 46px;
+    height: 32px;
     overflow: hidden;
     display: flex;
     align-items: flex-start;
@@ -116,14 +135,16 @@
 
 .program-application-progress-label {
     font-weight: 700;
-    font-size: 15px;
+    font-size: 14px;
     color: #6d5dfb;
 }
 
 .program-application-actions {
-    display: flex;
-    justify-content: flex-end;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
     flex-shrink: 0;
+    align-items: stretch;
     gap: 10px;
     margin-top: 20px;
 }
@@ -322,14 +343,6 @@ html[data-theme='dark'] .program-application-chat-row.is-user .program-applicati
         grid-template-columns: 1fr;
     }
 
-    .program-application-actions {
-        width: 100%;
-    }
-
-    .program-application-actions .ant-btn {
-        flex: 1;
-    }
-
     .program-application-doc-main {
         flex-direction: column;
         align-items: stretch;
@@ -368,7 +381,11 @@ html[data-theme='dark'] .program-application-chat-row.is-user .program-applicati
         bottom: 88px;
     }
 
-    .program-application-header>.ant-card-body,
+    .program-application-header>.ant-card-body {
+        padding: 6px 10px;
+    }
+
+
     .program-application-ai-card>.ant-card-body,
     .program-application-section-card>.ant-card-body {
         padding: 24px;
@@ -397,4 +414,11 @@ html[data-theme='dark'] .program-application-chat-row.is-user .program-applicati
     .program-application-chat-composer .ant-btn {
         width: 100%;
     }
+}
+
+/* Review step: plain full-width buttons, same as the Back/Continue row in the flow. */
+.program-application-actions .ant-btn {
+    width: 100%;
+    border-radius: 10px;
+    font-weight: 600;
 }

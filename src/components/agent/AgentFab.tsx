@@ -17,6 +17,7 @@ import type { AgentChatMessage, AgentPageContext, AgentProposalStatus } from '@/
 import { AgentTaskPanel } from '@/components/agent/AgentTaskPet'
 import { AgentRichText } from '@/components/agent/AgentRichText'
 import { AgentProposalCard } from '@/components/agent/AgentProposalCard'
+import { OPEN_ASSISTANT_EVENT } from '@/components/agent/openAssistant'
 import '@/styles/agent-fab.css'
 import ResponsiveModal from '@/components/shared/ResponsiveModal'
 
@@ -104,12 +105,21 @@ export const AgentFab = ({ placement = 'floating' }: { placement?: 'floating' | 
             return [...base, { prompt: 'Which assessments still need marking?', label: t('Which assessments still need marking?') }]
         }
 
-        if (context.pageKey.startsWith('learner-')) {
+        if (context.pageKey.startsWith('learner-') || context.pageKey === 'incubatee-dashboard') {
             return [...base, { prompt: 'What do I need to do next?', label: t('What do I need to do next?') }]
         }
 
         return base
     }, [context.pageKey, context.pageName, t])
+
+    useEffect(() => {
+        const openFromPage = () => {
+            setView('assistant')
+            setOpen(true)
+        }
+        window.addEventListener(OPEN_ASSISTANT_EVENT, openFromPage)
+        return () => window.removeEventListener(OPEN_ASSISTANT_EVENT, openFromPage)
+    }, [])
 
     useEffect(() => {
         if (view !== 'assistant') return

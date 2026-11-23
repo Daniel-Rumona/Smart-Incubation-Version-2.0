@@ -224,3 +224,11 @@ html[data-theme='dark'] .auth-divider .ant-typography { color: #aab2c5 !importan
 .auth-remember .ant-segmented-item-selected { color: #fff !important; background: linear-gradient(135deg, #6d5dfb, #4f7df3) !important; }
 .auth-remember-hint { font-size: 12px; line-height: 1.4; color: var(--auth-muted); }
 @media (max-height: 680px) and (min-width: 768px) { .auth-remember { gap: 4px; margin-bottom: 10px; } }
+/* A sign-in still open in this browser: "Welcome back … Continue", in place of the form. */
+.auth-continue { display: grid; justify-items: center; gap: 10px; margin: auto 0; padding: 12px 0; text-align: center; }
+.auth-continue-avatar { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; font-size: 24px; color: #fff; background: linear-gradient(135deg, var(--auth-accent), var(--auth-accent-2)); box-shadow: 0 10px 24px rgba(109, 93, 251, 0.3); }
+.auth-continue-title.ant-typography { margin: 4px 0 0 !important; font-size: 24px !important; }
+.auth-continue-who.ant-typography { margin: 0 0 8px !important; color: var(--auth-muted) !important; }
+.auth-continue .ant-btn { width: 100%; }
+.auth-continue-switch { border-radius: 12px !important; }
+@media (max-width: 767px) { .auth-continue-switch { height: 48px !important; border-radius: 999px !important; } }

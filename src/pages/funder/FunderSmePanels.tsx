@@ -147,12 +147,20 @@ function SmeDetail({ sme }: { sme: DirectorPortfolioSme }) {
   const jobsChange = sme.growth?.jobs ? sme.growth.jobs.latest - sme.growth.jobs.start : null
   const delivery = sme.execution.required ? Math.min(100, Math.round((sme.execution.completed / sme.execution.required) * 100)) : null
 
+  // Stopped sending monthly figures: 60+ days since the last report, or none at all 60+ days after joining.
+  const reportGapDays = sme.lastReport ? dayjs().diff(dayjs(sme.lastReport), 'day') : null
+  const reportGapMonths = reportGapDays !== null && reportGapDays >= 60 ? Math.floor(reportGapDays / 30) : null
+  const neverReported = !sme.lastReport && !!sme.joinedAt && dayjs().diff(dayjs(sme.joinedAt), 'day') >= 60
+
   // Why the SME carries its risk, in a line: what is late, and which way the numbers are going.
   const reasons = [
     sme.execution.overdue ? t('{count} interventions overdue', undefined, { count: sme.execution.overdue }) : '',
     sme.execution.unresponsive ? t('{count} plans not signed for over a week', undefined, { count: sme.execution.unresponsive }) : '',
     revenueChange !== null && revenueChange < 0 ? t('revenue down {change}% since joining', undefined, { change: Math.abs(revenueChange) }) : '',
     jobsChange !== null && jobsChange < 0 ? t('{count} fewer jobs since joining', undefined, { count: Math.abs(jobsChange) }) : '',
+    // Same 60-day line as the director's risk reasons (components/director/SmeRiskReasons).
+    reportGapMonths !== null ? t('no monthly report for {count} months', undefined, { count: reportGapMonths }) : '',
+    neverReported ? t('no monthly report since joining') : '',
   ].filter(Boolean)
 
   const trend = useMemo<Highcharts.Options>(() => ({

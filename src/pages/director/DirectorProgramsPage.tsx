@@ -164,7 +164,7 @@ export const DirectorProgramsPage = () => {
 
     const growthTag = (row: DirectorProgrammeRow) => row.revenueGrowth === null
         ? <Typography.Text type="secondary">—</Typography.Text>
-        : <Tag variant="borderless" color={row.revenueGrowth > 0 ? 'green' : row.revenueGrowth < 0 ? 'red' : undefined}>{signed(row.revenueGrowth)}%</Tag>
+        : <Tag variant="filled" color={row.revenueGrowth > 0 ? 'green' : row.revenueGrowth < 0 ? 'red' : undefined}>{signed(row.revenueGrowth)}%</Tag>
 
     const renderCard = (row: DirectorProgrammeRow) => (
         <button
@@ -175,7 +175,7 @@ export const DirectorProgramsPage = () => {
         >
             <span className="director-programme-scorecard-head">
                 <Typography.Text strong ellipsis>{programmeName(row)}</Typography.Text>
-                <Tag variant="borderless" color={statusColor(row.status)}>{t(statusLabel(row.status))}</Tag>
+                <Tag variant="filled" color={statusColor(row.status)}>{t(statusLabel(row.status))}</Tag>
             </span>
             <Typography.Text type="secondary" className="director-programme-scorecard-sub">
                 {t('{count} SMEs', undefined, { count: row.smes })}
@@ -197,7 +197,7 @@ export const DirectorProgramsPage = () => {
                 <div>
                     <Typography.Text type="secondary">{t('KPIs')}</Typography.Text>
                     {row.kpis.withTarget
-                        ? <Tag variant="borderless" color={row.kpis.behind ? 'orange' : 'green'}>{t('{onTrack} of {count} on track', undefined, { onTrack: row.kpis.onTrack, count: row.kpis.withTarget })}</Tag>
+                        ? <Tag variant="filled" color={row.kpis.behind ? 'orange' : 'green'}>{t('{onTrack} of {count} on track', undefined, { onTrack: row.kpis.onTrack, count: row.kpis.withTarget })}</Tag>
                         : <Typography.Text type="secondary">{t('No targets set')}</Typography.Text>}
                 </div>
                 <div>
@@ -215,8 +215,8 @@ export const DirectorProgramsPage = () => {
 
             {(row.overdue > 0 || row.highRisk > 0) && (
                 <span className="director-flags">
-                    {row.overdue > 0 && <Tag variant="borderless" color="red">{t('{count} overdue', undefined, { count: row.overdue })}</Tag>}
-                    {row.highRisk > 0 && <Tag variant="borderless" color="orange">{t('{count} high risk', undefined, { count: row.highRisk })}</Tag>}
+                    {row.overdue > 0 && <Tag variant="filled" color="red">{t('{count} overdue', undefined, { count: row.overdue })}</Tag>}
+                    {row.highRisk > 0 && <Tag variant="filled" color="orange">{t('{count} high risk', undefined, { count: row.highRisk })}</Tag>}
                 </span>
             )}
         </button>

@@ -102,6 +102,8 @@ export default function CourseLessonPage() {
     const [completed, setCompleted] = useState(false)
     const [finalScore, setFinalScore] = useState<{ correct: number; total: number }>()
     const [touched, setTouched] = useState(false)
+    // A finished course can be read again step by step; nothing is saved while reviewing.
+    const [reviewing, setReviewing] = useState(false)
     const statsRef = useRef<Record<string, StepStat>>({})
 
     useEffect(() => {
@@ -150,7 +152,7 @@ export default function CourseLessonPage() {
         setAnswers((previous) => ({ ...previous, [current.lesson.id]: { ...(previous[current.lesson.id] || {}), [questionId]: value } }))
     }
 
-    const blocked = Boolean(current?.kind === 'quiz'
+    const blocked = Boolean(!reviewing && current?.kind === 'quiz'
         && current.lesson.quiz?.some((question) => question.required && !hasQuizAnswer(answers[current.lesson.id]?.[question.id])))
     const isFirst = index === 0
     const isLast = index === steps.length - 1
@@ -185,6 +187,12 @@ export default function CourseLessonPage() {
             return
         }
         setTouched(false)
+
+        if (reviewing) {
+            if (isLast) setReviewing(false)
+            else setIndex((value) => Math.min(steps.length - 1, value + 1))
+            return
+        }
 
         const ids = completedStepIds.includes(current.id) ? completedStepIds : [...completedStepIds, current.id]
         setCompletedStepIds(ids)
@@ -241,7 +249,13 @@ export default function CourseLessonPage() {
         return shell(t('Course'), ' ', <div className="course-player-center"><Empty description={t('This course is not available.')} /></div>)
     }
 
-    if (completed) {
+    const startReview = () => {
+        setTouched(false)
+        setIndex(0)
+        setReviewing(true)
+    }
+
+    if (completed && !reviewing) {
         const stats = Object.values(context.progress?.stepStats || {})
         const totalSeconds = stats.reduce((sum, stat) => sum + stat.seconds, 0)
         const interactiveCount = stats.filter((stat) => stat.interactive).length
@@ -258,7 +272,10 @@ export default function CourseLessonPage() {
                         finalScore?.total ? t('You scored {correct} out of {total} on the quiz questions.', undefined, { correct: finalScore.correct, total: finalScore.total }) : '',
                         totalSeconds ? t('{minutes} min spent, {count} interactive sections.', undefined, { minutes: Math.max(1, Math.round(totalSeconds / 60)), count: interactiveCount }) : '',
                     ].filter(Boolean).join(' ')}
-                    extra={<Button type="primary" onClick={() => navigate(LMS_PATH)}>{t('Back to courses')}</Button>}
+                    extra={[
+                        steps.length > 0 && <Button key="review" type="primary" onClick={startReview}>{t('Review course material')}</Button>,
+                        <Button key="back" type={steps.length ? 'default' : 'primary'} onClick={() => navigate(LMS_PATH)}>{t('Back to courses')}</Button>,
+                    ]}
                 />
             </div>
         ), { percent: 100 })
@@ -278,7 +295,9 @@ export default function CourseLessonPage() {
 
     return shell(
         context.template.title || t('Course'),
-        t('Lesson {lesson} of {lessons} · Step {step} of {steps}', undefined, { lesson: lessonNumber, lessons: lessons.length, step: index + 1, steps: steps.length }),
+        reviewing
+            ? t('Reviewing · Lesson {lesson} of {lessons} · Step {step} of {steps}', undefined, { lesson: lessonNumber, lessons: lessons.length, step: index + 1, steps: steps.length })
+            : t('Lesson {lesson} of {lessons} · Step {step} of {steps}', undefined, { lesson: lessonNumber, lessons: lessons.length, step: index + 1, steps: steps.length }),
         (
             <div className="course-player-scroll">
                 <div className="course-player-step" key={current.id}>
@@ -297,7 +316,7 @@ export default function CourseLessonPage() {
                     {current.kind === 'quiz' && (
                         <>
                             {touched && blocked && <Tag color="red" style={{ width: 'fit-content' }}>{current.lesson.quiz && current.lesson.quiz.length > 1 ? t('Answer the required questions to continue.') : t('Answer the required question to continue.')}</Tag>}
-                            <LessonQuiz lesson={current.lesson} answers={answers[current.lesson.id]} onAnswer={setAnswer} touched={touched} />
+                            <LessonQuiz lesson={current.lesson} answers={answers[current.lesson.id]} onAnswer={reviewing ? undefined : setAnswer} touched={touched} />
                         </>
                     )}
                     {current.kind === 'review' && (
@@ -307,7 +326,7 @@ export default function CourseLessonPage() {
             </div>
         ),
         {
-            percent: Math.round((completedStepIds.length / steps.length) * 100),
+            percent: reviewing ? Math.round(((index + 1) / steps.length) * 100) : Math.round((completedStepIds.length / steps.length) * 100),
             meta: <StepTimer key={current.id} stepId={current.id} stats={statsRef} />,
             footer: (
                 <div className="survey-response-nav course-player-nav">
@@ -322,12 +341,18 @@ export default function CourseLessonPage() {
                         <span className="course-player-prev-label">{t('Previous')}</span>
                     </Button>
 
-                    <Button size="large" className="course-player-save" icon={<SaveOutlined />} loading={saving} onClick={() => void saveForLater()}>
-                        {t('Save for later')}
-                    </Button>
+                    {reviewing ? (
+                        <Button size="large" className="course-player-save" onClick={() => setReviewing(false)}>
+                            {t('Exit review')}
+                        </Button>
+                    ) : (
+                        <Button size="large" className="course-player-save" icon={<SaveOutlined />} loading={saving} onClick={() => void saveForLater()}>
+                            {t('Save for later')}
+                        </Button>
+                    )}
 
                     <Button size="large" type="primary" className="course-player-next" icon={isLast ? <CheckOutlined /> : <ArrowRightOutlined />} iconPlacement="end" loading={saving} onClick={() => void goNext()}>
-                        {current.kind === 'review' ? t('Continue') : isLast ? t('Complete course') : t('Next')}
+                        {reviewing ? (isLast ? t('Finish review') : t('Next')) : current.kind === 'review' ? t('Continue') : isLast ? t('Complete course') : t('Next')}
                     </Button>
                 </div>
             ),

@@ -93,7 +93,7 @@ export const FunderCalendarPage = () => {
                                         <strong>{row.participantName}</strong>
                                         <span>{[row.interventionTitle, row.programName].filter(Boolean).join(' · ')}</span>
                                     </div>
-                                    <Tag color={statusColor(row.status)} variant="borderless">{t(statusLabel(row.status))}</Tag>
+                                    <Tag color={statusColor(row.status)} variant="filled">{t(statusLabel(row.status))}</Tag>
                                 </li>
                             ))}
                         </ol>

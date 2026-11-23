@@ -8,7 +8,9 @@
 .operations-onboarding-form { margin-top: 20px; }
 .operations-onboarding-section { width: 100%; margin-top: 18px; }
 .operations-onboarding-document { width: 100%; border-radius: 14px !important; }
-.operations-onboarding-footer { display: flex; justify-content: space-between; gap: 12px; margin-top: 20px; }
+.operations-onboarding-footer { display: flex; gap: 12px; margin-top: 20px; }
+/* Back and Continue share the full row. */
+.operations-onboarding-footer .ant-btn { flex: 1 1 0; }
 @media (max-width: 767px) {
   .operations-onboarding-footer { align-items: stretch; flex-direction: column; }
   .operations-onboarding-footer .ant-btn { width: 100%; }

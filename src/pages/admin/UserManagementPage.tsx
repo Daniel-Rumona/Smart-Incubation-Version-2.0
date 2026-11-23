@@ -112,6 +112,7 @@ export const UserManagementPage = () => {
     const [users, setUsers] = useState<ManagedUser[]>([])
     const [loading, setLoading] = useState(false)
     const [search, setSearch] = useState('')
+    const [roleFilter, setRoleFilter] = useState<UserRole | 'all'>('all')
     const [cleanupOpen, setCleanupOpen] = useState(false)
     const [scanningOrphans, setScanningOrphans] = useState(false)
     const [cleaningOrphans, setCleaningOrphans] = useState(false)
@@ -139,7 +140,19 @@ export const UserManagementPage = () => {
 
     // The company picked in the top bar narrows the list and the counts; the company-code picker still offers every company.
     const companyUsers = useMemo(() => isAllCompanies ? users : users.filter((row) => row.companyCode === activeCompanyCode), [activeCompanyCode, isAllCompanies, users])
-    const rows = useMemo(() => companyUsers.filter((row) => `${row.name} ${row.email} ${row.role} ${row.phone || ''} ${row.alternativePhone || ''}`.toLowerCase().includes(search.trim().toLowerCase())), [companyUsers, search])
+    const rows = useMemo(() => companyUsers
+        .filter((row) => roleFilter === 'all' || row.role === roleFilter)
+        .filter((row) => `${row.name} ${row.email} ${row.role} ${row.phone || ''} ${row.alternativePhone || ''}`.toLowerCase().includes(search.trim().toLowerCase())), [companyUsers, roleFilter, search])
+    // Only the roles this list actually has, with how many users hold each.
+    const roleFilterOptions = useMemo(() => {
+        const counts = new Map<UserRole, number>()
+        companyUsers.forEach((row) => counts.set(row.role, (counts.get(row.role) || 0) + 1))
+        return [
+            { value: 'all', label: t('All roles') },
+            ...[...counts].map(([role, count]) => ({ value: role, label: `${t(USER_ROLE_LABELS[role] || role)} (${count})` }))
+                .sort((left, right) => left.label.localeCompare(right.label)),
+        ]
+    }, [companyUsers, t])
     const metrics = useMemo(() => ({
         users: companyUsers.length,
         active: companyUsers.filter((row) => row.status === 'active').length,
@@ -149,7 +162,7 @@ export const UserManagementPage = () => {
     const companyOptions = useMemo(() => [...new Set(users.map((row) => row.companyCode).filter((code): code is string => !!code))]
         .sort()
         .map((value) => ({ value })), [users])
-    useRegisterAgentPageContext({ pageKey: 'admin-users', pageName: 'User management', purpose: 'Manage platform accounts and role access.', filters: { search }, metrics: { users: companyUsers.length }, tables: { visibleUsers: rows.length } })
+    useRegisterAgentPageContext({ pageKey: 'admin-users', pageName: 'User management', purpose: 'Manage platform accounts and role access.', filters: { search, role: roleFilter }, metrics: { users: companyUsers.length }, tables: { visibleUsers: rows.length } })
 
     const openModal = (record?: ManagedUser) => {
         setEditing(record)
@@ -253,9 +266,18 @@ export const UserManagementPage = () => {
             </Row>
             <Card className="admin-card user-management-list">
                 <FilterBar
-                    primary={
+                    primary={<>
                         <Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('Search users')} allowClear
-                        />}
+                        />
+                        <Select
+                            className="user-role-filter"
+                            value={roleFilter}
+                            onChange={(value: UserRole | 'all') => setRoleFilter(value)}
+                            options={roleFilterOptions}
+                            aria-label={t('Filter by role')}
+                            popupMatchSelectWidth={false}
+                        />
+                    </>}
                     actions={<>
                         {user && (user.role === USER_ROLES.SYSTEM_ADMIN) &&
                             <Button danger icon={<UserDeleteOutlined />}
@@ -270,7 +292,7 @@ export const UserManagementPage = () => {
                             onClick={() => openModal()}>{t('Add user')}
                         </Button></>}
                 />
-                <ResponsiveDataView rowKey="id" rows={rows} columns={columns} loading={loading} emptyText={t('No users match your search.')} renderCard={(row) => <Space orientation="vertical"><Space size={10}><UserAvatar row={row} size={40} /><Space orientation="vertical" size={0}><Typography.Text strong>{row.name}</Typography.Text><Typography.Text type="secondary">{row.email}</Typography.Text></Space></Space><Space><AdminRoleTag role={row.role} /><StatusPill status={row.status} /><Button shape="circle" icon={<EditOutlined />} onClick={() => openModal(row)} /></Space></Space>} />
+                <ResponsiveDataView rowKey="id" rows={rows} columns={columns} loading={loading} emptyText={t('No users match your filters.')} renderCard={(row) => <Space orientation="vertical"><Space size={10}><UserAvatar row={row} size={40} /><Space orientation="vertical" size={0}><Typography.Text strong>{row.name}</Typography.Text><Typography.Text type="secondary">{row.email}</Typography.Text></Space></Space><Space><AdminRoleTag role={row.role} /><StatusPill status={row.status} /><Button shape="circle" icon={<EditOutlined />} onClick={() => openModal(row)} /></Space></Space>} />
             </Card>
             <ResponsiveModal
                 open={modalOpen}

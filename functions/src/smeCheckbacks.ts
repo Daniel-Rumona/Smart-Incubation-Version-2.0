@@ -155,14 +155,14 @@ export type SmeCheckbackAskDeps = {
 
 export type SmeCheckbackAskResult = { eligible: number, asked: number, inApp: number, whatsapp: number, skipped: number, dryRun: boolean }
 
-const whatsappNumbers = (user: Record<string, unknown>) => {
+export const whatsappNumbers = (user: Record<string, unknown>) => {
   const listed = Array.isArray(user.whatsappPhoneNumbers) ? user.whatsappPhoneNumbers.map(String) : []
   if (listed.length) return listed
   return user.phoneIsWhatsApp === true && user.phone ? [String(user.phone)] : []
 }
 
 /** The SME's user account: the participant doc's uid, or the account with the participant's email. */
-async function smeUser(db: Firestore, participantId: string) {
+export async function smeUser(db: Firestore, participantId: string) {
   const participant = await db.collection('participants').doc(participantId).get()
   const data = (participant.data() || {}) as Record<string, unknown>
   const uid = String(data.uid || data.ownerUid || '')

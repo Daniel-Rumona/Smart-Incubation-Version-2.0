@@ -15,12 +15,14 @@ import {
   SearchOutlined,
   TeamOutlined,
 } from '@ant-design/icons'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import DashboardPage from '@/components/shared/DashboardPage'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import { FilterBar } from '@/components/shared/FilterBar'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
+import { useUiMode } from '@/hooks/useUiMode'
+import { InterventionDocumentsSimple } from './InterventionDocumentsSimple'
 import { listInterventionDocuments, verifyInterventionDocument, type DocumentVerificationResult, type InterventionDocument } from '@/services/interventionDocumentsService'
 import { useLanguage } from '@/providers/LanguageProvider'
 import '@/styles/intervention-documents.css'
@@ -73,6 +75,11 @@ export default function InterventionDocumentsPage() {
   const [verifyingId, setVerifyingId] = useState('')
   const [verification, setVerification] = useState<Record<string, DocumentVerificationResult>>({})
   const operational = user?.role === 'operations' || user?.role === 'projectadmin'
+  // SMEs get their saved view (`?view=simple|full` overrides it for demos and screenshots); staff always see the full library.
+  const [searchParams] = useSearchParams()
+  const { mode: savedUiMode } = useUiMode()
+  const viewParam = searchParams.get('view')
+  const simpleLayout = user?.role === 'incubatee' && (viewParam === 'simple' || viewParam === 'full' ? viewParam : savedUiMode) === 'simple'
 
   useEffect(() => {
     if (!user) return
@@ -142,6 +149,19 @@ export default function InterventionDocumentsPage() {
   }
 
   const sealedCount = rows.filter(row => row.signature).length
+
+  if (simpleLayout) {
+    const newestFirst = [...rows].sort((a, b) => (dateValue(b.createdAt)?.getTime() || 0) - (dateValue(a.createdAt)?.getTime() || 0))
+    return <DashboardPage className="intervention-documents-page">
+      <InterventionDocumentsSimple
+        documents={newestFirst}
+        iconFor={row => <span className={`documents-row-icon is-${fileKind(row)}`}>{FILE_ICONS[fileKind(row)]}</span>}
+        dateOf={value => formatDate(value)}
+        sealFor={provenanceTag}
+        emptyAction={pathname.startsWith('/incubatee') ? <Button onClick={() => navigate('/incubatee/interventions')}>{t('Go to interventions')}</Button> : undefined}
+      />
+    </DashboardPage>
+  }
 
   return <DashboardPage className="intervention-documents-page">
     <section className="documents-summary">

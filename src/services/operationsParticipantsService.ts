@@ -15,7 +15,7 @@ export const listOperationsParticipants = async (user: FullIdentity, activeProgr
   const [participants, applications, timeline, programs, plans, completions] = await Promise.all([
     getDocs(collection(getFirebaseDb(), 'participants')),
     getDocs(user.companyCode ? query(collection(getFirebaseDb(), 'applications'), where('companyCode', '==', user.companyCode)) : collection(getFirebaseDb(), 'applications')),
-    getDocs(collection(getFirebaseDb(), 'complianceDocuments')),
+    getDocs(user.companyCode ? query(collection(getFirebaseDb(), 'complianceDocuments'), where('companyCode', '==', user.companyCode)) : collection(getFirebaseDb(), 'complianceDocuments')),
     getDocs(collection(getFirebaseDb(), 'programs')),
     getDocs(collection(getFirebaseDb(), 'diagnosticPlans')),
     getDocs(collection(getFirebaseDb(), 'interventionCompletions')),

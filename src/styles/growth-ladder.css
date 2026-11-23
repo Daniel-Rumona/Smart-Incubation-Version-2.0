@@ -1,0 +1,115 @@
+/* =========================================================
+   GROWTH LADDER
+   ========================================================= */
+
+.growth-ladder-page .ladder-note {
+    margin-bottom: 16px;
+    border-radius: 12px;
+}
+
+.ladder-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.ladder-step {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.ladder-step-rung {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+    border-radius: 10px;
+    background: rgba(109, 93, 251, 0.12);
+    color: #6d5dfb;
+    font-weight: 700;
+}
+
+.ladder-step-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.ladder-step-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.ladder-bar {
+    height: 8px;
+    margin: 6px 0 4px;
+    border-radius: 4px;
+    background: rgba(148, 163, 184, 0.18);
+    overflow: hidden;
+}
+
+.ladder-bar > span {
+    display: block;
+    height: 100%;
+    border-radius: 4px;
+    background: #6d5dfb;
+    transition: width 300ms ease;
+}
+
+.ladder-step-rule {
+    font-size: 12px;
+}
+
+.ladder-dots {
+    display: inline-flex;
+    gap: 4px;
+}
+
+.ladder-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: rgba(148, 163, 184, 0.25);
+}
+
+.ladder-dot.is-on {
+    background: #6d5dfb;
+}
+
+/* Met, but not counted because a lower step is missing. */
+.ladder-dot.is-loose {
+    background: transparent;
+    box-shadow: inset 0 0 0 2px #6d5dfb;
+}
+
+.ladder-stuck {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 420px;
+    overflow-y: auto;
+}
+
+.ladder-stuck-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(220, 38, 38, 0.05);
+}
+
+.ladder-footnote {
+    display: block;
+    margin-top: 10px;
+    font-size: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ladder-bar > span {
+        transition: none;
+    }
+}

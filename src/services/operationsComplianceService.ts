@@ -1,4 +1,4 @@
-import { collection, deleteDoc, doc, getDocs, runTransaction, serverTimestamp } from 'firebase/firestore'
+import { collection, deleteDoc, doc, getDocs, query, runTransaction, serverTimestamp, where } from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { getAgentAuthHeaders } from '@/services/agentAuth'
 import { agentApiBaseUrl, isAgentApiConfigured } from '@/config/agent'
@@ -20,7 +20,7 @@ export const listComplianceParticipants = async (user: FullIdentity, activeProgr
   assertPermission(user, 'view_compliance')
   const [applications, timeline, programs] = await Promise.all([
     getDocs(collection(getFirebaseDb(), 'participants')),
-    getDocs(collection(getFirebaseDb(), 'complianceDocuments')),
+    getDocs(user.companyCode ? query(collection(getFirebaseDb(), 'complianceDocuments'), where('companyCode', '==', user.companyCode)) : collection(getFirebaseDb(), 'complianceDocuments')),
     getDocs(collection(getFirebaseDb(), 'programs')),
   ])
   const requirementsByProgram = new Map(programs.docs.map((program) => [program.id, programDocumentRequirements(program.data().complianceRequirements)]))

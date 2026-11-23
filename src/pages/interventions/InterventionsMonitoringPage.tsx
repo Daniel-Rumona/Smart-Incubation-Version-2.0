@@ -3,7 +3,7 @@ import { AlertOutlined, BarChartOutlined, BellOutlined, BulbOutlined, ClockCircl
 import type Highcharts from 'highcharts'
 import dayjs from 'dayjs'
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { collection, doc, getDocs, query, serverTimestamp, updateDoc, where } from 'firebase/firestore'
 import { db } from '@/firebase'
 import { hasRolePermission } from '@/config/permissions'
@@ -365,6 +365,21 @@ export const InterventionsMonitoringPage = () => {
             .filter((row) => matchesActiveProgram(user, activeProgramId, row.programId))
     }, [activeProgramId, agentRatings, applicationById, applicationByParticipant, assignments, participantMap, user])
 
+    // Landed here from the risk register or the reports page with one intervention to look at: open its drill-down.
+    const location = useLocation()
+    const navigate = useNavigate()
+    useEffect(() => {
+        const focusInterventionId = (location.state as { focusInterventionId?: string } | null)?.focusInterventionId
+        if (!focusInterventionId) return
+        const row = monitorRows.find((candidate) => candidate.id === focusInterventionId)
+        if (!row) return
+        const timeout = window.setTimeout(() => {
+            setSection('assignments')
+            setSelected(row)
+            navigate(`${location.pathname}${location.search}`, { replace: true, state: null })
+        }, 0)
+        return () => window.clearTimeout(timeout)
+    }, [location.pathname, location.search, location.state, monitorRows, navigate])
 
     const filteredRows = useMemo(() => {
         const needle = normalize(search)

@@ -13,6 +13,8 @@ export type OperationsApplication = {
   province?: string
   beeLevel?: string
   complianceScore?: number
+  programId?: string
+  participantId?: string
   programName?: string
   companyCode?: string
   applicationStatus: string
@@ -25,6 +27,8 @@ export type OperationsApplication = {
   motivation?: string
   challenges?: string
   submittedAt?: unknown
+  /** When the application was accepted or rejected. Older decisions fall back to the last update. */
+  decidedAt?: unknown
   documents: Array<{ type?: string, url?: string }>
   growthPlanDocUrl?: string
   rejectionReason?: string

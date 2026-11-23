@@ -248,7 +248,7 @@ export default function ConsultantConnectionRequestsPage() {
                 {viewing && (
                     <Space direction="vertical" size={16} style={{ width: '100%' }}>
                         <Space wrap size={8}>
-                            <Tag variant="borderless" color={statusColor[viewing.status]}>{statusLabel(viewing)}</Tag>
+                            <Tag variant="filled" color={statusColor[viewing.status]}>{statusLabel(viewing)}</Tag>
                             <Text type="secondary">{[viewing.areaOfSupport, `${t('Received')} ${formatDate(viewing.createdAt)}`].filter(Boolean).join(' · ')}</Text>
                         </Space>
                         {viewing.plan && <div><Text strong style={{ display: 'block', marginBottom: 8 }}>{t('Plan')}</Text><PlanSummary plan={viewing.plan} /></div>}

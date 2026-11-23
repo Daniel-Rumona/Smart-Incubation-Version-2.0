@@ -1,7 +1,7 @@
 import { App, Button, Card, Col, Descriptions, Divider, Empty, Form, Grid, Input, List, Progress, Rate, Row, Segmented, Select, Skeleton, Space, Tag, Typography } from 'antd'
 import { ArrowLeftOutlined, ArrowRightOutlined, CheckCircleFilled, CheckCircleOutlined, ClockCircleOutlined, DownOutlined, ExclamationCircleFilled, EyeOutlined, FileDoneOutlined, LineChartOutlined, PlusOutlined, RobotOutlined, SearchOutlined, SendOutlined, UpOutlined } from '@ant-design/icons'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
 import ResponsiveModal from '@/components/shared/ResponsiveModal'
@@ -9,6 +9,8 @@ import SignDocumentModal from '@/components/shared/SignDocumentModal'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import { AppointmentInvitations } from '@/components/incubatee/AppointmentInvitations'
 import { SmeCheckbacks } from '@/components/incubatee/SmeCheckbacks'
+import { useUiMode } from '@/hooks/useUiMode'
+import { IncubateeTrackerSimple } from './IncubateeTrackerSimple'
 import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { useLanguage, tEnglish } from '@/providers/LanguageProvider'
@@ -102,6 +104,11 @@ export const IncubateeInterventionsPage = () => {
     const { t } = useLanguage()
     const { user } = useFullIdentity()
     const navigate = useNavigate()
+    const [searchParams, setSearchParams] = useSearchParams()
+    // The SME's saved view (`?view=simple|full` overrides it for demos and screenshots).
+    const { mode: savedUiMode } = useUiMode()
+    const viewParam = searchParams.get('view')
+    const simpleLayout = (viewParam === 'simple' || viewParam === 'full' ? viewParam : savedUiMode) === 'simple'
     const screens = Grid.useBreakpoint()
     const isMobile = !screens.md
     const [requestForm] = Form.useForm<{ areaOfSupport: string, interventionTitle: string, reason: string }>()
@@ -114,6 +121,8 @@ export const IncubateeInterventionsPage = () => {
     const [requestedArea, setRequestedArea] = useState('')
     const [selected, setSelected] = useState<IncubateeIntervention>()
     const [action, setAction] = useState<Action>()
+    // Whether the open form came from inside the Details modal (closing it goes back there) or straight from a button.
+    const [actionFromDetails, setActionFromDetails] = useState(false)
     const [agentsById, setAgentsById] = useState<Record<string, AgentDefinition>>({})
     // "View Progress" (human-delivered interventions only — agent-delivered work has
     // no appointments and keeps the existing Review modal / agent workspace flow).
@@ -151,6 +160,31 @@ export const IncubateeInterventionsPage = () => {
         const timeout = window.setTimeout(() => void load(), 0)
         return () => window.clearTimeout(timeout)
     }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // `?confirm=<id>` or `?reject=<id>` (Simple view's "Yes, it's done" and "Not yet") open that answer's form once
+    // the workspace has loaded; the parameter is then dropped so a refresh doesn't open it again.
+    useEffect(() => {
+        if (!workspace) return
+        const confirmId = searchParams.get('confirm')
+        const rejectId = searchParams.get('reject')
+        if (!confirmId && !rejectId) return
+        const item = workspace.assignedInterventions.find((row) => row.id === (confirmId || rejectId))
+        const timeout = window.setTimeout(() => {
+            if (item && canConfirmIncubateeIntervention(item)) {
+                // Same as startAction (declared further down): closing the form closes everything.
+                setSelected(item)
+                setAction(confirmId ? 'confirm' : 'reject')
+                setActionFromDetails(false)
+            }
+            setSearchParams((current) => {
+                const nextParams = new URLSearchParams(current)
+                nextParams.delete('confirm')
+                nextParams.delete('reject')
+                return nextParams
+            }, { replace: true })
+        }, 0)
+        return () => window.clearTimeout(timeout)
+    }, [searchParams, setSearchParams, workspace])
 
     const showSearch = (workspace?.assignedInterventions.length || 0) > SEARCH_THRESHOLD
     const rows = useMemo(() => workspace?.assignedInterventions.filter((item) => {
@@ -444,8 +478,15 @@ export const IncubateeInterventionsPage = () => {
         ? item.agentName || agentNameFor(item.agentId) || t('Agent')
         : item.assigneeName || '')
 
-    const openReview = (item: IncubateeIntervention) => { setSelected(item); setAction(undefined) }
-    const startAction = (item: IncubateeIntervention, nextAction: Action) => { setSelected(item); setAction(nextAction) }
+    const openReview = (item: IncubateeIntervention) => { setSelected(item); setAction(undefined); setActionFromDetails(false) }
+    // Opened straight from a button (not from inside Details): closing the form closes everything, so the
+    // Details modal doesn't appear behind it.
+    const startAction = (item: IncubateeIntervention, nextAction: Action) => { setSelected(item); setAction(nextAction); setActionFromDetails(false) }
+    const actionFromDetailsModal = (nextAction: Action) => { setAction(nextAction); setActionFromDetails(true) }
+    const closeAction = () => {
+        setAction(undefined)
+        if (!actionFromDetails) setSelected(undefined)
+    }
 
     // Signing happens in SignDocumentModal, which writes the signature out while this saves.
     const confirmPlan = async () => {
@@ -534,18 +575,35 @@ export const IncubateeInterventionsPage = () => {
         }
         // Not a decline: a request to the programme team, who decide whether to change or drop it.
         if (['Not Started', 'In Progress'].includes(item.status) && !item.id.startsWith('unassigned-') && !openChangeRequest(item.raw as Record<string, unknown>)) {
-            detailActions.push(<Button key="change" onClick={() => { actionForm.setFieldsValue({ kind: 'change', reason: '' }); setAction('change') }}>{t('Ask for a change')}</Button>)
+            detailActions.push(<Button key="change" onClick={() => { actionForm.setFieldsValue({ kind: 'change', reason: '' }); actionFromDetailsModal('change') }}>{t('Ask for a change')}</Button>)
         }
         if (canConfirmIncubateeIntervention(item)) {
             detailActions.push(
-                <Button key="reject" danger onClick={() => setAction('reject')}>{t('incubatee.tracker.reject')}</Button>,
-                <Button key="confirm" type="primary" onClick={() => setAction('confirm')}>{t('incubatee.tracker.confirm')}</Button>,
+                <Button key="reject" danger onClick={() => actionFromDetailsModal('reject')}>{t('incubatee.tracker.reject')}</Button>,
+                <Button key="confirm" type="primary" onClick={() => actionFromDetailsModal('confirm')}>{t('incubatee.tracker.confirm')}</Button>,
             )
         }
     }
 
     return <DashboardPage className="incubatee-page incubatee-interventions-page">
-        {progressItem ? renderProgressView() : <>
+        {progressItem ? renderProgressView() : simpleLayout ? (
+            <IncubateeTrackerSimple
+                workspace={workspace}
+                groups={grouped}
+                total={planTotal}
+                completed={metrics.completed}
+                planPending={planPending}
+                deliveredBy={deliveredBy}
+                canOpenAgent={canOpenAgent}
+                onConfirm={(item) => startAction(item, 'confirm')}
+                onReject={(item) => startAction(item, 'reject')}
+                onOpen={openReview}
+                onOpenAgent={(item) => item.agentId && void openAgentWorkspace(item.agentId, item.id)}
+                onSignPlan={() => setSigningPlan(true)}
+                onRequest={() => { setRequestedArea(''); requestForm.resetFields(); setRequestOpen(true) }}
+                onChanged={() => void load()}
+            />
+        ) : <>
         <AppointmentInvitations workspace={workspace} onChanged={() => void load()} />
 
         <section data-guide-target="intervention-metrics" className="interventions-summary">
@@ -714,7 +772,7 @@ export const IncubateeInterventionsPage = () => {
             )}
         </ResponsiveModal>
 
-        <ResponsiveModal open={!!action} onClose={() => setAction(undefined)} title={action === 'change' ? t('Ask for a change') : t(`incubatee.tracker.${action || 'confirm'}`)} destroyOnHidden={false}>
+        <ResponsiveModal open={!!action} onClose={closeAction} title={action === 'change' ? t('Ask for a change') : t(`incubatee.tracker.${action || 'confirm'}`)} destroyOnHidden={false}>
             <Form form={actionForm} layout="vertical" onFinish={(values) => selected && action && void act(selected, action, values)}>
                 {action === 'confirm' ? (
                     <>

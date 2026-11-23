@@ -40,8 +40,10 @@ const OTHER_OPTION = { code: 'other' as DeclineReasonCode, get label() { return 
  * any session has been held, say they no longer need the intervention (operations then confirms).
  * Writes go through the backend because SMEs cannot write appointments directly.
  * `upcoming` (the SME Appointments page) also lists accepted appointments and says so when there are none.
+ * `variant="rows"` (the tracker's Simple view) renders one `<li>` per invitation for the caller's list instead of a card;
+ * `showDetail` adds the meeting type, time span and place under each.
  */
-export const AppointmentInvitations = ({ workspace, onChanged, upcoming = false }: { workspace: IncubateeWorkspace, onChanged?: () => void, upcoming?: boolean }) => {
+export const AppointmentInvitations = ({ workspace, onChanged, upcoming = false, variant = 'card', showDetail = false }: { workspace: IncubateeWorkspace, onChanged?: () => void, upcoming?: boolean, variant?: 'card' | 'rows', showDetail?: boolean }) => {
   const { t } = useLanguage()
   const { message } = App.useApp()
   const { user } = useFullIdentity()
@@ -111,6 +113,47 @@ export const AppointmentInvitations = ({ workspace, onChanged, upcoming = false 
     }
   }
 
+  const declineModal = (
+    <DeclineModal
+      invitation={declining}
+      onClose={() => setDeclining(undefined)}
+      onDone={async () => {
+        setDeclining(undefined)
+        await load()
+        onChanged?.()
+      }}
+    />
+  )
+
+  if (variant === 'rows') {
+    return (
+      <>
+        {(invitations || []).filter((item) => item.awaiting).map((item) => {
+          const start = toDayjs(item.startTime)
+          return (
+            <li key={item.id} className="sme-simple-task">
+              <CalendarOutlined className="sme-simple-task-icon" aria-hidden="true" />
+              <span className="sme-simple-task-text">
+                <span>{t('Can you make this session?')}</span>
+                <small>{[item.title, start ? start.format('ddd D MMM, HH:mm') : t('Time to be confirmed')].join(' · ')}</small>
+                {showDetail && (
+                  <small className="sme-simple-detail-line">
+                    {[meetingTypeLabel(item.meetingType), formatSpan({ id: item.id, interventionTitle: item.title, meetingType: item.meetingType ?? 'online', status: 'pending', startTime: item.startTime, endTime: item.endTime }), item.location].filter(Boolean).join(' · ')}
+                  </small>
+                )}
+              </span>
+              <span className="sme-simple-task-actions">
+                <Button size="small" type="primary" loading={busyId === item.id} onClick={() => void accept(item)}>{t('Yes')}</Button>
+                <Button size="small" disabled={busyId === item.id} onClick={() => setDeclining(item)}>{t('Can\'t')}</Button>
+              </span>
+            </li>
+          )
+        })}
+        {declineModal}
+      </>
+    )
+  }
+
   if (invitations === undefined) return <Skeleton active paragraph={{ rows: 1 }} />
   if (!invitations.length) {
     return upcoming
@@ -150,15 +193,7 @@ export const AppointmentInvitations = ({ workspace, onChanged, upcoming = false 
         />
       </Card>
 
-      <DeclineModal
-        invitation={declining}
-        onClose={() => setDeclining(undefined)}
-        onDone={async () => {
-          setDeclining(undefined)
-          await load()
-          onChanged?.()
-        }}
-      />
+      {declineModal}
     </>
   )
 }

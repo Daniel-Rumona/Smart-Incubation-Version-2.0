@@ -119,7 +119,8 @@ export const FilterBar = ({ advancedDisplay = 'modal', onReset, title, primary, 
         <Popover trigger="click" placement="bottomRight" open={advancedOpen} onOpenChange={setAdvancedOpen} content={
             <div style={{ width: 300, maxWidth: 'calc(100vw - 48px)', maxHeight: '65vh', overflowY: 'auto', display: 'grid', gap: 12 }}>
                 <div className="filter-modal-grid">{sheetContent}</div>
-                <Space style={{ display: 'flex' }}><>{onReset && <Button onClick={onReset}>{t('Reset')}</Button>}</><Button type="primary" onClick={() => setAdvancedOpen(false)}>{t('common.applyFilters')}</Button></Space>
+                {/* Filters apply as they are chosen, so there is nothing to confirm; offer a reset only once something is narrowed. */}
+                {onReset && advancedRest.some(isNarrowed) && <Button block onClick={onReset}>{t('Reset filters')}</Button>}
             </div>
         }>{trigger}</Popover>
     ) : trigger

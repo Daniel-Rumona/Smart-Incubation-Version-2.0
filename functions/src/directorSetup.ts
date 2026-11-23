@@ -22,7 +22,15 @@ export type DirectorSetupInput = {
   assignmentModel: 'ops_assign_consultant' | 'consultant_self_assign'
   smeDivisionModel?: 'system_equal_random' | 'ops_assign_smes_to_consultants' | 'consultants_register_their_smes'
   interventionScopeModel: 'program_specific' | 'company_wide' | 'department_specific' | 'both'
+  /**
+   * Who runs the programme day to day. 'solo': the director works alone, so their own account also gets the
+   * operations role (users.secondRole), instead of needing a second login to do the work.
+   */
+  teamSize?: TeamSize
 }
+
+export type TeamSize = 'solo' | 'small' | 'large'
+const TEAM_SIZES = ['solo', 'small', 'large'] as const
 
 export class DirectorSetupError extends Error {
   constructor(public code: 'invalid' | 'forbidden' | 'conflict' | 'not_found', message: string) {
@@ -71,8 +79,12 @@ export function validateDirectorSetup(raw: Partial<DirectorSetupInput>): Directo
       ? { smeDivisionModel: oneOf(raw.smeDivisionModel, ['system_equal_random', 'ops_assign_smes_to_consultants', 'consultants_register_their_smes'] as const, 'SME division model') }
       : {}),
     interventionScopeModel,
+    ...(raw.teamSize === undefined ? {} : { teamSize: oneOf(raw.teamSize, TEAM_SIZES, 'Team size') }),
   }
 }
+
+/** The user fields that follow from the team size: a director working alone also holds the operations role. */
+const secondRoleFor = (teamSize: TeamSize) => (teamSize === 'solo' ? { secondRole: 'operations' } : { secondRole: FieldValue.delete() })
 
 export async function completeDirectorSetup(db: Firestore, uid: string, email: string, raw: Partial<DirectorSetupInput>) {
   const input = validateDirectorSetup(raw)
@@ -133,9 +145,29 @@ export async function completeDirectorSetup(db: Firestore, uid: string, email: s
       systemSettingsConfigured: true,
       systemSettingsCompanyCode: input.companyCode,
       systemSettingsConfiguredAt: FieldValue.serverTimestamp(),
+      ...(input.teamSize ? secondRoleFor(input.teamSize) : {}),
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true })
 
     return { companyCode: input.companyCode, alreadyLocked: false }
   })
+}
+
+/**
+ * A director changes who runs the programme after setup (Company settings). Only a director of their own company
+ * may, and it only ever changes their own second role, so it can't hand operations powers to anyone else.
+ */
+export async function setDirectorTeamSize(db: Firestore, uid: string, rawTeamSize: unknown) {
+  const teamSize = oneOf(rawTeamSize, TEAM_SIZES, 'Team size')
+  const userRef = db.collection('users').doc(uid)
+  const user = (await userRef.get()).data() || {}
+  const companyCode = cleanCompanyCode(user.companyCode)
+  if (user.role !== 'director' || !companyCode) throw new DirectorSetupError('forbidden', 'Only a company director can change this.')
+  const companyRef = db.collection('companies').doc(companyCode)
+  if (!(await companyRef.get()).exists) throw new DirectorSetupError('not_found', 'Your company could not be found.')
+  const batch = db.batch()
+  batch.set(companyRef, { teamSize, updatedAt: FieldValue.serverTimestamp(), updatedByUid: uid }, { merge: true })
+  batch.set(userRef, { ...secondRoleFor(teamSize), updatedAt: FieldValue.serverTimestamp() }, { merge: true })
+  await batch.commit()
+  return { teamSize, secondRole: teamSize === 'solo' ? 'operations' : null }
 }

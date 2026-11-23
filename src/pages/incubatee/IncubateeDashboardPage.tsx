@@ -25,6 +25,8 @@ import type { IncubateeFormAssignment, IncubateeIntervention, IncubateeWorkspace
 import '@/styles/incubatee.css'
 import { MotionCard } from '@/components/shared/MotionCard'
 import { IncubateeItemList, type DashboardItem } from './IncubateeItemList'
+import { IncubateeSimpleDashboard } from './IncubateeSimpleDashboard'
+import { useUiMode } from '@/hooks/useUiMode'
 import { describeDue } from './incubateeDashboardStatus'
 import { buildDemoIncubateeWorkspace, buildDemoOutstandingDocuments, type OutstandingDocument } from './incubateeDemoWorkspace'
 import { PLAN_READY_PATH, shouldShowPlanReady } from '@/utils/planReadyPrompt'
@@ -44,6 +46,10 @@ export const IncubateeDashboardPage = () => {
     const [searchParams] = useSearchParams()
     // `?demo=1` swaps the live workspace for a fixture so the layout can be shown without a seeded participant.
     const isDemo = searchParams.get('demo') === '1'
+    // `?view=simple|full` overrides the saved choice for demos and screenshots.
+    const { mode: savedUiMode } = useUiMode()
+    const viewParam = searchParams.get('view')
+    const uiMode = viewParam === 'simple' || viewParam === 'full' ? viewParam : savedUiMode
     const [workspace, setWorkspace] = useState<IncubateeWorkspace | null>()
     const [openMetric, setOpenMetric] = useState<MetricKey | null>(null)
     // Compliance documents are only a count on the workspace, so the list is fetched when it is asked for.
@@ -200,6 +206,19 @@ export const IncubateeDashboardPage = () => {
     }
 
     const activeModal = openMetric ? metricModals[openMetric] : null
+
+    if (uiMode === 'simple') {
+        return <DashboardPage className="incubatee-page dashboard-home-page">
+            <IncubateeSimpleDashboard
+                workspace={workspace}
+                toConfirm={toConfirm}
+                notStarted={notStarted}
+                openForms={openForms}
+                profileMissing={profileMissing}
+                isDemo={isDemo}
+            />
+        </DashboardPage>
+    }
 
     return <DashboardPage className="incubatee-page dashboard-home-page">
         {!isDemo && Boolean(profileMissing) && (

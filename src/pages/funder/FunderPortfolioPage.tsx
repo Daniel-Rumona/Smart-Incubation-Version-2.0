@@ -174,7 +174,7 @@ function OrganisationPortfolio() {
         key: programmeKey(link),
         title: link.programName,
         sub: link.respondedAt ? t('Accepted on {date}', undefined, { date: dayjs(link.respondedAt).format('D MMM YYYY') }) : t('Active'),
-        tag: <Tag variant="borderless" color="green">{t('Active')}</Tag>,
+        tag: <Tag variant="filled" color="green">{t('Active')}</Tag>,
         rows: smesOfProgramme(link.programId),
         funding: <FundingAmountText link={link} compact />,
         onOpen: () => goProgramme(link),
@@ -237,7 +237,7 @@ function OrganisationPortfolio() {
         const share = Math.round((state.compliant / state.total) * 100)
         return (
             <span>
-                <Tag variant="borderless" color={share >= 75 ? 'green' : share >= 40 ? 'orange' : 'red'}>{t('{count} of {total} compliant', undefined, { count: state.compliant, total: state.total })}</Tag>
+                <Tag variant="filled" color={share >= 75 ? 'green' : share >= 40 ? 'orange' : 'red'}>{t('{count} of {total} compliant', undefined, { count: state.compliant, total: state.total })}</Tag>
                 {state.expiring > 0 && <Typography.Text type="secondary" className="director-small">{t('{count} expiring soon', undefined, { count: state.expiring })}</Typography.Text>}
             </span>
         )
@@ -290,8 +290,8 @@ function OrganisationPortfolio() {
                     <div>
                         <Typography.Text type="secondary">{t('Behind')}</Typography.Text>
                         {smesLoading ? <span>…</span> : behind
-                            ? <Tag variant="borderless" color="red">{t('{count} SMEs', undefined, { count: behind })}</Tag>
-                            : <Tag variant="borderless" color="green">{t('None')}</Tag>}
+                            ? <Tag variant="filled" color="red">{t('{count} SMEs', undefined, { count: behind })}</Tag>
+                            : <Tag variant="filled" color="green">{t('None')}</Tag>}
                     </div>
                 </div>
                 {input.actions && <div className="portfolio-tile-actions" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>{input.actions}</div>}

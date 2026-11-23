@@ -1,4 +1,4 @@
-import { collection, getDocs } from 'firebase/firestore'
+import { collection, getDocs, query, where } from 'firebase/firestore'
 import { getFirebaseDb } from '@/config/firebase'
 import { COMPLIANCE_DOCUMENT_CATALOGUE, programDocumentRequirements, requirementKeyFor } from '@/config/complianceDocuments'
 import { matchesActiveProgram } from '@/services/workspaceProgramsService'
@@ -37,7 +37,8 @@ export const listComplianceRows = async ({
 }: ListComplianceRowsOptions = {}) => {
   const [applications, timeline, programs] = await Promise.all([
     getDocs(collection(getFirebaseDb(), 'participants')),
-    getDocs(collection(getFirebaseDb(), 'complianceDocuments')),
+    // Staff may only read their own company's documents, and the query has to say so.
+    getDocs(user?.companyCode ? query(collection(getFirebaseDb(), 'complianceDocuments'), where('companyCode', '==', user?.companyCode)) : collection(getFirebaseDb(), 'complianceDocuments')),
     getDocs(collection(getFirebaseDb(), 'programs')),
   ])
   // Each programme chooses its own required documents; without a programme, the whole catalogue applies.

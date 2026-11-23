@@ -6,6 +6,7 @@ import { isStopRequest, isSubscribeRequest, recordWhatsAppConsent } from './what
 import { NOT_IN_PLAN_MESSAGE, companyHasFeature } from './entitlements.js'
 import { alertStructuredParams, type AlertParts } from './alertMessages.js'
 import { FOLLOW_UP_RESULTS, isFollowUpResult, listFollowUps, recordFollowUpResult, type FollowUpResult } from './followUps.js'
+import { parseDeliveryReply, recordDeliveryReply } from './riskChases.js'
 import { SME_CHECKBACK_ANSWERS, addSmeCheckbackNote, isSmeCheckbackAnswer, listSmeCheckbacks, recordSmeCheckback, smeCheckbackPayload, type SmeCheckbackAnswer, type SmeCheckbackItem } from './smeCheckbacks.js'
 
 type HttpResponse = {
@@ -698,6 +699,23 @@ async function showSmeCheckbacks(to: string, phone: string, identity: UserRecord
     title: item.title,
     description: item.intendedOutcome || 'Has the change happened?',
   })))
+}
+
+/** A Yes / No tap on the risk register's "Was this delivered?" chase (riskChases.ts). */
+async function handleDeliveryReply(to: string, identity: UserRecord, input: string): Promise<boolean> {
+  const tapped = parseDeliveryReply(input)
+  if (!tapped) return false
+  const { participantIds } = await participantContext(identity)
+  const outcome = await recordDeliveryReply(db(), [...participantIds], tapped)
+  if (!outcome.ok) {
+    await sendText(to, 'I could not record that for your account. Please answer in the app instead.')
+    return true
+  }
+  const appUrl = String(process.env.APP_BASE_URL || 'https://smart-incubation-71f96.web.app').replace(/\/$/, '')
+  await sendText(to, tapped.answer === 'yes'
+    ? `Thank you! Please confirm and rate *${outcome.title}* in the app to close it off: ${appUrl}/incubatee/interventions`
+    : `Thank you for letting us know. We have told the team that *${outcome.title}* has not been delivered yet.`)
+  return true
 }
 
 async function handleSmeCheckbackStep(to: string, phone: string, identity: UserRecord, state: BotState, input: string): Promise<boolean> {
@@ -2065,6 +2083,7 @@ async function processQtxMessage(to: string, input: string, sourceMessageId: str
     return
   }
   if (await handleFollowUpStep(to, phone, identity, state, input)) return
+  if (roleGroup(identity) === 'incubatee' && await handleDeliveryReply(to, identity, input)) return
   if (roleGroup(identity) === 'incubatee' && await handleSmeCheckbackStep(to, phone, identity, state, input)) return
   if (input === 'action:help') {
     const help: Record<string, string> = {
@@ -2462,6 +2481,13 @@ export async function processWhatsAppMessageStatusEvent(eventId: string) {
         statusHistory: FieldValue.arrayUnion({ eventId, status: nextStatus, timestamp: claim.statusTimestamp || null }),
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true })
+      // A risk-register chase (riskChases.ts) shows its message's progress in the SME's log.
+      const riskChase = (outboundData.riskChase || {}) as { reviewId?: unknown, chaseId?: unknown }
+      if (shouldAdvance && typeof riskChase.reviewId === 'string' && typeof riskChase.chaseId === 'string') {
+        transaction.set(database.collection('riskReviews').doc(riskChase.reviewId), {
+          chases: { [riskChase.chaseId]: { whatsappStatus: nextStatus } },
+        }, { merge: true })
+      }
       transaction.set(eventRef, {
         processingStatus: 'completed',
         outboundMessageId,
@@ -2586,6 +2612,39 @@ export async function sendSmeCheckbackTemplate(phone: string, input: { firstName
     dedupeKey: `smecheckback:${input.dedupeKey}`,
     messageKey: `smecheckback:${input.dedupeKey}`,
   })
+  return true
+}
+
+/** Risk-register chases (riskChases.ts) send under a fixed outbound id per chase (chaseOutboundMessageId), so the chase can follow its status. */
+const runAsRiskChase = <T>(chaseId: string, send: () => Promise<T>) =>
+  outboundMessageContext.run({ sourceEventId: `riskchase:${chaseId}`, sourceMessageId: `riskchase:${chaseId}`, sequence: 0 }, send)
+
+export async function sendRiskChaseAlert(phone: string, chaseId: string, text: string, parts: AlertParts) {
+  const sent = await runAsRiskChase(chaseId, () => sendWhatsAppAlert(phone, text, parts))
+  if (!sent) throw new Error('The WhatsApp number is not usable.')
+}
+
+/**
+ * "Was this delivered?" with Yes / No buttons. Needs an approved template named in WHATSAPP_DELIVERY_CHECK_TEMPLATE
+ * (language WHATSAPP_DELIVERY_CHECK_TEMPLATE_LANG, default "en") with two body variables (first name, intervention)
+ * and two quick-reply buttons: Yes, No. Returns false when none is configured, so the caller sends the general alert.
+ */
+export async function sendRiskChaseDeliveryTemplate(phone: string, chaseId: string, input: { firstName: string, title: string, payloads: string[] }) {
+  const template = String(process.env.WHATSAPP_DELIVERY_CHECK_TEMPLATE || '').trim()
+  const recipient = toInternationalDigits(phone)
+  if (!template || recipient.length < 8) return false
+  const flatten = (value: string) => value.replace(/\s+/g, ' ').trim().slice(0, 100) || '-'
+  await runAsRiskChase(chaseId, () => sendPayload(recipient, {
+    type: 'template',
+    template: {
+      name: template,
+      language: { code: String(process.env.WHATSAPP_DELIVERY_CHECK_TEMPLATE_LANG || 'en') },
+      components: [
+        { type: 'body', parameters: [input.firstName || 'there', input.title].map(value => ({ type: 'text', text: flatten(value) })) },
+        ...input.payloads.map((payload, index) => ({ type: 'button', sub_type: 'quick_reply', index: String(index), parameters: [{ type: 'payload', payload }] })),
+      ],
+    },
+  }))
   return true
 }
 

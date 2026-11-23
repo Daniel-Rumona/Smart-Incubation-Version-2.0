@@ -1,5 +1,5 @@
 import { App, Button, Card, Col, Empty, Input, Modal, Pagination, Row, Segmented, Select, Space, Tag, Typography } from 'antd'
-import { AppstoreOutlined, FileTextOutlined, SearchOutlined, StarOutlined } from '@ant-design/icons'
+import { AppstoreOutlined, BankOutlined, FileTextOutlined, SearchOutlined, StarOutlined } from '@ant-design/icons'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
@@ -64,7 +64,7 @@ export const ProgramsDiscoveryPage = () => {
     const filteredPrograms = useMemo(() => {
         const source = view === 'suggested' ? suggestedPrograms : programs
         const term = search.trim().toLowerCase()
-        return source.filter((program) => (type === 'all' || program.type === type) && (!term || `${program.name ?? ''} ${program.description ?? ''}`.toLowerCase().includes(term)))
+        return source.filter((program) => (type === 'all' || program.type === type) && (!term || `${program.name ?? ''} ${program.description ?? ''} ${program.implementorName ?? ''}`.toLowerCase().includes(term)))
     }, [programs, search, suggestedPrograms, type, view])
     const displayedPrograms = filteredPrograms.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
@@ -116,7 +116,7 @@ export const ProgramsDiscoveryPage = () => {
                     <Row gutter={[14, 14]}>
                         {displayedPrograms.map((program) => {
                             const applied = appliedProgramIds.has(program.id)
-                            return <Col xs={24} md={12} xl={8} key={program.id}><Card className="applicant-card applicant-program-card motion-card" hoverable><Space orientation="vertical" size={10}><Space wrap><Tag color="purple">{program.type ? t(program.type) : t('applicant.programs.general')}</Tag>{isDirect(program) && <Tag color="green">{t('No application')}</Tag>}{program.cohortYear && <Tag>{program.cohortYear}</Tag>}</Space><Typography.Title level={4}>{program.name ?? t('applicant.programs.untitled')}</Typography.Title><Typography.Paragraph type="secondary" ellipsis={{ rows: 3 }}>{program.description ?? t('applicant.programs.noDetails')}</Typography.Paragraph><Button block type={applied ? 'default' : 'primary'} disabled={applied} onClick={() => setActiveProgram(program)}>{applied ? (isDirect(program) ? t('Joined') : t('applicant.programs.applied')) : t('applicant.programs.view')}</Button></Space></Card></Col>
+                            return <Col xs={24} md={12} xl={8} key={program.id}><Card className="applicant-card applicant-program-card motion-card" hoverable><Space orientation="vertical" size={10}><Space wrap><Tag color="purple">{program.type ? t(program.type) : t('applicant.programs.general')}</Tag>{isDirect(program) && <Tag color="green">{t('No application')}</Tag>}{program.cohortYear && <Tag>{program.cohortYear}</Tag>}</Space><div><Typography.Title level={4} style={{ marginBottom: 2 }}>{program.name ?? t('applicant.programs.untitled')}</Typography.Title>{program.implementorName && <Typography.Text type="secondary" className="applicant-program-implementor"><BankOutlined /> {t('Run by')} {program.implementorName}</Typography.Text>}</div><Typography.Paragraph type="secondary" ellipsis={{ rows: 3 }}>{program.description ?? t('applicant.programs.noDetails')}</Typography.Paragraph><Button block type={applied ? 'default' : 'primary'} disabled={applied} onClick={() => setActiveProgram(program)}>{applied ? (isDirect(program) ? t('Joined') : t('applicant.programs.applied')) : t('applicant.programs.view')}</Button></Space></Card></Col>
                         })}
                     </Row>
                     {filteredPrograms.length > PAGE_SIZE && <Pagination className="applicant-pagination" current={page} pageSize={PAGE_SIZE} total={filteredPrograms.length} onChange={setPage} showSizeChanger={false} />}
@@ -135,6 +135,11 @@ export const ProgramsDiscoveryPage = () => {
                             )}>
                         {profileComplete ? (isDirect(activeProgram) ? t('Join programme') : t('applicant.programs.start')) : t('applicant.application.completeProfile')}
                     </Button>}>
+                {activeProgram?.implementorName && (
+                    <Typography.Paragraph type="secondary" style={{ marginBottom: 8 }}>
+                        <BankOutlined /> {t('Run by')} <Typography.Text strong>{activeProgram.implementorName}</Typography.Text>
+                    </Typography.Paragraph>
+                )}
                 <Typography.Paragraph>
                     {activeProgram?.description ?? t('applicant.programs.noDetails')}</Typography.Paragraph>
                 {isDirect(activeProgram) && <Typography.Paragraph type="secondary">{t('There is no application. You join as soon as your profile is complete.')}</Typography.Paragraph>}

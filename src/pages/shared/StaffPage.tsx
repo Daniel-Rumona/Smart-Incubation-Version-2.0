@@ -14,6 +14,7 @@ import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
 import { USER_ROLES, type UserRole } from '@/config/roles'
 import { listWorkspacePrograms } from '@/services/workspaceProgramsService'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
+import { useTeamSize } from '@/hooks/useTeamSize'
 import { useLanguage } from '@/providers/LanguageProvider'
 import { createOperationsStaff, deleteOperationsStaff, listOperationsStaff, updateOperationsStaff, type StaffValues } from '@/services/operationsStaffService'
 import type { IdentityPermission } from '@/types/identity'
@@ -98,6 +99,8 @@ const STAFF_ERRORS: Record<string, string> = {
 
 export const StaffPage = () => {
     const { message, modal } = App.useApp()
+    // A director running the programme alone who adds someone is asked once whether to switch to a team.
+    const { isSoloDirector, changeTeamSize } = useTeamSize()
     const { t } = useLanguage()
     const { user } = useFullIdentity()
     const [form] = Form.useForm<StaffForm>()
@@ -364,6 +367,22 @@ export const StaffPage = () => {
         setSaving(false)
         setModalOpen(false)
         await load()
+        if (!editing && isSoloDirector) {
+            modal.confirm({
+                title: t('You have a team now'),
+                content: t('Switch to With a team? Staff and structure come back to the menu for everyone, and your account goes back to overseeing the programme. You can change this in Company settings at any time.'),
+                okText: t('Switch to With a team'),
+                cancelText: t('Keep Just me'),
+                onOk: async () => {
+                    try {
+                        await changeTeamSize('small')
+                        message.success(t('Saved. Your account is back to overseeing only.'))
+                    } catch {
+                        message.error(t('This could not be saved. Try again.'))
+                    }
+                },
+            })
+        }
     }
 
     const setStatus = async (row: ManagedUser, status: ManagedUser['status']) => {
@@ -455,7 +474,7 @@ export const StaffPage = () => {
             <div className="staff-person-text">
                 <span className="staff-person-name">
                     <Typography.Text strong ellipsis>{row.name || row.email}</Typography.Text>
-                    {isSelf(row) && <Tag variant="borderless" className="staff-you-tag">{t('You')}</Tag>}
+                    {isSelf(row) && <Tag variant="filled" className="staff-you-tag">{t('You')}</Tag>}
                 </span>
                 <Typography.Text type="secondary" ellipsis className="staff-person-meta">
                     {row.email}

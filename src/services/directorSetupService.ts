@@ -12,6 +12,16 @@ export type DirectorSettingsInput = {
   assignmentModel: 'ops_assign_consultant' | 'consultant_self_assign'
   smeDivisionModel?: 'system_equal_random' | 'ops_assign_smes_to_consultants' | 'consultants_register_their_smes'
   interventionScopeModel: 'program_specific' | 'company_wide' | 'department_specific' | 'both'
+  /** 'solo': the director runs the programme alone, so their account also gets the operations role. */
+  teamSize?: TeamSize
+}
+
+export type TeamSize = 'solo' | 'small' | 'large'
+
+/** A director changes who runs the programme after setup; working alone gives their own account the operations role. */
+export const updateDirectorTeamSize = async (teamSize: TeamSize) => {
+  const callable = httpsCallable<{ teamSize: TeamSize }, { ok: boolean, teamSize: TeamSize, secondRole: string | null }>(getFunctions(firebaseApp, 'us-central1'), 'updateDirectorTeamSize')
+  return (await callable({ teamSize })).data
 }
 
 export type DirectorSetupPayload = DirectorSettingsInput & { companyName: string, companyCode: string, logoUrl?: string }

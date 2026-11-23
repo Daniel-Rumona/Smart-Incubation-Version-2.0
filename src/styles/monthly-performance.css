@@ -1,0 +1,753 @@
+.mp-page {
+    --mp-gap: 12px;
+}
+
+.mp-page .ant-card {
+    border-radius: 16px;
+}
+
+
+.mp-eyebrow {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1.4px;
+    opacity: .7;
+}
+
+
+.mp-status-bar {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 14px 18px;
+    border: 1px solid var(--ant-color-border-secondary, #e5e7eb);
+    border-radius: 16px;
+    background: var(--ant-color-bg-container, #fff);
+    margin-bottom: 12px;
+}
+
+.mp-status-copy {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.mp-status-copy>div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.mp-status-copy strong {
+    font-size: 13px;
+}
+
+.mp-status-copy .ant-typography {
+    font-size: 12px;
+}
+
+.mp-status-mark {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    background: var(--ant-color-fill-secondary, rgba(128, 128, 128, .12));
+    color: var(--ant-color-text-secondary, #667085);
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.mp-status-mark.is-done {
+    color: var(--ant-color-success, #16a34a);
+    background: var(--ant-color-success-bg, rgba(22, 163, 74, .08));
+}
+
+.mp-status-progress {
+    width: 124px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.mp-status-progress .ant-progress {
+    flex: 1;
+    margin: 0;
+}
+
+.mp-status-progress .ant-typography {
+    font-size: 11px;
+}
+
+.mp-status-bar>.ant-btn {
+    border-radius: 100px;
+}
+
+.mp-metrics {
+    margin-bottom: 12px;
+}
+
+.mp-metric {
+    height: 100%;
+}
+
+.mp-metric .ant-card-body {
+    padding: 15px 16px;
+}
+
+.mp-metric-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+
+.mp-metric-top .ant-typography {
+    font-size: 12px;
+}
+
+.mp-metric-icon {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 10px;
+    background: var(--ant-color-primary-bg, rgba(109, 93, 251, .08));
+    color: var(--ant-color-primary, #6d5dfb);
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.mp-metric-value {
+    font-weight: 760;
+    font-size: clamp(20px, 2.3vw, 27px);
+    line-height: 1.3;
+    margin: 7px 0;
+    letter-spacing: -.6px;
+    overflow-wrap: anywhere;
+}
+
+.mp-metric-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 5px;
+    min-height: 19px;
+}
+
+.mp-metric-foot .ant-typography {
+    font-size: 11px;
+}
+
+.mp-metric-foot .ant-tag {
+    margin: 0;
+    font-size: 10px;
+}
+
+.mp-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin: 14px 0;
+    flex-wrap: wrap;
+}
+
+.mp-toolbar .ant-segmented {
+    padding: 4px;
+    border-radius: 11px;
+}
+
+.mp-toolbar .ant-picker {
+    border-radius: 10px;
+}
+
+.mp-content-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.8fr) minmax(260px, 1fr);
+    gap: 12px;
+    align-items: start;
+}
+
+.mp-main-stack,
+.mp-side-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+}
+
+.mp-panel {
+    overflow: hidden;
+}
+
+.mp-panel .ant-card-head {
+    padding: 0 16px;
+    min-height: 50px;
+}
+
+.mp-panel .ant-card-head-title {
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.mp-panel .ant-card-body {
+    padding: 14px 16px;
+}
+
+.mp-panel-subtitle {
+    font-size: 11px;
+}
+
+.mp-history-row {
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(130px, 1.4fr) repeat(3, minmax(75px, 1fr)) 18px;
+    align-items: center;
+    gap: 10px;
+    background: transparent;
+    color: inherit;
+    border: none;
+    border-bottom: 1px solid var(--ant-color-border-secondary, #e5e7eb);
+    padding: 12px 2px;
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+}
+
+.mp-history-row:last-child {
+    border-bottom: none;
+}
+
+.mp-history-row:hover {
+    background: var(--ant-color-fill-quaternary, rgba(128, 128, 128, .05));
+    border-radius: 8px;
+}
+
+.mp-history-date {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.mp-history-month {
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.mp-history-coverage {
+    font-size: 10px;
+    color: var(--ant-color-text-tertiary, #98a2b3);
+}
+
+.mp-history-number {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.mp-history-number small {
+    font-size: 10px;
+    color: var(--ant-color-text-tertiary, #98a2b3);
+}
+
+.mp-history-number strong {
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mp-row-arrow {
+    font-size: 12px;
+    color: var(--ant-color-text-tertiary, #98a2b3);
+}
+
+.mp-checklist .ant-card-body>.ant-typography {
+    font-size: 11px;
+    display: block;
+    margin-bottom: 8px;
+}
+
+.mp-checklist-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    border: 0;
+    border-bottom: 1px solid var(--ant-color-border-secondary, #e5e7eb);
+    padding: 10px 0;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+    font-size: 12px;
+}
+
+.mp-checklist-item:last-child {
+    border-bottom: 0;
+}
+
+.mp-checklist-item>span:nth-child(2) {
+    flex: 1;
+    font-weight: 600;
+}
+
+.mp-checklist-icon {
+    display: grid;
+    place-items: center;
+    background: var(--ant-color-fill-tertiary, rgba(128, 128, 128, .10));
+    border-radius: 9px;
+    width: 30px;
+    height: 30px;
+    font-size: 14px;
+    color: var(--ant-color-primary, #6d5dfb);
+}
+
+.mp-checklist-item:hover {
+    color: var(--ant-color-primary, #6d5dfb);
+}
+
+.mp-impact-stat {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--ant-color-border-secondary, #e5e7eb);
+    font-size: 12px;
+}
+
+.mp-impact-stat span {
+    color: var(--ant-color-text-secondary, #667085);
+}
+
+.mp-impact-stat strong {
+    font-size: 14px;
+}
+
+.mp-impact-note {
+    font-size: 11px;
+    display: block;
+    margin-top: 12px;
+}
+
+.mp-chart-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.mp-chart-wide {
+    grid-column: 1/-1;
+}
+
+.mp-detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.mp-detail-item {
+    border: 1px solid var(--ant-color-border-secondary, #e5e7eb);
+    border-radius: 12px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.mp-detail-item span {
+    font-size: 12px;
+    color: var(--ant-color-text-secondary, #667085);
+}
+
+.mp-detail-item strong {
+    font-size: 16px;
+}
+
+.mp-detail-evidence {
+    display: flex;
+    grid-column: 1/-1;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 8px;
+}
+
+.mp-report-modal .ant-modal-content {
+    border-radius: 20px;
+    padding: 18px 20px;
+}
+
+.mp-modal-eyebrow {
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--ant-color-primary, #6d5dfb);
+    font-weight: 800;
+}
+
+.mp-modal-title {
+    font-size: 18px;
+    font-weight: 750;
+    margin-top: 2px;
+}
+
+.mp-modal-steps {
+    display: flex;
+    gap: 8px;
+    margin: 6px 0 18px;
+    font-size: 12px;
+    color: var(--ant-color-text-tertiary, #98a2b3);
+}
+
+.mp-modal-steps span {
+    border-bottom: 2px solid var(--ant-color-border-secondary, #e5e7eb);
+    padding: 8px 8px 10px;
+    flex: 1;
+}
+
+.mp-modal-steps span.active {
+    border-color: var(--ant-color-primary, #6d5dfb);
+    color: var(--ant-color-text, #111827);
+    font-weight: 700;
+}
+
+.mp-modal-body>.ant-typography {
+    font-size: 12px;
+    display: block;
+}
+
+.mp-section-picker {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.mp-section-choice {
+    min-height: 84px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-align: left;
+    background: var(--ant-color-bg-container, #fff);
+    border: 1px solid var(--ant-color-border-secondary, #e5e7eb);
+    color: inherit;
+    border-radius: 13px;
+    padding: 12px;
+    cursor: pointer;
+    font: inherit;
+}
+
+.mp-section-choice.selected {
+    background: var(--ant-color-primary-bg, rgba(109, 93, 251, .08));
+    border-color: var(--ant-color-primary-border, rgba(109, 93, 251, .28));
+}
+
+.mp-section-choice:last-child:nth-child(odd) {
+    grid-column: 1/-1;
+}
+
+.mp-section-icon {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    background: var(--ant-color-fill-secondary, rgba(128, 128, 128, .12));
+    color: var(--ant-color-primary, #6d5dfb);
+}
+
+.mp-section-copy {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.mp-section-copy strong {
+    font-size: 12px;
+}
+
+.mp-section-copy small {
+    font-size: 11px;
+    color: var(--ant-color-text-secondary, #667085);
+    line-height: 1.4;
+}
+
+.mp-section-choice>.anticon {
+    color: var(--ant-color-primary, #6d5dfb);
+}
+
+.mp-empty-check {
+    width: 15px;
+    height: 15px;
+    border: 1px solid var(--ant-color-border, #d0d5dd);
+    border-radius: 100px;
+    flex-shrink: 0;
+}
+
+/* The two footer actions split the row equally, so both are easy to see and tap. */
+.mp-modal-footer {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+}
+
+.mp-modal-footer .ant-btn {
+    width: 100%;
+    border-radius: 100px;
+}
+
+.mp-form-section {
+    border: 1px solid var(--ant-color-border-secondary, #e5e7eb);
+    padding: 14px;
+    border-radius: 13px;
+    margin: 12px 0;
+}
+
+.mp-form-section-title {
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.mp-form-section-title .anticon {
+    color: var(--ant-color-primary, #6d5dfb);
+}
+
+.mp-form-section .ant-form-item {
+    margin-bottom: 12px;
+}
+
+.mp-form-section .ant-form-item:last-child {
+    margin-bottom: 0;
+}
+
+.mp-input {
+    width: 100%;
+}
+
+.mp-form-hint {
+    font-size: 11px;
+    display: block;
+    margin-bottom: 8px;
+}
+
+.mp-loading {
+    display: grid;
+    gap: 14px;
+}
+
+@media(max-width:991px) {
+    .mp-content-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .mp-side-stack {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .mp-panel-subtitle {
+        display: none;
+    }
+}
+
+@media(max-width:767px) {
+    .mp-status-bar {
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 12px;
+    }
+
+    .mp-status-copy {
+        flex-basis: 100%;
+    }
+
+.mp-status-progress {
+        flex: 1;
+    }
+
+    .mp-status-bar>.ant-btn {
+        min-height: 36px;
+    }
+
+    .mp-metric .ant-card-body {
+        padding: 12px;
+    }
+
+    .mp-metric-value {
+        font-size: 20px;
+    }
+
+    .mp-metric-top .ant-typography {
+        font-size: 11px;
+    }
+
+    .mp-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .mp-toolbar>.ant-segmented,
+    .mp-toolbar>.ant-picker {
+        width: 100%;
+    }
+
+    .mp-side-stack,
+    .mp-chart-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .mp-history-row {
+        grid-template-columns: minmax(0, 1fr) minmax(80px, .7fr) 16px;
+        gap: 8px;
+    }
+
+    .mp-history-number:nth-of-type(3),
+    .mp-history-number:nth-of-type(4) {
+        display: none;
+    }
+
+    .mp-detail-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .mp-report-modal .ant-modal-content {
+        padding: 14px;
+    }
+
+    .mp-report-modal .ant-modal-body {
+        max-height: 65dvh;
+        overflow: auto;
+    }
+
+    .mp-modal-footer .ant-btn {
+        flex: 1;
+    }
+
+    .mp-section-picker {
+        grid-template-columns: 1fr;
+    }
+
+    .mp-section-choice:last-child:nth-child(odd) {
+        grid-column: auto;
+    }
+
+    .mp-section-choice {
+        min-height: 68px;
+    }
+
+    .mp-metric-foot {
+        flex-wrap: wrap;
+    }
+}
+
+@media(max-width:380px) {
+    .mp-metric-value {
+        font-size: 18px;
+    }
+
+    .mp-status-bar>.ant-btn {
+        width: 100%;
+    }
+
+    .mp-detail-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+html[data-theme='dark'] .mp-page {
+    --ant-color-border-secondary: #30333e;
+    --ant-color-bg-container: #171923;
+    --ant-color-text-secondary: #a0a7b6;
+    --ant-color-text-tertiary: #7d8596;
+    --ant-color-text: #f5f7fb;
+    --ant-color-fill-secondary: rgba(255, 255, 255, .07);
+    --ant-color-fill-tertiary: rgba(255, 255, 255, .055);
+    --ant-color-fill-quaternary: rgba(255, 255, 255, .04);
+    --ant-color-primary-bg: rgba(139, 92, 246, .14);
+    --ant-color-primary-border: rgba(139, 92, 246, .34);
+}
+
+/* Amount and its evidence upload side by side, bottoms lined up; the attached files go full width underneath. */
+.mp-amount-evidence {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 12px;
+    align-items: end;
+}
+
+/* Same bottom margin on both fields (the section drops it on its last field), so their bottoms line up. */
+.mp-amount-evidence > .ant-form-item {
+    margin-bottom: 12px !important;
+}
+
+.mp-amount-evidence .mp-evidence-upload,
+.mp-amount-evidence .mp-evidence-upload .ant-upload {
+    display: block;
+    width: 100%;
+}
+
+.mp-evidence-files {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0 0 12px;
+    padding: 0;
+    list-style: none;
+}
+
+.mp-evidence-files li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 6px 6px 10px;
+    border: 1px solid var(--ant-color-border-secondary, #e5e7eb);
+    border-radius: 10px;
+    font-size: 13px;
+}
+
+.mp-evidence-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mp-evidence-size {
+    flex-shrink: 0;
+    color: var(--ant-color-text-secondary, #6b7280);
+    font-size: 12px;
+}
+
+/* Employment: permanent, temporary and evidence in three columns; on phones the evidence takes its own row. */
+.mp-amount-evidence.is-three {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 575px) {
+    .mp-amount-evidence.is-three {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .mp-amount-evidence.is-three > .ant-form-item:nth-child(3) {
+        grid-column: 1 / -1;
+    }
+}
+
+/* Evidence buttons: softly rounded like the inputs beside them, not pills. */
+.mp-evidence-upload .ant-btn {
+    border-radius: 10px;
+}

@@ -692,7 +692,7 @@ export const DiagnosticPlansPage = () => {
                                         {item.title}
                                         {locked && <small>{t('Work has started, so it stays in the plan')}</small>}
                                     </span>
-                                    {item.areaOfSupport && <Tag variant="borderless">{item.areaOfSupport}</Tag>}
+                                    {item.areaOfSupport && <Tag variant="filled">{item.areaOfSupport}</Tag>}
                                     {locked
                                         ? <Tooltip title={t('Work has started, so it stays in the plan')}><LockOutlined className="diagnostic-lock" aria-label={t('Locked')} /></Tooltip>
                                         : <Button type="text" size="small" icon={<CloseOutlined />} aria-label={t('Remove {title}', undefined, { title: item.title })} onClick={() => remove(item.interventionId)} />}

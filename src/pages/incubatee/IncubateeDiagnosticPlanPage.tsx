@@ -25,7 +25,6 @@ import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { confirmIncubateeGrowthPlan, loadIncubateeWorkspace } from '@/services/incubateeWorkspaceService'
 import type { IncubateeWorkspace } from '@/types/incubatee'
 import type { LivePlanItem, LivePlanStatus } from '@/utils/liveDiagnosticPlan'
-import { PlanProjectionPreview } from '@/components/interventions/PlanProjectionPreview'
 import '@/styles/incubatee.css'
 import '@/styles/incubatee-plan.css'
 import { buildLivePlanItems, livePlanProgress, planStatusColor, stepStateColor } from '@/utils/liveDiagnosticPlan'
@@ -241,7 +240,6 @@ export default function IncubateeDiagnosticPlanPage() {
             <div className="plan-section-head">
                 <h3>{t('Your interventions')}</h3>
                 <div className="plan-section-actions">
-                    <PlanProjectionPreview interventions={liveInterventions} />
                     <Button size="small" icon={<DownloadOutlined />} onClick={downloadPlan}>{t('Download')}</Button>
                 </div>
             </div>

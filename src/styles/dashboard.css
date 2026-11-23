@@ -1809,7 +1809,9 @@ html[data-theme='dark'] .dashboard-metric-sparkline-area { fill: rgba(165, 155, 
 
 .filter-bar-controls[data-fit~='detail'] .filter-bar-detail { display: none; }
 
-.filter-bar-controls[data-fit~='buttons'] .ant-btn:has(> .ant-btn-icon) > :not(.ant-btn-icon):not(.filter-bar-keep) {
+/* Sibling selectors, not :has(). A :has() here made Chrome re-check styles on every DOM change, so each Highcharts
+   chart drawn on a page with a FilterBar took about 3x longer (the reports' Applicant profile tab hung for seconds). */
+.filter-bar-controls[data-fit~='buttons'] .ant-btn > .ant-btn-icon ~ :not(.filter-bar-keep) {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -1818,7 +1820,8 @@ html[data-theme='dark'] .dashboard-metric-sparkline-area { fill: rgba(165, 155, 
     white-space: nowrap;
 }
 
-.filter-bar-controls[data-fit~='buttons'] .ant-btn:has(> .ant-btn-icon) { gap: 4px; }
+/* Only buttons with an icon have more than one child, so the gap only changes those. */
+.filter-bar-controls[data-fit~='buttons'] .ant-btn { gap: 4px; }
 
 .filter-bar-controls[data-fit~='views'] .ant-segmented-item:not(.ant-segmented-item-selected) .ant-segmented-item-icon + * { display: none; }
 

@@ -474,6 +474,7 @@ export const ApplicantProfilePage = ({ mode = 'applicant' }: ApplicantProfilePag
                     form={form}
                     values={liveValues}
                     email={accountEmail}
+                    primaryDirectorUid={user?.uid || ''}
                     requiredFields={requiredProfileFields}
                     editing={editingSection}
                     onEdit={setEditingSection}
@@ -586,7 +587,7 @@ export const ApplicantProfilePage = ({ mode = 'applicant' }: ApplicantProfilePag
                         layout="vertical"
                         requiredMark
                         preserve
-                        onValuesChange={(changed: Partial<ApplicantProfileFormValues>) => handleValuesChange(changed)}
+                        onValuesChange={() => handleValuesChange()}
                         className="applicant-setup-form"
                         validateMessages={{
                             required: '${label} is required',

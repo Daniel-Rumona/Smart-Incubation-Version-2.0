@@ -208,6 +208,7 @@ export const zuAccount: Record<string, string> = {
   "Too many attempts. Please wait a few minutes and try again.": "Imizamo iningi kakhulu. Sicela ulinde imizuzu embalwa bese uzama futhi.",
   "We could not reach the server. Check your internet connection and try again.": "Asikwazanga ukufinyelela iseva. Hlola ukuxhumana kwakho ne-inthanethi bese uzama futhi.",
   "This account has been disabled. Please contact your programme administrator.": "Le akhawunti ivaliwe. Sicela uxhumane nomlawuli wohlelo lwakho.",
+  "This account has been deactivated. Please contact your programme administrator.": "Le akhawunti imisiwe. Sicela uxhumane nomlawuli wohlelo lwakho.",
   "This email is already linked to another sign-in method. Try signing in with that method instead.": "Le imeyili isixhunywe kwenye indlela yokungena. Zama ukungena ngaleyo ndlela.",
   "Your browser blocked the sign-in pop-up. Allow pop-ups for this site and try again.": "Isiphequluli sakho sivimbe iwindi lokungena. Vumela amawindi ale sayithi bese uzama futhi.",
   "Something went wrong. Please try again.": "Kukhona okungahambanga kahle. Sicela uzame futhi.",
@@ -739,4 +740,7 @@ export const zuAccount: Record<string, string> = {
   "You are signed out when you close the browser. Best on shared computers.": "Uyaphuma uma uvala isiphequluli. Kungcono kumakhompyutha okwabelwana ngawo.",
   "Main navigation": "Ukuzulazula okuyinhloko",
   "More": "Okunye",
+  "You are still signed in as {email}.": "Usangene njengo-{email}.",
+  "You are still signed in on this device.": "Usangene kule divayisi.",
+  "Not you? Use another account": "Akusiwe? Sebenzisa enye i-akhawunti",
 }

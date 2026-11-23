@@ -1,30 +1,40 @@
-import { Alert, App, Avatar, Button, Card, Col, DatePicker, Descriptions, Empty, Pagination, Spin, Input, Modal, Progress, Row, Segmented, Select, Space, Tag, Typography } from 'antd'
-import { ArrowLeftOutlined, SortAscendingOutlined, TrophyOutlined, AppstoreOutlined, BarChartOutlined, CheckCircleOutlined, ClockCircleOutlined, CloseCircleOutlined, DownloadOutlined, FileOutlined, SearchOutlined } from '@ant-design/icons'
+import { Alert, App, Avatar, Button, Card, DatePicker, Empty, Pagination, Spin, Input, Progress, Segmented, Select, Space, Tag, Typography } from 'antd'
+import { ArrowLeftOutlined, SortAscendingOutlined, TrophyOutlined, BarChartOutlined, CheckCircleOutlined, ClockCircleOutlined, CloseCircleOutlined, WarningOutlined, DownloadOutlined, FileOutlined, SearchOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import isBetween from 'dayjs/plugin/isBetween'
 import { motion, useReducedMotion } from 'framer-motion'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
 import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { hasRolePermission } from '@/config/permissions'
 import { useLanguage } from '@/providers/LanguageProvider'
-import { listOperationsApplications, updateOperationsApplicationStatus } from '@/services/operationsApplicationsService'
+import { listOperationsApplications, loadApplicantComplianceDocuments, updateOperationsApplicationStatus } from '@/services/operationsApplicationsService'
 import { CHART_COLORS, CHART_PALETTE } from '@/config/chartPalette'
+import { COMPLIANCE_DOCUMENT_CATALOGUE, requirementKeyFor } from '@/config/complianceDocuments'
 import { initialsOf } from '@/utils/initials'
 import type { OperationsApplication } from '@/types/operations'
-import { singleActionFooter } from '@/components/shared/modalFooter'
+import ResponsiveModal from '@/components/shared/ResponsiveModal'
+import { useActiveProgramId } from '@/hooks/useActiveProgramId'
+import { matchesActiveProgram } from '@/services/workspaceProgramsService'
 import '@/styles/operations-compliance.css'
 import '@/styles/applications-review.css'
 
 const { RangePicker } = DatePicker
 dayjs.extend(isBetween)
-type DetailSection = 'overview' | 'ai' | 'documents'
 const STATUSES = ['Pending', 'Accepted', 'Rejected']
-const decisionAction = (status?: string) => status === 'Accepted' ? 'Accept' : status === 'Rejected' ? 'Reject' : 'Move to pending'
-const decisionConfirmation = (status?: string) => status === 'Accepted' ? 'Accept application' : status === 'Rejected' ? 'Reject application' : 'Move to pending'
+// Every application shows the same four required documents; anything else uploaded follows them.
+const REQUIRED_DOCUMENT_KEYS = ['id-document', 'proof-of-address', 'tax-compliance', 'b-bbee-certificate']
+const requiredDocumentChecklist = (row: OperationsApplication) => {
+    const uploaded = [...row.documents.map((document) => ({ name: document.type || '', url: document.url })), ...(row.growthPlanDocUrl ? [{ name: 'Growth plan', url: row.growthPlanDocUrl }] : [])]
+    const required = REQUIRED_DOCUMENT_KEYS.map((key) => {
+        const entry = COMPLIANCE_DOCUMENT_CATALOGUE.find((item) => item.key === key)
+        return { key, name: entry?.name || key, url: uploaded.find((document) => document.url && requirementKeyFor(document.name) === key)?.url }
+    })
+    const extras = uploaded.filter((document) => document.url && !REQUIRED_DOCUMENT_KEYS.includes(requirementKeyFor(document.name))).map((document, index) => ({ key: `extra-${index}`, name: document.name || 'Document', url: document.url }))
+    return [...required, ...extras]
+}
 const normalizeStatus = (value?: string) => STATUSES.find((status) => status.toLowerCase() === value?.toLowerCase()) || 'Pending'
 const statusColor = (status: string) => status === 'Accepted' ? 'green' : status === 'Rejected' ? 'red' : 'gold'
 const toDate = (value: unknown) => {
@@ -38,7 +48,7 @@ const toDate = (value: unknown) => {
 const uniqueOptions = (rows: OperationsApplication[], key: 'province' | 'beeLevel' | 'gender') =>
     [...new Set(rows.map((row) => row[key]).filter((value): value is string => !!value))].sort().map((value) => ({ value, label: value }))
 
-const breakdown = (rows: OperationsApplication[], key: 'gender' | 'beeLevel') => {
+const breakdown = (rows: OperationsApplication[], key: 'gender' | 'beeLevel' | 'province') => {
     const counts = new Map<string, number>()
     rows.forEach((row) => { const value = row[key]; if (value) counts.set(value, (counts.get(value) || 0) + 1) })
     const total = rows.length
@@ -47,31 +57,30 @@ const breakdown = (rows: OperationsApplication[], key: 'gender' | 'beeLevel') =>
         .map(([label, count], index) => ({ label, count, percent: total ? Math.round((count / total) * 100) : 0, color: CHART_PALETTE[index % CHART_PALETTE.length] }))
 }
 
-const complianceColor = (score: number) => score >= 80 ? CHART_COLORS.success : score >= 50 ? CHART_COLORS.amber : CHART_COLORS.danger
+type MonthBucket = { key: string, month: Dayjs, total: number } & Record<'Pending' | 'Accepted' | 'Rejected', number>
+const DATE_PRESETS = () => [
+    { label: 'This month', value: [dayjs().startOf('month'), dayjs().endOf('month')] as [Dayjs, Dayjs] },
+    { label: 'Last month', value: [dayjs().subtract(1, 'month').startOf('month'), dayjs().subtract(1, 'month').endOf('month')] as [Dayjs, Dayjs] },
+    { label: 'Last 3 months', value: [dayjs().subtract(2, 'month').startOf('month'), dayjs().endOf('month')] as [Dayjs, Dayjs] },
+    { label: 'This year', value: [dayjs().startOf('year'), dayjs().endOf('year')] as [Dayjs, Dayjs] },
+]
 
-const CHALLENGE_STOPWORDS = new Set(['the', 'and', 'for', 'with', 'that', 'this', 'from', 'have', 'will', 'are', 'was', 'were', 'our', 'their', 'they', 'you', 'your', 'not', 'but', 'can', 'all', 'has', 'had', 'who', 'what', 'when', 'where', 'how', 'its', 'about', 'into', 'more', 'most', 'some', 'also', 'been', 'being'])
-
-const challengeWordCloud = (rows: OperationsApplication[]) => {
-    const counts = new Map<string, number>()
-    rows.forEach((row) => {
-        (row.challenges || '').toLowerCase().replace(/[^a-z0-9\s'-]/g, ' ').split(/\s+/).forEach((raw) => {
-            const word = raw.trim()
-            if (word.length < 3 || CHALLENGE_STOPWORDS.has(word)) return
-            counts.set(word, (counts.get(word) || 0) + 1)
-        })
-    })
-    const max = Math.max(1, ...counts.values())
-    return [...counts.entries()]
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 24)
-        .map(([word, count]) => ({ word, count, weight: count / max }))
+/** Hours as "5 h" or "3 days"; null when there is nothing to measure. */
+const formatDuration = (hours: number | null, t: (key: string, fallback?: string, params?: Record<string, string | number>) => string) => {
+    if (hours === null) return '—'
+    if (hours < 1) return t('Under 1 h')
+    if (hours < 48) return `${Math.round(hours)} h`
+    return `${Math.round(hours / 24)} ${t('days')}`
 }
+
+const complianceColor = (score: number) => score >= 80 ? CHART_COLORS.success : score >= 50 ? CHART_COLORS.amber : CHART_COLORS.danger
 
 export const ApplicationsReviewPage = () => {
     const { message } = App.useApp()
     const { t } = useLanguage()
     const reduceMotion = useReducedMotion()
     const { user } = useFullIdentity()
+    const { activeProgramId } = useActiveProgramId()
     // Reception (and anyone without manage_applications) sees the decision but can't change it.
     const canDecide = Boolean(user && hasRolePermission(user.role, 'manage_applications', user.permissions))
     const detailScrollRef = useRef<HTMLDivElement>(null)
@@ -79,11 +88,11 @@ export const ApplicationsReviewPage = () => {
     const [loading, setLoading] = useState(false)
     const [activeSelection, setSelected] = useState<OperationsApplication>()
     const [detailOpen, setDetailOpen] = useState(false)
-    const [section, setSection] = useState<DetailSection>('overview')
+    const [saving, setSaving] = useState(false)
     const [search, setSearch] = useState('')
     const [sort, setSort] = useState('newest')
     const [listPage, setListPage] = useState({ key: '', page: 1 })
-    const [status, setStatus] = useState('All')
+    const [statusChoice, setStatus] = useState<string | null>(null)
     const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null)
     const [province, setProvince] = useState('All')
     const [beeLevel, setBeeLevel] = useState('All')
@@ -91,6 +100,8 @@ export const ApplicationsReviewPage = () => {
     const [pendingUpdate, setPendingUpdate] = useState<{ row: OperationsApplication, status: string }>()
     const [rejectionReason, setRejectionReason] = useState('')
     const [analyticsOpen, setAnalyticsOpen] = useState(false)
+    // Documents an applicant uploaded after applying, loaded only for the application being read.
+    const [laterDocuments, setLaterDocuments] = useState<Record<string, Array<{ type?: string, url?: string }>>>({})
 
     const load = async () => {
         if (!user) return
@@ -98,7 +109,8 @@ export const ApplicationsReviewPage = () => {
             setLoading(true)
             const rows = await listOperationsApplications(user)
             setApplications(rows)
-            setSelected((current) => rows.find((row) => row.id === current?.id) || rows[0])
+            // Keep the open application if it is still there; otherwise the page falls back to the top of the visible list.
+            setSelected((current) => rows.find((row) => row.id === current?.id))
         } catch {
             message.error(t('operations.applications.loadError'))
         } finally {
@@ -110,142 +122,177 @@ export const ApplicationsReviewPage = () => {
         return () => window.clearTimeout(timeout)
     }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    const counts = useMemo(() => ({
-        pending: applications.filter((row) => normalizeStatus(row.applicationStatus) === 'Pending').length,
-        accepted: applications.filter((row) => normalizeStatus(row.applicationStatus) === 'Accepted').length,
-        rejected: applications.filter((row) => normalizeStatus(row.applicationStatus) === 'Rejected').length,
-    }), [applications])
-    const rows = useMemo(() => applications.filter((row) => {
+    // Search and the profile filters narrow everything; dates narrow the counts and analytics; status only narrows the list.
+    const baseRows = useMemo(() => applications.filter((row) => {
         const needle = search.trim().toLowerCase()
-        const submittedAt = toDate(row.submittedAt)
-        return (status === 'All' || normalizeStatus(row.applicationStatus) === status)
+        return matchesActiveProgram(user, activeProgramId, row.programId)
             && (!needle || `${row.businessName} ${row.email} ${row.programName || ''}`.toLowerCase().includes(needle))
-            && (!dateRange || (!!submittedAt && submittedAt.isBetween(dateRange[0], dateRange[1], 'day', '[]')))
             && (province === 'All' || row.province === province)
             && (beeLevel === 'All' || row.beeLevel === beeLevel)
             && (gender === 'All' || row.gender === gender)
-    }).sort((a, b) => {
+    }), [activeProgramId, applications, beeLevel, gender, province, search, user])
+    const analyticsRows = useMemo(() => dateRange ? baseRows.filter((row) => {
+        const submittedAt = toDate(row.submittedAt)
+        return !!submittedAt && submittedAt.isBetween(dateRange[0], dateRange[1], 'day', '[]')
+    }) : baseRows, [baseRows, dateRange])
+    const counts = useMemo(() => ({
+        pending: analyticsRows.filter((row) => normalizeStatus(row.applicationStatus) === 'Pending').length,
+        accepted: analyticsRows.filter((row) => normalizeStatus(row.applicationStatus) === 'Accepted').length,
+        rejected: analyticsRows.filter((row) => normalizeStatus(row.applicationStatus) === 'Rejected').length,
+    }), [analyticsRows])
+    // Until someone picks a segment, open on Pending, or on All when nothing is waiting.
+    const status = statusChoice ?? (counts.pending > 0 ? 'Pending' : 'All')
+    const rows = useMemo(() => analyticsRows.filter((row) => status === 'All' || normalizeStatus(row.applicationStatus) === status).sort((a, b) => {
         if (sort === 'name') return a.businessName.localeCompare(b.businessName)
         if (sort === 'score') return (Number(b.aiScore) || 0) - (Number(a.aiScore) || 0)
         return (toDate(b.submittedAt)?.valueOf() || 0) - (toDate(a.submittedAt)?.valueOf() || 0)
-    }), [applications, beeLevel, dateRange, gender, province, search, status, sort])
+    }), [analyticsRows, status, sort])
     const selected = rows.find((row) => row.id === activeSelection?.id) || rows[0]
     const pageKey = JSON.stringify([search, status, dateRange, province, beeLevel, gender, sort, selected?.id])
     const selectedPage = Math.floor(Math.max(0, rows.findIndex((row) => row.id === selected?.id)) / 12) + 1
     const currentPage = Math.min(listPage.key === pageKey ? listPage.page : selectedPage, Math.max(1, Math.ceil(rows.length / 12)))
     const pageRows = rows.slice((currentPage - 1) * 12, currentPage * 12)
 
-    const genderBreakdown = useMemo(() => breakdown(rows, 'gender'), [rows])
-    const beeBreakdown = useMemo(() => breakdown(rows, 'beeLevel'), [rows])
+    const genderBreakdown = useMemo(() => breakdown(analyticsRows, 'gender'), [analyticsRows])
+    const beeBreakdown = useMemo(() => breakdown(analyticsRows, 'beeLevel'), [analyticsRows])
+    const provinceBreakdown = useMemo(() => breakdown(analyticsRows, 'province'), [analyticsRows])
+    const medianDecisionHours = useMemo(() => {
+        const hours = analyticsRows.flatMap((row) => {
+            const submitted = toDate(row.submittedAt)
+            const decided = normalizeStatus(row.applicationStatus) === 'Pending' ? null : toDate(row.decidedAt)
+            return submitted && decided && decided.isAfter(submitted) ? [decided.diff(submitted, 'hour', true)] : []
+        }).sort((a, b) => a - b)
+        if (!hours.length) return null
+        const mid = Math.floor(hours.length / 2)
+        return hours.length % 2 ? hours[mid] : (hours[mid - 1] + hours[mid]) / 2
+    }, [analyticsRows])
+    const oldestPendingHours = useMemo(() => {
+        const waiting = analyticsRows.filter((row) => normalizeStatus(row.applicationStatus) === 'Pending').flatMap((row) => { const submitted = toDate(row.submittedAt); return submitted ? [dayjs().diff(submitted, 'hour', true)] : [] })
+        return waiting.length ? Math.max(...waiting) : null
+    }, [analyticsRows])
+    const acceptanceRate = counts.accepted + counts.rejected ? Math.round((counts.accepted / (counts.accepted + counts.rejected)) * 100) : null
+    const monthlySeries = useMemo(() => {
+        const start = dayjs().startOf('month').subtract(11, 'month')
+        const buckets: MonthBucket[] = Array.from({ length: 12 }, (_, index) => { const month = start.add(index, 'month'); return { key: month.format('YYYY-MM'), month, total: 0, Pending: 0, Accepted: 0, Rejected: 0 } })
+        const byKey = new Map(buckets.map((bucket) => [bucket.key, bucket]))
+        baseRows.forEach((row) => {
+            const bucket = byKey.get(toDate(row.submittedAt)?.format('YYYY-MM') || '')
+            if (bucket) { bucket[normalizeStatus(row.applicationStatus) as 'Pending' | 'Accepted' | 'Rejected'] += 1; bucket.total += 1 }
+        })
+        return buckets
+    }, [baseRows])
+    const monthMax = Math.max(1, ...monthlySeries.map((bucket) => bucket.total))
     const complianceAverage = useMemo(() => {
-        const scored = rows.filter((row) => typeof row.complianceScore === 'number')
+        const scored = analyticsRows.filter((row) => typeof row.complianceScore === 'number')
         return scored.length ? Math.round(scored.reduce((sum, row) => sum + (row.complianceScore || 0), 0) / scored.length) : null
-    }, [rows])
-    const challengeWords = useMemo(() => challengeWordCloud(rows), [rows])
+    }, [analyticsRows])
 
-    useRegisterAgentPageContext({ pageKey: 'operations-applications', pageName: 'Applications', purpose: 'Review project applications and update decisions.', filters: { search, status, dateRange, province, beeLevel, gender }, metrics: { total: applications.length, ...counts }, tables: { visibleApplications: rows.length }, selectedRecord: selected?.businessName })
+    useRegisterAgentPageContext({ pageKey: 'operations-applications', pageName: 'Applications', purpose: 'Review project applications and update decisions.', filters: { programme: activeProgramId, search, status, dateRange, province, beeLevel, gender }, metrics: { total: analyticsRows.length, ...counts }, tables: { visibleApplications: rows.length }, selectedRecord: selected?.businessName })
+
+    const participantKey = selected?.participantId || ''
+    useEffect(() => {
+        if (!participantKey || !selected || selected.documents.length || participantKey in laterDocuments) return
+        let cancelled = false
+        loadApplicantComplianceDocuments(participantKey, user?.companyCode || undefined)
+            .catch(() => [])
+            .then((documents) => { if (!cancelled) setLaterDocuments((current) => ({ ...current, [participantKey]: documents })) })
+        return () => { cancelled = true }
+    }, [laterDocuments, participantKey, selected])
 
     const chooseApplication = (row: OperationsApplication) => {
         detailScrollRef.current?.scrollTo({ top: 0 })
         setSelected(row)
-        setSection('overview')
         setDetailOpen(true)
     }
-    const confirmStatusChange = async () => {
-        if (!user || !pendingUpdate) return
-        const reason = rejectionReason.trim()
-        if (pendingUpdate.status === 'Rejected' && !reason) { message.warning(t('Please provide a reason for rejection')); return }
+    const applyDecision = async (row: OperationsApplication, next: string, reason = '') => {
+        if (!user) return false
         try {
-            setLoading(true)
-            await updateOperationsApplicationStatus(user, pendingUpdate.row.id, pendingUpdate.status, reason)
-            message.success(t('operations.applications.updated'))
-            setPendingUpdate(undefined)
-            setRejectionReason('')
-            await load()
+            setSaving(true)
+            await updateOperationsApplicationStatus(user, row.id, next, reason)
+            setApplications((current) => current.map((item) => item.id === row.id ? { ...item, applicationStatus: next, rejectionReason: next === 'Rejected' ? reason || undefined : undefined } : item))
+            return true
         } catch {
             message.error(t('operations.applications.updateError'))
-            setLoading(false)
+            return false
+        } finally {
+            setSaving(false)
+        }
+    }
+    const leaveIfGone = (next: string) => { if (status !== 'All' && next !== status) setDetailOpen(false) }
+    const acceptApplication = async (row: OperationsApplication) => {
+        const previous = normalizeStatus(row.applicationStatus)
+        if (!(await applyDecision(row, 'Accepted'))) return
+        leaveIfGone('Accepted')
+        message.success({
+            duration: 6,
+            content: <span>{t('operations.applications.accepted')}: {row.businessName} <Button type="link" size="small" onClick={() => void applyDecision(row, previous, row.rejectionReason || '')}>{t('Undo')}</Button></span>,
+        })
+    }
+    const confirmDecline = async () => {
+        if (!pendingUpdate) return
+        const reason = rejectionReason.trim()
+        if (!reason) { message.warning(t('Please provide a reason for rejection')); return }
+        if (await applyDecision(pendingUpdate.row, 'Rejected', reason)) {
+            message.success(t('operations.applications.updated'))
+            leaveIfGone('Rejected')
+            setPendingUpdate(undefined)
+            setRejectionReason('')
         }
     }
 
+
     const hasAiReview = !!selected && (selected.aiScore !== undefined && selected.aiScore !== null || !!selected.aiRecommendation || !!selected.aiJustification)
+    const documentsPending = !!selected && !selected.documents.length && !!participantKey && !(participantKey in laterDocuments)
+    const documentChecklist = selected ? requiredDocumentChecklist({ ...selected, documents: selected.documents.length ? selected.documents : laterDocuments[participantKey] || [] }) : []
+    const selectedStatus = selected ? normalizeStatus(selected.applicationStatus) : 'Pending'
 
     const details = selected ? (
         <motion.div
             key={selected.id}
             className="applications-detail-body"
-            initial={reduceMotion ? false : { opacity: 0, x: 16 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.25, ease: 'easeOut' }}
+            initial={reduceMotion ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.15, ease: 'easeOut' }}
         >
             <div className="applications-detail-heading">
-                <Space size={12} align="start"><Avatar src={selected.imageUrl} size={48}>{initialsOf(selected.businessName)}</Avatar><div><Typography.Title level={4}>{selected.businessName}</Typography.Title><Typography.Text type="secondary">{selected.email}</Typography.Text></div></Space>
-                <Tag color={statusColor(normalizeStatus(selected.applicationStatus))}>{normalizeStatus(selected.applicationStatus)}</Tag>
-            </div>
-            <Segmented block value={section} onChange={(value) => setSection(value as DetailSection)} options={[{ label: t('common.overview'), value: 'overview' }, { label: t('operations.applications.decision'), value: 'ai' }, { label: t('operations.compliance.documents'), value: 'documents' }]} />
-            <motion.div key={section} initial={reduceMotion ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, ease: 'easeOut' }}>
-            {section === 'overview' && <Descriptions bordered size="small" column={1} items={[
-                { key: 'program', label: t('operations.applications.program'), children: selected.programName || t('common.unassigned') },
-                { key: 'date', label: t('operations.applications.applied'), children: toDate(selected.submittedAt)?.format('DD MMM YYYY') || 'N/A' },
-                { key: 'province', label: t('common.province'), children: selected.province || 'N/A' },
-                { key: 'bee', label: t('common.beeLevel'), children: selected.beeLevel || 'N/A' },
-                { key: 'gender', label: t('common.gender'), children: selected.gender || 'N/A' },
-                { key: 'motivation', label: t('operations.applications.motivation'), children: selected.motivation || 'N/A' },
-                { key: 'challenges', label: t('operations.applications.challenges'), children: selected.challenges || 'N/A' },
-            ]} />}
-            {section === 'ai' && <Space orientation="vertical" size={16} className="applications-detail-stack">
-                <div>
-                    <Typography.Text strong>{t('operations.applications.decision')}</Typography.Text>
-                    {!canDecide ? <div><Tag color={statusColor(normalizeStatus(selected.applicationStatus))}>{t(`operations.applications.${normalizeStatus(selected.applicationStatus).toLowerCase()}`)}</Tag><Typography.Paragraph type="secondary" style={{ margin: '6px 0 0' }}>{t('Operations or a project admin accepts or declines applications.')}</Typography.Paragraph></div> : <div className="applications-decision-cards">
-                        {STATUSES.map((value) => {
-                            const isActive = normalizeStatus(selected.applicationStatus) === value
-                            const icon = value === 'Accepted' ? <CheckCircleOutlined /> : value === 'Rejected' ? <CloseCircleOutlined /> : <ClockCircleOutlined />
-                            return (
-                                <button
-                                    key={value}
-                                    type="button"
-                                    aria-pressed={isActive}
-                                    className={`applications-decision-card is-${value.toLowerCase()}${isActive ? ' is-active' : ''}`}
-                                    onClick={() => { if (!isActive) { setRejectionReason(''); setPendingUpdate({ row: selected, status: value }) } }}
-                                >
-                                    <span className="applications-decision-icon">{icon}</span>
-                                    <span className="applications-decision-label">{t(isActive ? `operations.applications.${value.toLowerCase()}` : decisionAction(value))}</span>
-                                </button>
-                            )
-                        })}
-                    </div>}
-                    {normalizeStatus(selected.applicationStatus) === 'Rejected' && <Alert type="error" showIcon style={{ marginTop: 10 }} message={t('Reason for rejection')} description={selected.rejectionReason || t('No reason recorded')} />}
-                </div>
-                {hasAiReview ? <>
-                    <div><Typography.Text strong>{t('operations.applications.aiRecommendation')}</Typography.Text><Tag color={statusColor(normalizeStatus(selected.aiRecommendation))}>{selected.aiRecommendation || t('operations.applications.pending')}</Tag></div>
-                    {selected.supportFitStatus ? <div><Typography.Text strong>{t('Support fit')}</Typography.Text><div><Tag color={selected.supportFitStatus === 'await_review' ? 'orange' : 'green'}>{selected.supportFitStatus.replace(/_/g, ' ')}</Tag></div></div> : null}
-                    {selected.externalInterventionSuggestions?.length ? <Alert type="warning" showIcon message={t('External intervention suggested')} description={selected.externalInterventionSuggestions.map((item) => item.title || item.reason || 'External support need').join(', ')} /> : null}
-                    <div><Typography.Text strong>{t('operations.applications.aiScore')}</Typography.Text><Typography.Title level={3}>{selected.aiScore ?? t('N/A')}</Typography.Title></div>
-                    <div><Typography.Text strong>{t('operations.applications.justification')}</Typography.Text><Typography.Paragraph type="secondary">{selected.aiJustification || t('operations.applications.noJustification')}</Typography.Paragraph></div>
-                </> : <div className="applications-decision-result">
-                    <Typography.Text strong>{t('operations.applications.result')}</Typography.Text>
-                    <Tag color={statusColor(normalizeStatus(selected.applicationStatus))}>{normalizeStatus(selected.applicationStatus)}</Tag>
-                    <Typography.Text type="secondary">{t('operations.applications.noAiReview')}</Typography.Text>
+                <Space size={12} align="start"><Avatar src={selected.imageUrl} size={48}>{initialsOf(selected.businessName)}</Avatar><div><Typography.Title level={4}>{selected.businessName} <Tag className="applications-status-tag" color={statusColor(selectedStatus)}>{t(`operations.applications.${selectedStatus.toLowerCase()}`)}</Tag></Typography.Title><Typography.Text type="secondary">{selected.email}</Typography.Text></div></Space>
+                                {canDecide && <div className="applications-decision-actions">
+                {selectedStatus !== 'Accepted' && <Button type="primary" icon={<CheckCircleOutlined />} loading={saving} onClick={() => void acceptApplication(selected)}>{t('Accept')}</Button>}
+                {selectedStatus !== 'Rejected' && <Button danger icon={<CloseCircleOutlined />} disabled={saving} onClick={() => { setRejectionReason(''); setPendingUpdate({ row: selected, status: 'Rejected' }) }}>{t('Decline')}</Button>}
+                {selectedStatus !== 'Pending' && <Button type="link" disabled={saving} onClick={() => void applyDecision(selected, 'Pending')}>{t('Move to pending')}</Button>}
                 </div>}
-            </Space>}
-            {section === 'documents' && <Space orientation="vertical" className="applications-detail-stack">
-                {selected.documents.length || selected.growthPlanDocUrl ? <>
-                    {selected.documents.map((document, index) => <Card size="small" className="applications-document-card" key={`${document.type}-${index}`}><div className="applications-document-row"><FileOutlined /><Typography.Text className="applications-document-name">{document.type || `${t('common.document')} ${index + 1}`}</Typography.Text><Button icon={<DownloadOutlined />} href={document.url} target="_blank" disabled={!document.url}>{t('common.download')}</Button></div></Card>)}
-                    {selected.growthPlanDocUrl && <Card size="small" className="applications-document-card"><div className="applications-document-row"><FileOutlined /><Typography.Text className="applications-document-name">{t('operations.applications.growthPlan')}</Typography.Text><Button icon={<DownloadOutlined />} href={selected.growthPlanDocUrl} target="_blank">{t('common.download')}</Button></div></Card>}
-                </> : <Empty description={t('operations.compliance.noDocuments')} />}
-            </Space>}
-            </motion.div>
+            </div>
+            {selectedStatus === 'Rejected' && <Alert type="error" showIcon message={t('Reason for rejection')} description={selected.rejectionReason || t('No reason recorded')} />}
+            {hasAiReview ? <div className="applications-ai-summary">
+                <div className="applications-ai-head">
+                    <div><Typography.Text type="secondary">{t('operations.applications.aiScore')}</Typography.Text><div className="applications-ai-score">{selected.aiScore ?? t('N/A')}</div></div>
+                    <div><Typography.Text type="secondary">{t('operations.applications.aiRecommendation')}</Typography.Text><div><Tag color={statusColor(normalizeStatus(selected.aiRecommendation))}>{t(`operations.applications.${normalizeStatus(selected.aiRecommendation).toLowerCase()}`)}</Tag></div></div>
+                    {selected.supportFitStatus ? <div><Typography.Text type="secondary">{t('Support fit')}</Typography.Text><div><Tag color={selected.supportFitStatus === 'await_review' ? 'orange' : 'green'}>{selected.supportFitStatus === 'await_review' ? t('External review') : t('Supported')}</Tag></div></div> : null}
+                </div>
+                <Typography.Paragraph type="secondary" className="applications-ai-justification">{selected.aiJustification || t('operations.applications.noJustification')}</Typography.Paragraph>
+                {selected.externalInterventionSuggestions?.length ? <Alert type="warning" showIcon message={t('External intervention suggested')} description={selected.externalInterventionSuggestions.map((item) => item.title || item.reason || 'External support need').join(', ')} /> : null}
+            </div> : <Typography.Text type="secondary">{t('operations.applications.noAiReview')}</Typography.Text>}
+            <dl className="applications-facts">
+                {[
+                    [t('operations.applications.program'), selected.programName || t('common.unassigned')],
+                    [t('operations.applications.applied'), toDate(selected.submittedAt)?.format('D MMM YYYY')],
+                    [t('common.province'), selected.province],
+                    [t('common.beeLevel'), selected.beeLevel],
+                    [t('common.gender'), selected.gender],
+                ].map(([label, value]) => <div key={label as string}><dt>{label}</dt><dd>{value || <span className="applications-fact-missing">{t('Not provided')}</span>}</dd></div>)}
+            </dl>
+            {[[t('operations.applications.motivation'), selected.motivation], [t('operations.applications.challenges'), selected.challenges]].map(([label, value]) => <div className="applications-answer" key={label as string}><Typography.Text strong>{label}</Typography.Text>{value ? <Typography.Paragraph>{value}</Typography.Paragraph> : <Typography.Text type="secondary" className="applications-fact-missing">{t('Not provided')}</Typography.Text>}</div>)}
+            <div className="applications-documents">
+                <Typography.Text strong>{t('operations.compliance.documents')}</Typography.Text>
+                {documentsPending ? <Spin size="small" /> : documentChecklist.map((document) => <div className={`applications-document-row${document.url ? '' : ' is-missing'}`} key={document.key}><FileOutlined /><Typography.Text className="applications-document-name">{t(document.name)}</Typography.Text>{document.url ? <Button icon={<DownloadOutlined />} href={document.url} target="_blank">{t('common.download')}</Button> : <Tag color="error" icon={<WarningOutlined />}>{t('Missing')}</Tag>}</div>)}
+            </div>
+            {!canDecide && <Typography.Text type="secondary">{t('Operations or a project admin accepts or declines applications.')}</Typography.Text>}
         </motion.div>
     ) : <Empty description={t('operations.applications.select')} />
 
     return <DashboardPage className="applications-review-page">
-        <Row gutter={[12, 12]} className="applications-metrics">
-            <Col xs={12} md={6}><DashboardMetricCard icon={<AppstoreOutlined />} label={t('nav.applications')} value={applications.length} clickable active={status === 'All'} onClick={() => setStatus('All')} /></Col>
-            <Col xs={12} md={6}><DashboardMetricCard icon={<ClockCircleOutlined />} label={t('operations.applications.pending')} value={counts.pending} clickable active={status === 'Pending'} onClick={() => setStatus('Pending')} /></Col>
-            <Col xs={12} md={6}><DashboardMetricCard icon={<CheckCircleOutlined />} label={t('operations.applications.accepted')} value={counts.accepted} clickable active={status === 'Accepted'} onClick={() => setStatus('Accepted')} /></Col>
-            <Col xs={12} md={6}><DashboardMetricCard icon={<CloseCircleOutlined />} label={t('operations.applications.rejected')} value={counts.rejected} clickable active={status === 'Rejected'} onClick={() => setStatus('Rejected')} /></Col>
-        </Row>
-        <FilterBar advancedDisplay="dropdown" primary={<><Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('operations.applications.search')} allowClear /><Select value={status} onChange={setStatus} options={['All', ...STATUSES].map((value) => ({ value, label: t(`operations.applications.${value.toLowerCase()}`) }))} /><RangePicker value={dateRange} onChange={(value) => setDateRange(value as [Dayjs, Dayjs] | null)} /></>} advanced={<><Select value={province} onChange={setProvince} options={[{ value: 'All', label: t('operations.applications.allProvinces') }, ...uniqueOptions(applications, 'province')]} /><Select value={beeLevel} onChange={setBeeLevel} options={[{ value: 'All', label: t('operations.applications.allBeeLevels') }, ...uniqueOptions(applications, 'beeLevel')]} /><Select value={gender} onChange={setGender} options={[{ value: 'All', label: t('operations.applications.allGenders') }, ...uniqueOptions(applications, 'gender')]} /></>} actions={<Button icon={<BarChartOutlined />} onClick={() => setAnalyticsOpen(true)}>{t('operations.applications.analytics')}</Button>} />
+        <div className='applications-status-strip'><Segmented block value={status} onChange={(value) => setStatus(String(value))} options={[{ value: 'Pending', label: <>{t('operations.applications.pending')} <span className='applications-status-count'>{counts.pending}</span></> }, { value: 'Accepted', label: <>{t('operations.applications.accepted')} <span className='applications-status-count'>{counts.accepted}</span></> }, { value: 'Rejected', label: <>{t('operations.applications.rejected')} <span className='applications-status-count'>{counts.rejected}</span></> }, { value: 'All', label: <>{t('operations.applications.all')} <span className='applications-status-count'>{analyticsRows.length}</span></> }]} /></div>
+        <FilterBar advancedDisplay="dropdown" onReset={() => { setProvince('All'); setBeeLevel('All'); setGender('All') }} primary={<><Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('operations.applications.search')} allowClear /><RangePicker presets={DATE_PRESETS().map((preset) => ({ ...preset, label: t(preset.label) }))} value={dateRange} onChange={(value) => setDateRange(value as [Dayjs, Dayjs] | null)} /></>} advanced={<><Select value={province} onChange={setProvince} options={[{ value: 'All', label: t('operations.applications.allProvinces') }, ...uniqueOptions(applications, 'province')]} /><Select value={beeLevel} onChange={setBeeLevel} options={[{ value: 'All', label: t('operations.applications.allBeeLevels') }, ...uniqueOptions(applications, 'beeLevel')]} /><Select value={gender} onChange={setGender} options={[{ value: 'All', label: t('operations.applications.allGenders') }, ...uniqueOptions(applications, 'gender')]} /></>} actions={<Button icon={<BarChartOutlined />} onClick={() => setAnalyticsOpen(true)}>{t('operations.applications.analytics')}</Button>} />
         <div className={`compliance-workspace${detailOpen && selected ? ' compliance-workspace--detail' : ''}`}>
             <Card className="applications-panel compliance-participants">
                 <Select className="compliance-list-sort" aria-label={t('Sort applications')} prefix={<span className="compliance-sort-prefix">{t('Sort by')}</span>} variant="borderless" value={sort} onChange={setSort} options={[
@@ -264,7 +311,7 @@ export const ApplicationsReviewPage = () => {
                             </div>
                             <div className="compliance-participant-side">
                                 <span className={`compliance-score compliance-score--${Number(row.aiScore) >= 80 ? 'good' : Number(row.aiScore) >= 50 ? 'warning' : 'low'}`} title={t('operations.applications.aiScore')}>{row.aiScore ?? '—'}</span>
-                                <Tag color={statusColor(normalizeStatus(row.applicationStatus))}>{t(normalizeStatus(row.applicationStatus))}</Tag>
+                                <Tag color={statusColor(normalizeStatus(row.applicationStatus))}>{t(`operations.applications.${normalizeStatus(row.applicationStatus).toLowerCase()}`)}</Tag>
                                 {row.supportFitStatus === 'await_review' && <Tag color="orange">{t('External review')}</Tag>}
                             </div>
                         </button>)}
@@ -278,59 +325,52 @@ export const ApplicationsReviewPage = () => {
                 <div className="applications-detail-scroll" ref={detailScrollRef}>{details}</div>
             </Card>
         </div>
-        <Modal open={canDecide && !!pendingUpdate} title={t(decisionConfirmation(pendingUpdate?.status))} onCancel={() => { setPendingUpdate(undefined); setRejectionReason('') }} onOk={() => void confirmStatusChange()} okText={t(decisionConfirmation(pendingUpdate?.status))} {...singleActionFooter()}>{t('operations.applications.change')} {pendingUpdate?.row.businessName} {t('operations.applications.to')} <strong>{pendingUpdate?.status}</strong>?{pendingUpdate?.status === 'Rejected' && <Input.TextArea style={{ marginTop: 12 }} rows={3} value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} placeholder={t('Reason for rejection')} maxLength={500} showCount />}</Modal>
-        <Modal open={analyticsOpen} title={t('operations.applications.analytics')} footer={null} centered width={640} onCancel={() => setAnalyticsOpen(false)} className="applications-analytics-modal">
-            <div className="applications-analytics-grid">
-                <div className="applications-analytics-card applications-analytics-gauge">
-                    <Typography.Text strong>{t('operations.applications.complianceScore')}</Typography.Text>
-                    {complianceAverage === null
-                        ? <Empty description={t('operations.applications.noComplianceScore')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
-                        : <Progress type="circle" percent={complianceAverage} gapDegree={180} gapPosition="bottom" strokeColor={complianceColor(complianceAverage)} />}
-                </div>
-
-                <div className="applications-analytics-card applications-analytics-gender">
-                    <Typography.Text strong>{t('operations.applications.genderBreakdown')}</Typography.Text>
-                    {genderBreakdown.length
-                        ? genderBreakdown.map((item) => (
-                            <div className="applications-analytics-bar-row" key={item.label}>
-                                <span className="applications-analytics-bar-label">{item.label}</span>
-                                <Progress percent={item.percent} strokeColor={item.color} showInfo={false} size="small" />
-                                <span className="applications-analytics-bar-value">{item.percent}% ({item.count})</span>
-                            </div>
-                        ))
-                        : <Empty description={t('operations.applications.noData')} image={Empty.PRESENTED_IMAGE_SIMPLE} />}
-                </div>
-
-                <div className="applications-analytics-card applications-analytics-bee">
-                    <Typography.Text strong>{t('common.beeLevel')}</Typography.Text>
-                    {beeBreakdown.length
-                        ? beeBreakdown.map((item) => (
-                            <div className="applications-analytics-bar-row" key={item.label}>
-                                <span className="applications-analytics-bar-label">{item.label}</span>
-                                <Progress percent={item.percent} strokeColor={item.color} showInfo={false} size="small" />
-                                <span className="applications-analytics-bar-value">{item.percent}% ({item.count})</span>
-                            </div>
-                        ))
-                        : <Empty description={t('operations.applications.noData')} image={Empty.PRESENTED_IMAGE_SIMPLE} />}
-                </div>
-
-                <div className="applications-analytics-card applications-analytics-wordmap-card">
-                    <Typography.Text strong>{t('operations.applications.challengesWordMap')}</Typography.Text>
-                    {challengeWords.length
-                        ? <div className="applications-analytics-wordmap">
-                            {challengeWords.map((item) => (
-                                <span
-                                    key={item.word}
-                                    className="applications-wordmap-word"
-                                    style={{ fontSize: `${12 + item.weight * 16}px`, color: `rgba(37, 99, 235, ${0.35 + item.weight * 0.65})` }}
-                                >
-                                    {item.word}
-                                </span>
-                            ))}
-                        </div>
-                        : <Empty description={t('operations.applications.noData')} image={Empty.PRESENTED_IMAGE_SIMPLE} />}
-                </div>
+        <ResponsiveModal open={canDecide && !!pendingUpdate} title={t('Decline application')} centered onClose={() => { setPendingUpdate(undefined); setRejectionReason('') }} footer={<Space style={{ display: 'flex', justifyContent: 'flex-end' }}><Button onClick={() => { setPendingUpdate(undefined); setRejectionReason('') }}>{t('Cancel')}</Button><Button type="primary" danger loading={saving} onClick={() => void confirmDecline()}>{t('Decline')}</Button></Space>}><strong>{pendingUpdate?.row.businessName}</strong><Input.TextArea style={{ marginTop: 12 }} rows={3} value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} placeholder={t('Reason for rejection')} maxLength={500} showCount /></ResponsiveModal>
+        <ResponsiveModal open={analyticsOpen} title={t('operations.applications.analytics')} centered width={760} onClose={() => setAnalyticsOpen(false)} className="applications-analytics-modal">
+            <div className="applications-analytics-scope">
+                <Typography.Text type="secondary">{dateRange ? `${dateRange[0].format('D MMM YYYY')} – ${dateRange[1].format('D MMM YYYY')}` : t('All dates')}</Typography.Text>
+                {dateRange && <Button type="link" size="small" onClick={() => setDateRange(null)}>{t('Clear dates')}</Button>}
             </div>
-        </Modal>
+            <div className="applications-analytics-tiles">
+                <div className="applications-analytics-tile"><span>{t('Received')}</span><strong>{analyticsRows.length}</strong></div>
+                <div className="applications-analytics-tile"><span>{t('Acceptance rate')}</span><strong>{acceptanceRate === null ? '—' : `${acceptanceRate}%`}</strong></div>
+                <div className="applications-analytics-tile"><span>{t('Median time to decision')}</span><strong>{formatDuration(medianDecisionHours, t)}</strong></div>
+                <div className="applications-analytics-tile"><span>{t('Longest waiting')}</span><strong>{formatDuration(oldestPendingHours, t)}</strong></div>
+                <div className="applications-analytics-tile"><span>{t('operations.applications.complianceScore')}</span><strong style={complianceAverage === null ? undefined : { color: complianceColor(complianceAverage) }}>{complianceAverage === null ? '—' : `${complianceAverage}%`}</strong></div>
+            </div>
+            <div className="applications-analytics-card">
+                <Typography.Text strong>{t('Applications per month')}</Typography.Text>
+                <Typography.Text type="secondary" className="applications-analytics-hint">{t('Last 12 months. Select a month to filter the list.')}</Typography.Text>
+                <div className="applications-months">
+                    {monthlySeries.map((bucket) => {
+                        const active = !!dateRange && dateRange[0].isSame(bucket.month, 'month') && dateRange[1].isSame(bucket.month.endOf('month'), 'day')
+                        return <button type="button" key={bucket.key} className={`applications-month${active ? ' is-active' : ''}${dateRange && (bucket.month.endOf('month').isBefore(dateRange[0]) || bucket.month.startOf('month').isAfter(dateRange[1])) ? ' is-outside' : ''}`} aria-pressed={active} title={`${bucket.month.format('MMMM YYYY')}: ${bucket.total}`} onClick={() => { setDateRange([bucket.month.startOf('month'), bucket.month.endOf('month')]); setStatus('All'); setAnalyticsOpen(false) }}>
+                            <span className="applications-month-total">{bucket.total || ''}</span>
+                            <span className="applications-month-track"><span className="applications-month-bar" style={{ height: `${(bucket.total / monthMax) * 100}%` }}>
+                                {(['Accepted', 'Pending', 'Rejected'] as const).map((key) => bucket[key] ? <span key={key} className={`applications-month-segment is-${key.toLowerCase()}`} style={{ flexGrow: bucket[key] }} /> : null)}
+                            </span></span>
+                            <span className="applications-month-label">{bucket.month.format('MMM')}{bucket.month.month() === 0 || bucket.key === monthlySeries[0].key ? <small>{bucket.month.format('YY')}</small> : null}</span>
+                        </button>
+                    })}
+                </div>
+                <div className="applications-month-legend"><span className="is-accepted">{t('operations.applications.accepted')}</span><span className="is-pending">{t('operations.applications.pending')}</span><span className="is-rejected">{t('operations.applications.rejected')}</span></div>
+            </div>
+            <div className="applications-analytics-grid">
+                {([['operations.applications.genderBreakdown', genderBreakdown], ['common.beeLevel', beeBreakdown], ['common.province', provinceBreakdown]] as const).map(([titleKey, items]) => (
+                    <div className="applications-analytics-card" key={titleKey}>
+                        <Typography.Text strong>{t(titleKey)}</Typography.Text>
+                        {items.length
+                            ? items.map((item) => (
+                                <div className="applications-analytics-bar-row" key={item.label}>
+                                    <span className="applications-analytics-bar-label" title={item.label}>{item.label}</span>
+                                    <Progress percent={item.percent} strokeColor={item.color} showInfo={false} size="small" />
+                                    <span className="applications-analytics-bar-value">{item.percent}% ({item.count})</span>
+                                </div>
+                            ))
+                            : <Empty description={t('operations.applications.noData')} image={Empty.PRESENTED_IMAGE_SIMPLE} />}
+                    </div>
+                ))}
+            </div>
+        </ResponsiveModal>
     </DashboardPage>
 }

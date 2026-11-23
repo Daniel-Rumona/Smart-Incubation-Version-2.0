@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Alert, App, Button, Col, Drawer, Form, Grid, Input, InputNumber, Radio, Row, Segmented, Space, Tooltip, Typography, Upload } from 'antd'
-import { CloseOutlined, DeleteOutlined, FileWordOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons'
+import { CloseOutlined, DeleteOutlined, FileWordOutlined, PlusOutlined, RobotOutlined, SaveOutlined } from '@ant-design/icons'
+import { AssessmentDraftModal } from '@/components/training/AssessmentDraftModal'
 import { MotionCard } from '@/components/shared/MotionCard'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { getTrainingAssessmentMemo, saveTrainingAssessment } from '@/services/trainingAssessmentService'
 import { useLanguage } from '@/providers/LanguageProvider'
 import { importAssessmentFromDocx } from '@/utils/trainingAssessmentImport'
+import { trainingAiAvailable, type DraftedQuestion } from '@/services/trainingAiService'
 import type { TrainingAssessment, TrainingAssessmentUse, TrainingQuestionType } from '@/types/training'
 
 /**
@@ -56,6 +58,7 @@ export const AssessmentEditorDrawer = ({ open, assessment, usedByClasses, onClos
     const [loadingMemo, setLoadingMemo] = useState(false)
     const [saving, setSaving] = useState(false)
     const [importing, setImporting] = useState(false)
+    const [drafting, setDrafting] = useState(false)
 
     useEffect(() => {
         if (!open || !user) return
@@ -121,6 +124,12 @@ export const AssessmentEditorDrawer = ({ open, assessment, usedByClasses, onClos
         }
     }
 
+    /** Drafted questions go after the ones already there (blank rows dropped), for the facilitator to check. */
+    const addDrafted = (drafted: DraftedQuestion[]) => {
+        const current = ((form.getFieldValue('questions') || []) as QuestionRow[]).filter((row) => row.text?.trim())
+        form.setFieldValue('questions', [...current, ...drafted.map((question) => toRow({ id: newId(), ...question }, question.memo))])
+    }
+
     const save = async () => {
         if (!user) return
         // The form shows what is missing (e.g. no option ticked as correct); nothing more to do until it is fixed.
@@ -181,9 +190,12 @@ export const AssessmentEditorDrawer = ({ open, assessment, usedByClasses, onClos
             onClose={onClose}
             destroyOnHidden
             extra={(
-                <Upload accept=".docx" showUploadList={false} beforeUpload={(file) => { void importDocument(file); return false }}>
-                    <Button icon={<FileWordOutlined />} loading={importing}>{t('Import from Word')}</Button>
-                </Upload>
+                <Space wrap>
+                    {trainingAiAvailable && <Button icon={<RobotOutlined />} disabled={loadingMemo} onClick={() => setDrafting(true)}>{t('Draft with AI')}</Button>}
+                    <Upload accept=".docx" showUploadList={false} beforeUpload={(file) => { void importDocument(file); return false }}>
+                        <Button icon={<FileWordOutlined />} loading={importing}>{t('Import from Word')}</Button>
+                    </Upload>
+                </Space>
             )}
             footer={(
                 <Space style={{ justifyContent: 'space-between', width: '100%' }} wrap>
@@ -349,6 +361,12 @@ export const AssessmentEditorDrawer = ({ open, assessment, usedByClasses, onClos
                     )}
                 </Form.List>
             </Form>
+            <AssessmentDraftModal
+                open={drafting}
+                existingQuestions={drafting ? ((form.getFieldValue('questions') || []) as QuestionRow[]).map((row) => row.text).filter(Boolean) : []}
+                onClose={() => setDrafting(false)}
+                onDrafted={addDrafted}
+            />
         </Drawer>
     )
 }

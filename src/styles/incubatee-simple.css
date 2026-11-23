@@ -1,0 +1,550 @@
+/* SME dashboard, Simple view: one centred column; on wide screens a quiet side panel sits beside it. */
+.sme-simple {
+    display: grid;
+    grid-template-columns: minmax(0, 620px);
+    justify-content: center;
+    gap: 24px;
+    padding: 8px 0 24px;
+}
+
+@media (min-width: 1200px) {
+    .sme-simple {
+        grid-template-columns: minmax(0, 620px) 260px;
+        align-items: start;
+    }
+
+    .sme-simple-side {
+        position: sticky;
+        top: 16px;
+    }
+}
+
+.sme-simple-greeting {
+    margin: 0 0 2px;
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--ant-color-text);
+}
+
+.sme-simple-summary {
+    margin: 0 0 16px;
+    font-size: 15px;
+    color: var(--ant-color-text-secondary);
+}
+
+.sme-simple-next {
+    padding: 18px 20px;
+    border: 2px solid var(--ant-color-primary);
+    border-radius: 16px;
+    background: var(--ant-color-bg-container);
+}
+
+.sme-simple-next.is-done {
+    border: 1px solid var(--ant-color-border-secondary);
+    text-align: center;
+}
+
+.sme-simple-done-icon {
+    font-size: 28px;
+    color: var(--ant-color-success);
+}
+
+.sme-simple-eyebrow {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: var(--ant-color-primary);
+}
+
+.sme-simple-next-body {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    margin-bottom: 16px;
+}
+
+.sme-simple-next-icon {
+    font-size: 24px;
+    line-height: 1;
+    color: var(--ant-color-primary);
+}
+
+.sme-simple-next h3 {
+    margin: 0 0 4px;
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--ant-color-text);
+}
+
+.sme-simple-next p {
+    margin: 0;
+    font-size: 15px;
+    color: var(--ant-color-text-secondary);
+}
+
+.sme-simple-next-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.sme-simple-list-title {
+    margin: 22px 0 4px;
+    font-size: 13px;
+    color: var(--ant-color-text-secondary);
+}
+
+.sme-simple-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.sme-simple-list li button {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 56px;
+    padding: 12px 4px;
+    border: none;
+    border-top: 1px solid var(--ant-color-border-secondary);
+    background: none;
+    color: var(--ant-color-text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.sme-simple-list li button:hover {
+    background: var(--ant-color-fill-quaternary);
+}
+
+.sme-simple-row-icon {
+    font-size: 20px;
+    color: var(--ant-color-text-secondary);
+}
+
+.sme-simple-row-text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+    font-size: 15px;
+}
+
+.sme-simple-row-text small {
+    font-size: 13px;
+    color: var(--ant-color-text-secondary);
+}
+
+.sme-simple-more {
+    display: block;
+    width: 100%;
+    margin-top: 4px;
+    padding: 12px 4px 0;
+    border: none;
+    border-top: 1px solid var(--ant-color-border-secondary);
+    background: none;
+    color: var(--ant-color-primary);
+    font: inherit;
+    font-size: 14px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.sme-simple-detail {
+    margin-top: 12px;
+}
+
+.sme-simple-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.sme-simple-metrics button {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 12px;
+    border: none;
+    border-radius: 10px;
+    background: var(--ant-color-fill-quaternary);
+    color: var(--ant-color-text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.sme-simple-metrics small {
+    font-size: 13px;
+    color: var(--ant-color-text-secondary);
+}
+
+.sme-simple-metrics strong {
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.sme-simple-nudge {
+    margin: 10px 0 0;
+    font-size: 13px;
+    color: var(--ant-color-text-secondary);
+}
+
+.sme-simple-side {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.sme-simple-side-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: var(--ant-color-fill-quaternary);
+    font-size: 14px;
+    color: var(--ant-color-text);
+}
+
+.sme-simple-side-card > span:not(.sme-simple-side-label) {
+    color: var(--ant-color-text-secondary);
+}
+
+.sme-simple-side-card .ant-progress,
+.sme-simple-side-card .ant-skeleton {
+    width: 100%;
+}
+
+.sme-simple-side-card > .ant-btn-link {
+    padding-inline: 0;
+}
+
+.sme-simple-side-card > .ant-btn-block {
+    margin-top: 6px;
+}
+
+.sme-simple-side-label {
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: var(--ant-color-text-secondary);
+}
+
+@media (max-width: 575px) {
+    .sme-simple-next-actions {
+        flex-direction: column;
+    }
+}
+
+/* Interventions tracker, Simple view: tasks on the left, the status of other support in a wider side column. */
+/* No side column (nothing in progress, coming up or done): keep the one column centred. */
+.sme-simple.is-tracker {
+    grid-template-columns: minmax(0, 620px);
+}
+
+@media (min-width: 1200px) {
+    .sme-simple.is-tracker.has-side {
+        grid-template-columns: minmax(0, 560px) 320px;
+    }
+}
+
+.sme-simple-title-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.sme-simple-title-row > span {
+    font-size: 14px;
+    color: var(--ant-color-text-secondary);
+}
+
+.sme-simple-overall {
+    margin: 2px 0 14px !important;
+}
+
+.sme-simple-next.is-done p {
+    margin-top: 4px;
+}
+
+.sme-simple-needs:not(:has(li)) {
+    display: none;
+}
+
+.sme-simple-tasks,
+.sme-simple-status {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.sme-simple-task {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 4px;
+    border-top: 1px solid var(--ant-color-border-secondary);
+}
+
+.sme-simple-task-icon {
+    font-size: 18px;
+    color: var(--ant-color-text-secondary);
+}
+
+.sme-simple-task-text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+    font-size: 14px;
+    color: var(--ant-color-text);
+}
+
+.sme-simple-task-text small {
+    font-size: 12px;
+    color: var(--ant-color-text-secondary);
+}
+
+.sme-simple-task-actions {
+    display: flex;
+    flex-shrink: 0;
+    gap: 6px;
+}
+
+.sme-simple-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 6px;
+    padding-top: 12px;
+    border-top: 1px solid var(--ant-color-border-secondary);
+}
+
+.sme-simple-more.is-inline {
+    display: inline-block;
+    width: auto;
+    margin: 0;
+    padding: 0;
+    border: none;
+}
+
+.sme-simple-side-card .sme-simple-status {
+    width: 100%;
+}
+
+.sme-simple-status li + li {
+    border-top: 1px solid var(--ant-color-border-secondary);
+}
+
+.sme-simple-status-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 0;
+    border: none;
+    background: none;
+    color: var(--ant-color-text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.sme-simple-status-row > .anticon {
+    font-size: 12px;
+    color: var(--ant-color-text-tertiary);
+}
+
+.sme-simple-status-row .ant-progress {
+    margin: 4px 0 0 !important;
+}
+
+.sme-simple-status-agent {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+}
+
+.sme-simple-status .sme-simple-row-text {
+    font-size: 14px;
+}
+
+.sme-simple-status .sme-simple-row-text small {
+    font-size: 12px;
+}
+
+.sme-simple-side-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+}
+
+.sme-simple-side-head .sme-simple-side-label {
+    margin-bottom: 0;
+}
+
+.sme-simple-done-tick {
+    color: var(--ant-color-success);
+}
+
+
+@media (max-width: 575px) {
+    .sme-simple-task {
+        flex-wrap: wrap;
+    }
+
+    .sme-simple-task-actions {
+        width: 100%;
+        padding-left: 30px;
+    }
+}
+
+/* "Show more detail" on the tracker: counts and search under the progress bar, a status line under every item. */
+.sme-simple-more-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.sme-simple-counts {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.sme-simple-counts > span {
+    display: flex;
+    flex-direction: column;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: var(--ant-color-fill-quaternary);
+}
+
+.sme-simple-counts small {
+    font-size: 12px;
+    color: var(--ant-color-text-secondary);
+}
+
+.sme-simple-counts strong {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--ant-color-text);
+}
+
+.sme-simple-no-match {
+    margin: 0;
+    font-size: 13px;
+    color: var(--ant-color-text-secondary);
+}
+
+small.sme-simple-detail-line,
+.sme-simple-row-text small.sme-simple-detail-line,
+.sme-simple-task-text small.sme-simple-detail-line {
+    display: block;
+    font-size: 12px;
+    color: var(--ant-color-text-tertiary);
+}
+
+@media (max-width: 575px) {
+    .sme-simple-counts {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.sme-simple-empty-icon {
+    font-size: 28px;
+    color: var(--ant-color-text-tertiary);
+}
+
+.sme-simple-next.is-done > .ant-btn {
+    margin-top: 14px;
+}
+
+/* Keyboard focus only, rounded and in the brand colour (no box after a mouse click). */
+.sme-simple-more:focus,
+.sme-simple-list li button:focus,
+.sme-simple-status-row:focus,
+.sme-simple-metrics button:focus {
+    outline: none;
+}
+
+.sme-simple-more:focus-visible,
+.sme-simple-list li button:focus-visible,
+.sme-simple-status-row:focus-visible,
+.sme-simple-metrics button:focus-visible {
+    outline: 2px solid var(--ant-color-primary);
+    outline-offset: 2px;
+    border-radius: 6px;
+}
+
+/* Compliance, Simple view. */
+.sme-simple-footer.is-end {
+    justify-content: flex-end;
+}
+
+.sme-simple-file-tools {
+    display: inline-flex;
+    flex-shrink: 0;
+    gap: 2px;
+}
+
+/* Application tracker, Simple view: the programme name, three plain steps, then what happens next. */
+.sme-simple-app-title {
+    margin: 0 0 14px;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.sme-simple-app-steps {
+    margin-bottom: 14px;
+}
+
+.sme-simple-app-next {
+    margin: 0 0 14px;
+    color: var(--ant-color-text-secondary);
+}
+
+.sme-simple-task-icon.is-accepted { color: var(--ant-color-success); }
+.sme-simple-task-icon.is-declined { color: var(--ant-color-error); }
+.sme-simple-task-icon.is-reviewing { color: var(--ant-color-warning); }
+
+/* Documents, Simple view. */
+.sme-simple-doc-search {
+    margin-bottom: 10px;
+}
+
+.sme-simple-doc-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sme-simple-status-row.is-active {
+    color: var(--ant-color-primary);
+    font-weight: 600;
+}
+
+/* Roadmap, Simple view: one centred column with the next step on top. */
+.roadmap-simple {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-width: 620px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.roadmap-simple .sme-simple-next .roadmap-suggestion-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}

@@ -49,15 +49,53 @@
 
 .risk-pagination { display: flex; justify-content: center; margin-top: 16px; }
 
-/* Detail modal. */
+/* Desktop list: one line per SME, opening in place. */
+.risk-list { border-top: 1px solid var(--ant-color-border-secondary); }
+.risk-list-head, .risk-list-row { display: grid; grid-template-columns: 8px minmax(0, 1.1fr) minmax(0, 1.8fr) 110px 120px 14px; gap: 14px; align-items: center; }
+.risk-list-head { padding: 8px 12px; color: var(--ant-color-text-tertiary); font-size: 12px; }
+.risk-list-item { border-bottom: 1px solid var(--ant-color-border-secondary); }
+.risk-list-item.is-open { background: var(--ant-color-fill-quaternary); }
+.risk-list-row { width: 100%; padding: 10px 12px; border: 0; background: transparent; color: var(--ant-color-text); text-align: left; cursor: pointer; transition: background-color 150ms ease; }
+.risk-list-row:focus-visible { outline: 2px solid var(--ant-color-primary); outline-offset: -2px; }
+@media (hover: hover) and (pointer: fine) { .risk-list-row:hover { background: var(--ant-color-fill-quaternary); } }
+.risk-list-cell { display: grid; align-content: center; min-width: 0; }
+.risk-list-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.risk-list-name .ant-typography { min-width: 0; }
+.risk-list-sub { font-size: 12px; }
+.risk-list-chevron { color: var(--ant-color-text-tertiary); font-size: 11px; transition: transform 200ms var(--risk-ease-out); }
+.risk-list-item.is-open .risk-list-chevron { transform: rotate(180deg); }
+.risk-list-detail { padding: 4px 12px 16px 34px; }
+.risk-metric-of { color: var(--ant-color-text-tertiary); font-size: 0.6em; font-weight: 400; }
+
+/* The row's status pill opens a small menu without toggling the row. */
+.risk-status-trigger { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: transparent; color: var(--ant-color-text-tertiary); font-size: 10px; cursor: pointer; }
+.risk-status-trigger:focus-visible { outline: 2px solid var(--ant-color-primary); outline-offset: 2px; border-radius: 4px; }
+
+/* Detail: the problems full width, then "What's being done" (the log and the update bar). */
 .risk-modal-title { display: flex; align-items: center; gap: 8px; min-width: 0; padding-right: 24px; }
 .risk-modal-title > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.risk-problem-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
-.risk-problem-list li { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 10px; background: var(--ant-color-fill-quaternary); }
+.risk-detail { display: grid; gap: 12px; min-width: 0; }
+.risk-problem-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.risk-problem-list li { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--ant-color-border-secondary); border-radius: 10px; background: var(--ant-color-bg-container); }
 .risk-problem-list li > .risk-dot { margin-top: 7px; }
-.risk-problem-list .ant-typography:last-child { margin: 2px 0 0; }
+.risk-problem-body { display: grid; flex: 1; gap: 2px; min-width: 0; }
+.risk-problem-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.risk-problem-context, .risk-problem-why { font-size: 12px; }
+.risk-problem-text { font-size: 13px; }
+.risk-log { display: grid; gap: 8px; margin-top: 4px; }
+.risk-log-title.ant-typography { font-size: 13px; }
+.risk-log-worse, .risk-log-meta, .risk-log-empty { font-size: 12px; }
+.risk-log-list { display: grid; gap: 10px; margin: 0 0 0 4px; padding: 0 0 0 12px; border-left: 2px solid var(--ant-color-border); list-style: none; }
+.risk-log-list li { display: grid; gap: 2px; font-size: 13px; }
+.risk-log-more.ant-btn { justify-self: start; height: auto; padding: 0; }
+.risk-log-composer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.risk-log-status { flex: none; width: 120px; }
+.risk-log-note { flex: 1 1 220px; min-width: 0; }
+.risk-log-date { flex: none; width: 140px; }
+@media (max-width: 767px) { .risk-log-status, .risk-log-date { flex: 1 1 120px; } }
+.risk-detail-next { display: flex; justify-content: flex-end; }
 
 @media (prefers-reduced-motion: reduce) {
-  .risk-chip, .risk-card { transition: none; }
+  .risk-chip, .risk-card, .risk-list-row, .risk-list-chevron { transition: none; }
   .risk-chip:active, .risk-card:active { transform: none; }
 }

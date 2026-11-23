@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Avatar,
   Button,
@@ -35,6 +36,7 @@ import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
 import ResponsiveModal from '@/components/shared/ResponsiveModal'
+import { buildRiskReasons, RiskReasonList, RiskReasonTags } from '@/components/director/SmeRiskReasons'
 import { ThemedHighcharts } from '@/components/shared/ThemedHighcharts'
 import { useActiveProgramId } from '@/hooks/useActiveProgramId'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
@@ -47,6 +49,7 @@ import '@/styles/director.css'
 import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 const { useBreakpoint } = Grid
+type FollowUp = 'unresponsive' | 'overdue'
 const DESKTOP_PAGE_SIZE = 8
 const MOBILE_PAGE_SIZE = 5
 
@@ -104,9 +107,19 @@ export const DirectorPortfolioPage = () => {
   // Funder organisations only: the implementor picked next to the programme selector.
   const { activeImplementor } = useActiveImplementor()
 
+  // The dashboard's "Needs your attention" links arrive with ?risk=High or ?followUp=unresponsive|overdue.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const initialRisk = searchParams.get('risk')
+  const initialFollowUp = searchParams.get('followUp')
+
   const [queryText, setQueryText] = useState('')
   const [sector, setSector] = useState<string | undefined>(undefined)
-  const [risk, setRisk] = useState<DirectorRisk | undefined>(undefined)
+  const [risk, setRisk] = useState<DirectorRisk | undefined>(
+    initialRisk === 'High' || initialRisk === 'Medium' || initialRisk === 'Low' ? initialRisk : undefined,
+  )
+  const [followUp, setFollowUp] = useState<FollowUp | undefined>(
+    initialFollowUp === 'unresponsive' || initialFollowUp === 'overdue' ? initialFollowUp : undefined,
+  )
   const [stage, setStage] = useState<DirectorStage | undefined>(undefined)
   const [rows, setRows] = useState<DirectorPortfolioSme[]>([])
   const [loading, setLoading] = useState(false)
@@ -147,9 +160,19 @@ export const DirectorPortfolioPage = () => {
         sme.sector.toLowerCase().includes(text) ||
         String(sme.programName || '').toLowerCase().includes(text)
 
-      return matchText && (!sector || sme.sector === sector) && (!risk || sme.risk === risk) && (!stage || sme.stage === stage)
+      const matchFollowUp = !followUp || sme.execution[followUp] > 0
+
+      return matchText && matchFollowUp && (!sector || sme.sector === sector) && (!risk || sme.risk === risk) && (!stage || sme.stage === stage)
     })
-  }, [queryText, rows, sector, risk, stage])
+  }, [followUp, queryText, rows, sector, risk, stage])
+
+  // Clearing a filter that came from the URL drops it from the URL too, so a refresh doesn't bring it back.
+  const setUrlFilter = (key: 'risk' | 'followUp', value: string | undefined) => {
+    if (!searchParams.has(key) || searchParams.get(key) === value) return
+    const next = new URLSearchParams(searchParams)
+    next.delete(key)
+    setSearchParams(next, { replace: true })
+  }
 
   const kpis = useMemo(() => {
     const total = filtered.length
@@ -166,7 +189,7 @@ export const DirectorPortfolioPage = () => {
     pageKey: 'director-portfolio',
     pageName: 'Director Portfolio',
     purpose: 'Track SME performance, risk and progress with director-level drilldowns.',
-    currentFilters: { queryText, sector, risk, stage },
+    currentFilters: { queryText, sector, risk, stage, followUp },
     metrics: kpis,
     dataSummary: { visibleSmes: filtered.length },
   })
@@ -213,7 +236,19 @@ export const DirectorPortfolioPage = () => {
       sorter: (a, b) => a.name.localeCompare(b.name),
     },
     { title: t('Stage'), dataIndex: 'stage', key: 'stage', width: 140, render: value => <Tag color={stageColor(value)}>{value}</Tag> },
-    { title: t('Risk'), dataIndex: 'risk', key: 'risk', width: 110, render: value => <Tag color={riskColor(value)}>{value}</Tag> },
+    {
+      title: t('Risk'),
+      dataIndex: 'risk',
+      key: 'risk',
+      width: 200,
+      // The rating, then the top reasons behind it (the full list is in the SME's performance view).
+      render: (value: DirectorRisk, row) => (
+        <Space direction="vertical" size={4}>
+          <Tag color={riskColor(value)} style={{ marginInlineEnd: 0 }}>{value}</Tag>
+          <RiskReasonTags sme={row} max={2} />
+        </Space>
+      ),
+    },
     {
       title: t('Progress'),
       dataIndex: 'progress',
@@ -258,6 +293,7 @@ export const DirectorPortfolioPage = () => {
         <Tag color={statusColor(row.status)}>{row.status}</Tag>
         {row.programName && <Tag>{row.programName}</Tag>}
       </Space>
+      <RiskReasonTags sme={row} max={2} />
       <Progress percent={row.progress} size="small" status={row.risk === 'High' ? 'exception' : row.progress >= 80 ? 'success' : 'active'} />
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
         <span className="director-muted">{t('Revenue')}</span>
@@ -315,12 +351,27 @@ export const DirectorPortfolioPage = () => {
               value={risk}
               onChange={value => {
                 setRisk(value)
+                setUrlFilter('risk', value)
                 setPage(1)
               }}
               options={[
                 { value: 'Low', label: t('Low') },
                 { value: 'Medium', label: t('Medium') },
                 { value: 'High', label: t('High') },
+              ]}
+            />
+            <Select
+              allowClear
+              placeholder={t('Follow-up')}
+              value={followUp}
+              onChange={(value?: FollowUp) => {
+                setFollowUp(value)
+                setUrlFilter('followUp', value)
+                setPage(1)
+              }}
+              options={[
+                { value: 'unresponsive', label: t('Support not accepted (7+ days)') },
+                { value: 'overdue', label: t('Has overdue interventions') },
               ]}
             />
             <Select
@@ -420,6 +471,15 @@ export const DirectorPortfolioPage = () => {
                 <DashboardMetricCard icon={<CheckCircleOutlined />} iconClassName="is-participants" label={t('Progress')} value={`${selected.progress}%`} />
               </Col>
             </Row>
+
+            {buildRiskReasons(selected).length > 0 && (
+              <div style={{ marginTop: 16 }}>
+                <div style={{ fontWeight: 600, marginBottom: 10 }}>
+                  {t('What needs attention')} · <Tag color={riskColor(selected.risk)} style={{ marginInlineEnd: 0 }}>{selected.risk} {t('risk')}</Tag>
+                </div>
+                <RiskReasonList sme={selected} />
+              </div>
+            )}
 
             <Row gutter={[12, 12]} style={{ marginTop: 12 }}>
               <Col xs={24} md={14}>

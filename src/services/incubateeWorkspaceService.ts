@@ -4,6 +4,7 @@ import { buildFollowUpFields, deliverableBlockReason } from '@/services/interven
 import { loadProgramDocumentRequirements, requirementKeyFor } from '@/config/complianceDocuments'
 import { loadDefinitions } from '@/services/interventionDefinitionLookup'
 import type { FullIdentity } from '@/types/identity'
+import { isExternalWork } from '@/hooks/useSupportScope'
 import { readSwotItems } from '@/utils/swotOutcomes'
 import { hasWorkStarted, type InterventionChangeKind } from '@/utils/interventionStart'
 import type { IncubateeFormAssignment, IncubateeIntervention, IncubateeInterventionAppointment, IncubateeInterventionRequest, IncubateeNotification, IncubateeRequiredIntervention, IncubateeResource, IncubateeWorkspace } from '@/types/incubatee'
@@ -123,7 +124,9 @@ export const loadIncubateeWorkspace = async (user: FullIdentity): Promise<Incuba
     if (!area) return
     ;[row.interventionId, row.id, row.title].map(cleanKey).filter(Boolean).forEach(key => supportAreaByIntervention.set(key, area))
   })
-  const mappedAssignments = assignments.docs.map((document) => {
+  // An SME who also has help outside the programme sees only the programme's work here; the rest is under External support.
+  const programmeOnly = Boolean(user.hasExternalSupport)
+  const mappedAssignments = assignments.docs.filter((document) => !programmeOnly || !isExternalWork(document.data())).map((document) => {
     const row = { id: document.id, ...document.data() } as LooseDocument
     const snapshot = (row.snapshot || {}) as Record<string, unknown>
     return {

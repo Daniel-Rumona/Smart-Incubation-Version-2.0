@@ -516,7 +516,7 @@ export const ConsultantReportsPage = () => {
     const formatDate = (date: Date | null) => (date ? dayjs(date).format('DD MMM YYYY') : '-')
     const statusTag = (row: ReportRow) => {
         const key = statusKeyOf(row)
-        return <Tag variant="borderless" style={{ marginInlineEnd: 0 }}><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 999, background: colors[key], marginInlineEnd: 6 }} />{statusLabels[key]}</Tag>
+        return <Tag variant="filled" style={{ marginInlineEnd: 0 }}><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 999, background: colors[key], marginInlineEnd: 6 }} />{statusLabels[key]}</Tag>
     }
 
     const assignmentColumns: ColumnsType<ReportRow> = [

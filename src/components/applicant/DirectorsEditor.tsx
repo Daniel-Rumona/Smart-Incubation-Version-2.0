@@ -99,7 +99,7 @@ export default function DirectorsEditor({ directors, onChange, self, primaryDire
                 role: primary.role, sharePercent: primary.sharePercent,
             } : {}),
             id: editing === 'new' ? newId() : (editing as string),
-            gender: genderFromSaIdNumber(isPrimary ? primary.idNumber : values.idNumber) || previous?.gender,
+            gender: genderFromSaIdNumber(isPrimary ? primary.idNumber : values.idNumber) || previous?.gender || values.gender,
         }
         const next = editing === 'new'
             ? [...directors, nextDirector]

@@ -107,6 +107,7 @@ type DirectorSettingsFormValues = {
     assignmentModel: DirectorSettingsInput['assignmentModel']
     smeDivisionModel?: DirectorSettingsInput['smeDivisionModel']
     interventionScopeModel: DirectorSettingsInput['interventionScopeModel']
+    teamSize: NonNullable<DirectorSettingsInput['teamSize']>
 }
 
 type TypingMessageProps = {
@@ -547,6 +548,7 @@ export const WelcomePage = () => {
             assignmentModel: values.assignmentModel,
             ...(values.assignmentModel === 'consultant_self_assign' ? { smeDivisionModel: values.smeDivisionModel } : {}),
             interventionScopeModel: values.interventionScopeModel,
+            teamSize: values.teamSize,
         }
         try {
             setSavingDirector(true)
@@ -1132,6 +1134,7 @@ export const WelcomePage = () => {
                                     smeOnboardingModel: 'self_application',
                                     assignmentModel: 'ops_assign_consultant',
                                     interventionScopeModel: 'program_specific',
+                                    teamSize: 'small',
                                 }}
                             >
                                 <section className="welcome-settings-section">
@@ -1143,6 +1146,13 @@ export const WelcomePage = () => {
 
                                 <section className="welcome-settings-section">
                                     <h5>{t('Company structure')}</h5>
+                                    {/* Working alone: this account also gets the operations role, so one login can run the programme. */}
+                                    <Form.Item name="teamSize" label={t('Who runs the programme day to day?')} rules={[{ required: true }]}>
+                                        <OptionCards options={[
+                                            { value: 'solo', label: t('Just me'), description: t('You oversee and run it from this one account') },
+                                            { value: 'small', label: t('With a team'), description: t('Your staff run it from their own accounts') },
+                                        ]} />
+                                    </Form.Item>
                                     <Form.Item name="hasDepartments" label={t('Does your company have departments?')} rules={[{ required: true }]}>
                                         <OptionCards options={[
                                             { value: 'yes', label: t('Yes'), description: t('Teams such as Finance or Programmes') },

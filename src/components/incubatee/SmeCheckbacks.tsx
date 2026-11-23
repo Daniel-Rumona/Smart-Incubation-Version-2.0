@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { App, Button, Input, Segmented, Typography } from 'antd'
-import { SyncOutlined } from '@ant-design/icons'
+import { QuestionCircleOutlined, SyncOutlined } from '@ant-design/icons'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { useLanguage } from '@/providers/LanguageProvider'
 import { SME_CHECKBACK_ANSWERS, recordSmeCheckback, smeCheckbackRound, type SmeCheckbackAnswer } from '@/services/smeCheckbackService'
@@ -9,13 +9,17 @@ import type { IncubateeIntervention } from '@/types/incubatee'
 type Props = {
     interventions: IncubateeIntervention[]
     onAnswered: () => void
+    /** 'rows' (the tracker's Simple view): one `<li>` per check-back with the answers as buttons, sent straight away. */
+    variant?: 'card' | 'rows'
+    /** Rows only: which check-back round it is, under each. */
+    showDetail?: boolean
 }
 
 /**
  * "Has this change happened?" for each completed intervention whose check-back is open to the SME. Their answer sits
  * beside the facilitator's (it never changes the official result) and feeds Impact analysis. Shown only when one is open.
  */
-export function SmeCheckbacks({ interventions, onAnswered }: Props) {
+export function SmeCheckbacks({ interventions, onAnswered, variant = 'card', showDetail = false }: Props) {
     const { t } = useLanguage()
     const { message } = App.useApp()
     const { user } = useFullIdentity()
@@ -29,8 +33,7 @@ export function SmeCheckbacks({ interventions, onAnswered }: Props) {
 
     if (!open.length || !user) return null
 
-    const send = async (item: IncubateeIntervention, round: number) => {
-        const answer = answers[item.id]
+    const send = async (item: IncubateeIntervention, round: number, answer = answers[item.id]) => {
         if (!answer) return
         try {
             setSaving(item.id)
@@ -42,6 +45,31 @@ export function SmeCheckbacks({ interventions, onAnswered }: Props) {
         } finally {
             setSaving(undefined)
         }
+    }
+
+    if (variant === 'rows') {
+        return <>
+            {open.map(({ item, round }) => {
+                const definition = (item.raw.outcomeDefinition || {}) as { intendedOutcome?: string }
+                return (
+                    <li key={item.id} className="sme-simple-task">
+                        <QuestionCircleOutlined className="sme-simple-task-icon" aria-hidden="true" />
+                        <span className="sme-simple-task-text">
+                            <span>{t('Did "{title}" help?', undefined, { title: item.title })}</span>
+                            <small>{definition.intendedOutcome
+                                ? t('It set out to: {change}', undefined, { change: definition.intendedOutcome })
+                                : t('From what you see in your business, has this change happened?')}</small>
+                            {showDetail && <small className="sme-simple-detail-line">{t('Check-back {round}', undefined, { round })}</small>}
+                        </span>
+                        <span className="sme-simple-task-actions">
+                            {SME_CHECKBACK_ANSWERS.map((option) => (
+                                <Button key={option.value} size="small" disabled={saving === item.id} onClick={() => void send(item, round, option.value)}>{t(option.label)}</Button>
+                            ))}
+                        </span>
+                    </li>
+                )
+            })}
+        </>
     }
 
     return (

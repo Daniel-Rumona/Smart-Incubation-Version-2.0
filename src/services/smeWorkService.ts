@@ -4,6 +4,7 @@ import type { AssignedIntervention } from '@/contexts/AssignedInterventionsConte
 import { deriveConsultantStatus, progressForAssignment } from '@/pages/consultant/ConsultantWorkspaceUtils'
 import { buildFollowUpFields, deliverableBlockReason } from '@/services/interventionOutcomeConfig'
 import type { FullIdentity } from '@/types/identity'
+import { isExternalWork } from '@/hooks/useSupportScope'
 import type { FirestoreDate } from '@/types/interventions'
 
 /*
@@ -65,7 +66,11 @@ export const loadSmeWork = async (user: FullIdentity): Promise<SmeWork[]> => {
     }
     const snaps = await Promise.all([...ids].map((id) => getDocs(query(collection(db, 'assignedInterventions'), where('participantId', '==', id)))))
     const seen = new Map<string, SmeWork>()
-    snaps.flatMap((snap) => snap.docs).forEach((row) => {
+    // An accepted SME with help outside their programme sees one side at a time: External support shows the work
+    // they arranged themselves (no programme), their programme shows the programme's work.
+    const split = Boolean(user.acceptedSme && user.hasExternalSupport)
+    const wantExternal = user.supportScope === 'external'
+    snaps.flatMap((snap) => snap.docs).filter((row) => !split || isExternalWork(row.data()) === wantExternal).forEach((row) => {
         const item = toSmeWork(row.id, row.data() as Record<string, unknown>)
         if (item) seen.set(row.id, item)
     })

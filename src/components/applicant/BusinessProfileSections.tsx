@@ -40,6 +40,8 @@ type BusinessProfileSectionsProps = {
     form: FormInstance<ApplicantProfileFormValues>
     values: ApplicantProfileFormValues
     email: string
+    /** The signed-in SME's uid, which identifies them among the directors. */
+    primaryDirectorUid: string
     requiredFields: FieldName[]
     editing: BusinessProfileSectionKey | null
     onEdit: (section: BusinessProfileSectionKey | null) => void
@@ -49,7 +51,7 @@ type BusinessProfileSectionsProps = {
     saving: boolean
 }
 
-export default function BusinessProfileSections({ form, values, email, requiredFields, editing, onEdit, onValuesChange, onSave, saving }: BusinessProfileSectionsProps) {
+export default function BusinessProfileSections({ form, values, email, primaryDirectorUid, requiredFields, editing, onEdit, onValuesChange, onSave, saving }: BusinessProfileSectionsProps) {
     const { t } = useLanguage()
     // What the section held when editing began, so Cancel can put it back.
     const [before, setBefore] = useState<ApplicantProfileFormValues>({})
@@ -150,7 +152,7 @@ export default function BusinessProfileSections({ form, values, email, requiredF
                             return (
                                 <section key={section.key} id={`business-profile-${section.key}`} className="business-profile-section">
                                     {sectionHead(section)}
-                                    <DirectorsEditor directors={values.directors || []} onChange={saveDirectors} self={selfAsDirector(values)} saving={saving} />
+                                    <DirectorsEditor directors={values.directors || []} onChange={saveDirectors} self={selfAsDirector(values)} primaryDirectorUid={primaryDirectorUid} saving={saving} />
                                 </section>
                             )
                         }

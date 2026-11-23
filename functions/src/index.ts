@@ -13,7 +13,7 @@ import { acceptPlan, MarketplaceError, notifyChange, nudgeUnanswered, type Marke
 import { AvailableWorkError, claimAvailableWork, listAvailableWork } from './availableWork.js'
 import { FunderComplianceError, funderComplianceSummary } from './funderCompliance.js'
 import { runSmeCheckbackAsks } from './smeCheckbacks.js'
-import { DirectorSetupError, completeDirectorSetup } from './directorSetup.js'
+import { DirectorSetupError, completeDirectorSetup, setDirectorTeamSize } from './directorSetup.js'
 import { REGISTRATION_NOTIFY_EMAIL, isOrganisationStaff, notifyCompletedRegistration, notifyFirstOrganisationStaff, requestOrganisationAccess, reviewOrganisationAccess } from './organisationAccess.js'
 import {
   FUNDER_LINKS, FUNDER_ORGS, FunderOrgError, confirmFunderOrganisation, createInvitedFunderOrganisation, endLinksForDeletedProgramme,
@@ -28,10 +28,13 @@ import { autoMarkSubmission, isNewlyHandedIn } from './trainingMarking.js'
 import { CLIENT_ORG_ROLE, canInviteFunder, canInviteOrganisationMember, canReuseAccountAsFunder, canReuseAccountAsOrgMember, funderInviteWording, orgMemberInviteWording, toOrgRole } from './trainingOrganisations.js'
 import { ClientFunderError, clientFunderSummary } from './clientFunderSummary.js'
 import { DemoRequestError, submitDemoRequestHandler } from './demoRequests.js'
+import { ChaseError, chaseSme } from './riskChases.js'
 import { JoinError, buildConfirmedSetPlan, enrolInDirectProgram, forcedProgramInterventions, getProgramLinkInfo, joinProgram, type JoinInput } from './programJoin.js'
 import {
   processWhatsAppInboundEvent,
   processWhatsAppMessageStatusEvent,
+  sendRiskChaseAlert,
+  sendRiskChaseDeliveryTemplate,
   sendSmeCheckbackTemplate,
   sendWhatsAppAlert,
   whatsappWebhookHandler,
@@ -1020,6 +1023,53 @@ async function proxyAiEndpoint(path: string, request: Request) {
   }
 }
 
+/**
+ * No email goes out on Saturday or Sunday (South African time). Mail queued then is held and sent on Monday
+ * morning by releaseWeekendMail, except:
+ * - account access (password resets, verification, new-account set-password links), which goes now: those links
+ *   expire and the person is locked out until they arrive;
+ * - daily digests, which are dropped: Monday's run covers the same ground, so held copies would only pile up.
+ */
+const WEEKEND_SEND_ANYWAY_SOURCES = new Set([
+  'requestBrandedVerificationEmail',
+  'requestBrandedPasswordReset',
+  'sendForgotPasswordEmail',
+  'sendUserVerificationEmail',
+  'createPlatformUser',
+  'createParticipantAccount',
+  'createManagedUser',
+  'walk_in',
+])
+const WEEKEND_DROP_SOURCES = new Set(['interventionDeadlineDigest'])
+
+const isSouthAfricanWeekend = (at = new Date()) => {
+  const weekday = new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Johannesburg', weekday: 'short' }).format(at)
+  return weekday === 'Sat' || weekday === 'Sun'
+}
+
+async function holdWeekendMail(mailId: string, data: MailRecord) {
+  const source = String(data.source || 'mail')
+  if (WEEKEND_SEND_ANYWAY_SOURCES.has(source) || !isSouthAfricanWeekend()) return false
+
+  const dropped = WEEKEND_DROP_SOURCES.has(source)
+  const status = dropped ? 'skipped' : 'held'
+  const reason = dropped ? 'weekend_digest_dropped' : 'weekend_hold'
+  const db = getFirestore()
+  await db.collection('mail').doc(mailId).set(
+    { delivery: { status, reason, [dropped ? 'skippedAt' : 'heldAt']: FieldValue.serverTimestamp() } },
+    { merge: true },
+  )
+  await db.collection('emailDeliveryLogs').add({
+    mailId,
+    source,
+    status,
+    reason,
+    recipients: Array.from(new Set([...normalizeRecipients(data.to), ...normalizeRecipients(data.cc), ...normalizeRecipients(data.bcc)].map(normalizeEmail).filter(Boolean))),
+    createdAt: FieldValue.serverTimestamp(),
+  })
+  return true
+}
+
 export const sendQueuedMail = onDocumentCreated(
   {
     document: 'mail/{mailId}',
@@ -1028,6 +1078,8 @@ export const sendQueuedMail = onDocumentCreated(
   async event => {
     const data = event.data?.data() as MailRecord | undefined
     if (!data) return
+
+    if (await holdWeekendMail(event.params.mailId, data)) return
 
     try {
       await sendMailRecord(event.params.mailId, data)
@@ -1044,6 +1096,31 @@ export const sendQueuedMail = onDocumentCreated(
       )
       throw error
     }
+  },
+)
+
+/** Monday 07:00 South African time: send the mail held over the weekend, oldest first. */
+export const releaseWeekendMail = onSchedule(
+  { schedule: '0 7 * * 1', timeZone: 'Africa/Johannesburg', region, timeoutSeconds: 540 },
+  async () => {
+    const db = getFirestore()
+    const held = await db.collection('mail').where('delivery.status', '==', 'held').get()
+    const docs = held.docs.sort((a, b) => (a.get('createdAt')?.toMillis?.() || 0) - (b.get('createdAt')?.toMillis?.() || 0))
+    let sent = 0
+    let failed = 0
+    for (const doc of docs) {
+      try {
+        await sendMailRecord(doc.id, doc.data() as MailRecord)
+        sent += 1
+      } catch (error) {
+        failed += 1
+        await doc.ref.set(
+          { delivery: { status: 'failed', error: error instanceof Error ? error.message : String(error), failedAt: FieldValue.serverTimestamp() } },
+          { merge: true },
+        )
+      }
+    }
+    console.log('[releaseWeekendMail]', { held: docs.length, sent, failed })
   },
 )
 
@@ -2147,6 +2224,8 @@ export const updatePlatformUser = onRequest({ region }, (request, response) => {
       const status = payload.status === 'inactive' ? 'inactive' : 'active'
       try {
         await getAuth().updateUser(uid, { displayName: name || undefined, disabled: status === 'inactive' })
+        // Deactivating also ends sessions already open: their sign-in tokens stop refreshing.
+        if (status === 'inactive') await getAuth().revokeRefreshTokens(uid)
       } catch (error) {
         if ((error as { code?: string })?.code === 'auth/user-not-found') {
           jsonResponse(response, 404, { ok: false, error: 'user_not_found' })
@@ -2555,6 +2634,8 @@ async function updateManagedUserCallable(request: LegacyCallableRequest<UpdateUs
   const name = String(payload.name || '').trim()
   const status = payload.status === 'inactive' ? 'inactive' : 'active'
   await getAuth().updateUser(uid, { displayName: name || undefined, disabled: status === 'inactive' })
+  // Deactivating also ends sessions already open: their sign-in tokens stop refreshing.
+  if (status === 'inactive') await getAuth().revokeRefreshTokens(uid)
   const updates = {
     name,
     displayName: name,
@@ -2857,6 +2938,21 @@ export const completeDirectorCompanySetup = onCall({ region }, async request => 
   const email = String(request.auth?.token?.email || '').toLowerCase()
   try {
     return { ok: true, ...(await completeDirectorSetup(getFirestore(), uid, email, (request.data || {}) as Record<string, never>)) }
+  } catch (error) {
+    if (error instanceof DirectorSetupError) {
+      const map = { invalid: 'invalid-argument', forbidden: 'permission-denied', conflict: 'already-exists', not_found: 'not-found' } as const
+      throw new HttpsError(map[error.code], error.message)
+    }
+    throw error
+  }
+})
+
+/** A director says who runs the programme (just them, or a team); working alone gives their account the operations role too. */
+export const updateDirectorTeamSize = onCall({ region }, async request => {
+  const uid = request.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'not_authenticated')
+  try {
+    return { ok: true, ...(await setDirectorTeamSize(getFirestore(), uid, (request.data || {}).teamSize)) }
   } catch (error) {
     if (error instanceof DirectorSetupError) {
       const map = { invalid: 'invalid-argument', forbidden: 'permission-denied', conflict: 'already-exists', not_found: 'not-found' } as const
@@ -4143,3 +4239,20 @@ export const nudgeUnansweredConnectionRequests = onSchedule(
 )
 
 export { adminStorageList, adminStorageOverview, adminStorageMeasure, adminStorageFileUrl, adminStorageDelete } from './storageBrowser.js'
+
+// ---------------------------------------------------------------------------
+// Risk register: chase an SME in the app and on WhatsApp (see riskChases.ts)
+// ---------------------------------------------------------------------------
+
+export const chaseSmeFromRiskRegister = onCall({ region }, async (request) => {
+  try {
+    return await chaseSme(getFirestore(), request.auth?.uid, (request.data || {}) as Record<string, unknown>, {
+      appUrl: getAppBaseUrl(),
+      sendAlert: sendRiskChaseAlert,
+      sendDeliveryTemplate: sendRiskChaseDeliveryTemplate,
+    })
+  } catch (error) {
+    if (error instanceof ChaseError) throw new HttpsError(error.code, error.message)
+    throw error
+  }
+})

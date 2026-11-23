@@ -107,11 +107,11 @@ const SLIDES: PlayerSlide[] = [
   {
     kind: 'screen',
     title: 'Readiness scored by explicit rules',
-    lead: 'The Control Tower scores each SME for funding and market readiness against stated criteria.',
+    lead: 'The Readiness Hub scores each SME for funding and market readiness against stated criteria.',
     icon: <DashboardOutlined />,
     accent: '#38bdf8',
     image: '/pitch/control-tower.jpg',
-    alt: 'The SME Control Tower for a test SME: revenue, compliance and growth-plan cards, and funding and market readiness checklists.',
+    alt: 'The SME Readiness Hub for a test SME: revenue, compliance and growth-plan cards, and funding and market readiness checklists.',
     points: [
       { icon: <CheckCircleOutlined />, text: 'Ready means every required gate is met and the score is 75 or more.', tone: 'good' },
       { icon: <SafetyCertificateOutlined />, text: 'Each gate shows as met, pending or missing, with the reason.', tone: 'info' },

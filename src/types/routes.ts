@@ -23,6 +23,8 @@ export type AppRoute = {
   trainingSmesOnly?: boolean
   /** Only listed in the menu once the SME has at least one intervention document. */
   showInNavWhenHasDocuments?: boolean
+  /** Accepted SMEs: also in the menu while they view External support (their own consultants and agents). */
+  sharedWithExternalSupport?: boolean
   /** Independent SMEs (no programme) only see it in the menu and top bar once they've applied to a programme. */
   showInNavWhenHasApplications?: boolean
   /** Independent SMEs (who chose consultants and agents) only see it in the menu once they ask to see programmes. */

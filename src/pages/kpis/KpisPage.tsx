@@ -596,7 +596,7 @@ export const KpisPage = () => {
                     <span className="kpi-card-value">{formatValue(kpi.unit, row.group === 'company' ? actual.value : shownValue(row))}</span>
                     <span className="kpi-card-target">
                         {targetText(row)}
-                        {target?.source === 'programme' && <Tag variant="borderless" className="kpi-card-source">{t('Programme target')}</Tag>}
+                        {target?.source === 'programme' && <Tag variant="filled" className="kpi-card-source">{t('Programme target')}</Tag>}
                     </span>
                 </div>
 

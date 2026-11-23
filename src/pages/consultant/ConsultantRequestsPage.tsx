@@ -170,7 +170,7 @@ export const ConsultantRequestsPage = () => {
                                     <Text type="secondary">{facts(request)}</Text>
                                     {(lastMessage(request)?.text || request.note) && <Text type="secondary" className="marketplace-request-quote">“{lastMessage(request)?.text || request.note}”</Text>}
                                 </div>
-                                <Tag variant="borderless" color={waitsOnConsultant(request) && request.status === 'contacted' ? 'gold' : connectionStatusColor[request.status]} className="marketplace-request-tag">
+                                <Tag variant="filled" color={waitsOnConsultant(request) && request.status === 'contacted' ? 'gold' : connectionStatusColor[request.status]} className="marketplace-request-tag">
                                     {waitsOnConsultant(request) && request.status === 'contacted' ? t('Waiting for your reply') : t(connectionStatusText(request.status, 'consultant', request.declinedBy))}
                                 </Tag>
                             </div>
@@ -183,7 +183,7 @@ export const ConsultantRequestsPage = () => {
                 {selected && (
                     <Space direction="vertical" size={16} style={{ width: '100%' }}>
                         <Space wrap size={8}>
-                            <Tag variant="borderless" color={connectionStatusColor[selected.status]}>{t(connectionStatusText(selected.status, 'consultant', selected.declinedBy))}</Tag>
+                            <Tag variant="filled" color={connectionStatusColor[selected.status]}>{t(connectionStatusText(selected.status, 'consultant', selected.declinedBy))}</Tag>
                             <Text type="secondary">{facts(selected)}</Text>
                         </Space>
                         {selected.plan && (

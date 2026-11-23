@@ -54,7 +54,7 @@ const compactRand = (value: number) => (Math.abs(value) >= 1_000_000
 /** A green, red or neutral tag for a change; `suffix` is "%" for revenue and empty for people. */
 const ChangeTag = ({ value, suffix = '%' }: { value: number | null, suffix?: string }) => {
     if (value === null) return <Typography.Text type="secondary">—</Typography.Text>
-    return <Tag color={value > 0 ? 'green' : value < 0 ? 'red' : undefined} variant="borderless">{signed(value)}{suffix}</Tag>
+    return <Tag color={value > 0 ? 'green' : value < 0 ? 'red' : undefined} variant="filled">{signed(value)}{suffix}</Tag>
 }
 
 export default function ImpactAnalysisPage() {

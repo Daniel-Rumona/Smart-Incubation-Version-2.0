@@ -109,15 +109,15 @@ const DirectorDashboard: React.FC = () => {
             </div>
         )
     const kpiCell = (row: DirectorProgrammeRow) => row.kpis.withTarget
-        ? <Tag variant="borderless" color={row.kpis.behind ? 'orange' : 'green'}>{kpiText(row.kpis)}</Tag>
+        ? <Tag variant="filled" color={row.kpis.behind ? 'orange' : 'green'}>{kpiText(row.kpis)}</Tag>
         : <Typography.Text type="secondary">—</Typography.Text>
     const growthCell = (row: DirectorProgrammeRow) => row.revenueGrowth === null
         ? <Typography.Text type="secondary">—</Typography.Text>
-        : <Tag variant="borderless" color={row.revenueGrowth > 0 ? 'green' : row.revenueGrowth < 0 ? 'red' : undefined}>{signed(row.revenueGrowth)}%</Tag>
+        : <Tag variant="filled" color={row.revenueGrowth > 0 ? 'green' : row.revenueGrowth < 0 ? 'red' : undefined}>{signed(row.revenueGrowth)}%</Tag>
     const flagsCell = (row: DirectorProgrammeRow) => (
         <span className="director-flags">
-            {row.overdue > 0 && <Tag variant="borderless" color="red">{t('{count} overdue', undefined, { count: row.overdue })}</Tag>}
-            {row.highRisk > 0 && <Tag variant="borderless" color="orange">{t('{count} high risk', undefined, { count: row.highRisk })}</Tag>}
+            {row.overdue > 0 && <Tag variant="filled" color="red">{t('{count} overdue', undefined, { count: row.overdue })}</Tag>}
+            {row.highRisk > 0 && <Tag variant="filled" color="orange">{t('{count} high risk', undefined, { count: row.highRisk })}</Tag>}
             {!row.overdue && !row.highRisk && <Typography.Text type="secondary">—</Typography.Text>}
         </span>
     )
@@ -133,7 +133,11 @@ const DirectorDashboard: React.FC = () => {
 
     // Programmes with SMEs or overdue work; brand-new empty ones are left to Programme performance.
     const activeProgrammes = (data?.programmes || []).filter((row) => row.smes > 0 || row.overdue > 0)
-    const showProgrammes = pageLoading || activeProgrammes.length > 1
+    // While loading, only commit to a layout we already know: one programme selected always shows its KPIs.
+    // With "All programmes" the answer depends on the data, so a plain skeleton stands in until it arrives.
+    const layoutUnknown = pageLoading && isAllPrograms
+    const showProgrammes = !pageLoading && activeProgrammes.length > 1
+    const showKpis = !layoutUnknown && !showProgrammes
 
     return (
         <DashboardPage className="director-dashboard-page">
@@ -225,7 +229,6 @@ const DirectorDashboard: React.FC = () => {
                                 rowKey="id"
                                 rows={activeProgrammes}
                                 columns={columns}
-                                loading={pageLoading}
                                 emptyText={t('No programmes with SMEs yet.')}
                                 onRowClick={() => navigate('/director/programs')}
                                 rowClassName={() => 'director-programme-row'}
@@ -248,9 +251,15 @@ const DirectorDashboard: React.FC = () => {
                     </Col>
                 )}
                 {/* One programme in view: its KPIs take the place of the programmes table. */}
-                {!showProgrammes && (
+                {layoutUnknown && (
+                    <Col xs={24} xl={15}>
+                        <Card loading className="dashboard-section-card motion-card" />
+                    </Col>
+                )}
+                {showKpis && (
                     <Col xs={24} xl={15}>
                         <Card
+                            loading={pageLoading}
                             className="dashboard-section-card motion-card"
                             title={t('KPI status')}
                             extra={<Typography.Link onClick={() => navigate('/kpis')}>{t('KPIs')} <ArrowRightOutlined /></Typography.Link>}

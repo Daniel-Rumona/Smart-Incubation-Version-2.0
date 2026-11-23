@@ -6,11 +6,12 @@ import {
     Dropdown,
     Grid,
     Layout,
-    Modal,
+    Popover,
     Segmented,
     Select,
     Space,
     Tag,
+    Tooltip,
     Typography,
 } from 'antd'
 import {
@@ -28,7 +29,11 @@ import {
     FolderOpenOutlined,
     ArrowRightOutlined,
     IdcardOutlined,
+    LayoutOutlined,
     SunOutlined,
+    TeamOutlined,
+    ToolOutlined,
+    FundOutlined,
     UserOutlined,
 } from '@ant-design/icons'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
@@ -43,7 +48,8 @@ import { LANGUAGES, type LanguageCode } from '@/config/languages'
 import { USER_ROLES, type UserRole } from '@/config/roles'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import type { AppRoute } from '@/types/routes'
-import type { FullIdentity, IdentityPermission, WorkspaceAudience } from '@/types/identity'
+import type { FullIdentity, IdentityPermission, UiMode, WorkspaceAudience } from '@/types/identity'
+import { useUiMode } from '@/hooks/useUiMode'
 import { logoutUser } from '@/services/authService'
 import { profilePathForUser } from '@/services/companiesService'
 import { getFirebaseDb, isFirebaseConfigured } from '@/config/firebase'
@@ -65,6 +71,9 @@ import { useEntitlements } from '@/hooks/useEntitlements'
 import { SystemLayoutTopbarContext, type SystemLayoutPageChrome } from '@/contexts/SystemLayoutTopbarContext'
 import { WorkspaceShellProvider } from '@/contexts/WorkspaceShellContext'
 import { ALL_PROGRAMS, setActiveProgramId, useActiveProgramId } from '@/hooks/useActiveProgramId'
+import { setSupportScope } from '@/hooks/useSupportScope'
+import { setDirectorWorkspace, type DirectorWorkspace } from '@/hooks/useDirectorWorkspace'
+import { findParticipant } from '@/services/incubateeWorkspaceService'
 import { ALL_COMPANIES, setActiveCompanyCode, useActiveCompanyCode } from '@/hooks/useActiveCompanyCode'
 import { setActiveImplementor, useActiveImplementor } from '@/hooks/useActiveImplementor'
 import { ALL_IMPLEMENTORS, isOrgFunder, loadDataScope, type ScopeEntry } from '@/services/funderScopeService'
@@ -181,6 +190,9 @@ const navigationDescription = (route: AppRoute, label: string) => {
 }
 
 /** Everything a Training SME's menu holds: their programme only delivers a set list, so no plans, metrics or tracker. */
+// Team pages a one-person company has no use for (companies/{code}.teamSize === 'solo'): staff tasks and management,
+// and the department/office structure, on both the operations and director sides.
+const SOLO_HIDDEN_PATHS = new Set(['/shared/staff', '/shared/staff/tasks', '/shared/staff/manage', '/operations/structure', '/director/structure'])
 const TRAINING_SME_PATHS = new Set(['/incubatee', '/incubatee/roadmap', '/incubatee/lms', '/incubatee/compliance', '/incubatee/appointments'])
 const TRAINING_SME_QUICK_LINK_PATHS = ['/incubatee/roadmap', '/incubatee/lms', '/incubatee/appointments', '/incubatee/compliance']
 
@@ -246,7 +258,7 @@ const filterRoutesByAudience = (
         const children = route.children
             ? filterRoutesByAudience(route.children, audience, role, permissions, user)
             : undefined
-        const isVisible = (!route.audiences || route.audiences.includes(audience))
+        const isVisible = (!route.audiences || route.audiences.includes(audience) || (route.sharedWithExternalSupport && user?.supportScope === 'external'))
             && (!role || route.allowedRoles.includes(role))
             && (!route.requiredPermission || (!!role && hasRolePermission(role, route.requiredPermission, permissions)))
             && (!route.platformOwnerOnly || canAccessPlatformOwnerRoute(user))
@@ -270,6 +282,7 @@ export const SystemLayout = () => {
     const { t, language, setLanguage } = useLanguage()
     const { mode, toggleTheme } = useThemeMode()
     const { user, loading: identityLoading } = useFullIdentity()
+    const { mode: uiMode, setMode: setUiMode } = useUiMode()
     const { settings, ready: settingsReady } = useSystemSettings()
     const entitlements = useEntitlements()
     const { message } = App.useApp()
@@ -288,6 +301,8 @@ export const SystemLayout = () => {
     const [implementors, setImplementors] = useState<ScopeEntry[]>([])
     // An accepted SME whose programmes are all Training gets the small workspace (see TRAINING_SME_PATHS).
     const isTrainingSme = user?.role === 'incubatee' && !user.isApplicant && programs.length > 0 && programs.every(isTrainingProgram)
+    // The director said they run the programme alone (team size at setup, or Company settings).
+    const soloCompany = settings.teamSize === 'solo'
     // Courses join a Training SME's menu once at least one is set up for them.
     const [hasCourses, setHasCourses] = useState(false)
     useEffect(() => {
@@ -357,6 +372,18 @@ export const SystemLayout = () => {
     })
     const showCompanySelector = isPlatformAdmin(user)
     const isSmeWorkspace = user?.role === 'incubatee'
+
+    // The programme an accepted SME was accepted into, named in their programme / External support switch.
+    const [smeProgrammeName, setSmeProgrammeName] = useState('')
+    const showsSupportScope = Boolean(user?.acceptedSme && user.hasExternalSupport)
+    useEffect(() => {
+        if (!showsSupportScope || !user) return
+        let cancelled = false
+        findParticipant(user)
+            .then((participant) => { if (!cancelled) setSmeProgrammeName(String(participant?.programName || '')) })
+            .catch(() => undefined)
+        return () => { cancelled = true }
+    }, [showsSupportScope, user?.uid]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Independent SMEs only see the documents library once they have something in it.
     const checkDocuments = user?.role === 'incubatee' && user.isApplicant && user.smeJourney === 'independent'
@@ -541,11 +568,13 @@ export const SystemLayout = () => {
                     && !(route.requiredSetting && clientModuleSettings.has(route.requiredSetting))
                     && !clientModule?.keepPaths.includes(route.path)
                 const nothingAssignedHides = route.path === '/operations/interventions/assigned' && !hasOwnAssignments
-                return [{ ...route, children, ...(trainingHides || clientHides || nothingAssignedHides ? { showInNav: false } : {}) }]
+                // A one-person company has no team to manage or structure; those pages leave the menu (links still work).
+                const soloHides = soloCompany && SOLO_HIDDEN_PATHS.has(route.path)
+                return [{ ...route, children, ...(trainingHides || clientHides || nothingAssignedHides || soloHides ? { showInNav: false } : {}) }]
             })
 
         return applyAgentDeliveryAccess(routes)
-    }, [agentSupportMode, audience, clientModule, currentRoleCanDeliver, hasCourses, hasOwnAssignments, hideHumanDelivery, isTrainingSme, settings, user])
+    }, [agentSupportMode, audience, clientModule, currentRoleCanDeliver, hasCourses, hasOwnAssignments, hideHumanDelivery, isTrainingSme, settings, soloCompany, user])
     const selectedKey = useMemo(() => {
         return findSelectedRouteKey(visibleRoutes, location.pathname) || '/'
     }, [location.pathname, visibleRoutes])
@@ -684,7 +713,27 @@ export const SystemLayout = () => {
 
     // Learners, client companies and the funders of a training company have no programmes to pick between.
     const hasNoProgrammes = user?.role === USER_ROLES.LEARNER || user?.role === USER_ROLES.CLIENT_ORG || isClientFunder
-    const programmeSelector = showCompanySelector ? companySelector : isSmeWorkspace || hasNoProgrammes ? null : singleProgramTag ?? (
+    // An accepted SME who also gets help outside their programme switches between the two here:
+    // their programme (the incubatee workspace) or External support (their own consultants, agents and marketplace).
+    const supportScopeSelector = user?.acceptedSme && user.hasExternalSupport ? (
+        <Select
+            value={user.supportScope === 'external' ? 'external' : 'programme'}
+            onChange={(value: 'programme' | 'external') => {
+                setSupportScope(value)
+                navigate(value === 'external' ? '/applicant/dashboard' : '/incubatee')
+            }}
+            id="guide-scope-selector"
+            className="app-project-select"
+            popupMatchSelectWidth={false}
+            aria-label={t('Programme or external support')}
+            prefix={user.supportScope === 'external' ? <TeamOutlined className="app-scope-icon" /> : <FolderOpenOutlined className="app-scope-icon" />}
+            options={[
+                { value: 'programme', label: smeProgrammeName || t('My programme') },
+                { value: 'external', label: t('External support') },
+            ]}
+        />
+    ) : null
+    const programmeSelector = showCompanySelector ? companySelector : supportScopeSelector ?? (isSmeWorkspace || hasNoProgrammes ? null : singleProgramTag ?? (
         <Select
             value={activeProgramId}
             onChange={setActiveProgramId}
@@ -697,7 +746,7 @@ export const SystemLayout = () => {
                 label: project.name,
             }))}
         />
-    )
+    ))
     // A funder organisation picks an implementor and a programme from one control: implementors first, then that
     // implementor's programmes. Two dropdowns side by side pushed the page names out of the top bar.
     const implementorValue = implementors.some((entry) => entry.companyCode === activeImplementor) ? activeImplementor : ALL_IMPLEMENTORS
@@ -727,7 +776,29 @@ export const SystemLayout = () => {
             displayRender={(labels) => labels.join(' · ')}
         />
     ) : null
-    const projectSelector = scopeSelector ?? programmeSelector
+    // A director who runs the programme alone switches between overseeing it and running it (same account, two roles).
+    const workspaceSwitch = user?.baseRole === 'director' && user.secondRole === 'operations' ? (
+        <Segmented<DirectorWorkspace>
+            className="app-workspace-switch"
+            size="small"
+            value={user.actingAs === 'operations' ? 'operations' : 'overview'}
+            onChange={(value) => {
+                setDirectorWorkspace(value)
+                // Each side has its own home; land there rather than on a page the other side can't open.
+                navigate(value === 'operations' ? '/operations' : '/director')
+            }}
+            aria-label={t('Oversee or run the programme')}
+            options={[
+                // Short labels so the switch stays small beside the programme picker; the tooltips say what each side is.
+                { value: 'overview', icon: <FundOutlined />, label: <Tooltip title={t('See how the programme is going')}>{t('Oversee')}</Tooltip> },
+                { value: 'operations', icon: <ToolOutlined />, label: <Tooltip title={t('Approve applications, assign support and record progress')}>{t('Run')}</Tooltip> },
+            ]}
+        />
+    ) : null
+    const scopeControl = scopeSelector ?? programmeSelector
+    const projectSelector = workspaceSwitch
+        ? <span className="app-workspace-and-scope">{workspaceSwitch}{scopeControl}</span>
+        : scopeControl
 
     // Your uploaded profile photo on the account button, or the person icon when there is none.
     const profilePhoto = user?.profileImageUrl || null
@@ -889,6 +960,123 @@ export const SystemLayout = () => {
     // Agentic mode has no page to name, so the brand stays primary there.
     const showLocationCrumb = shellMode === 'workspace' && Boolean(currentLocationLabel)
 
+    // Account and settings: a dropdown under the top-bar account button.
+    const accountPanel = (
+        <div className="app-account-panel">
+            <div className="app-account-panel-header">
+                <span className="app-account-avatar">
+                    {user?.profileImageUrl
+                        ? <img src={user.profileImageUrl} alt={t('Profile')} />
+                        : companyLogoUrl ? <img className="is-logo" src={companyLogoUrl} alt={t('Company logo')} /> : <UserOutlined />}
+                </span>
+                <span className="app-account-title-copy">
+                    <strong>{user?.displayName || user?.name || t('Account')}</strong>
+                    {user?.role && <span className="app-account-role">{ROLE_LABELS[user.role] ? t(ROLE_LABELS[user.role]!) : user.role}</span>}
+                </span>
+            </div>
+
+            <div className="app-account-section">
+                <div className="app-account-row">
+                    <span className="app-account-row-label"><GlobalOutlined /> {t('Language')}</span>
+                    <Segmented
+                        size="small"
+                        value={language}
+                        onChange={(value) => setLanguage(value as LanguageCode)}
+                        options={Object.entries(LANGUAGES).map(([value, label]) => ({ value, label }))}
+                    />
+                </div>
+
+                <div className="app-account-row">
+                    <span className="app-account-row-label">{mode === 'dark' ? <MoonOutlined /> : <SunOutlined />} {t('Appearance')}</span>
+                    {/* Same compact control as Language, showing the current choice rather than the other one. */}
+                    <Segmented
+                        size="small"
+                        value={mode}
+                        onChange={(value) => { if (value !== mode) toggleTheme() }}
+                        options={[
+                            { value: 'light', label: t('common.lightMode', 'Light'), icon: <SunOutlined /> },
+                            { value: 'dark', label: t('common.darkMode', 'Dark'), icon: <MoonOutlined /> },
+                        ]}
+                    />
+                </div>
+
+                {/* Every SME (applicants too) picks Simple or Full view for their pages; saved on their account. */}
+                {user?.role === 'incubatee' && (
+                    <div className="app-account-row">
+                        <span className="app-account-row-label"><LayoutOutlined /> {t('View')}</span>
+                        <Segmented
+                            size="small"
+                            value={uiMode}
+                            onChange={(value) => {
+                                setUiMode(value as UiMode).catch(() => message.error(t('Your view could not be saved. Try again.')))
+                            }}
+                            options={[
+                                { value: 'simple', label: t('Simple') },
+                                { value: 'full', label: t('Full') },
+                            ]}
+                        />
+                    </div>
+                )}
+
+                {/* How this device remembers the sign-in (the same choice as on the sign-in form). */}
+                <div className="app-account-row">
+                    <span className="app-account-row-label"><LockOutlined /> {t('On this device')}</span>
+                    <Select<SignInPreference>
+                        size="small"
+                        value={rememberChoice}
+                        popupMatchSelectWidth={false}
+                        aria-label={t('On this device')}
+                        onChange={(value) => { setRememberChoice(value); void applySignInPreference(value) }}
+                        options={[
+                            { value: 'ask', label: t('Ask me each time') },
+                            { value: 'keep', label: t('Keep me signed in') },
+                            { value: 'session', label: t("Don't remember me") },
+                        ]}
+                    />
+                </div>
+            </div>
+
+            <div className="app-account-actions">
+                {isMobile && (
+                    <Button
+                        block
+                        icon={<CompassOutlined />}
+                        onClick={() => { setAccountOpen(false); setGuideOpen(true) }}
+                    >
+                        {t('Guide me')}
+                    </Button>
+                )}
+
+                {/* Funder organisations: the programmes they fund and inviting a colleague. */}
+                <FunderOrgAccountActions user={user} onOpen={() => setAccountOpen(false)} />
+
+                <Button block icon={<IdcardOutlined />} onClick={() => { setAccountOpen(false); navigate(profilePathForUser(user)) }}>{t('My profile')}</Button>
+
+                <Button
+                    block
+                    danger
+                    icon={<LogoutOutlined />}
+                    onClick={() => void handleLogout()}
+                >
+                    {t('Logout')}
+                </Button>
+            </div>
+        </div>
+    )
+    const accountDropdown = (trigger: ReactNode) => (
+        <Popover
+            open={accountOpen}
+            onOpenChange={setAccountOpen}
+            trigger="click"
+            placement="bottomRight"
+            arrow={false}
+            rootClassName="app-account-popover"
+            content={accountPanel}
+        >
+            {trigger}
+        </Popover>
+    )
+
     return (
         <PageGuideProvider>
             <WorkspaceShellProvider value={openWorkspace}>
@@ -969,13 +1157,15 @@ export const SystemLayout = () => {
                                         <NotificationBell />
 
                                         {/* Log out lives in the account panel on phones too. */}
-                                        <Button
-                                            type="text"
-                                            icon={accountIcon}
-                                            onClick={() => setAccountOpen(true)}
-                                            className="app-icon-btn"
-                                            aria-label={t('Account and settings')}
-                                        />
+                                        {accountDropdown(
+                                            <Button
+                                                type="text"
+                                                icon={accountIcon}
+                                                className="app-icon-btn"
+                                                aria-label={t('Account and settings')}
+                                                aria-expanded={accountOpen}
+                                            />,
+                                        )}
                                     </Space>
                                 ) : (
                                     <Space size={8} className="app-topbar-actions">
@@ -991,14 +1181,16 @@ export const SystemLayout = () => {
 
                                         {shellMode === 'workspace' && (showAssistant ? <AgentFab placement="topbar" /> : user?.role === USER_ROLES.CLIENT_ORG ? <CompanyGuide /> : null)}
 
-                                        <Button
-                                            type="text"
-                                            shape="circle"
-                                            icon={accountIcon}
-                                            onClick={() => setAccountOpen(true)}
-                                            className="app-icon-btn"
-                                            aria-label={t('Account and settings')}
-                                        />
+                                        {accountDropdown(
+                                            <Button
+                                                type="text"
+                                                shape="circle"
+                                                icon={accountIcon}
+                                                className="app-icon-btn"
+                                                aria-label={t('Account and settings')}
+                                                aria-expanded={accountOpen}
+                                            />,
+                                        )}
                                     </Space>
                                 )}
                             </header>
@@ -1081,92 +1273,6 @@ export const SystemLayout = () => {
                         </Layout>
                     </Layout>
 
-                    <Modal
-                        open={accountOpen}
-                        title={
-                            <div className="app-account-modal-title">
-                                <span className="app-account-avatar">
-                                    {user?.profileImageUrl
-                                        ? <img src={user.profileImageUrl} alt={t('Profile')} />
-                                        : companyLogoUrl ? <img className="is-logo" src={companyLogoUrl} alt={t('Company logo')} /> : <UserOutlined />}
-                                </span>
-                                <span className="app-account-title-copy">
-                                    <strong>{user?.displayName || user?.name || t('Account')}</strong>
-                                    {user?.role && <span className="app-account-role">{ROLE_LABELS[user.role] ? t(ROLE_LABELS[user.role]!) : user.role}</span>}
-                                </span>
-                            </div>
-                        }
-                        footer={null}
-                        width={420}
-                        onCancel={() => setAccountOpen(false)}
-                        className="app-account-modal"
-                    >
-                        <div className="app-account-section">
-                            <div className="app-account-row">
-                                <span className="app-account-row-label"><GlobalOutlined /> {t('Language')}</span>
-                                <Segmented
-                                    value={language}
-                                    onChange={(value) => setLanguage(value as LanguageCode)}
-                                    options={Object.entries(LANGUAGES).map(([value, label]) => ({ value, label }))}
-                                />
-                            </div>
-
-                            <div className="app-account-row">
-                                <span className="app-account-row-label">{mode === 'dark' ? <MoonOutlined /> : <SunOutlined />} {t('Appearance')}</span>
-                                {/* Same compact control as Language, showing the current choice rather than the other one. */}
-                                <Segmented
-                                    value={mode}
-                                    onChange={(value) => { if (value !== mode) toggleTheme() }}
-                                    options={[
-                                        { value: 'light', label: t('common.lightMode', 'Light'), icon: <SunOutlined /> },
-                                        { value: 'dark', label: t('common.darkMode', 'Dark'), icon: <MoonOutlined /> },
-                                    ]}
-                                />
-                            </div>
-
-                            {/* How this device remembers the sign-in (the same choice as on the sign-in form). */}
-                            <div className="app-account-row">
-                                <span className="app-account-row-label"><LockOutlined /> {t('On this device')}</span>
-                                <Select<SignInPreference>
-                                    value={rememberChoice}
-                                    popupMatchSelectWidth={false}
-                                    aria-label={t('On this device')}
-                                    onChange={(value) => { setRememberChoice(value); void applySignInPreference(value) }}
-                                    options={[
-                                        { value: 'ask', label: t('Ask me each time') },
-                                        { value: 'keep', label: t('Keep me signed in') },
-                                        { value: 'session', label: t("Don't remember me") },
-                                    ]}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="app-account-actions">
-                            {isMobile && (
-                                <Button
-                                    block
-                                    icon={<CompassOutlined />}
-                                    onClick={() => { setAccountOpen(false); setGuideOpen(true) }}
-                                >
-                                    {t('Guide me')}
-                                </Button>
-                            )}
-
-                            {/* Funder organisations: the programmes they fund and inviting a colleague. */}
-                            <FunderOrgAccountActions user={user} onOpen={() => setAccountOpen(false)} />
-
-                            <Button block icon={<IdcardOutlined />} onClick={() => { setAccountOpen(false); navigate(profilePathForUser(user)) }}>{t('My profile')}</Button>
-
-                            <Button
-                                block
-                                danger
-                                icon={<LogoutOutlined />}
-                                onClick={() => void handleLogout()}
-                            >
-                                {t('Logout')}
-                            </Button>
-                        </div>
-                    </Modal>
                     {/* Centred modal on desktop, bottom sheet on phones (thumb reach, full width). */}
                     <ResponsiveModal
                         open={navigationOpen}

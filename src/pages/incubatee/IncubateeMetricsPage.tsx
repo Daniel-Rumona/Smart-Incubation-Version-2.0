@@ -1,1317 +1,552 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-    Alert,
-    Button,
-    Card,
-    Col,
-    DatePicker,
-    Form,
-    Grid,
-    InputNumber,
-    message,
-    Modal,
-    Progress,
-    Row,
-    Segmented,
-    Select,
-    Space,
-    Table,
-    Typography,
-    Upload,
-} from "antd";
+    Alert, App, Button, Card, Col, DatePicker, Empty, Form, Grid, InputNumber,
+    Modal, Progress, Row, Segmented, Select, Skeleton, Space, Tag, Typography, Upload,
+    theme,
+} from 'antd'
 import {
-    BarChartOutlined,
-    CalendarOutlined,
-    CheckCircleFilled,
-    DollarCircleOutlined,
-    LineChartOutlined,
-    PlusOutlined,
-    SaveOutlined,
-    ShoppingCartOutlined,
-    TableOutlined,
-    TeamOutlined,
-    UsergroupAddOutlined,
-} from "@ant-design/icons";
-import { Helmet } from "react-helmet";
+    ArrowDownOutlined, ArrowRightOutlined, ArrowUpOutlined, BarChartOutlined,
+    CalendarOutlined, CheckCircleFilled, ClockCircleOutlined,
+    CloseOutlined, CloudUploadOutlined, DollarCircleOutlined, FileTextOutlined, LineChartOutlined,
+    PaperClipOutlined, ReloadOutlined, ShopOutlined, TeamOutlined, UsergroupAddOutlined,
+} from '@ant-design/icons'
+import { Helmet } from 'react-helmet'
 import {
-    collection,
-    doc,
-    getDoc,
-    getDocs,
-    orderBy,
-    query,
-    setDoc,
-    Timestamp,
-    where,
-} from "firebase/firestore";
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
-import dayjs, { Dayjs } from "dayjs";
-import Highcharts from "highcharts";
-import { auth, db, storage } from "@/firebase";
-import { MotionCard } from "@/components/shared/MotionCard";
-import DashboardPage from "@/components/shared/DashboardPage";
-import DashboardMetricCard from "@/components/shared/DashboardMetricCard";
-import { FilterBar } from "@/components/shared/FilterBar";
-import { ThemedHighcharts } from "@/components/shared/ThemedHighcharts";
-import "@/styles/incubatee.css";
+    collection, doc, getDoc, getDocs, orderBy, query, setDoc,
+    serverTimestamp, where,
+} from 'firebase/firestore'
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
+import dayjs, { type Dayjs } from 'dayjs'
+import type { UploadFile } from 'antd/es/upload/interface'
+import type Highcharts from 'highcharts'
+import { auth, db, storage } from '@/firebase'
+import DashboardPage from '@/components/shared/DashboardPage'
+import { ThemedHighcharts } from '@/components/shared/ThemedHighcharts'
 import { tr, useLanguage } from '@/providers/LanguageProvider'
-import { ModalActions } from '@/components/shared/ModalActions'
+import '@/styles/monthly-performance.css'
 
-const { Text } = Typography;
-const { useBreakpoint } = Grid;
+const { Text } = Typography
+const { useBreakpoint } = Grid
 
-Highcharts.setOptions({ credits: { enabled: false } });
-
-type ViewKey = "data" | "analytics";
-type SectionKey = "revenue" | "employees" | "sales" | "traffic" | "networking";
+type SectionKey = 'revenue' | 'employees' | 'sales' | 'traffic' | 'networking'
+type View = 'overview' | 'history' | 'analytics'
+type Metrics = {
+    revenue?: number
+    headPermanent?: number
+    headTemporary?: number
+    orders?: number
+    customers?: number
+    traffic?: number
+    networking?: number
+}
+type MonthlyRecord = Metrics & {
+    id: string
+    month: string
+    reportedSections?: SectionKey[]
+    revenueProofUrls?: string[]
+    employeeProofUrls?: string[]
+    createdAt?: unknown
+    updatedAt?: unknown
+}
+type Participant = {
+    id: string
+    createdAt?: unknown
+    revenueHistory?: { monthly?: Record<string, number> }
+    headcountHistory?: { monthly?: Record<string, { permanent?: number; temporary?: number }> }
+}
+type ReportForm = Metrics & {
+    monthKey: string
+    revenueProof?: UploadFile[]
+    employeeProof?: UploadFile[]
+}
+const SECTION_ITEMS: { key: SectionKey; icon: React.ReactNode; title: string; description: string; fields: (keyof Metrics)[] }[] = [
+    { key: 'revenue', icon: <DollarCircleOutlined />, title: 'Revenue', description: 'Monthly turnover and financial evidence', fields: ['revenue'] },
+    { key: 'employees', icon: <TeamOutlined />, title: 'Employment', description: 'Permanent and temporary jobs', fields: ['headPermanent', 'headTemporary'] },
+    { key: 'sales', icon: <ShopOutlined />, title: 'Sales & customers', description: 'Orders and customers acquired', fields: ['orders', 'customers'] },
+    { key: 'traffic', icon: <LineChartOutlined />, title: 'Website traffic', description: 'Visits recorded this month', fields: ['traffic'] },
+    { key: 'networking', icon: <UsergroupAddOutlined />, title: 'Networking', description: 'Business events attended', fields: ['networking'] },
+]
+const ALL_MONTHS = Array.from({ length: 12 }, (_, i) => dayjs().month(i).format('MMMM'))
+const monthId = (date: Dayjs) => date.format('MMMM YYYY')
+const monthDate = (month: string) => {
+    const parts = month.trim().split(/\s+/)
+    const index = ALL_MONTHS.indexOf(parts[0])
+    const year = Number(parts[1])
+    if (index < 0 || !Number.isInteger(year) || year < 2000 || year > 2100) return null
+    return dayjs(new Date(year, index, 1))
+}
+const dateFrom = (value: unknown): Dayjs | null => {
+    if (!value) return null
+    const item = value as { toDate?: () => Date; seconds?: number; _seconds?: number }
+    const raw = typeof item.toDate === 'function' ? item.toDate()
+        : typeof item.seconds === 'number' ? new Date(item.seconds * 1000)
+            : typeof item._seconds === 'number' ? new Date(item._seconds * 1000)
+                : value
+    const parsed = dayjs(raw as string | number | Date)
+    return parsed.isValid() ? parsed : null
+}
+const numberOrNull = (value: unknown): number | null =>
+    value === undefined || value === null || value === '' || !Number.isFinite(Number(value)) ? null : Number(value)
+const money = (value: number | null | undefined) => value == null ? 'Not reported' : `R${value.toLocaleString('en-ZA', { maximumFractionDigits: 0 })}`
+const count = (value: number | null | undefined) => value == null ? 'Not reported' : value.toLocaleString('en-ZA')
+const monthWindow = (from: Dayjs, to: Dayjs) => {
+    const result: string[] = []
+    for (let m = from.startOf('month'); !m.isAfter(to, 'month'); m = m.add(1, 'month')) result.push(monthId(m))
+    return result
+}
+const resolveParticipant = async (uid: string, email: string): Promise<Participant | null> => {
+    const direct = await getDoc(doc(db, 'participants', uid))
+    if (direct.exists()) return { id: direct.id, ...direct.data() } as Participant
+    const lookups: [string, string][] = [
+        ['uid', uid], ['userId', uid], ['participantId', uid], ['ownerUid', uid],
+        ['email', email], ['email', email.toLowerCase()],
+    ]
+    // A lookup the rules can't prove (e.g. an email in different case, or unverified) is skipped, not fatal.
+    const safeDocs = (field: string, coll: string, value: string) =>
+        getDocs(query(collection(db, coll), where(field, '==', value))).then(s => s.docs).catch(() => [])
+    for (const [key, value] of lookups) {
+        const found = await safeDocs(key, 'participants', value)
+        if (found.length) return { id: found[0].id, ...found[0].data() } as Participant
+    }
+    for (const [key, value] of [['uid', uid], ['userId', uid], ['email', email]]) {
+        const found = { docs: await safeDocs(key, 'applications', value) }
+        for (const app of found.docs) {
+            const info = app.data()
+            const pid = String(info.participantId || info.businessProfileId || info.applicantProfileId || '')
+            if (!pid) continue
+            const participant = await getDoc(doc(db, 'participants', pid))
+            if (participant.exists()) return { id: participant.id, ...participant.data() } as Participant
+        }
+    }
+    const business = await getDoc(doc(db, 'businessProfiles', uid))
+    return business.exists() ? { id: business.id, ...business.data() } as Participant : null
+}
 
 /**
- * An SME rarely has every figure to hand in the same month, so uploads start by choosing
- * what is actually being reported. Only the chosen sections are asked for and written,
- * which keeps "not reported" distinct from a genuine zero.
+ * The files attached to an evidence field, listed full width under the amount and its upload button (which sit side
+ * by side). Removing one updates the form field the Upload reads, so the two never disagree.
  */
-const METRIC_SECTIONS: Array<{ key: SectionKey; label: string; hint: string; icon: React.ReactNode; fields: string[] }> = [
-    { key: "revenue", get label() { return tr('Revenue') }, get hint() { return tr('Turnover plus a bank statement') }, icon: <DollarCircleOutlined />, fields: ["revenue"] },
-    { key: "employees", get label() { return tr('Employees') }, get hint() { return tr('Permanent and temporary headcount') }, icon: <TeamOutlined />, fields: ["headPermanent", "headTemporary"] },
-    { key: "sales", get label() { return tr('Orders and customers') }, get hint() { return tr('Orders submitted, new customers') }, icon: <ShoppingCartOutlined />, fields: ["orders", "customers"] },
-    { key: "traffic", get label() { return tr('Website traffic') }, get hint() { return tr('Visits recorded for the month') }, icon: <LineChartOutlined />, fields: ["traffic"] },
-    { key: "networking", get label() { return tr('Networking') }, get hint() { return tr('Events attended this month') }, icon: <UsergroupAddOutlined />, fields: ["networking"] },
-];
-
-const fullWidthUploadStyle: React.CSSProperties = { width: "100%" };
-
-const resolveParticipantRecord = async (uid: string, email: string) => {
-    const direct = await getDoc(doc(db, "participants", uid));
-    if (direct.exists()) return { id: direct.id, data: direct.data() as Record<string, any> };
-
-    const normalizedEmail = email.trim().toLowerCase();
-    const lookups: Array<[string, string]> = [
-        ["uid", uid],
-        ["userId", uid],
-        ["participantId", uid],
-        ["ownerUid", uid],
-        ["email", email],
-        ...(normalizedEmail !== email ? [["email", normalizedEmail] as [string, string]] : []),
-    ];
-    for (const [field, value] of lookups) {
-        const snapshot = await getDocs(query(collection(db, "participants"), where(field, "==", value)));
-        if (!snapshot.empty) return { id: snapshot.docs[0].id, data: snapshot.docs[0].data() as Record<string, any> };
+const EvidenceFiles = ({ name }: { name: 'revenueProof' | 'employeeProof' }) => {
+    const form = Form.useFormInstance<ReportForm>()
+    const files = (Form.useWatch(name, form) as UploadFile[] | undefined) || []
+    if (!files.length) return null
+    const remove = (uid: string) => {
+        form.setFieldValue(name, files.filter(file => file.uid !== uid))
+        void form.validateFields([name]).catch(() => undefined)
     }
+    return (
+        <ul className="mp-evidence-files">
+            {files.map(file => (
+                <li key={file.uid}>
+                    <PaperClipOutlined aria-hidden="true" />
+                    <span className="mp-evidence-name">{file.name}</span>
+                    {file.size ? <span className="mp-evidence-size">{Math.max(1, Math.round(file.size / 1024))} KB</span> : null}
+                    <Button type="text" size="small" icon={<CloseOutlined />} aria-label={`${tr('Remove')} ${file.name}`} onClick={() => remove(file.uid)} />
+                </li>
+            ))}
+        </ul>
+    )
+}
 
-    const applicationLookups: Array<[string, string]> = [["uid", uid], ["userId", uid], ["email", email]];
-    for (const [field, value] of applicationLookups) {
-        const snapshot = await getDocs(query(collection(db, "applications"), where(field, "==", value)));
-        const application = snapshot.docs[0]?.data() as Record<string, any> | undefined;
-        const resolvedId = String(application?.participantId || application?.businessProfileId || application?.applicantProfileId || "").trim();
-        if (!resolvedId) continue;
-        const participant = await getDoc(doc(db, "participants", resolvedId));
-        if (participant.exists()) return { id: participant.id, data: participant.data() as Record<string, any> };
-    }
-
-    const businessProfile = await getDoc(doc(db, "businessProfiles", uid));
-    if (businessProfile.exists()) return { id: uid, data: businessProfile.data() as Record<string, any> };
-    return null;
-};
+const MetricTile = ({ title, value, icon, hint, trend }: {
+    title: string; value: string; icon: React.ReactNode; hint: string; trend?: number | null
+}) => (
+    <Card className="mp-metric" bordered>
+        <div className="mp-metric-top"><Text type="secondary">{tr(title)}</Text><span className="mp-metric-icon">{icon}</span></div>
+        <div className="mp-metric-value">{value}</div>
+        <div className="mp-metric-foot"><Text type="secondary">{tr(hint)}</Text>
+            {trend != null && <Tag color={trend > 0 ? 'success' : trend < 0 ? 'error' : 'default'} bordered={false}>
+                {trend > 0 ? <ArrowUpOutlined /> : trend < 0 ? <ArrowDownOutlined /> : null} {Math.abs(trend).toFixed(1)}%
+            </Tag>}
+        </div>
+    </Card>
+)
 
 export const MonthlyPerformanceForm: React.FC = () => {
-    useLanguage() // re-render when the language changes
-    const [form] = Form.useForm();
-    const screens = useBreakpoint();
-    const isMobile = !screens.md;
-    // Sized from the viewport so the charts fill the screen without pushing the page into a scroll.
-    const chartHeight = isMobile
-        ? 240
-        : Math.max(260, Math.min(430, Math.round(window.innerHeight * 0.46)))
+    useLanguage()
+    const { message } = App.useApp()
+    const { token } = theme.useToken()
+    const bp = useBreakpoint()
+    const mobile = !bp.md
+    const [form] = Form.useForm<ReportForm>()
+    const [participant, setParticipant] = useState<Participant | null>(null)
+    const [userEmail, setUserEmail] = useState('')
+    const [records, setRecords] = useState<MonthlyRecord[]>([])
+    const [loading, setLoading] = useState(true)
+    const [saving, setSaving] = useState(false)
+    const [failure, setFailure] = useState<string | null>(null)
+    const [view, setView] = useState<View>('overview')
+    const [modalOpen, setModalOpen] = useState(false)
+    const [reportStep, setReportStep] = useState<'sections' | 'fields'>('sections')
+    const [selectedSections, setSelectedSections] = useState<SectionKey[]>(['revenue', 'employees', 'sales'])
+    const [selectedMonth, setSelectedMonth] = useState(monthId(dayjs()))
+    const [detail, setDetail] = useState<MonthlyRecord | null>(null)
+    const [range, setRange] = useState<[Dayjs, Dayjs]>([dayjs().startOf('year'), dayjs().endOf('year')])
+    const [uploadPercent, setUploadPercent] = useState(0)
 
-    const [data, setData] = useState<any[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [participantCreatedAt, setParticipantCreatedAt] = useState<Date | null>(null)
-    const [modalVisible, setModalVisible] = useState(false);
-    const [participantId, setParticipantId] = useState<string | null>(null);
-    const [userEmail, setUserEmail] = useState<string | null>(null);
-    const [view, setView] = useState<ViewKey>("data");
-
-    const [progressVisible, setProgressVisible] = useState(false);
-    const [progressPercent, setProgressPercent] = useState(0);
-    const [progressMessage, setProgressMessage] = useState("Starting process...");
-
-    const [pRevenueMonthly, setPRevenueMonthly] = useState<
-        Record<string, number>
-    >({});
-    const [pHeadcountMonthly, setPHeadcountMonthly] = useState<
-        Record<string, { permanent?: number; temporary?: number }>
-    >({});
-    const [acceptedAt, setAcceptedAt] = useState<Date | null>(null);
-    const [missingMonths, setMissingMonths] = useState<string[]>([]);
-    const [step, setStep] = useState<"pick" | "form">("pick");
-    const [sections, setSections] = useState<SectionKey[]>([]);
-    const [range, setRange] = useState<[Dayjs, Dayjs]>([
-        dayjs().startOf("year"),
-        dayjs().endOf("year"),
-    ]);
-
-    const thisMonth = dayjs().format("MMMM YYYY");
-
-    const monthNames = useMemo(
-        () => [
-            "January",
-            "February",
-            "March",
-            "April",
-            "May",
-            "June",
-            "July",
-            "August",
-            "September",
-            "October",
-            "November",
-            "December",
-        ],
-        [],
-    );
-
-    const asJsDate = (v: any): Date | null => {
-        if (!v) return null
-
-        try {
-            // Firestore Timestamp
-            if (typeof v?.toDate === 'function') {
-                const d = v.toDate()
-                return Number.isFinite(d?.getTime?.()) ? d : null
-            }
-
-            // JS Date
-            if (v instanceof Date) {
-                return Number.isFinite(v.getTime()) ? v : null
-            }
-
-            // Firestore serialized timestamp
-            // { seconds, nanoseconds }
-            if (
-                typeof v === 'object' &&
-                typeof v.seconds === 'number'
-            ) {
-                const d = new Date(v.seconds * 1000)
-                return Number.isFinite(d.getTime()) ? d : null
-            }
-
-            // Nested timestamp map
-            // { _seconds, _nanoseconds }
-            if (
-                typeof v === 'object' &&
-                typeof v._seconds === 'number'
-            ) {
-                const d = new Date(v._seconds * 1000)
-                return Number.isFinite(d.getTime()) ? d : null
-            }
-
-            // ISO/date string
-            if (typeof v === 'string') {
-                const d = new Date(v)
-                return Number.isFinite(d.getTime()) ? d : null
-            }
-
-            // Unix milliseconds
-            if (typeof v === 'number') {
-                const d = new Date(v)
-                return Number.isFinite(d.getTime()) ? d : null
-            }
-
-            // Firebase Admin serialized timestamp
-            // { timestamp: ... }
-            if (typeof v === 'object' && v.timestamp) {
-                return asJsDate(v.timestamp)
-            }
-
-            console.warn('[INVALID DATE VALUE]', v)
-            return null
-        } catch (err) {
-            console.error('[DATE PARSE ERROR]', err, v)
-            return null
-        }
-    }
-
-    const toMonthKey = (d: Dayjs) => d.format("MMMM YYYY");
-
-    const monthRangeKeys = (start: Dayjs, end: Dayjs) => {
-        const out: string[] = [];
-        let cur = start.startOf("month");
-        const last = end.startOf("month");
-
-        while (cur.isBefore(last) || cur.isSame(last)) {
-            out.push(toMonthKey(cur));
-            cur = cur.add(1, "month");
-        }
-
-        return out;
-    };
-
-    const parseMonthKey = (row: any) => {
-        const raw = String(row.month || row.key || '').trim()
-        const parts = raw.split(/\s+/)
-
-        const monthName = parts[0]
-        const year = Number(parts[1])
-
-        return {
-            monthName,
-            year: Number.isFinite(year) ? year : null,
-        }
-    }
-
-    const getBaselineMonthYear = (monthName: string, createdAt: Date | null) => {
-        const created = createdAt ? dayjs(createdAt) : dayjs()
-        const monthIndex = monthNames.findIndex(m => m === monthName)
-
-        if (monthIndex < 0) return created.year()
-
-        // If baseline month is after createdAt month, it belongs to previous year
-        return monthIndex > created.month()
-            ? created.year() - 1
-            : created.year()
-    }
-
-    const getRecordYear = (r: any) => {
-        const parsed = parseMonthKey(r)
-        if (parsed.year) return parsed.year
-
-        const d = asJsDate(r.createdAt)
-        return d ? dayjs(d).year() : dayjs().year()
-    }
-
-    const getMonthIndexFromRecord = (r: any) => {
-        const parsed = parseMonthKey(r)
-        return monthNames.findIndex(m => m === parsed.monthName)
-    }
-
-    const buildUploadedByMonth = (rows: any[], year: number) => {
-        const revenue = Array(12).fill(null) as (number | null)[]
-        const perm = Array(12).fill(null) as (number | null)[]
-        const temp = Array(12).fill(null) as (number | null)[]
-        const orders = Array(12).fill(null) as (number | null)[]
-        const customers = Array(12).fill(null) as (number | null)[]
-
-        rows.forEach(r => {
-            const parsed = parseMonthKey(r)
-            const i = getMonthIndexFromRecord(r)
-            const recordYear = getRecordYear(r)
-
-            console.log('[MONTHLY ROW]', {
-                raw: r,
-                monthField: r.month,
-                parsedMonth: parsed.monthName,
-                parsedYear: parsed.year,
-                createdAt: r.createdAt,
-                createdAtParsed: asJsDate(r.createdAt),
-                resolvedYear: recordYear,
-                selectedYear: year,
-                monthIndex: i,
-            })
-
-            if (i >= 0 && recordYear === year) {
-                // A field that was never reported stays null so the series shows a gap, not a zero.
-                const figure = (value: unknown) => (value === undefined || value === null || value === "" ? null : Number(value))
-
-                revenue[i] = figure(r.revenue)
-                perm[i] = figure(r.headPermanent)
-                temp[i] = figure(r.headTemporary)
-                orders[i] = figure(r.orders)
-                customers[i] = figure(r.customers)
-
-                console.log('[MONTH APPLIED TO CHART]', {
-                    month: parsed.monthName,
-                    year: recordYear,
-                    revenue: revenue[i],
-                })
-            }
-        })
-
-        return { revenue, perm, temp, orders, customers }
-    }
-
-    const normalizeRevenueMap = (m?: Record<string, any>, selectedYear?: number) => {
-        const result: (number | null)[] = Array(12).fill(null)
-        if (!m) return result
-
-        monthNames.forEach((name, i) => {
-            const baselineYear = getBaselineMonthYear(name, participantCreatedAt)
-
-            if (selectedYear && baselineYear !== selectedYear) return
-
-            const v = Number(m[name])
-            result[i] = Number.isFinite(v) ? v : null
-        })
-
-        return result
-    }
-
-    const normalizeHeadcountMap = (
-        m?: Record<string, { permanent?: any; temporary?: any }>,
-        selectedYear?: number
-    ) => {
-        const perm: (number | null)[] = Array(12).fill(null)
-        const temp: (number | null)[] = Array(12).fill(null)
-        if (!m) return { perm, temp }
-
-        monthNames.forEach((name, i) => {
-            const baselineYear = getBaselineMonthYear(name, participantCreatedAt)
-
-            if (selectedYear && baselineYear !== selectedYear) return
-
-            const row = m[name] || {}
-            const p = Number(row.permanent)
-            const t = Number(row.temporary)
-
-            perm[i] = Number.isFinite(p) ? p : null
-            temp[i] = Number.isFinite(t) ? t : null
-        })
-
-        return { perm, temp }
-    }
-
-    const encouragingMessages = [
-        "Uploading documents...",
-        "Saving your monthly performance...",
-        "Almost done...",
-        "Finalizing and securing your data...",
-        "Wrapping up...",
-    ];
-
-    const simulateProgress = () => {
-        setProgressVisible(true);
-        setProgressPercent(5);
-
-        const interval = setInterval(() => {
-            setProgressPercent((prev) => {
-                if (prev >= 90) return prev;
-                const increment = Math.floor(Math.random() * 10) + 5;
-                return Math.min(prev + increment, 90);
-            });
-            setProgressMessage(
-                encouragingMessages[
-                Math.floor(Math.random() * encouragingMessages.length)
-                ],
-            );
-        }, 1200);
-
-        return interval;
-    };
-
-    const computeMissingMonths = async (pid: string, email: string) => {
-        const appQ = query(
-            collection(db, "applications"),
-            where("participantId", "==", pid),
-        );
-        const appSnap = await getDocs(appQ);
-
-        const fallbackQ = query(
-            collection(db, "applications"),
-            where("email", "==", email),
-        );
-        const fallbackSnap = appSnap.empty ? await getDocs(fallbackQ) : appSnap;
-
-        const appDoc = fallbackSnap.empty ? null : fallbackSnap.docs[0];
-        const appData = appDoc?.data() as any;
-
-        const acc = asJsDate(appData?.submittedAt);
-        setAcceptedAt(acc);
-
-        const histQ = query(collection(db, `monthlyPerformance/${pid}/history`));
-        const histSnap = await getDocs(histQ);
-        const uploaded = new Set(histSnap.docs.map((d) => d.id));
-
-        const baseline = acc
-            ? dayjs(acc).startOf("month")
-            : dayjs().startOf("year");
-        const allMonths = monthRangeKeys(baseline, dayjs());
-        setMissingMonths(allMonths.filter((m) => !uploaded.has(m)));
-    };
+    const fetchRecords = useCallback(async (pid: string) => {
+        const snapshot = await getDocs(query(collection(db, 'monthlyPerformance', pid, 'history'), orderBy('createdAt', 'desc')))
+        setRecords(snapshot.docs.map(row => ({ ...row.data(), id: row.id, month: String(row.data().month || row.id) } as MonthlyRecord)))
+    }, [])
 
     useEffect(() => {
-        const unsubscribe = auth.onAuthStateChanged(async (user) => {
-            if (!user?.email) return;
-
-            setUserEmail(user.email);
-
-            const resolved = await resolveParticipantRecord(user.uid, user.email);
-            if (!resolved) {
-                message.error("No participant record found for this user.");
-                return;
-            }
-
-            const pid = resolved.id;
-            setParticipantId(pid);
-
-            const pdata = resolved.data;
-
-                const created = asJsDate(pdata?.createdAt)
-                setParticipantCreatedAt(created)
-
-                console.log('[PARTICIPANT BASELINE]', {
-                    participantId: pid,
-                    createdAt: pdata?.createdAt,
-                    createdAtParsed: created,
-                    baselineYear: created ? dayjs(created).year() : null,
-                    revenueMonthly: pdata?.revenueHistory?.monthly || {},
-                    headcountMonthly: pdata?.headcountHistory?.monthly || {},
-                })
-
-                setPRevenueMonthly(pdata?.revenueHistory?.monthly || {})
-                setPHeadcountMonthly(pdata?.headcountHistory?.monthly || {})
-
-            await computeMissingMonths(pid, user.email);
-        });
-
-        return () => unsubscribe();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    const fetchData = async () => {
-        console.log('[FETCH DATA CALLED]', {
-            participantId,
+        let active = true
+        const unsub = auth.onAuthStateChanged(async user => {
+            if (!user) { if (active) { setLoading(false); setFailure(tr('Please sign in to view your performance.')) }; return }
+            if (!user.email) { if (active) { setLoading(false); setFailure(tr('Your account needs an email address.')) }; return }
+            try {
+                setLoading(true)
+                const resolved = await resolveParticipant(user.uid, user.email)
+                if (!active) return
+                if (!resolved) { setFailure(tr('We could not find your business profile. Contact your programme coordinator.')); return }
+                setParticipant(resolved)
+                setUserEmail(user.email)
+                await fetchRecords(resolved.id)
+                if (active) setFailure(null)
+            } catch (error) {
+                console.error('Monthly performance load failed', error)
+                if (active) setFailure(tr('Unable to load your performance right now. Please try again.'))
+            } finally { if (active) setLoading(false) }
         })
-        if (!participantId) return;
+        return () => { active = false; unsub() }
+    }, [fetchRecords])
 
-        try {
-            console.log(
-                '[FETCHING FROM PATH]',
-                `monthlyPerformance/${participantId}/history`
-            )
-            const q = query(
-                collection(db, `monthlyPerformance/${participantId}/history`),
-                orderBy("createdAt", "desc"),
-            );
-            const snapshot = await getDocs(q);
-            console.log(
-                '[FETCHED MONTHLY DATA]',
-                snapshot.docs.map(d => ({
-                    id: d.id,
-                    ...d.data(),
-                }))
-            )
-            setData(snapshot.docs.map((d) => ({ key: d.id, ...d.data() })));
-        } catch (error) {
-            console.error(error);
-            message.error("Failed to load monthly performance data.");
-        }
-    };
+    const sorted = useMemo(() => [...records].sort((a, b) =>
+        (monthDate(b.month)?.valueOf() ?? 0) - (monthDate(a.month)?.valueOf() ?? 0)), [records])
+    const recordMap = useMemo(() => new Map(records.map(r => [r.month, r])), [records])
+    const baseline = dateFrom(participant?.createdAt)
+    // A date from the programme application is not necessarily the acceptance date.
+    // Start from the participant's profile creation when known; don't label this as acceptance.
+    const reportingStart = baseline ? baseline.startOf('month') : dayjs().startOf('year')
+    const missingMonths = useMemo(() => monthWindow(reportingStart, dayjs()).filter(m => !recordMap.has(m)), [recordMap, reportingStart.valueOf()])
+    const visible = useMemo(() => sorted.filter(row => {
+        const date = monthDate(row.month)
+        return date && !date.isBefore(range[0], 'month') && !date.isAfter(range[1], 'month')
+    }), [sorted, range])
 
-    useEffect(() => {
-        if (!participantId) return
+    const monthlyValue = useCallback((month: string, key: keyof Metrics): number | null => {
+        const uploaded = numberOrNull(recordMap.get(month)?.[key])
+        if (uploaded != null) return uploaded
+        // Previous participant baseline fields are month-name keyed, without a year.
+        // Only apply them to the participant's creation year to avoid repeating old data every year.
+        const d = monthDate(month)
+        if (!d || !baseline || d.year() !== baseline.year()) return null
+        if (key === 'revenue') return numberOrNull(participant?.revenueHistory?.monthly?.[d.format('MMMM')])
+        if (key === 'headPermanent') return numberOrNull(participant?.headcountHistory?.monthly?.[d.format('MMMM')]?.permanent)
+        if (key === 'headTemporary') return numberOrNull(participant?.headcountHistory?.monthly?.[d.format('MMMM')]?.temporary)
+        return null
+    }, [recordMap, participant, baseline?.valueOf()])
 
-        console.log('[FETCH EFFECT TRIGGERED]', {
-            participantId,
-        })
+    const chartMonths = useMemo(() => monthWindow(range[0], range[1]).filter(m => !!monthDate(m)), [range])
+    const timeline = useMemo(() => chartMonths.map(month => ({
+        month,
+        revenue: monthlyValue(month, 'revenue'),
+        permanent: monthlyValue(month, 'headPermanent'),
+        temporary: monthlyValue(month, 'headTemporary'),
+        orders: monthlyValue(month, 'orders'),
+        customers: monthlyValue(month, 'customers'),
+    })), [chartMonths, monthlyValue])
+    const latestReported = sorted.find(r => SECTION_ITEMS.some(s => s.fields.some(f => numberOrNull(r[f]) != null)))
+    const latestMonth = latestReported?.month ?? null
+    const latestRevenue = latestMonth ? monthlyValue(latestMonth, 'revenue') : null
+    const previousRevenue = latestMonth ? monthlyValue(monthId(monthDate(latestMonth)!.subtract(1, 'month')), 'revenue') : null
+    const revenueChange = latestRevenue != null && previousRevenue != null && previousRevenue !== 0
+        ? ((latestRevenue - previousRevenue) / previousRevenue) * 100 : null
+    const latestPermanent = latestMonth ? monthlyValue(latestMonth, 'headPermanent') : null
+    const latestTemporary = latestMonth ? monthlyValue(latestMonth, 'headTemporary') : null
+    const employees = latestPermanent == null && latestTemporary == null ? null : (latestPermanent ?? 0) + (latestTemporary ?? 0)
+    const totalOrders = visible.reduce((acc, r) => acc + (numberOrNull(r.orders) ?? 0), 0)
+    const latestCustomers = sorted.find(r => numberOrNull(r.customers) != null)
+    const lastCustomerValue = latestCustomers ? numberOrNull(latestCustomers.customers) : null
+    const thisMonthReport = recordMap.get(monthId(dayjs()))
+    const monthReported = thisMonthReport?.reportedSections?.length ?? SECTION_ITEMS.filter(s => s.fields.some(f => numberOrNull(thisMonthReport?.[f]) != null)).length
+    const completion = Math.round(monthReported / SECTION_ITEMS.length * 100)
 
-        fetchData()
-    }, [participantId])
-
-    const mergePrefUploaded = (
-        uploadedArr: (number | null)[],
-        participantArr: (number | null)[],
-    ) =>
-        monthNames.map((_, i) =>
-            uploadedArr[i] != null ? uploadedArr[i] : (participantArr[i] ?? null),
-        );
-
-    /** One month range drives the table, the cards and the charts. */
-    const displayData = useMemo(() => {
-        const start = range[0].startOf("month");
-        const end = range[1].endOf("month");
-
-        return data.filter((row) => {
-            const index = getMonthIndexFromRecord(row);
-            const year = getRecordYear(row);
-            if (index < 0 || !year) return true;
-
-            const point = dayjs(new Date(year, index, 1));
-            return !point.isBefore(start) && !point.isAfter(end);
-        });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [data, range]);
-
-    const selectedYear = range?.[0]?.year() ?? dayjs().year()
-
-    const uploaded = buildUploadedByMonth(displayData, selectedYear)
-    const pRev = normalizeRevenueMap(pRevenueMonthly, selectedYear)
-    const pHC = normalizeHeadcountMap(pHeadcountMonthly, selectedYear);
-
-    const revenueMerged = mergePrefUploaded(uploaded.revenue, pRev)
-    const permMerged = mergePrefUploaded(uploaded.perm, pHC.perm)
-    const tempMerged = mergePrefUploaded(uploaded.temp, pHC.temp)
-
-    const ordersMerged = uploaded.orders;
-    const customersMerged = uploaded.customers;
-
-    const revMA3 = revenueMerged.map((_, i) => {
-        const windowVals = revenueMerged.slice(Math.max(0, i - 2), i + 1);
-        const nums = windowVals.filter((v) => typeof v === "number") as number[];
-        if (!nums.length) return null;
-        const avg = nums.reduce((a, b) => a + b, 0) / nums.length;
-        return Math.round(avg * 100) / 100;
-    });
-
-    const monthIdxInRange = (() => {
-        const startM = range?.[0]?.month() ?? 0;
-        const endM = range?.[1]?.month() ?? 11;
-        const idxs: number[] = [];
-
-        for (let i = startM; i <= endM; i++) idxs.push(i);
-        return idxs;
-    })();
-
-    const formatLabel = (mIndex: number, year: number) =>
-        dayjs().year(year).month(mIndex).format("MMM YY");
-    const categories = monthIdxInRange.map((i) => formatLabel(i, selectedYear));
-
-    const pickRange = (arr: (number | null)[]) =>
-        monthIdxInRange.map((i) => arr[i]);
-
-    const mobileChartBase: Highcharts.Options = {
-        chart: {
-            height: chartHeight,
-            backgroundColor: "transparent",
-            spacing: isMobile ? [12, 10, 12, 10] : [18, 18, 16, 18],
-        },
-        title: { text: "" },
-        subtitle: { text: "" },
-        legend: {
-            enabled: !isMobile,
-        },
-        xAxis: {
-            labels: {
-                rotation: isMobile ? -35 : 0,
-                style: { fontSize: isMobile ? '10px' : '12px' },
-            },
-        },
+    const chartBase: Highcharts.Options = {
+        chart: { backgroundColor: 'transparent', height: mobile ? 250 : 290, spacing: [12, 8, 12, 8] },
+        credits: { enabled: false }, title: { text: undefined },
+        xAxis: { categories: timeline.map(m => monthDate(m.month)!.format('MMM YY')) },
+        legend: { enabled: !mobile },
+        responsive: { rules: [{ condition: { maxWidth: 500 }, chartOptions: { legend: { enabled: false } } }] },
     }
-
-    const revenueTrendOptions: Highcharts.Options = {
-        ...mobileChartBase,
-        chart: {
-            ...mobileChartBase.chart,
-            type: 'spline',
-        },
-        title: { text: "" },
-        subtitle: { text: "" },
-        xAxis: {
-            ...mobileChartBase.xAxis,
-            categories,
-        },
-        yAxis: {
-            title: { text: isMobile ? "" : 'Revenue (R)' },
-            labels: { enabled: true },
-        },
-        tooltip: { shared: true, valuePrefix: 'R' },
+    const revenueChart: Highcharts.Options = {
+        ...chartBase, chart: { ...chartBase.chart, type: 'areaspline' },
+        yAxis: { title: { text: undefined }, min: 0 },
+        tooltip: { shared: true, valuePrefix: 'R', valueDecimals: 0 },
+        plotOptions: { areaspline: { fillOpacity: 0.1, marker: { enabled: false } } },
+        series: [{ type: 'areaspline', name: tr('Revenue'), data: timeline.map(m => m.revenue) }],
+    }
+    const employeeChart: Highcharts.Options = {
+        ...chartBase, chart: { ...chartBase.chart, type: 'column' },
+        yAxis: { title: { text: undefined }, allowDecimals: false, min: 0 },
+        plotOptions: { column: { stacking: 'normal', borderRadius: 4 } },
         series: [
-            { name: tr('Revenue'), type: 'line', data: pickRange(revenueMerged) },
-            ...(!isMobile
-                ? [{ name: tr('3-month Avg'), type: 'line' as const, dashStyle: 'ShortDot' as const, data: pickRange(revMA3) }]
-                : []),
+            { type: 'column', name: tr('Permanent'), data: timeline.map(m => m.permanent) },
+            { type: 'column', name: tr('Temporary'), data: timeline.map(m => m.temporary) },
         ],
     }
-
-    const employeesStackedOptions: Highcharts.Options = {
-        ...mobileChartBase,
-        chart: {
-            ...mobileChartBase.chart,
-            type: "column",
-        },
-        title: { text: "" },
-        subtitle: { text: "" },
-        xAxis: {
-            ...mobileChartBase.xAxis,
-            categories,
-            crosshair: true,
-        },
-        yAxis: {
-            min: 0,
-            title: {
-                text: isMobile ? "" : "Employees",
-            },
-            stackLabels: {
-                enabled: !isMobile,
-            },
-            allowDecimals: false,
-        },
-        tooltip: {
-            shared: true,
-            borderRadius: 10,
-            valueDecimals: 0,
-        },
-        plotOptions: {
-            column: {
-                stacking: "normal",
-                borderRadius: 4,
-                pointPadding: isMobile ? 0.04 : 0.08,
-                groupPadding: isMobile ? 0.08 : 0.12,
-                dataLabels: {
-                    enabled: isMobile,
-                    style: {
-                        fontSize: "9px",
-                        textOutline: "none",
-                    },
-                },
-            },
-        },
-        series: [
-            { name: tr('Permanent'), type: "column", data: pickRange(permMerged) },
-            { name: tr('Temporary'), type: "column", data: pickRange(tempMerged) },
-        ],
-    }
-
-    const ordersCustomersDualAxis: Highcharts.Options = {
-        ...mobileChartBase,
-        chart: {
-            ...mobileChartBase.chart,
-            type: "column",
-        },
-        title: { text: "" },
-        subtitle: { text: "" },
-        xAxis: [{ categories, crosshair: true }],
-        yAxis: [
-            { title: { text: tr('Orders') } },
-            { title: { text: tr('Customers') }, opposite: true },
-        ],
+    const customerChart: Highcharts.Options = {
+        ...chartBase, yAxis: [{ title: { text: undefined }, min: 0 }, { title: { text: undefined }, opposite: true, min: 0 }],
         tooltip: { shared: true },
         series: [
-            {
-                name: tr('Orders'),
-                type: "column",
-                yAxis: 0,
-                data: pickRange(ordersMerged),
-            },
-            {
-                name: tr('Customers'),
-                type: "spline",
-                yAxis: 1,
-                data: pickRange(customersMerged),
-            },
+            { type: 'column', name: tr('Orders'), data: timeline.map(m => m.orders), yAxis: 0 },
+            { type: 'spline', name: tr('New customers'), data: timeline.map(m => m.customers), yAxis: 1 },
         ],
-    };
+    }
 
-    const uploadProofs = async (files: any[], type: string, monthKey: string) => {
-        const urls: string[] = [];
-
+    const openReport = (month?: string) => {
+        const selected = month ?? missingMonths[0] ?? monthId(dayjs())
+        const current = recordMap.get(selected)
+        setSelectedMonth(selected)
+        form.resetFields()
+        const fields: Partial<ReportForm> = { monthKey: selected }
+        SECTION_ITEMS.forEach(section => section.fields.forEach(key => {
+            const v = numberOrNull(current?.[key])
+            if (v != null) fields[key] = v
+        }))
+        form.setFieldsValue(fields)
+        const available = SECTION_ITEMS.filter(section => section.fields.some(key => numberOrNull(current?.[key]) != null)).map(s => s.key)
+        setSelectedSections(available.length ? available : ['revenue', 'employees', 'sales'])
+        setReportStep('sections')
+        setUploadPercent(0)
+        setModalOpen(true)
+    }
+    const fileList = (value?: UploadFile[]) => Array.isArray(value) ? value : []
+    const uploadFiles = async (files: UploadFile[], kind: 'revenue' | 'employee', month: string) => {
+        if (!participant) throw new Error('Business profile unavailable')
+        const urls: string[] = []
         for (const file of files) {
-            const cleanName = String(file.name || "file").replace(/\s+/g, "_");
-            const storageRef = ref(
-                storage,
-                `monthlyPerformance/${participantId}/${monthKey}/${type}-${cleanName}`,
-            );
-            await uploadBytes(storageRef, file.originFileObj);
-            const url = await getDownloadURL(storageRef);
-            urls.push(url);
+            if (!file.originFileObj) continue
+            const clean = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+            const storageRef = ref(storage, `monthlyPerformance/${participant.id}/${month}/${kind}-${Date.now()}-${clean}`)
+            await uploadBytes(storageRef, file.originFileObj)
+            urls.push(await getDownloadURL(storageRef))
         }
-
-        return urls;
-    };
-
-    const handleSubmit = async (values: any) => {
-        const monthKey = String(values.monthKey || "").trim();
-
-        if (!monthKey) {
-            message.error("Please select a month to upload.");
-            return;
-        }
-
-        if (!participantId || !userEmail) {
-            message.error("Unable to determine participant identity.");
-            return;
-        }
-
-        let interval: any;
-
+        return urls
+    }
+    const submitReport = async (values: ReportForm) => {
+        if (!participant || !userEmail) return message.error(tr('Business identity is unavailable.'))
+        if (!selectedSections.length) return message.warning(tr('Choose at least one section.'))
+        const month = values.monthKey
+        if (!monthDate(month) || monthDate(month)!.isAfter(dayjs(), 'month')) return message.error(tr('Select a valid reporting month.'))
         try {
-            setLoading(true);
-            interval = simulateProgress();
+            setSaving(true)
+            setUploadPercent(10)
+            const old = recordMap.get(month)
+            const payload: Partial<Metrics> = {}
+            SECTION_ITEMS.filter(section => selectedSections.includes(section.key)).forEach(section => section.fields.forEach(key => {
+                const figure = numberOrNull(values[key])
+                if (figure != null) payload[key] = figure
+            }))
+            const revenueProof = selectedSections.includes('revenue') ? fileList(values.revenueProof) : []
+            const employeeProof = selectedSections.includes('employees') ? fileList(values.employeeProof) : []
+            const urlsRevenue = await uploadFiles(revenueProof, 'revenue', month)
+            setUploadPercent(45)
+            const urlsEmployee = await uploadFiles(employeeProof, 'employee', month)
+            setUploadPercent(70)
+            const previousSections = old?.reportedSections ?? SECTION_ITEMS.filter(s => s.fields.some(f => numberOrNull(old?.[f]) != null)).map(s => s.key)
+            await setDoc(doc(db, 'monthlyPerformance', participant.id), {
+                participantId: participant.id, email: userEmail, updatedAt: serverTimestamp(),
+            }, { merge: true })
+            await setDoc(doc(db, 'monthlyPerformance', participant.id, 'history', month), {
+                month,
+                ...payload,
+                reportedSections: [...new Set([...previousSections, ...selectedSections])],
+                ...(urlsRevenue.length && { revenueProofUrls: [...(old?.revenueProofUrls || []), ...urlsRevenue] }),
+                ...(urlsEmployee.length && { employeeProofUrls: [...(old?.employeeProofUrls || []), ...urlsEmployee] }),
+                ...(revenueProof.length && { revenueProofMeta: revenueProof.filter(f => f.originFileObj).map(f => ({ name: f.name, size: f.size, type: f.type })) }),
+                ...(employeeProof.length && { employeeProofMeta: employeeProof.filter(f => f.originFileObj).map(f => ({ name: f.name, size: f.size, type: f.type })) }),
+                ...(!old && { createdAt: serverTimestamp() }),
+                updatedAt: serverTimestamp(),
+            }, { merge: true })
+            setUploadPercent(100)
+            await fetchRecords(participant.id)
+            setModalOpen(false)
+            message.success(tr('Monthly performance saved successfully.'))
+        } catch (error) {
+            console.error('Save monthly performance failed', error)
+            message.error(tr('Unable to save the report. Check your connection and try again.'))
+        } finally { setSaving(false) }
+    }
 
-            const reportsRevenue = sections.includes("revenue");
-            const reportsEmployees = sections.includes("employees");
+    const chartPanel = (heading: string, subtitle: string, options: Highcharts.Options, icon: React.ReactNode) => (
+        <Card className="mp-panel" title={<Space>{icon}<span>{tr(heading)}</span></Space>}
+            extra={<Text type="secondary" className="mp-panel-subtitle">{tr(subtitle)}</Text>}>
+            <ThemedHighcharts immutable options={options} />
+        </Card>
+    )
+    const historicRow = (record: MonthlyRecord) => {
+        const perm = numberOrNull(record.headPermanent)
+        const temp = numberOrNull(record.headTemporary)
+        const headcount = perm == null && temp == null ? null : (perm ?? 0) + (temp ?? 0)
+        const reported = SECTION_ITEMS.filter(s => s.fields.some(f => numberOrNull(record[f]) != null)).length
+        return <button key={record.id} type="button" className="mp-history-row" onClick={() => setDetail(record)}>
+            <div className="mp-history-date"><span className="mp-history-month">{record.month}</span><span className="mp-history-coverage">{reported} {tr('of 5 categories')}</span></div>
+            <div className="mp-history-number"><small>{tr('Revenue')}</small><strong>{money(numberOrNull(record.revenue))}</strong></div>
+            <div className="mp-history-number"><small>{tr('Employees')}</small><strong>{count(headcount)}</strong></div>
+            <div className="mp-history-number"><small>{tr('New customers')}</small><strong>{count(numberOrNull(record.customers))}</strong></div>
+            <ArrowRightOutlined className="mp-row-arrow" />
+        </button>
+    }
 
-            const revenueProofFiles = reportsRevenue
-                ? values.revenueProof?.fileList || values.revenueProof || []
-                : [];
-            const totalEmployees =
-                Number(values.headPermanent || 0) + Number(values.headTemporary || 0);
-            const employeeProofFiles =
-                reportsEmployees && totalEmployees > 0
-                    ? values.employeeProof?.fileList || values.employeeProof || []
-                    : [];
+    return <DashboardPage className="incubatee-page mp-page">
+        <Helmet><title>{tr('Business Performance | Smart Incubation')}</title></Helmet>
 
-            const revenueProofUrls = revenueProofFiles.length
-                ? await uploadProofs(revenueProofFiles, "revenue", monthKey)
-                : [];
-            const employeeProofUrls = employeeProofFiles.length
-                ? await uploadProofs(employeeProofFiles, "employee", monthKey)
-                : [];
+        {failure ? <Alert type="error" showIcon message={failure} action={<Button icon={<ReloadOutlined />} onClick={() => window.location.reload()}>{tr('Retry')}</Button>} /> : null}
+        {loading ? <div className="mp-loading"><Skeleton active paragraph={{ rows: 3 }} /><Skeleton active paragraph={{ rows: 4 }} /></div> : participant && <>
+            <div className="mp-status-bar">
+                <div className="mp-status-copy">
+                    <span className={`mp-status-mark ${monthReported ? 'is-done' : ''}`}>{monthReported ? <CheckCircleFilled /> : <ClockCircleOutlined />}</span>
+                    <div><strong>{monthReported ? tr('This month is underway') : tr('Your monthly check-in is ready')}</strong>
+                        <Text type="secondary">{dayjs().format('MMMM YYYY')} · {monthReported} {tr('of 5 sections reported')}</Text></div>
+                </div>
+                <div className="mp-status-progress"><Progress percent={completion} size="small" showInfo={false} /><Text type="secondary">{completion}%</Text></div>
+                <Button type="default" onClick={() => openReport(monthId(dayjs()))}>{monthReported ? tr('Continue update') : tr('Start check-in')} <ArrowRightOutlined /></Button>
+            </div>
 
-            await setDoc(
-                doc(db, "monthlyPerformance", participantId),
-                { participantId, email: userEmail, updatedAt: Timestamp.now() },
-                { merge: true },
-            );
-
-            const monthDocRef = doc(
-                db,
-                `monthlyPerformance/${participantId}/history/${monthKey}`,
-            );
-            const reported: Record<string, unknown> = {};
-            METRIC_SECTIONS
-                .filter((section) => sections.includes(section.key))
-                .forEach((section) => section.fields.forEach((field) => {
-                    if (values[field] !== undefined && values[field] !== null) reported[field] = values[field];
-                }));
-
-            await setDoc(
-                monthDocRef,
-                {
-                    month: monthKey,
-                    ...reported,
-                    reportedSections: sections,
-                    revenueProofUrls,
-                    employeeProofUrls,
-                    revenueProofMeta: revenueProofFiles.map((f: any) => ({
-                        name: f.name,
-                        size: f.size,
-                        type: f.type,
-                    })),
-                    employeeProofMeta: employeeProofFiles.map((f: any) => ({
-                        name: f.name,
-                        size: f.size,
-                        type: f.type,
-                    })),
-                    createdAt: Timestamp.now(),
-                },
-                { merge: true },
-            );
-
-            setProgressPercent(100);
-            setProgressMessage("All done! Your data has been saved successfully.");
-            setTimeout(() => setProgressVisible(false), 900);
-
-            await fetchData();
-            await computeMissingMonths(participantId, userEmail);
-
-            message.success(`Saved successfully for ${monthKey}.`);
-            setModalVisible(false);
-            form.resetFields();
-        } catch (err: any) {
-            console.error("[MONTHLY PERFORMANCE SAVE ERROR]", err);
-            message.error(err?.message || "Failed to save monthly performance data.");
-            setProgressVisible(false);
-        } finally {
-            if (interval) clearInterval(interval);
-            setLoading(false);
-        }
-    };
-
-    const columns = [
-        { title: tr('Month'), dataIndex: "month", key: "month" },
-        { title: tr('Revenue (R)'), dataIndex: "revenue", key: "revenue" },
-        {
-            title: tr('Permanent Employees'),
-            dataIndex: "headPermanent",
-            key: "headPermanent",
-        },
-        {
-            title: tr('Temporary Employees'),
-            dataIndex: "headTemporary",
-            key: "headTemporary",
-        },
-        { title: tr('Orders'), dataIndex: "orders", key: "orders" },
-        { title: tr('Customers'), dataIndex: "customers", key: "customers" },
-        { title: tr('Traffic'), dataIndex: "traffic", key: "traffic" },
-        { title: tr('Networking Events'), dataIndex: "networking", key: "networking" },
-    ];
-
-    const totalRevenue = displayData.reduce(
-        (acc, cur) => acc + (Number(cur.revenue) || 0),
-        0,
-    );
-    const latestEmployees =
-        displayData.length > 0
-            ? (Number(displayData[0].headPermanent) || 0) +
-            (Number(displayData[0].headTemporary) || 0)
-            : 0;
-    const totalOrders = displayData.reduce(
-        (acc, cur) => acc + (Number(cur.orders) || 0),
-        0,
-    );
-
-    const openUpload = () => {
-        setStep("pick");
-        setSections([]);
-        form.resetFields();
-        setModalVisible(true);
-        const first = missingMonths[0];
-        if (first) form.setFieldsValue({ monthKey: first });
-    };
-
-    const renderMobileCards = () => {
-        if (!displayData.length) {
-            return (
-                <Alert
-                    type="info"
-                    showIcon
-                    message={tr('No monthly metrics uploaded yet')}
-                    description={tr('Use the upload button to submit the first pending month.')}
-                    style={{ borderRadius: 14 }}
-                />
-            );
-        }
-
-        return (
-            <Space direction="vertical" size={12} style={{ width: "100%" }}>
-                {displayData.map((row) => {
-                    const employees =
-                        (Number(row.headPermanent) || 0) + (Number(row.headTemporary) || 0);
-
-                    return (
-                        <Card
-                            key={row.key || row.month}
-                            style={{ borderRadius: 16, border: "1px solid #e6efff" }}
-                            bodyStyle={{ padding: 14 }}
-                        >
-                            <Space direction="vertical" size={10} style={{ width: "100%" }}>
-                                <Space
-                                    align="center"
-                                    style={{ justifyContent: "space-between", width: "100%" }}
-                                >
-                                    <Text strong style={{ fontSize: 15 }}>
-                                        {row.month || "-"}
-                                    </Text>
-                                    <Text type="secondary" style={{ fontSize: 12 }}>
-                                        {tr('Monthly record')}
-                                    </Text>
-                                </Space>
-
-                                <Row gutter={[10, 10]}>
-                                    <Col span={12}>
-                                        <Card
-                                            size="small"
-                                            style={{ borderRadius: 12, background: "#f6ffed" }}
-                                            bodyStyle={{ padding: 10 }}
-                                        >
-                                            <Text type="secondary" style={{ fontSize: 12 }}>
-                                                {tr('Revenue')}
-                                            </Text>
-                                            <div style={{ fontWeight: 800, fontSize: 16 }}>
-                                                R{Number(row.revenue || 0).toLocaleString()}
-                                            </div>
-                                        </Card>
-                                    </Col>
-                                    <Col span={12}>
-                                        <Card
-                                            size="small"
-                                            style={{ borderRadius: 12, background: "#f0f7ff" }}
-                                            bodyStyle={{ padding: 10 }}
-                                        >
-                                            <Text type="secondary" style={{ fontSize: 12 }}>
-                                                {tr('Employees')}
-                                            </Text>
-                                            <div style={{ fontWeight: 800, fontSize: 16 }}>
-                                                {employees}
-                                            </div>
-                                        </Card>
-                                    </Col>
-                                </Row>
-
-                                <Row gutter={[8, 8]}>
-                                    <Col span={12}>
-                                        <Text type="secondary" style={{ fontSize: 12 }}>
-                                            {tr('Orders')}
-                                        </Text>
-                                        <div style={{ fontWeight: 700 }}>
-                                            {Number(row.orders || 0).toLocaleString()}
-                                        </div>
-                                    </Col>
-                                    <Col span={12}>
-                                        <Text type="secondary" style={{ fontSize: 12 }}>
-                                            {tr('Customers')}
-                                        </Text>
-                                        <div style={{ fontWeight: 700 }}>
-                                            {Number(row.customers || 0).toLocaleString()}
-                                        </div>
-                                    </Col>
-                                    <Col span={12}>
-                                        <Text type="secondary" style={{ fontSize: 12 }}>
-                                            {tr('Traffic')}
-                                        </Text>
-                                        <div style={{ fontWeight: 700 }}>
-                                            {Number(row.traffic || 0).toLocaleString()}
-                                        </div>
-                                    </Col>
-                                    <Col span={12}>
-                                        <Text type="secondary" style={{ fontSize: 12 }}>
-                                            {tr('Networking')}
-                                        </Text>
-                                        <div style={{ fontWeight: 700 }}>
-                                            {Number(row.networking || 0).toLocaleString()}
-                                        </div>
-                                    </Col>
-                                </Row>
-                            </Space>
-                        </Card>
-                    );
-                })}
-            </Space>
-        );
-    };
-
-    const uploadButton = (
-        <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            disabled={!missingMonths.length}
-            onClick={openUpload}
-        >
-            {isMobile
-                ? (missingMonths.length ? "Upload" : "Up to date")
-                : (missingMonths.length ? `Upload ${missingMonths[0]}` : "All months uploaded")}
-        </Button>
-    );
-
-    const viewSwitch = (
-        <Segmented
-            value={view}
-            onChange={(v) => setView(v as ViewKey)}
-            options={[
-                { label: tr('Data'), value: "data", icon: <TableOutlined /> },
-                { label: tr('Analytics'), value: "analytics", icon: <BarChartOutlined /> },
-            ]}
-        />
-    );
-
-    return (
-        <DashboardPage className="incubatee-page incubatee-metrics-page">
-            <Helmet>
-                <title>{tr('Monthly Metrics | Smart Incubation')}</title>
-            </Helmet>
-
-            <Row gutter={[12, 12]} className="dashboard-metrics-row incubatee-metrics-row">
-                <Col xs={12} lg={6}>
-                    <DashboardMetricCard
-                        icon={<DollarCircleOutlined />}
-                        label={tr('Revenue reported')}
-                        value={`R${totalRevenue.toLocaleString()}`}
-                    />
-                </Col>
-
-                <Col xs={12} lg={6}>
-                    <DashboardMetricCard
-                        icon={<TeamOutlined />}
-                        label={tr('Latest headcount')}
-                        value={latestEmployees}
-                    />
-                </Col>
-
-                <Col xs={12} lg={6}>
-                    <DashboardMetricCard
-                        icon={<ShoppingCartOutlined />}
-                        label={tr('Orders reported')}
-                        value={totalOrders.toLocaleString()}
-                    />
-                </Col>
-
-                <Col xs={12} lg={6}>
-                    <DashboardMetricCard
-                        icon={<CalendarOutlined />}
-                        label={tr('Months outstanding')}
-                        value={missingMonths.length}
-                    />
-                </Col>
+            <Row gutter={[12, 12]} className="mp-metrics">
+                <Col xs={12} lg={6}><MetricTile title="Latest revenue" value={money(latestRevenue)} icon={<DollarCircleOutlined />} hint={latestMonth || 'No report yet'} trend={revenueChange} /></Col>
+                <Col xs={12} lg={6}><MetricTile title="Employees" value={count(employees)} icon={<TeamOutlined />} hint="Latest reported headcount" /></Col>
+                <Col xs={12} lg={6}><MetricTile title="New customers" value={count(lastCustomerValue)} icon={<UsergroupAddOutlined />} hint={latestCustomers?.month || 'No report yet'} /></Col>
+                <Col xs={12} lg={6}><MetricTile title="Months outstanding" value={String(missingMonths.length)} icon={<CalendarOutlined />} hint="Pending monthly reports" /></Col>
             </Row>
 
-            <FilterBar
-                primary={
-                    <>
-                        <DatePicker.RangePicker
-                            picker="month"
-                            value={range}
-                            allowEmpty={[false, false]}
-                            onChange={(vals) => {
-                                if (!vals || !vals[0] || !vals[1]) return;
+            <div className="mp-toolbar">
+                <Segmented block={mobile} value={view} onChange={v => setView(v as View)} options={[
+                    { label: tr('Overview'), value: 'overview', icon: <LineChartOutlined /> },
+                    { label: tr('History'), value: 'history', icon: <CalendarOutlined /> },
+                    { label: tr('Analytics'), value: 'analytics', icon: <BarChartOutlined /> },
+                ]} />
+                <DatePicker.RangePicker size="middle" picker="month" value={range} allowClear={false} onChange={dates => {
+                    if (!dates?.[0] || !dates?.[1]) return
+                    setRange([dates[0], dates[1]])
+                }} />
+            </div>
 
-                                if (vals[0].year() !== vals[1].year()) {
-                                    message.warning("Please select months within the same year for now.");
-                                    return;
-                                }
-
-                                setRange(vals as [Dayjs, Dayjs]);
-                            }}
-                        />
-
-                        {viewSwitch}
-                    </>
-                }
-                actions={uploadButton}
-            />
-
-            {/* The filter bar collapses into a modal on phones, so the view switch and upload stay out here. */}
-            {isMobile && (
-                <div className="incubatee-metrics-mobile-actions">
-                    {viewSwitch}
-                    {uploadButton}
+            {view === 'overview' && <div className="mp-content-grid">
+                <div className="mp-main-stack">
+                    {chartPanel('Revenue over time', 'Monthly turnover (ZAR)', revenueChart, <DollarCircleOutlined />)}
+                    <Card className="mp-panel" title={tr('Recent reports')} extra={<Button type="link" onClick={() => setView('history')}>{tr('View all')} <ArrowRightOutlined /></Button>}>
+                        {visible.length ? visible.slice(0, 4).map(historicRow) : <Empty description={tr('No reports in this period')} />}
+                    </Card>
                 </div>
-            )}
-
-            {view === "data" ? (
-                <MotionCard
-                    className="incubatee-metrics-panel"
-                    title={tr('Historical monthly metrics')}
-                    extra={
-                        <Text type="secondary">
-                            {`${displayData.length} month${displayData.length === 1 ? "" : "s"}`}
-                            {acceptedAt ? ` · reporting since ${dayjs(acceptedAt).format("MMM YYYY")}` : ""}
-                        </Text>
-                    }
-                >
-                    {isMobile ? renderMobileCards() : (
-                        <Table
-                            size="small"
-                            columns={columns}
-                            dataSource={displayData}
-                            pagination={{ pageSize: 6, size: "small", hideOnSinglePage: true }}
-                            scroll={{ x: 720 }}
-                        />
-                    )}
-                </MotionCard>
-            ) : (
-                <div className="incubatee-metrics-charts">
-                    <MotionCard className="incubatee-metrics-panel" title={tr('Revenue trend')}>
-                        <ThemedHighcharts immutable options={revenueTrendOptions} />
-                    </MotionCard>
-
-                    <MotionCard className="incubatee-metrics-panel" title={tr('Headcount composition')}>
-                        <ThemedHighcharts immutable options={employeesStackedOptions} />
-                    </MotionCard>
-
-                    {!isMobile && (
-                        <MotionCard className="incubatee-metrics-panel is-wide" title={tr('Orders vs customers')}>
-                            <ThemedHighcharts immutable options={ordersCustomersDualAxis} />
-                        </MotionCard>
-                    )}
+                <div className="mp-side-stack">
+                    <Card className="mp-panel mp-checklist" title={tr('Your reporting checklist')}>
+                        <Text type="secondary">{tr('Choose a section to update your current month.')}</Text>
+                        {SECTION_ITEMS.map(item => {
+                            const complete = item.fields.every(key => numberOrNull(thisMonthReport?.[key]) != null)
+                            return <button className="mp-checklist-item" key={item.key} type="button" onClick={() => {
+                                openReport(monthId(dayjs())); setSelectedSections([item.key]); setReportStep('fields')
+                            }}><span className="mp-checklist-icon">{item.icon}</span><span>{tr(item.title)}</span>
+                                {complete ? <CheckCircleFilled style={{ color: token.colorSuccess }} /> : <ArrowRightOutlined />}</button>
+                        })}
+                    </Card>
+                    <Card className="mp-panel mp-impact" title={tr('Your progress at a glance')}>
+                        <div className="mp-impact-stat"><span>{tr('Reports submitted')}</span><strong>{records.length}</strong></div>
+                        <div className="mp-impact-stat"><span>{tr('Orders in selected period')}</span><strong>{count(totalOrders)}</strong></div>
+                        <div className="mp-impact-stat"><span>{tr('Reporting sections this month')}</span><strong>{monthReported} / 5</strong></div>
+                        <Text type="secondary" className="mp-impact-note">{tr('These are reported business figures, not independently verified results.')}</Text>
+                    </Card>
                 </div>
-            )}
+            </div>}
 
-            <Modal
-                title={
-                    <Space>
-                        <CalendarOutlined />
-                        <span>{step === "pick" ? "What are you reporting?" : `Monthly performance - ${form.getFieldValue("monthKey") || thisMonth}`}</span>
-                    </Space>
-                }
-                open={modalVisible}
-                onCancel={() => setModalVisible(false)}
-                width={step === "pick" ? 620 : 760}
-                destroyOnHidden={false}
-                className="incubatee-upload-modal"
-                footer={
-                    <ModalActions>
-                        {step === "pick" ? (
-                            <Button
-                                type="primary"
-                                disabled={!sections.length}
-                                onClick={() => setStep("form")}
-                            >
-                                {sections.length ? `Continue with ${sections.length}` : "Choose at least one"}
-                            </Button>
-                        ) : (
-                            <>
-                                <Button onClick={() => setStep("pick")}>{tr('Back')}</Button>
+            {view === 'history' && <Card className="mp-panel" title={tr('Monthly performance history')} extra={<Text type="secondary">{visible.length} {tr('reports')}</Text>}>
+                {visible.length ? visible.map(historicRow) : <Empty description={tr('No monthly reports for this period')} />}
+            </Card>}
 
-                                <Button
-                                    type="primary"
-                                    icon={<SaveOutlined />}
-                                    loading={loading}
-                                    onClick={() => form.submit()}
-                                >
-                                    {tr('Save')}
-                                </Button>
-                            </>
-                        )}
-                    </ModalActions>
-                }
-            >
-                {step === "pick" ? (
-                    <>
-                        <Text type="secondary">
-                            {tr('Pick only what you have for this month. Anything you leave out stays empty rather than being recorded as zero.')}
-                        </Text>
+            {view === 'analytics' && <div className="mp-chart-grid">
+                {chartPanel('Revenue trend', 'Monthly turnover (ZAR)', revenueChart, <DollarCircleOutlined />)}
+                {chartPanel('Employee composition', 'Permanent and temporary', employeeChart, <TeamOutlined />)}
+                <div className="mp-chart-wide">{chartPanel('Orders and new customers', 'Monthly activity', customerChart, <ShopOutlined />)}</div>
+            </div>}
+        </>}
 
-                        <div className="incubatee-upload-picker">
-                            {METRIC_SECTIONS.map((item) => {
-                                const active = sections.includes(item.key);
-                                return (
-                                    <button
-                                        type="button"
-                                        key={item.key}
-                                        className={`incubatee-upload-option${active ? " is-active" : ""}`}
-                                        aria-pressed={active}
-                                        onClick={() => setSections((current) => (
-                                            current.includes(item.key)
-                                                ? current.filter((key) => key !== item.key)
-                                                : [...current, item.key]
-                                        ))}
-                                    >
-                                        <span className="incubatee-upload-option-icon">{item.icon}</span>
-                                        <span className="incubatee-upload-option-copy">
-                                            <strong>{item.label}</strong>
-                                            <span>{item.hint}</span>
-                                        </span>
-                                        {active && <CheckCircleFilled className="incubatee-upload-option-check" />}
-                                    </button>
-                                );
-                            })}
+        <Modal centered open={!!detail} onCancel={() => setDetail(null)} title={detail?.month} footer={<Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+            <Button onClick={() => setDetail(null)}>{tr('Close')}</Button>
+            <Button type="primary" onClick={() => { const month = detail?.month; setDetail(null); if (month) openReport(month) }}>{tr('Update this month')}</Button>
+        </Space>}>
+            {detail && <div className="mp-detail-grid">{SECTION_ITEMS.map(s => <div key={s.key} className="mp-detail-item"><span>{s.icon} {tr(s.title)}</span><strong>{s.fields.map(f => {
+                const v = numberOrNull(detail[f]); return f === 'revenue' ? money(v) : count(v)
+            }).join(' / ')}</strong></div>)}
+                {(detail.revenueProofUrls?.length || detail.employeeProofUrls?.length) ? <div className="mp-detail-evidence"><Text strong>{tr('Supporting documents')}</Text>
+                    {[...(detail.revenueProofUrls || []), ...(detail.employeeProofUrls || [])].map((url, i) => <a href={url} rel="noopener noreferrer" target="_blank" key={`${url}-${i}`}><FileTextOutlined /> {tr('Open document')} {i + 1}</a>)}
+                </div> : null}
+            </div>}
+        </Modal>
+
+        <Modal centered className="mp-report-modal" open={modalOpen} onCancel={() => !saving && setModalOpen(false)} closable={!saving}
+            width={reportStep === 'sections' ? 610 : 690}
+            title={<div className="mp-modal-title">{tr('Update business performance')}</div>}
+            footer={<div className="mp-modal-footer">
+                {reportStep === 'sections' ? <>
+                    <Button onClick={() => setModalOpen(false)}>{tr('Cancel')}</Button>
+                    <Button type="primary" disabled={!selectedSections.length} onClick={() => setReportStep('fields')}>{tr('Continue')} <ArrowRightOutlined /></Button>
+                </> : <><Button disabled={saving} onClick={() => setReportStep('sections')}>{tr('Back')}</Button>
+                    <Button type="primary" loading={saving} onClick={() => form.submit()} icon={<CloudUploadOutlined />}>{tr('Save report')}</Button></>}
+            </div>}>
+            <div className="mp-modal-body">
+                <div className="mp-modal-steps"><span className={reportStep === 'sections' ? 'active' : ''}>1. {tr('Choose sections')}</span><span className={reportStep === 'fields' ? 'active' : ''}>2. {tr('Enter figures')}</span></div>
+                {reportStep === 'sections' ? <>
+                    <Text type="secondary">{tr('Select only what you can report. Unreported figures stay empty, not zero.')}</Text>
+                    <div className="mp-section-picker">{SECTION_ITEMS.map(section => {
+                        const checked = selectedSections.includes(section.key)
+                        return <button type="button" key={section.key} aria-pressed={checked} className={`mp-section-choice ${checked ? 'selected' : ''}`} onClick={() => setSelectedSections(prev => checked ? prev.filter(v => v !== section.key) : [...prev, section.key])}>
+                            <span className="mp-section-icon">{section.icon}</span><span className="mp-section-copy"><strong>{tr(section.title)}</strong><small>{tr(section.description)}</small></span>
+                            {checked ? <CheckCircleFilled /> : <span className="mp-empty-check" />}
+                        </button>
+                    })}</div>
+                </> : <Form<ReportForm> form={form} layout="vertical" requiredMark={false} onFinish={submitReport}>
+                    <Form.Item name="monthKey" label={tr('Reporting month')} rules={[{ required: true }]}>
+                        <Select showSearch options={monthWindow(reportingStart, dayjs()).reverse().map(month => ({ label: month, value: month }))} onChange={m => {
+                            setSelectedMonth(m)
+                            const existing = recordMap.get(m)
+                            const updates: Partial<ReportForm> = { monthKey: m }
+                            SECTION_ITEMS.forEach(s => s.fields.forEach(key => { updates[key] = numberOrNull(existing?.[key]) ?? undefined }))
+                            form.setFieldsValue(updates)
+                        }} />
+                    </Form.Item>
+                    <Text type="secondary" className="mp-form-hint">{tr('Figures are saved for')} {selectedMonth}. {tr('Previously submitted fields are preserved unless you update them.')}</Text>
+                    {selectedSections.includes('revenue') && <div className="mp-form-section"><div className="mp-form-section-title"><DollarCircleOutlined /> {tr('Revenue')}</div>
+                        {/* The amount and its evidence side by side; the attached files are listed underneath both. */}
+                        <div className="mp-amount-evidence">
+                            <Form.Item label={tr('Turnover for this month (R)')} name="revenue" rules={[{ required: true, message: tr('Enter this month’s revenue') }]}><InputNumber className="mp-input" min={0} precision={2} controls={false} placeholder="0.00" /></Form.Item>
+                            <Form.Item name="revenueProof" label={tr('Bank statement / revenue evidence')} valuePropName="fileList" getValueFromEvent={event => Array.isArray(event) ? event : event?.fileList} rules={[{
+                                validator: async (_, value) => {
+                                    const hasOld = Boolean(recordMap.get(form.getFieldValue('monthKey'))?.revenueProofUrls?.length)
+                                    if (!hasOld && !fileList(value).length) throw new Error(tr('Attach supporting evidence'))
+                                },
+                            }]}><Upload beforeUpload={() => false} multiple maxCount={5} accept=".pdf,.jpg,.jpeg,.png" showUploadList={false} className="mp-evidence-upload"><Button block icon={<CloudUploadOutlined />}>{tr('Attach evidence')}</Button></Upload></Form.Item>
                         </div>
-                    </>
-                ) : (
-                    <Form layout="vertical" form={form} onFinish={handleSubmit}>
-                        <Form.Item
-                            name="monthKey"
-                            label={tr('Month to upload')}
-                            rules={[{ required: true, message: tr('Please select a month') }]}
-                        >
-                            <Select
-                                options={missingMonths.map((m) => ({ value: m, label: m }))}
-                                placeholder={missingMonths.length ? "Select month..." : "No months pending"}
-                                disabled={!missingMonths.length}
-                                showSearch
-                                filterOption={(input, option) =>
-                                    String(option?.label ?? "").toLowerCase().includes(input.toLowerCase())
-                                }
-                            />
-                        </Form.Item>
+                        <EvidenceFiles name="revenueProof" />
+                    </div>}
+                    {selectedSections.includes('employees') && <div className="mp-form-section"><div className="mp-form-section-title"><TeamOutlined /> {tr('Employment')}</div>
+                        {/* Both head counts and their evidence on one row (evidence drops to its own row on phones); files listed underneath. */}
+                        <div className="mp-amount-evidence is-three">
+                        <Form.Item name="headPermanent" label={tr('Permanent')} rules={[{ required: true }]}><InputNumber min={0} precision={0} className="mp-input" /></Form.Item>
+                        <Form.Item name="headTemporary" label={tr('Temporary')} rules={[{ required: true }]}><InputNumber min={0} precision={0} className="mp-input" /></Form.Item>
+                        <Form.Item shouldUpdate={(prev, next) => prev.headPermanent !== next.headPermanent || prev.headTemporary !== next.headTemporary} noStyle>{({ getFieldValue }) => {
+                            const headcount = (numberOrNull(getFieldValue('headPermanent')) ?? 0) + (numberOrNull(getFieldValue('headTemporary')) ?? 0)
+                            return <Form.Item name="employeeProof" label={tr('Contracts or payslips')} valuePropName="fileList" getValueFromEvent={event => Array.isArray(event) ? event : event?.fileList} rules={[{
+                                validator: async (_, value) => {
+                                    const hasOld = Boolean(recordMap.get(form.getFieldValue('monthKey'))?.employeeProofUrls?.length)
+                                    if (headcount > 0 && !hasOld && !fileList(value).length) throw new Error(tr('Attach employee evidence'))
+                                },
+                            }]}><Upload beforeUpload={() => false} multiple maxCount={5} accept=".pdf,.jpg,.jpeg,.png" disabled={headcount === 0} showUploadList={false} className="mp-evidence-upload"><Button block disabled={headcount === 0} icon={<CloudUploadOutlined />}>{tr('Attach evidence')}</Button></Upload></Form.Item>
+                        }}</Form.Item>
+                        </div>
+                        <EvidenceFiles name="employeeProof" />
+                    </div>}
+                    {selectedSections.includes('sales') && <div className="mp-form-section"><div className="mp-form-section-title"><ShopOutlined /> {tr('Sales and customers')}</div><Row gutter={12}>
+                        <Col xs={12}><Form.Item name="orders" label={tr('Orders submitted')} rules={[{ required: true }]}><InputNumber min={0} precision={0} className="mp-input" /></Form.Item></Col>
+                        <Col xs={12}><Form.Item name="customers" label={tr('New customers')} rules={[{ required: true }]}><InputNumber min={0} precision={0} className="mp-input" /></Form.Item></Col>
+                    </Row></div>}
+                    {selectedSections.includes('traffic') && <div className="mp-form-section"><div className="mp-form-section-title"><LineChartOutlined /> {tr('Website traffic')}</div><Form.Item name="traffic" label={tr('Website visits this month')} rules={[{ required: true }]}><InputNumber min={0} precision={0} className="mp-input" /></Form.Item></div>}
+                    {selectedSections.includes('networking') && <div className="mp-form-section"><div className="mp-form-section-title"><UsergroupAddOutlined /> {tr('Networking')}</div><Form.Item name="networking" label={tr('Events attended this month')} rules={[{ required: true }]}><InputNumber min={0} precision={0} className="mp-input" /></Form.Item></div>}
+                    {saving && <Progress percent={uploadPercent} size="small" status={uploadPercent === 100 ? 'success' : 'active'} />}
+                </Form>}
+            </div>
+        </Modal>
+    </DashboardPage >
+}
 
-                        <Row gutter={[12, 12]}>
-                            {sections.includes("revenue") && (
-                                <>
-                                    <Col xs={24} sm={12}>
-                                        <Form.Item name="revenue" label={tr('Revenue (R)')} rules={[{ required: true }]}>
-                                            <InputNumber min={0} style={{ width: "100%" }} />
-                                        </Form.Item>
-                                    </Col>
-
-                                    <Col xs={24} sm={12}>
-                                        <Form.Item
-                                            name="revenueProof"
-                                            label={tr('Bank statement')}
-                                            rules={[{ required: true, message: tr('Please upload the bank statement') }]}
-                                            valuePropName="fileList"
-                                            getValueFromEvent={(e) => (Array.isArray(e) ? e : e?.fileList)}
-                                        >
-                                            <Upload multiple beforeUpload={() => false} style={fullWidthUploadStyle}>
-                                                <Button block icon={<DollarCircleOutlined />}>{tr('Attach statement')}</Button>
-                                            </Upload>
-                                        </Form.Item>
-                                    </Col>
-                                </>
-                            )}
-
-                            {sections.includes("employees") && (
-                                <>
-                                    <Col xs={12} sm={6}>
-                                        <Form.Item name="headPermanent" label={tr('Permanent')} rules={[{ required: true }]}>
-                                            <InputNumber min={0} style={{ width: "100%" }} />
-                                        </Form.Item>
-                                    </Col>
-
-                                    <Col xs={12} sm={6}>
-                                        <Form.Item name="headTemporary" label={tr('Temporary')} rules={[{ required: true }]}>
-                                            <InputNumber min={0} style={{ width: "100%" }} />
-                                        </Form.Item>
-                                    </Col>
-
-                                    <Col xs={24} sm={12}>
-                                        <Form.Item
-                                            noStyle
-                                            shouldUpdate={(prev, next) =>
-                                                prev.headPermanent !== next.headPermanent || prev.headTemporary !== next.headTemporary
-                                            }
-                                        >
-                                            {({ getFieldValue }) => {
-                                                const total = Number(getFieldValue("headPermanent") ?? 0) + Number(getFieldValue("headTemporary") ?? 0);
-                                                const required = total > 0;
-
-                                                return (
-                                                    <Form.Item
-                                                        name="employeeProof"
-                                                        label={tr('Contracts or payslips')}
-                                                        rules={[{
-                                                            validator: async (_, value) => {
-                                                                const list = value?.fileList ?? value ?? [];
-                                                                if (required && !(Array.isArray(list) && list.length)) {
-                                                                    throw new Error("Please upload employee proof");
-                                                                }
-                                                            },
-                                                        }]}
-                                                        valuePropName="fileList"
-                                                        getValueFromEvent={(e) => (Array.isArray(e) ? e : e?.fileList)}
-                                                        extra={required ? "Required while headcount is above zero." : "Not needed while headcount is zero."}
-                                                    >
-                                                        <Upload multiple beforeUpload={() => false} disabled={!required} style={fullWidthUploadStyle}>
-                                                            <Button block icon={<TeamOutlined />} disabled={!required}>{tr('Attach proof')}</Button>
-                                                        </Upload>
-                                                    </Form.Item>
-                                                );
-                                            }}
-                                        </Form.Item>
-                                    </Col>
-                                </>
-                            )}
-
-                            {sections.includes("sales") && (
-                                <>
-                                    <Col xs={12} sm={12}>
-                                        <Form.Item name="orders" label={tr('Orders submitted')} rules={[{ required: true }]}>
-                                            <InputNumber min={0} style={{ width: "100%" }} />
-                                        </Form.Item>
-                                    </Col>
-
-                                    <Col xs={12} sm={12}>
-                                        <Form.Item name="customers" label={tr('New customers')} rules={[{ required: true }]}>
-                                            <InputNumber min={0} style={{ width: "100%" }} />
-                                        </Form.Item>
-                                    </Col>
-                                </>
-                            )}
-
-                            {sections.includes("traffic") && (
-                                <Col xs={24} sm={12}>
-                                    <Form.Item name="traffic" label={tr('Website traffic')} rules={[{ required: true }]}>
-                                        <InputNumber min={0} style={{ width: "100%" }} />
-                                    </Form.Item>
-                                </Col>
-                            )}
-
-                            {sections.includes("networking") && (
-                                <Col xs={24} sm={12}>
-                                    <Form.Item name="networking" label={tr('Networking events')} rules={[{ required: true }]}>
-                                        <InputNumber min={0} style={{ width: "100%" }} />
-                                    </Form.Item>
-                                </Col>
-                            )}
-                        </Row>
-                    </Form>
-                )}
-            </Modal>
-
-            <Modal
-                open={progressVisible}
-                footer={null}
-                closable={false}
-                centered
-                bodyStyle={{ textAlign: "center", padding: "40px" }}
-            >
-                <Progress type="circle" percent={progressPercent} />
-                <p style={{ marginTop: 20, fontSize: 16, fontWeight: 500 }}>
-                    {progressMessage}
-                </p>
-            </Modal>
-        </DashboardPage>
-    );
-};
-
-export default MonthlyPerformanceForm;
-
+export default MonthlyPerformanceForm

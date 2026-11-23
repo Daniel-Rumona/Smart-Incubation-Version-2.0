@@ -127,7 +127,7 @@ const smeLayers = (business: TwinBusiness, week: TwinWeek): LayerView[] => {
     { key: 'sustainability', name: 'Sustainability', short: '—', value: 'Not measured yet', pct: 0, n: null, source: 'ESG reporting add-on' },
     {
       key: 'readiness', name: 'Readiness', short: `${week.funding}·${week.market}`, value: `Funding ${week.funding}, market ${week.market}`,
-      pct: week.funding, n: week.funding, source: 'Readiness rules (as the Control Tower)',
+      pct: week.funding, n: week.funding, source: 'Readiness rules (as the Readiness Hub)',
     },
   ]
 }

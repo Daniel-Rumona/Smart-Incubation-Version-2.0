@@ -95,8 +95,8 @@ export const ReceptionHomePage = () => {
     })
 
     const statusTag = (status: string) => status === 'accepted'
-        ? <Tag color="green" variant="borderless">{t('Confirmed')}</Tag>
-        : status === 'completed' ? <Tag variant="borderless">{t('Completed')}</Tag> : <Tag color="gold" variant="borderless">{t('Awaiting confirmation')}</Tag>
+        ? <Tag color="green" variant="filled">{t('Confirmed')}</Tag>
+        : status === 'completed' ? <Tag variant="filled">{t('Completed')}</Tag> : <Tag color="gold" variant="filled">{t('Awaiting confirmation')}</Tag>
 
     return (
         <DashboardPage className="reception-home admin-overview">
@@ -191,7 +191,7 @@ export const ReceptionHomePage = () => {
                                             </div>
                                             {row.forwardedToName
                                                 ? <Typography.Text type="secondary">{t('Forwarded to {name}', undefined, { name: row.forwardedToName })}</Typography.Text>
-                                                : <Tag color={row.status === 'pending' ? 'gold' : 'blue'} variant="borderless">{row.status === 'pending' ? t('New') : t('Contacted')}</Tag>}
+                                                : <Tag color={row.status === 'pending' ? 'gold' : 'blue'} variant="filled">{row.status === 'pending' ? t('New') : t('Contacted')}</Tag>}
                                         </li>
                                     ))}
                                 </ul>

@@ -17,7 +17,8 @@ import {
     TeamOutlined,
     WarningOutlined,
 } from '@ant-design/icons'
-import type Highcharts from 'highcharts'
+import Highcharts from 'highcharts'
+import HighchartsMore from 'highcharts/highcharts-more'
 import dayjs, { type Dayjs } from 'dayjs'
 import quarterOfYear from 'dayjs/plugin/quarterOfYear'
 import DashboardPage from '@/components/shared/DashboardPage'
@@ -60,6 +61,11 @@ import '@/styles/operations-reports.css'
 import { useLanguage, tr } from '@/providers/LanguageProvider'
 
 dayjs.extend(quarterOfYear)
+
+// The applicant profile's sector chart is a bubble series, which lives in highcharts-more. Without it Highcharts
+// throws error #17 when the tab opens and, with no error boundary, takes the whole app down. Same registration as ProjectAdminEsgPage.
+const highchartsMore = typeof HighchartsMore === 'function' ? HighchartsMore : (HighchartsMore as { default?: unknown }).default
+if (typeof highchartsMore === 'function') (highchartsMore as (highcharts: typeof Highcharts) => void)(Highcharts)
 
 const { RangePicker } = DatePicker
 
@@ -536,14 +542,18 @@ export default function ProjectAdminReportsPage() {
         return map
     }, [periodData])
 
+    // With one programme in the period (one picked in the top bar, usually) there is nothing to choose between, so
+    // Programme health shows that programme's detail inline instead of a single tile that opens a modal.
+    const singleProgramme = programmeRows.length === 1 ? programmeRows[0].programme : undefined
+    const detailProgramme = selectedProgramme || singleProgramme
     const selectedProgrammeDetail = useMemo(() => {
-        if (!selectedProgramme) return null
-        const row = programmeRows.find((candidate) => candidate.programme === selectedProgramme)
+        if (!detailProgramme) return null
+        const row = programmeRows.find((candidate) => candidate.programme === detailProgramme)
         if (!row) return null
 
-        const applications = periodData.applications.filter((application) => (application.programName || 'Unassigned programme') === selectedProgramme)
-        const interventions = periodData.interventions.filter((intervention) => (intervention.programName || 'Unassigned programme') === selectedProgramme)
-        const complianceDocuments = periodData.complianceDocuments.filter((document) => (programNameById.get(document.programId) || 'Unassigned programme') === selectedProgramme)
+        const applications = periodData.applications.filter((application) => (application.programName || 'Unassigned programme') === detailProgramme)
+        const interventions = periodData.interventions.filter((intervention) => (intervention.programName || 'Unassigned programme') === detailProgramme)
+        const complianceDocuments = periodData.complianceDocuments.filter((document) => (programNameById.get(document.programId) || 'Unassigned programme') === detailProgramme)
 
         return {
             row,
@@ -551,7 +561,7 @@ export default function ProjectAdminReportsPage() {
             interventionCounts: countBy(interventions, (intervention) => intervention.status),
             complianceCounts: countBy(complianceDocuments, (document) => document.status),
         }
-    }, [periodData, programNameById, programmeRows, selectedProgramme])
+    }, [periodData, programNameById, programmeRows, detailProgramme])
 
     const applicationTimelineChart = useMemo<Highcharts.Options>(() => {
         const timeline = buildTimeBuckets(
@@ -716,6 +726,26 @@ export default function ProjectAdminReportsPage() {
             }],
         }
     }, [periodData.applications])
+
+    // Applicant profile has up to 15 charts. Drawn all at once they held the click for seconds, so the tab switches
+    // straight away and the charts are drawn one per task, in page order, each card showing its skeleton until then.
+    const profileChartCount = (ownershipChart ? 1 : 0) + applicantDemographicCharts.length + (sectorBubbleChart ? 1 : 0)
+    const [profileChartsShown, setProfileChartsShown] = useState(0)
+    useEffect(() => {
+        if (view !== 'applications' || applicationsTab !== 'profile') return undefined
+        let shown = 0
+        let timer = 0
+        const showNext = () => {
+            shown += 1
+            setProfileChartsShown(shown)
+            if (shown < profileChartCount) timer = window.setTimeout(showNext, 0)
+        }
+        timer = window.setTimeout(showNext, 0)
+        return () => {
+            window.clearTimeout(timer)
+            setProfileChartsShown(0)
+        }
+    }, [view, applicationsTab, profileChartCount])
 
     const applicationStatusChart = useMemo<Highcharts.Options>(() => ({
         chart: { type: 'column', height: 320 },
@@ -938,6 +968,33 @@ export default function ProjectAdminReportsPage() {
     }
 
     const pageLoading = identityLoading || loading
+
+    // Figures and status breakdowns for one programme: the programme modal's body, and Programme health's body when there is only one.
+    const programmeDetailBody = selectedProgrammeDetail && (
+        <>
+            <div className="pa-report-figures">
+                <div><Typography.Text type="secondary">{t('Applications')}</Typography.Text><strong>{selectedProgrammeDetail.row.applications}</strong></div>
+                <div><Typography.Text type="secondary">{t('Participants')}</Typography.Text><strong>{selectedProgrammeDetail.row.participants}</strong></div>
+                <div><Typography.Text type="secondary">{t('Interventions')}</Typography.Text><strong>{selectedProgrammeDetail.row.interventions}</strong></div>
+                <div><Typography.Text type="secondary">{t('Overdue')}</Typography.Text><strong className={selectedProgrammeDetail.row.overdue > 0 ? 'is-risk' : undefined}>{selectedProgrammeDetail.row.overdue}</strong></div>
+            </div>
+            <Row gutter={[24, 24]}>
+                <Col xs={24} md={8}>
+                    <Typography.Text strong style={{ display: 'block', marginBottom: 12 }}>{t('Applications')}</Typography.Text>
+                    <StatusBreakdownList counts={selectedProgrammeDetail.applicationCounts} />
+                </Col>
+                <Col xs={24} md={8}>
+                    <Typography.Text strong style={{ display: 'block', marginBottom: 12 }}>{t('Interventions')}</Typography.Text>
+                    <StatusBreakdownList counts={selectedProgrammeDetail.interventionCounts} />
+                </Col>
+                <Col xs={24} md={8}>
+                    <Typography.Text strong style={{ display: 'block', marginBottom: 12 }}>{t('Compliance')}</Typography.Text>
+                    <StatusBreakdownList counts={selectedProgrammeDetail.complianceCounts} />
+                </Col>
+            </Row>
+        </>
+    )
+    const singleProgrammeRate = selectedProgrammeDetail ? percent(selectedProgrammeDetail.row.completed, selectedProgrammeDetail.row.interventions) : 0
     const isMobile = !Grid.useBreakpoint().md
 
     // A rate can only be compared with the previous period if that period had records to measure.
@@ -982,7 +1039,7 @@ export default function ProjectAdminReportsPage() {
                     ? tr('{sme} · {days} days overdue', undefined, { sme: intervention.participantName, days: Math.max(dayjs().diff(intervention.dueDate, 'day'), 1) })
                     : intervention.participantName,
                 tag: { label: tr('Overdue'), color: 'red' },
-                route: '/operations/interventions',
+                route: '/operations/interventions/monitoring',
                 state: { focusInterventionId: intervention.id },
             }))
         const compliance = periodData.complianceDocuments
@@ -1250,8 +1307,21 @@ export default function ProjectAdminReportsPage() {
                             </Card>
                         </Col>
                         <Col xs={24} xl={15}>
-                            <Card loading={pageLoading} className="dashboard-section-card motion-card" title={t('Programme health')}>
-                                {programmeRows.length ? (
+                            <Card
+                                loading={pageLoading}
+                                className="dashboard-section-card motion-card"
+                                title={singleProgramme ? t('Programme health: {programme}', undefined, { programme: singleProgramme }) : t('Programme health')}
+                                style={singleProgramme ? { height: 'auto' } : undefined}
+                            >
+                                {singleProgramme && selectedProgrammeDetail ? (
+                                    <>
+                                        <div className="pa-programme-delivery">
+                                            <Typography.Text type="secondary">{t('Interventions completed')}</Typography.Text>
+                                            <Progress percent={singleProgrammeRate} size="small" />
+                                        </div>
+                                        {programmeDetailBody}
+                                    </>
+                                ) : programmeRows.length ? (
                                     <Row gutter={[10, 10]}>
                                         {programmeRows.map((row) => (
                                             <Col xs={24} sm={12} key={row.key}>
@@ -1267,36 +1337,13 @@ export default function ProjectAdminReportsPage() {
             )}
 
             <ResponsiveModal
-                open={!!selectedProgrammeDetail}
+                open={!!selectedProgramme && !!selectedProgrammeDetail}
                 onClose={() => setSelectedProgramme(undefined)}
                 title={selectedProgrammeDetail?.row.programme}
                 width={760}
                 centered
             >
-                {selectedProgrammeDetail && (
-                    <>
-                        <div className="pa-report-figures">
-                            <div><Typography.Text type="secondary">{t('Applications')}</Typography.Text><strong>{selectedProgrammeDetail.row.applications}</strong></div>
-                            <div><Typography.Text type="secondary">{t('Participants')}</Typography.Text><strong>{selectedProgrammeDetail.row.participants}</strong></div>
-                            <div><Typography.Text type="secondary">{t('Interventions')}</Typography.Text><strong>{selectedProgrammeDetail.row.interventions}</strong></div>
-                            <div><Typography.Text type="secondary">{t('Overdue')}</Typography.Text><strong className={selectedProgrammeDetail.row.overdue > 0 ? 'is-risk' : undefined}>{selectedProgrammeDetail.row.overdue}</strong></div>
-                        </div>
-                        <Row gutter={[24, 24]}>
-                            <Col xs={24} md={8}>
-                                <Typography.Text strong style={{ display: 'block', marginBottom: 12 }}>{t('Applications')}</Typography.Text>
-                                <StatusBreakdownList counts={selectedProgrammeDetail.applicationCounts} />
-                            </Col>
-                            <Col xs={24} md={8}>
-                                <Typography.Text strong style={{ display: 'block', marginBottom: 12 }}>{t('Interventions')}</Typography.Text>
-                                <StatusBreakdownList counts={selectedProgrammeDetail.interventionCounts} />
-                            </Col>
-                            <Col xs={24} md={8}>
-                                <Typography.Text strong style={{ display: 'block', marginBottom: 12 }}>{t('Compliance')}</Typography.Text>
-                                <StatusBreakdownList counts={selectedProgrammeDetail.complianceCounts} />
-                            </Col>
-                        </Row>
-                    </>
-                )}
+                {selectedProgramme && programmeDetailBody}
             </ResponsiveModal>
 
             {view === 'applications' && (
@@ -1325,21 +1372,21 @@ export default function ProjectAdminReportsPage() {
                         <Row gutter={[20, 20]} className="project-admin-report-chart-grid">
                             {ownershipChart && (
                                 <Col xs={24} xl={12}>
-                                    <Card loading={pageLoading} className="dashboard-section-card motion-card" title={t('Ownership profile')}>
+                                    <Card loading={pageLoading || profileChartsShown < 1} className="dashboard-section-card motion-card" title={t('Ownership profile')}>
                                         <ThemedHighcharts options={ownershipChart} />
                                     </Card>
                                 </Col>
                             )}
-                            {applicantDemographicCharts.map((chart) => (
+                            {applicantDemographicCharts.map((chart, index) => (
                                 <Col xs={24} xl={12} key={chart.key}>
-                                    <Card loading={pageLoading} className="dashboard-section-card motion-card" title={chart.title}>
+                                    <Card loading={pageLoading || profileChartsShown <= index + (ownershipChart ? 1 : 0)} className="dashboard-section-card motion-card" title={chart.title}>
                                         <ThemedHighcharts options={chart.options} />
                                     </Card>
                                 </Col>
                             ))}
                             {sectorBubbleChart && (
                                 <Col xs={24}>
-                                    <Card loading={pageLoading} className="dashboard-section-card motion-card" title={t('Sector profile: applicant age, trading experience and volume')}>
+                                    <Card loading={pageLoading || profileChartsShown < profileChartCount} className="dashboard-section-card motion-card" title={t('Sector profile: applicant age, trading experience and volume')}>
                                         <ThemedHighcharts options={sectorBubbleChart} />
                                     </Card>
                                 </Col>

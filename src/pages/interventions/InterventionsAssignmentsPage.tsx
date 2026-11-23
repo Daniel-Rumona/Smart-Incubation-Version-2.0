@@ -1258,7 +1258,7 @@ export const InterventionsAssignemnts = () => {
                                         showSearch
                                         optionFilterProp="label"
                                         options={assigneeOptions}
-                                        optionRender={(option) => <span>{option.label}{option.data.match && <Tag color="green" variant="borderless" style={{ marginInlineStart: 8 }}>{t('Covers {area}', undefined, { area: assignArea })}</Tag>}</span>}
+                                        optionRender={(option) => <span>{option.label}{option.data.match && <Tag color="green" variant="filled" style={{ marginInlineStart: 8 }}>{t('Covers {area}', undefined, { area: assignArea })}</Tag>}</span>}
                                     />
                                 </Form.Item>
                             )}

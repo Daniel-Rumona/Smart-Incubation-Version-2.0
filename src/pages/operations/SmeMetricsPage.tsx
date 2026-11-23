@@ -1,776 +1,423 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  Alert,
-  App,
-  Button,
-  Card,
-  Col,
-  DatePicker,
-  Descriptions,
-  Empty,
-  Input,
-  Modal,
-  Progress,
-  Row,
-  Segmented,
-  Select,
-  Space,
-  Table,
-  Tag,
-  Typography,
+  App, Button, Card, Checkbox, Col, DatePicker, Empty, Form, Grid, Input, InputNumber,
+  Modal, Pagination, Progress, Row, Select, Skeleton, Space, Tag, Typography, Upload,
 } from 'antd'
-import type { ColumnsType } from 'antd/es/table'
+import type { UploadFile } from 'antd/es/upload/interface'
 import {
-  BankOutlined,
-  BarChartOutlined,
-  CalendarOutlined,
-  EyeOutlined,
-  LineChartOutlined,
-  RiseOutlined,
-  SearchOutlined,
-  TeamOutlined,
+  CalendarOutlined, CheckCircleOutlined, ClockCircleOutlined,
+  DollarCircleOutlined, EditOutlined, FileAddOutlined,
+  PlusOutlined, ReloadOutlined, SearchOutlined, TeamOutlined, UploadOutlined,
 } from '@ant-design/icons'
-import type Highcharts from 'highcharts'
 import dayjs, { type Dayjs } from 'dayjs'
-import isoWeek from 'dayjs/plugin/isoWeek'
 import quarterOfYear from 'dayjs/plugin/quarterOfYear'
-import { collection, documentId, getDocs, query, where } from 'firebase/firestore'
+import type Highcharts from 'highcharts'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
 import { ThemedHighcharts } from '@/components/shared/ThemedHighcharts'
-import { db } from '@/firebase/config'
 import { useActiveProgramId } from '@/hooks/useActiveProgramId'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { matchesActiveProgram } from '@/services/workspaceProgramsService'
 import { useRegisterAgentPageContext } from '@/shared/hooks/useRegisterAgentPageContext'
-import '@/styles/dashboard.css'
+import { useLanguage } from '@/providers/LanguageProvider'
+import {
+  listSmeMetrics, listSmeOpportunities, monthToDate, saveAssistedMonthly,
+  saveAssistedOpportunity, type MetricField, type MetricSection, type MonthlyRecord,
+  type OpportunityStage, type OpportunityType, type SmeOpportunity, type SmeRow,
+} from '@/services/smeMetricsService'
 import '@/styles/sme-metrics.css'
-import { useLanguage, tr } from '@/providers/LanguageProvider'
 
-dayjs.extend(isoWeek)
 dayjs.extend(quarterOfYear)
-
-const { RangePicker } = DatePicker
 const { Text } = Typography
-
-type HistoryCadence = 'monthly' | 'annual'
-
-type FirestoreDate =
-  | Date
-  | string
-  | number
-  | {
-      toDate?: () => Date
-      seconds?: number
-      nanoseconds?: number
-    }
-  | null
-  | undefined
-
-type AnyDoc = Record<string, unknown>
-
-type SmeMetricRow = {
-  id: string
-  businessName: string
-  programId?: string
-  programName?: string
-  sector?: string
-  gender?: string
-  province?: string
-  beeLevel?: string
-  createdAt?: FirestoreDate
-  acceptedAt?: FirestoreDate
-  approvedAt?: FirestoreDate
-  onboardedAt?: FirestoreDate
-  revenue?: unknown
-  annualRevenue?: unknown
-  monthlyRevenue?: unknown
-  turnover?: unknown
-  annualTurnover?: unknown
-  employeeCount?: unknown
-  employees?: unknown
-  numberOfEmployees?: unknown
-  staffCount?: unknown
-  jobsCreated?: unknown
-  revenueHistory?: {
-    monthly?: Record<string, unknown>
-    annual?: Record<string, unknown>
-  }
-  headcountHistory?: {
-    monthly?: Record<string, unknown>
-    annual?: Record<string, unknown>
-  }
+const { useBreakpoint } = Grid
+/** Businesses shown per page in the reporting list. */
+const LIST_PAGE_SIZE = 5
+const money = (n: number) => new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(n)
+const count = (n: number) => new Intl.NumberFormat('en-ZA', { maximumFractionDigits: 0 }).format(n)
+const monthId = (d: Dayjs) => d.format('MMMM YYYY')
+const has = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n)
+const sections: { key: MetricSection; label: string; fields: MetricField[] }[] = [
+  { key: 'revenue', label: 'Revenue', fields: ['revenue'] },
+  { key: 'employees', label: 'Employees', fields: ['headPermanent', 'headTemporary'] },
+  { key: 'sales', label: 'Orders & customers', fields: ['orders', 'customers'] },
+  { key: 'traffic', label: 'Website traffic', fields: ['traffic'] },
+  { key: 'networking', label: 'Networking', fields: ['networking'] },
+]
+const opportunityStages: OpportunityStage[] = ['identified', 'preparing', 'submitted', 'shortlisted', 'awarded', 'unsuccessful', 'withdrawn']
+const stageColor: Record<OpportunityStage, string> = {
+  identified: 'blue', preparing: 'gold', submitted: 'processing', shortlisted: 'cyan',
+  awarded: 'green', unsuccessful: 'red', withdrawn: 'default',
 }
-
-type MetricEntry = {
-  period: string
-  date: Dayjs
-  value: number
+const formatStage = (s: string) => s.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase())
+const fieldLabel: Record<MetricField, string> = {
+  revenue: 'Revenue (R)', headPermanent: 'Permanent employees', headTemporary: 'Temporary employees',
+  orders: 'Orders', customers: 'New customers', traffic: 'Website visits', networking: 'Networking events',
 }
-
-type SmeMetricSummaryRow = {
-  key: string
-  businessName: string
-  sector: string
-  gender: string
-  province: string
-  beeLevel: string
-  programName: string
-  revenue: number
-  employees: number
-  revenueDelta: number
-  employeeDelta: number
-  previousRevenue: number
-  previousEmployees: number
-}
-
-const chunkArray = <T,>(items: T[], size: number) => {
-  const chunks: T[][] = []
-  for (let index = 0; index < items.length; index += size) chunks.push(items.slice(index, index + size))
-  return chunks
-}
-
-const toDayjs = (value: FirestoreDate): Dayjs | null => {
+const emptyMetric = (record: MonthlyRecord | undefined, field: MetricField) => record && has(record[field]) ? record[field] : undefined
+const asDate = (value: unknown): Dayjs | null => {
   if (!value) return null
-  if (dayjs.isDayjs(value)) return value.isValid() ? value : null
-  if (value instanceof Date) {
-    const parsed = dayjs(value)
-    return parsed.isValid() ? parsed : null
-  }
-  if (typeof value === 'number') {
-    const parsed = dayjs(value > 1e12 ? value : value * 1000)
-    return parsed.isValid() ? parsed : null
-  }
-  if (typeof value === 'object' && typeof value.toDate === 'function') {
-    const parsed = dayjs(value.toDate())
-    return parsed.isValid() ? parsed : null
-  }
-  if (typeof value === 'object' && typeof value.seconds === 'number') {
-    const parsed = dayjs(value.seconds * 1000 + Math.floor((value.nanoseconds || 0) / 1e6))
-    return parsed.isValid() ? parsed : null
-  }
-  const parsed = dayjs(String(value))
-  return parsed.isValid() ? parsed : null
-}
-
-const getPreviousRange = ([start, end]: [Dayjs, Dayjs]): [Dayjs, Dayjs] => {
-  const days = end.startOf('day').diff(start.startOf('day'), 'day') + 1
-  const previousEnd = start.subtract(1, 'day').endOf('day')
-  return [previousEnd.subtract(days - 1, 'day').startOf('day'), previousEnd]
-}
-
-const inRange = (date: Dayjs, [start, end]: [Dayjs, Dayjs]) =>
-  date.isValid() && !date.isBefore(start, 'day') && !date.isAfter(end, 'day')
-
-const periodToDate = (period: string, cadence: HistoryCadence) => {
-  const clean = period.trim()
-  const parsed = cadence === 'annual' ? dayjs(`${clean}-12-31`) : dayjs(`${clean}-01`)
-  return parsed.isValid() ? parsed : null
-}
-
-const toMetricNumber = (...values: unknown[]): number => {
-  for (const value of values) {
-    if (value === null || value === undefined || value === '') continue
-    if (typeof value === 'object') {
-        const nested: number = toMetricNumber(
-        (value as AnyDoc).value,
-        (value as AnyDoc).total,
-        (value as AnyDoc).count,
-        (value as AnyDoc).headcount,
-        (value as AnyDoc).staffCount,
-        (value as AnyDoc).numberOfEmployees,
-      )
-      if (nested > 0) return nested
-    }
-    const parsed = Number(String(value).replace(/[^0-9.-]+/g, ''))
-    if (Number.isFinite(parsed)) return parsed
-  }
-  return 0
-}
-
-const getSmeAnchorDate = (row: SmeMetricRow) => {
-  const candidates = [row.onboardedAt, row.acceptedAt, row.approvedAt, row.createdAt]
-  for (const candidate of candidates) {
-    const parsed = toDayjs(candidate)
-    if (parsed) return parsed
+  if (value instanceof Date) return dayjs(value)
+  if (typeof value === 'string' || typeof value === 'number') return dayjs(value)
+  if (typeof value === 'object' && value !== null) {
+    const dateObject = value as { toDate?: () => Date; seconds?: number }
+    if (typeof dateObject.toDate === 'function') return dayjs(dateObject.toDate())
+    if (typeof dateObject.seconds === 'number') return dayjs(dateObject.seconds * 1000)
   }
   return null
 }
-
-const getRevenueFallback = (row: SmeMetricRow) =>
-  toMetricNumber(row.revenue, row.annualRevenue, row.turnover, row.annualTurnover, row.monthlyRevenue)
-
-const getEmployeeFallback = (row: SmeMetricRow) =>
-  toMetricNumber(row.employeeCount, row.employees, row.numberOfEmployees, row.staffCount, row.jobsCreated)
-
-const historyEntries = (history: SmeMetricRow['revenueHistory'] | SmeMetricRow['headcountHistory']) => {
-  const entries: MetricEntry[] = []
-  Object.entries(history?.monthly || {}).forEach(([period, raw]) => {
-    const date = periodToDate(period, 'monthly')
-    const value = toMetricNumber(raw)
-    if (date && value > 0) entries.push({ period, date, value })
-  })
-  Object.entries(history?.annual || {}).forEach(([period, raw]) => {
-    const date = periodToDate(period, 'annual')
-    const value = toMetricNumber(raw)
-    if (date && value > 0) entries.push({ period, date, value })
-  })
-  return entries.sort((a, b) => a.date.valueOf() - b.date.valueOf() || a.period.localeCompare(b.period))
-}
-
-const revenueInRange = (row: SmeMetricRow, range: [Dayjs, Dayjs]) => {
-  const entries = historyEntries(row.revenueHistory)
-  const ranged = entries.filter(entry => inRange(entry.date, range))
-  if (ranged.length) return ranged.reduce((sum, entry) => sum + entry.value, 0)
-  const anchor = getSmeAnchorDate(row)
-  return !anchor || !anchor.isAfter(range[1], 'day') ? getRevenueFallback(row) : 0
-}
-
-const employeesInRange = (row: SmeMetricRow, range: [Dayjs, Dayjs]) => {
-  const entries = historyEntries(row.headcountHistory).filter(entry => inRange(entry.date, range))
-  if (entries.length) return entries[entries.length - 1].value
-  const anchor = getSmeAnchorDate(row)
-  return !anchor || !anchor.isAfter(range[1], 'day') ? getEmployeeFallback(row) : 0
-}
-
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('en-ZA', {
-    style: 'currency',
-    currency: 'ZAR',
-    maximumFractionDigits: 0,
-    notation: Math.abs(value) >= 1000000 ? 'compact' : 'standard',
-  }).format(value)
-
-const formatNumber = (value: number) => new Intl.NumberFormat('en-ZA', { maximumFractionDigits: 0 }).format(value)
-
-const percent = (numerator: number, denominator: number) => (denominator > 0 ? Math.round((numerator / denominator) * 100) : 0)
-
-type RangePresetKey = 'month' | 'quarter' | 'ytd'
-
-const rangePresetOptions: Array<{ label: string; value: RangePresetKey; icon: ReactNode }> = [
-  { get label() { return tr('This month') }, value: 'month', icon: <CalendarOutlined /> },
-  { get label() { return tr('This quarter') }, value: 'quarter', icon: <CalendarOutlined /> },
-  { get label() { return tr('Year to date') }, value: 'ytd', icon: <CalendarOutlined /> },
-]
-
-const rangeForPresetKey = (key: RangePresetKey): [Dayjs, Dayjs] => {
-  const now = dayjs()
-  if (key === 'month') return [now.startOf('month'), now.endOf('month')]
-  if (key === 'quarter') return [now.startOf('quarter'), now.endOf('quarter')]
-  return [now.startOf('year'), now]
-}
-
-type AnalyticsView = 'trend' | 'sectors'
-
-const uniqueOptions = (rows: SmeMetricRow[], key: 'sector' | 'gender' | 'province' | 'beeLevel') =>
-  Array.from(new Set(rows.map(row => String(row[key] || '').trim()).filter(Boolean)))
-    .sort((a, b) => a.localeCompare(b))
-    .map(value => ({ value, label: value }))
-
-const delta = (current: number, previous: number) => {
-  const difference = current - previous
-  if (previous === 0) return { label: current > 0 ? '+100%' : '0%', positive: difference >= 0, difference }
-  const percentage = Number(((difference / previous) * 100).toFixed(1))
-  return { label: `${percentage > 0 ? '+' : ''}${percentage}%`, positive: difference >= 0, difference }
-}
-
-const bucketRange = (range: [Dayjs, Dayjs]) => {
-  const [start, end] = range
-  const days = end.diff(start, 'day') + 1
-  const buckets: Array<{ key: string; label: string; range: [Dayjs, Dayjs] }> = []
-
-  if (days <= 45) {
-    let cursor = start.startOf('day')
-    while (!cursor.isAfter(end, 'day')) {
-      buckets.push({ key: cursor.format('YYYY-MM-DD'), label: cursor.format('DD MMM'), range: [cursor.startOf('day'), cursor.endOf('day')] })
-      cursor = cursor.add(1, 'day')
-    }
-    return buckets
-  }
-
+const rangeMonths = (start: Dayjs, end: Dayjs) => {
+  const result: Dayjs[] = []
   let cursor = start.startOf('month')
-  while (!cursor.isAfter(end, 'month')) {
-    buckets.push({
-      key: cursor.format('YYYY-MM'),
-      label: cursor.format('MMM YYYY'),
-      range: [cursor.startOf('month'), cursor.endOf('month')],
-    })
-    cursor = cursor.add(1, 'month')
-  }
-  return buckets
+  while (!cursor.isAfter(end, 'month')) { result.push(cursor); cursor = cursor.add(1, 'month') }
+  return result
 }
+const periodMetrics = (row: SmeRow, start: Dayjs, end: Dayjs) => {
+  const selected = row.monthly.filter(m => {
+    const date = monthToDate(m.month)
+    return date && !date.isBefore(start, 'month') && !date.isAfter(end, 'month')
+  })
+  const revenueValues = selected.filter(m => has(m.revenue))
+  const revenue = revenueValues.reduce((sum, m) => sum + (m.revenue || 0), 0)
+  const employeeRecord = selected.find(m => has(m.headPermanent) || has(m.headTemporary))
+  const employees = employeeRecord && has(employeeRecord.headPermanent) && has(employeeRecord.headTemporary)
+    ? employeeRecord.headPermanent + employeeRecord.headTemporary : null
+  const customers = selected.filter(m => has(m.customers)).reduce((sum, m) => sum + (m.customers || 0), 0)
+  const accepted = asDate(row.acceptedAt)
+  const monthCount = rangeMonths(start, end).filter(d => !d.isAfter(dayjs(), 'month') && (!accepted || !d.isBefore(accepted, 'month'))).length
+  const reported = new Set(selected.filter(m => { const d = monthToDate(m.month); return d && !d.isAfter(dayjs(), 'month') && (!accepted || !d.isBefore(accepted, 'month')) }).map(m => monthToDate(m.month)?.format('YYYY-MM')).filter(Boolean)).size
+  return {
+    revenue, revenueReported: revenueValues.length > 0, employees,
+    customers, customersReported: selected.some(m => has(m.customers)),
+    reported, expected: monthCount, outstanding: Math.max(0, monthCount - reported),
+  }
+}
+
+type MonthlyForm = Partial<Record<MetricField, number>> & { month: Dayjs }
+type OpportunityForm = { title: string; buyer: string; type: OpportunityType; stage: OpportunityStage; value?: number; submittedAt?: Dayjs; closingAt?: Dayjs; notes?: string }
 
 export const SmeMetricsPage = () => {
   const { t } = useLanguage()
   const { message } = App.useApp()
   const { user } = useFullIdentity()
   const { activeProgramId, isAllPrograms } = useActiveProgramId()
-  const [[start, end], setRange] = useState<[Dayjs, Dayjs]>(rangeForPresetKey('ytd'))
-  const [rows, setRows] = useState<SmeMetricRow[]>([])
+  const screens = useBreakpoint()
+  const mobile = !screens.md
+  const [rows, setRows] = useState<SmeRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [reload, setReload] = useState(0)
   const [search, setSearch] = useState('')
-  const [sector, setSector] = useState('All')
-  const [gender, setGender] = useState('All')
-  const [province, setProvince] = useState('All')
-  const [beeLevel, setBeeLevel] = useState('All')
-  const [selectedKey, setSelectedKey] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [analyticsOpen, setAnalyticsOpen] = useState(false)
-  const [analyticsView, setAnalyticsView] = useState<AnalyticsView>('trend')
-  const [[analyticsStart, analyticsEnd], setAnalyticsRange] = useState<[Dayjs, Dayjs]>([dayjs().startOf('month'), dayjs().endOf('month')])
-
-  const datePickerPresets = useMemo(
-    () => rangePresetOptions.map(({ label, value }) => ({ label, value: rangeForPresetKey(value) })),
-    [],
-  )
+  const [sector, setSector] = useState('all')
+  const [status, setStatus] = useState('all')
+  const [start, setStart] = useState(dayjs().startOf('year'))
+  const [end, setEnd] = useState(dayjs().endOf('month'))
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [monthlyOpen, setMonthlyOpen] = useState(false)
+  const [opportunityOpen, setOpportunityOpen] = useState(false)
+  const [editingOpportunity, setEditingOpportunity] = useState<string | null>(null)
+  const [opportunities, setOpportunities] = useState<SmeOpportunity[]>([])
+  const [opportunitiesLoading, setOpportunitiesLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [chosenSections, setChosenSections] = useState<MetricSection[]>(['revenue', 'employees'])
+  const [revenueFiles, setRevenueFiles] = useState<UploadFile[]>([])
+  const [employeeFiles, setEmployeeFiles] = useState<UploadFile[]>([])
+  const [monthlyForm] = Form.useForm<MonthlyForm>()
+  const [opportunityForm] = Form.useForm<OpportunityForm>()
 
   useEffect(() => {
-    let mounted = true
+    let active = true
+    setLoading(true)
+    void listSmeMetrics({
+      activeProgramId, isAllPrograms, companyCode: user?.companyCode,
+      canAccessProgram: (programId) => matchesActiveProgram(user, activeProgramId, programId),
+    }).then(items => { if (active) setRows(items) }).catch(error => {
+      console.error(error)
+      if (active) message.error(t('Unable to load SME performance. Please retry.'))
+    }).finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [activeProgramId, isAllPrograms, user, reload, message, t])
 
-    const loadRows = async () => {
-      setLoading(true)
-      try {
-        const constraints = user?.companyCode ? [where('companyCode', '==', user.companyCode)] : []
-        if (!isAllPrograms && activeProgramId) constraints.push(where('programId', '==', activeProgramId))
-
-        const [participantsSnap, programsSnap] = await Promise.all([
-          getDocs(query(collection(db, 'participants'), ...constraints)),
-          getDocs(collection(db, 'programs')),
-        ])
-
-        const participants: AnyDoc[] = participantsSnap.docs
-          .map(docSnap => ({ id: docSnap.id, ...(docSnap.data() as AnyDoc) } as AnyDoc))
-          .filter(row => {
-            const status = String(row.status || '').trim().toLowerCase()
-            return !['inactive', 'exited', 'removed', 'discontinued'].includes(status) && matchesActiveProgram(user, activeProgramId, String(row.programId || ''))
-          })
-
-        const businessProfileIds = Array.from(new Set(participants.map(row => String(row.businessProfileId || row.id || '').trim()).filter(Boolean)))
-        const applicationIds = Array.from(new Set(participants.map(row => String(row.applicationId || '').trim()).filter(Boolean)))
-        const businessProfiles = new Map<string, AnyDoc>()
-        const applications = new Map<string, AnyDoc>()
-        for (const chunk of chunkArray(businessProfileIds, 10)) {
-          const profileSnap = await getDocs(query(collection(db, 'businessProfiles'), where(documentId(), 'in', chunk)))
-          profileSnap.docs.forEach(docSnap => businessProfiles.set(docSnap.id, { id: docSnap.id, ...(docSnap.data() as AnyDoc) }))
-        }
-        for (const chunk of chunkArray(applicationIds, 10)) {
-          const applicationSnap = await getDocs(query(collection(db, 'applications'), where(documentId(), 'in', chunk)))
-          applicationSnap.docs.forEach(docSnap => applications.set(docSnap.id, { id: docSnap.id, ...(docSnap.data() as AnyDoc) }))
-        }
-
-        const programNames = new Map(programsSnap.docs.map(docSnap => {
-          const data = docSnap.data() as AnyDoc
-          return [docSnap.id, String(data.name || data.programName || data.title || docSnap.id)]
-        }))
-
-        if (!mounted) return
-        setRows(participants.map(participant => {
-          const businessProfile = businessProfiles.get(String(participant.businessProfileId || participant.id || '').trim()) || {}
-          const application = applications.get(String(participant.applicationId || '').trim()) || {}
-          const merged = { ...application, ...businessProfile, ...participant } as AnyDoc
-          const programId = String(merged.programId || businessProfile.programId || '').trim()
-
-          return {
-            id: String(participant.id),
-            businessName: String(merged.businessName || merged.companyName || 'Unnamed SME'),
-            programId,
-            programName: String(programNames.get(programId) || merged.programName || programId || 'Unassigned'),
-            sector: String(merged.sector || 'Unspecified'),
-            gender: String(merged.gender || 'Unspecified'),
-            province: String(merged.businessAddressProvince || merged.province || 'Unspecified'),
-            beeLevel: String(merged.beeLevel || 'Unspecified'),
-            createdAt: merged.createdAt as FirestoreDate,
-            acceptedAt: merged.acceptedAt as FirestoreDate,
-            approvedAt: merged.approvedAt as FirestoreDate,
-            onboardedAt: merged.onboardedAt as FirestoreDate,
-            revenue: merged.revenue,
-            annualRevenue: merged.annualRevenue,
-            monthlyRevenue: merged.monthlyRevenue,
-            turnover: merged.turnover,
-            annualTurnover: merged.annualTurnover,
-            employeeCount: merged.employeeCount,
-            employees: merged.employees,
-            numberOfEmployees: merged.numberOfEmployees,
-            staffCount: merged.staffCount,
-            jobsCreated: merged.jobsCreated,
-            revenueHistory: merged.revenueHistory as SmeMetricRow['revenueHistory'],
-            headcountHistory: merged.headcountHistory as SmeMetricRow['headcountHistory'],
-          }
-        }))
-      } catch (error) {
-        console.error(error)
-        message.error(t('Failed to load SME metrics'))
-        if (mounted) setRows([])
-      } finally {
-        if (mounted) setLoading(false)
-      }
-    }
-
-    void loadRows()
-    return () => {
-      mounted = false
-    }
-  }, [activeProgramId, isAllPrograms, message, user, t])
-
-  const previousRange = useMemo(() => getPreviousRange([start, end]), [end, start])
-  const filteredRows = useMemo(() => {
-    const searchTerm = search.trim().toLowerCase()
-
-    return rows.filter(row => {
-      const matchesSearch = !searchTerm || [
-        row.businessName,
-        row.programName,
-        row.sector,
-        row.gender,
-        row.province,
-        row.beeLevel,
-      ].some(value => String(value || '').toLowerCase().includes(searchTerm))
-
-      return matchesSearch
-        && (sector === 'All' || row.sector === sector)
-        && (gender === 'All' || row.gender === gender)
-        && (province === 'All' || row.province === province)
-        && (beeLevel === 'All' || row.beeLevel === beeLevel)
-    })
-  }, [beeLevel, gender, province, rows, search, sector])
-
-  const computed = useMemo(() => {
-    const summaryRows: SmeMetricSummaryRow[] = filteredRows.map(row => {
-      const revenue = revenueInRange(row, [start, end])
-      const employees = employeesInRange(row, [start, end])
-      const previousRevenue = revenueInRange(row, previousRange)
-      const previousEmployees = employeesInRange(row, previousRange)
-
-      return {
-        key: row.id,
-        businessName: row.businessName,
-        sector: row.sector || 'Unspecified',
-        gender: row.gender || 'Unspecified',
-        province: row.province || 'Unspecified',
-        beeLevel: row.beeLevel || 'Unspecified',
-        programName: row.programName || 'Unassigned',
-        revenue,
-        employees,
-        revenueDelta: revenue - previousRevenue,
-        employeeDelta: employees - previousEmployees,
-        previousRevenue,
-        previousEmployees,
-      }
-    })
-
-    const revenue = summaryRows.reduce((sum, row) => sum + row.revenue, 0)
-    const employees = summaryRows.reduce((sum, row) => sum + row.employees, 0)
-    const previousRevenue = filteredRows.reduce((sum, row) => sum + revenueInRange(row, previousRange), 0)
-    const previousEmployees = filteredRows.reduce((sum, row) => sum + employeesInRange(row, previousRange), 0)
-
+  const selected = rows.find(row => row.id === selectedId) || null
+  const sectorOptions = useMemo(() => [...new Set(rows.map(r => r.sector))].sort(), [rows])
+  const stats = useMemo(() => rows.map(row => ({ ...row, ...periodMetrics(row, start, end) })), [rows, start, end])
+  const filtered = useMemo(() => stats.filter(row => {
+    if (sector !== 'all' && row.sector !== sector) return false
+    if (status === 'missing' && row.outstanding === 0) return false
+    if (status === 'reported' && row.reported === 0) return false
+    if (status === 'awaiting' && !row.monthly.some(m => m.verificationStatus === 'awaiting_confirmation')) return false
+    return `${row.businessName} ${row.sector} ${row.programName}`.toLowerCase().includes(search.trim().toLowerCase())
+  }), [stats, search, sector, status])
+  // The business list shows a few at a time; changing the filters goes back to the first page.
+  const [listPage, setListPage] = useState(1)
+  useEffect(() => { setListPage(1) }, [search, sector, status, start, end, activeProgramId])
+  const lastListPage = Math.max(1, Math.ceil(filtered.length / LIST_PAGE_SIZE))
+  const currentListPage = Math.min(listPage, lastListPage)
+  const pagedRows = useMemo(() => filtered.slice((currentListPage - 1) * LIST_PAGE_SIZE, currentListPage * LIST_PAGE_SIZE), [filtered, currentListPage])
+  const totals = useMemo(() => {
+    const revenue = filtered.reduce((sum, row) => sum + row.revenue, 0)
+    const employees = filtered.reduce((sum, row) => sum + (row.employees || 0), 0)
     return {
-      summaryRows,
-      revenue,
-      employees,
-      previousRevenue,
-      previousEmployees,
+      revenue, employees, reported: filtered.filter(r => r.reported > 0).length,
+      missing: filtered.filter(r => r.outstanding > 0).length,
+      employeeCoverage: filtered.filter(r => r.employees !== null).length,
+      revenueCoverage: filtered.filter(r => r.revenueReported).length,
     }
-  }, [end, filteredRows, previousRange, start])
-
-  const analyticsRangeLabel = `${analyticsStart.format('DD MMM YYYY')} to ${analyticsEnd.format('DD MMM YYYY')}`
-  const analyticsComputed = useMemo(() => {
-    const buckets = bucketRange([analyticsStart, analyticsEnd]).map(bucket => ({
-      ...bucket,
-      revenue: filteredRows.reduce((sum, row) => sum + revenueInRange(row, bucket.range), 0),
-      employees: filteredRows.reduce((sum, row) => sum + employeesInRange(row, bucket.range), 0),
-    }))
-
-    const sectorMap = new Map<string, { revenue: number; employees: number; smes: number }>()
-    filteredRows.forEach(row => {
-      const key = row.sector || 'Unspecified'
-      const revenue = revenueInRange(row, [analyticsStart, analyticsEnd])
-      const employees = employeesInRange(row, [analyticsStart, analyticsEnd])
-      const current = sectorMap.get(key) || { revenue: 0, employees: 0, smes: 0 }
-      current.revenue += revenue
-      current.employees += employees
-      current.smes += 1
-      sectorMap.set(key, current)
-    })
-
-    return {
-      buckets,
-      sectors: Array.from(sectorMap.entries()).sort((a, b) => b[1].revenue - a[1].revenue),
-    }
-  }, [analyticsEnd, analyticsStart, filteredRows])
-
-  const revenueDelta = delta(computed.revenue, computed.previousRevenue)
-  const employeeDelta = delta(computed.employees, computed.previousEmployees)
-  const rangeLabel = `${start.format('DD MMM YYYY')} to ${end.format('DD MMM YYYY')}`
-  const selectedSummary = computed.summaryRows.find(row => row.key === selectedKey) || null
-  const selectedSme = selectedSummary ? filteredRows.find(row => row.id === selectedSummary.key) || null : null
-  const selectedRevenueDelta = selectedSummary ? delta(selectedSummary.revenue, selectedSummary.previousRevenue) : null
-  const selectedEmployeeDelta = selectedSummary ? delta(selectedSummary.employees, selectedSummary.previousEmployees) : null
-  const selectedBuckets = useMemo(() => {
-    if (!selectedSme) return []
-    return bucketRange([start, end]).map(bucket => ({
-      ...bucket,
-      revenue: revenueInRange(selectedSme, bucket.range),
-      employees: employeesInRange(selectedSme, bucket.range),
-    }))
-  }, [end, selectedSme, start])
+  }, [filtered])
 
   useRegisterAgentPageContext({
-    pageKey: 'operations-sme-metrics',
-    pageName: 'SME Metrics',
-    purpose: 'Shows collective SME revenue and employee totals for a selected period, with deltas against the previous equivalent period.',
-    currentFilters: { activeProgramId: isAllPrograms ? 'all' : activeProgramId, search, sector, gender, province, beeLevel, from: start.format('YYYY-MM-DD'), to: end.format('YYYY-MM-DD') },
-    metrics: {
-      smes: filteredRows.length,
-      revenue: computed.revenue,
-      revenueDelta: revenueDelta.label,
-      employees: computed.employees,
-      employeeDelta: employeeDelta.label,
-    },
-    dataSummary: { visibleSmes: computed.summaryRows.length },
+    pageKey: 'operations-sme-metrics', pageName: 'SME Metrics',
+    purpose: 'Portfolio performance, reporting coverage and authorized operations-assisted reporting.',
+    currentFilters: { program: isAllPrograms ? 'all' : activeProgramId, search, sector, status, from: start.format('YYYY-MM'), to: end.format('YYYY-MM') },
+    metrics: { smes: filtered.length, reportedSmes: totals.reported, revenueReported: totals.revenue, employeesWithReportedHeadcount: totals.employees, smesWithMissingMonths: totals.missing },
+    dataSummary: { businesses: filtered.slice(0, 15).map(r => ({ name: r.businessName, reportedMonths: r.reported, outstandingMonths: r.outstanding })), selectedSme: selected?.businessName || null },
   })
 
-  const impactOptions = useMemo<Highcharts.Options>(() => ({
-    chart: { type: 'column', height: 340 },
-    title: { text: tr('Revenue and Employees') },
-    subtitle: { text: analyticsRangeLabel },
-    xAxis: { categories: analyticsComputed.buckets.map(bucket => bucket.label) },
-    yAxis: [
-      { title: { text: tr('Employees') }, min: 0 },
-      { title: { text: tr('Revenue') }, min: 0, opposite: true },
-    ],
+  const loadOpportunities = useCallback(async (id: string) => {
+    setOpportunitiesLoading(true)
+    try { setOpportunities(await listSmeOpportunities(id)) }
+    catch (error) { console.error(error); message.error(t('Unable to load market opportunities.')) }
+    finally { setOpportunitiesLoading(false) }
+  }, [message, t])
+  const openDetail = (id: string) => { setSelectedId(id); setOpportunities([]); void loadOpportunities(id) }
+  const openMonthly = (row: SmeRow) => {
+    setSelectedId(row.id)
+    const month = dayjs().startOf('month')
+    setChosenSections(['revenue', 'employees'])
+    setRevenueFiles([]); setEmployeeFiles([])
+    const existing = row.monthly.find(m => monthToDate(m.month)?.isSame(month, 'month'))
+    monthlyForm.resetFields()
+    monthlyForm.setFieldsValue({ month, revenue: emptyMetric(existing, 'revenue'), headPermanent: emptyMetric(existing, 'headPermanent'), headTemporary: emptyMetric(existing, 'headTemporary') })
+    setMonthlyOpen(true)
+  }
+  const setMonthlyMonth = (next: Dayjs | null) => {
+    if (!next || !selected) return
+    const existing = selected.monthly.find(m => monthToDate(m.month)?.isSame(next, 'month'))
+    monthlyForm.setFieldsValue({
+      month: next, revenue: emptyMetric(existing,'revenue'), headPermanent: emptyMetric(existing,'headPermanent'),
+      headTemporary: emptyMetric(existing,'headTemporary'), orders: emptyMetric(existing,'orders'),
+      customers: emptyMetric(existing,'customers'), traffic: emptyMetric(existing,'traffic'), networking: emptyMetric(existing,'networking'),
+    })
+    setRevenueFiles([]); setEmployeeFiles([])
+  }
+  const submitMonthly = async (values: MonthlyForm) => {
+    if (!selected || !user?.uid) return message.error(t('No authorized SME or staff account selected.'))
+    try {
+      setSaving(true)
+      const data: Partial<Record<MetricField, number>> = {}
+      for (const section of sections.filter(s => chosenSections.includes(s.key))) {
+        for (const field of section.fields) {
+          const value = values[field]
+          if (!has(value) || value < 0) throw new Error(`Enter a valid ${fieldLabel[field].toLowerCase()}.`)
+          data[field] = value
+        }
+      }
+      const record = await saveAssistedMonthly({
+        participantId: selected.id, month: monthId(values.month), values: data,
+        sections: chosenSections, actorUid: user.uid, actorEmail: user.email || '',
+        revenueFiles: revenueFiles.map(f => f.originFileObj).filter((f): f is NonNullable<typeof f> => f instanceof File),
+        employeeFiles: employeeFiles.map(f => f.originFileObj).filter((f): f is NonNullable<typeof f> => f instanceof File),
+      })
+      setRows(current => current.map(row => row.id === selected.id ? {
+        ...row, monthly: [record, ...row.monthly.filter(m => !monthToDate(m.month)?.isSame(values.month, 'month'))]
+          .sort((a,b) => (monthToDate(b.month)?.valueOf() || 0) - (monthToDate(a.month)?.valueOf() || 0)),
+      } : row))
+      setMonthlyOpen(false)
+      message.success(t('Metrics saved. Awaiting SME confirmation.'))
+    } catch (error) {
+      console.error(error)
+      message.error(error instanceof Error ? error.message : t('Could not save this report.'))
+    } finally { setSaving(false) }
+  }
+  const openOpportunity = (opportunity?: SmeOpportunity) => {
+    setEditingOpportunity(opportunity?.id || null)
+    opportunityForm.resetFields()
+    opportunityForm.setFieldsValue(opportunity ? {
+      title: opportunity.title, buyer: opportunity.buyer, type: opportunity.type, stage: opportunity.stage,
+      value: opportunity.value, submittedAt: opportunity.submittedAt ? dayjs(opportunity.submittedAt) : undefined,
+      closingAt: opportunity.closingAt ? dayjs(opportunity.closingAt) : undefined, notes: opportunity.notes,
+    } : { type: 'RFQ', stage: 'identified' })
+    setOpportunityOpen(true)
+  }
+  const submitOpportunity = async (values: OpportunityForm) => {
+    if (!selected || !user?.uid) return
+    try {
+      setSaving(true)
+      await saveAssistedOpportunity({
+        participantId: selected.id, opportunityId: editingOpportunity || undefined, actorUid: user.uid,
+        title: values.title, buyer: values.buyer || '', type: values.type, stage: values.stage,
+        value: values.value, submittedAt: values.submittedAt?.format('YYYY-MM-DD'),
+        closingAt: values.closingAt?.format('YYYY-MM-DD'), notes: values.notes,
+      })
+      await loadOpportunities(selected.id)
+      setOpportunityOpen(false)
+      message.success(t('Opportunity saved. Awaiting SME confirmation.'))
+    } catch (error) {
+      console.error(error); message.error(t('Unable to save opportunity.'))
+    } finally { setSaving(false) }
+  }
+
+  const trendMonths = useMemo(() => rangeMonths(start, end).slice(-12), [start, end])
+  const chartOptions = useMemo<Highcharts.Options>(() => ({
+    chart: { type: 'column', height: mobile ? 245 : 290, backgroundColor: 'transparent' },
+    title: { text: undefined },
+    xAxis: { categories: trendMonths.map(d => d.format('MMM YY')) },
+    yAxis: [{ title: { text: undefined } }, { title: { text: undefined }, opposite: true }],
     tooltip: { shared: true },
     series: [
-      { type: 'column', name: tr('Employees'), data: analyticsComputed.buckets.map(bucket => bucket.employees), yAxis: 0 },
-      { type: 'spline', name: tr('Revenue'), data: analyticsComputed.buckets.map(bucket => bucket.revenue), yAxis: 1 },
+      { type: 'column', name: t('Revenue'), data: trendMonths.map(month => {
+        const values = filtered.map(row => row.monthly.find(m => monthToDate(m.month)?.isSame(month, 'month'))?.revenue).filter(has)
+        return values.length ? values.reduce((sum, n) => sum + n, 0) : null
+      }), yAxis: 0 },
+      { type: 'spline', name: t('Employees'), data: trendMonths.map(month => {
+        const values = filtered.map(row => row.monthly.find(m => monthToDate(m.month)?.isSame(month,'month')))
+          .filter((m): m is MonthlyRecord => !!m && has(m.headPermanent) && has(m.headTemporary))
+        return values.length ? values.reduce((sum, m) => sum + (m.headPermanent || 0) + (m.headTemporary || 0), 0) : null
+      }), yAxis: 1 },
     ],
-  }), [analyticsComputed.buckets, analyticsRangeLabel])
-
-  const topSectors = useMemo(() => analyticsComputed.sectors.slice(0, 8), [analyticsComputed.sectors])
-  const maxSectorRevenue = useMemo(() => Math.max(1, ...topSectors.map(([, values]) => values.revenue)), [topSectors])
-
-  const selectedImpactOptions = useMemo<Highcharts.Options>(() => ({
-    chart: { type: 'column', height: 300 },
-    title: { text: selectedSummary ? selectedSummary.businessName : 'SME impact' },
-    subtitle: { text: rangeLabel },
-    xAxis: { categories: selectedBuckets.map(bucket => bucket.label) },
-    yAxis: [
-      { title: { text: tr('Employees') }, min: 0 },
-      { title: { text: tr('Revenue') }, min: 0, opposite: true },
-    ],
-    tooltip: { shared: true },
-    series: [
-      { type: 'column', name: tr('Employees'), data: selectedBuckets.map(bucket => bucket.employees), yAxis: 0 },
-      { type: 'spline', name: tr('Revenue'), data: selectedBuckets.map(bucket => bucket.revenue), yAxis: 1 },
-    ],
-  }), [rangeLabel, selectedBuckets, selectedSummary])
-
-  const columns: ColumnsType<SmeMetricSummaryRow> = [
-    {
-      title: t('SME'),
-      dataIndex: 'businessName',
-      key: 'businessName',
-      render: (value: string, row) => (
-        <Space direction="vertical" size={0}>
-          <Typography.Text strong>{value}</Typography.Text>
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            {[row.sector, row.gender, row.province, isAllPrograms ? row.programName : null].filter(Boolean).join(' · ')}
-          </Typography.Text>
-        </Space>
-      ),
-    },
-    {
-      title: t('Revenue'),
-      dataIndex: 'revenue',
-      key: 'revenue',
-      width: 230,
-      align: 'right',
-      render: (value: number, row) => (
-        <Space direction="vertical" size={0} style={{ alignItems: 'flex-end' }}>
-          <Typography.Text strong>{formatCurrency(value)}</Typography.Text>
-          <Tag color={row.revenueDelta >= 0 ? 'green' : 'red'} style={{ marginInlineEnd: 0 }}>{row.revenueDelta >= 0 ? '+' : ''}{formatCurrency(row.revenueDelta)}</Tag>
-        </Space>
-      ),
-    },
-    {
-      title: t('Employees'),
-      dataIndex: 'employees',
-      key: 'employees',
-      width: 190,
-      align: 'right',
-      render: (value: number, row) => (
-        <Space direction="vertical" size={0} style={{ alignItems: 'flex-end' }}>
-          <Typography.Text strong>{formatNumber(value)}</Typography.Text>
-          <Tag color={row.employeeDelta >= 0 ? 'green' : 'red'} style={{ marginInlineEnd: 0 }}>{row.employeeDelta >= 0 ? '+' : ''}{formatNumber(row.employeeDelta)}</Tag>
-        </Space>
-      ),
-    },
-    {
-      title: '',
-      key: 'drilldown',
-      width: 48,
-      align: 'center',
-      render: () => <EyeOutlined style={{ color: 'rgba(0, 0, 0, 0.35)' }} />,
-    },
-  ]
+  }), [filtered, mobile, t, trendMonths])
 
   return (
     <DashboardPage className="sme-metrics-page">
-      <Row gutter={[12, 12]} className="dashboard-metrics-row">
-        <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<TeamOutlined />} label={t('SMEs')} value={filteredRows.length} hint={rangeLabel} /></Col>
-        <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<BankOutlined />} label={t('Revenue')} value={formatCurrency(computed.revenue)} hint={`${revenueDelta.label} from previous period`} /></Col>
-        <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<RiseOutlined />} label={t('Employees')} value={formatNumber(computed.employees)} hint={`${employeeDelta.label} from previous period`} /></Col>
-        <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<LineChartOutlined />} label={t('Revenue / SME')} value={formatCurrency(filteredRows.length ? computed.revenue / filteredRows.length : 0)} hint={t('Average in selected scope')} /></Col>
+      <Row gutter={[10, 10]} className="dashboard-metrics-row">
+        <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<TeamOutlined />} label={t('SMEs in scope')} value={filtered.length} hint={`${totals.reported} ${t('have reported')}`} /></Col>
+        <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<DollarCircleOutlined />} label={t('Reported revenue')} value={money(totals.revenue)} hint={`${totals.revenueCoverage}/${filtered.length} ${t('with revenue data')}`} /></Col>
+        <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<TeamOutlined />} label={t('Reported headcount')} value={count(totals.employees)} hint={`${totals.employeeCoverage}/${filtered.length} ${t('with headcount data')}`} /></Col>
+        <Col xs={12} lg={6}><DashboardMetricCard loading={loading} icon={<ClockCircleOutlined />} label={t('SMEs with gaps')} value={totals.missing} hint={t('Missing one or more monthly reports')} /></Col>
       </Row>
 
-      <FilterBar
-        primary={
-          <>
-            <Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('Search SME name')} allowClear />
-            <Select value={sector} onChange={setSector} options={[{ value: 'All', label: t('All sectors') }, ...uniqueOptions(rows, 'sector')]} />
-            <Select value={gender} onChange={setGender} options={[{ value: 'All', label: t('All genders') }, ...uniqueOptions(rows, 'gender')]} />
-            <RangePicker
-              value={[start, end]}
-              allowClear={false}
-              presets={datePickerPresets}
-              onChange={(value) => {
-                if (value?.[0] && value?.[1]) setRange([value[0], value[1]])
-              }}
-            />
-          </>
-        }
-        advanced={
-          <>
-            <Select value={province} onChange={setProvince} options={[{ value: 'All', label: t('All provinces') }, ...uniqueOptions(rows, 'province')]} />
-            <Select value={beeLevel} onChange={setBeeLevel} options={[{ value: 'All', label: t('All B-BBEE levels') }, ...uniqueOptions(rows, 'beeLevel')]} />
-          </>
-        }
-        actions={
-          <Button icon={<BarChartOutlined />} onClick={() => setAnalyticsOpen(true)}>{t('Analytics')}</Button>
-        }
-      />
+      <FilterBar primary={<>
+        <Input prefix={<SearchOutlined />} placeholder={t('Search businesses')} value={search} onChange={e => setSearch(e.target.value)} allowClear />
+        <Select value={sector} onChange={setSector} options={[{ value: 'all', label: t('All sectors') }, ...sectorOptions.map(s => ({ value: s, label: s }))]} />
+        <Select value={status} onChange={setStatus} options={[
+          { value:'all', label:t('All reporting') }, { value:'missing', label:t('Missing reports') },
+          { value:'reported', label:t('Reported') }, { value:'awaiting', label:t('Awaiting confirmation') },
+        ]} />
+        <DatePicker.RangePicker picker="month" value={[start, end]} allowClear={false} onChange={v => {
+          if (v?.[0] && v?.[1]) { setStart(v[0].startOf('month')); setEnd(v[1].endOf('month')) }
+        }} />
+      </>} actions={<Button icon={<ReloadOutlined />} onClick={() => setReload(v => v + 1)} loading={loading}>{t('Refresh')}</Button>} />
 
-      <Row gutter={[16, 16]}>
-        <Col span={24}>
-          <Card
-            className="dashboard-section-card motion-card"
-            title={<Space><BarChartOutlined /> {t('SME Metric Breakdown')}</Space>}
-            extra={<Text type="secondary">{rangeLabel}</Text>}
-          >
-            <Alert
-              showIcon
-              type={computed.revenue > 0 || computed.employees > 0 ? 'info' : 'warning'}
-              message={t('Delta compares against the previous equivalent period.')}
-              style={{ marginBottom: 16 }}
-            />
-            <Table
-              rowKey="key"
-              columns={columns}
-              dataSource={computed.summaryRows}
-              pagination={{ pageSize: 10, showSizeChanger: false }}
-              locale={{ emptyText: t('No SMEs match this metric scope.') }}
-              onRow={(row) => ({
-                onClick: () => setSelectedKey(row.key),
-              })}
-              rowClassName="sme-metrics-clickable-row"
-            />
-          </Card>
-        </Col>
-      </Row>
-
-      <Modal
-        open={analyticsOpen}
-        onCancel={() => setAnalyticsOpen(false)}
-        footer={null}
-        title={<Space><BarChartOutlined /> {t('SME Analytics')}</Space>}
-        width={960}
-        destroyOnClose
-      >
-        <div style={{ display: 'flex', gap: 10, width: '100%', marginBottom: 16 }}>
-          <Segmented<AnalyticsView>
-            style={{ flex: 1 }}
-            value={analyticsView}
-            onChange={setAnalyticsView}
-            options={[
-              { label: t('Revenue & Employees'), value: 'trend', icon: <LineChartOutlined /> },
-              { label: t('Sector Contribution'), value: 'sectors', icon: <BarChartOutlined /> },
-            ]}
-          />
-          <RangePicker
-            style={{ flex: 1 }}
-            value={[analyticsStart, analyticsEnd]}
-            allowClear={false}
-            presets={datePickerPresets}
-            onChange={(value) => {
-              if (value?.[0] && value?.[1]) setAnalyticsRange([value[0], value[1]])
-            }}
-          />
-        </div>
-        {analyticsView === 'trend' ? (
-          <Card loading={loading} className="dashboard-section-card motion-card">
-            {analyticsComputed.buckets.some(bucket => bucket.revenue > 0 || bucket.employees > 0)
-              ? <ThemedHighcharts options={impactOptions} />
-              : <Empty description={t('No revenue or employee metrics found for this period')} />}
-          </Card>
-        ) : (
-          <Card loading={loading} className="dashboard-section-card motion-card" title={t('Sector Contribution')}>
-            {topSectors.length ? (
-              <Space direction="vertical" size={14} style={{ width: '100%' }}>
-                {topSectors.map(([sectorName, values]) => (
-                  <div key={sectorName}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <Text>{sectorName}</Text>
-                      <Text strong>{formatCurrency(values.revenue)}</Text>
+      <div className="sme-metrics-main-grid">
+        <Card className="sme-metrics-compact-card" title={t('Business reporting')} extra={<Text type="secondary">{filtered.length} {t('SMEs')}</Text>}>
+          {loading ? <Skeleton active paragraph={{ rows: 8 }} /> : !filtered.length ? <Empty description={t('No SMEs match these filters.')} /> : (
+            <div className="sme-metrics-business-list">
+              {pagedRows.map(row => {
+                const awaiting = row.monthly.some(m => m.verificationStatus === 'awaiting_confirmation')
+                return <div className="sme-metrics-business" key={row.id}>
+                  <div className="sme-metrics-business-top">
+                    <div className="sme-metrics-business-name">
+                      <Text strong>{row.businessName}</Text>
+                      <Text type="secondary" className="sme-metrics-muted">{row.sector} · {row.programName}</Text>
                     </div>
-                    <Progress percent={percent(values.revenue, maxSectorRevenue)} showInfo={false} />
+                    <Tag color={awaiting ? 'gold' : row.outstanding ? 'orange' : 'green'}>{awaiting ? t('Awaiting SME') : row.outstanding ? t('Incomplete') : t('Up to date')}</Tag>
                   </div>
-                ))}
-              </Space>
-            ) : <Empty description={t('No sector metrics found')} />}
+                  <div className="sme-metrics-business-stats">
+                    <div><span>{t('Revenue')}</span><strong>{row.revenueReported ? money(row.revenue) : '—'}</strong></div>
+                    <div><span>{t('Employees')}</span><strong>{row.employees !== null ? count(row.employees) : '—'}</strong></div>
+                    <div><span>{t('Months reported')}</span><strong>{row.reported}/{row.expected}</strong></div>
+                  </div>
+                  {row.historyError ? <Text type="danger" className="sme-metrics-muted">{t('Reporting history could not be loaded')}</Text> : null}
+                  <div className="sme-metrics-business-actions">
+                    <Button size="small" onClick={() => openDetail(row.id)}>{t('View details')}</Button>
+                    <Button size="small" type="primary" icon={<EditOutlined />} onClick={() => openMonthly(row)}>{t('Record metrics')}</Button>
+                  </div>
+                </div>
+              })}
+              {filtered.length > LIST_PAGE_SIZE && (
+                <Pagination className="sme-metrics-list-pagination" size="small" align="center" current={currentListPage} pageSize={LIST_PAGE_SIZE} total={filtered.length} onChange={setListPage} showSizeChanger={false} />
+              )}
+            </div>
+          )}
+        </Card>
+        <div className="sme-metrics-right-stack">
+          <Card className="sme-metrics-compact-card" title={t('Portfolio trend')} extra={<Text type="secondary">{start.format('MMM YY')} – {end.format('MMM YY')}</Text>}>
+            {filtered.some(r => r.monthly.length) ? <ThemedHighcharts options={chartOptions} /> : <Empty description={t('No monthly figures yet')} />}
+            <Text type="secondary" className="sme-metrics-muted">{t('Only submitted monthly data is included. Missing figures are not treated as zero.')}</Text>
           </Card>
-        )}
+          <Card className="sme-metrics-compact-card" title={t('Reporting coverage')}>
+            <div className="sme-metrics-coverage-line"><Text>{t('SMEs with a report')}</Text><Text strong>{totals.reported}/{filtered.length}</Text></div>
+            <Progress percent={filtered.length ? Math.round(totals.reported / filtered.length * 100) : 0} showInfo={false} />
+            <div className="sme-metrics-coverage-line"><Text>{t('Revenue coverage')}</Text><Text strong>{totals.revenueCoverage}/{filtered.length}</Text></div>
+            <Progress percent={filtered.length ? Math.round(totals.revenueCoverage / filtered.length * 100) : 0} showInfo={false} />
+            <div className="sme-metrics-coverage-line"><Text>{t('Employee coverage')}</Text><Text strong>{totals.employeeCoverage}/{filtered.length}</Text></div>
+            <Progress percent={filtered.length ? Math.round(totals.employeeCoverage / filtered.length * 100) : 0} showInfo={false} />
+            <Text type="secondary" className="sme-metrics-muted">{t('Coverage reflects SMEs with actual reported values, not profile estimates.')}</Text>
+          </Card>
+        </div>
+      </div>
+
+      <Modal open={!!selected && !monthlyOpen && !opportunityOpen} centered width={850} footer={null} onCancel={() => setSelectedId(null)} title={selected?.businessName} className="sme-metrics-modal">
+        {selected && <div className="sme-metrics-detail">
+          <div className="sme-metrics-detail-toolbar"><Text type="secondary">{selected.programName} · {selected.sector}</Text><Space wrap>
+            <Button icon={<PlusOutlined />} onClick={() => openOpportunity()}>{t('Add opportunity')}</Button>
+            <Button type="primary" icon={<EditOutlined />} onClick={() => openMonthly(selected)}>{t('Record metrics')}</Button>
+          </Space></div>
+          <Row gutter={[10,10]}>
+            <Col xs={12} md={6}><DashboardMetricCard icon={<DollarCircleOutlined />} label={t('Revenue')} value={money(periodMetrics(selected,start,end).revenue)} /></Col>
+            <Col xs={12} md={6}><DashboardMetricCard icon={<TeamOutlined />} label={t('Headcount')} value={periodMetrics(selected,start,end).employees ?? '—'} /></Col>
+            <Col xs={12} md={6}><DashboardMetricCard icon={<CalendarOutlined />} label={t('Reported months')} value={periodMetrics(selected,start,end).reported} /></Col>
+            <Col xs={12} md={6}><DashboardMetricCard icon={<ClockCircleOutlined />} label={t('Missing months')} value={periodMetrics(selected,start,end).outstanding} /></Col>
+          </Row>
+          <div className="sme-metrics-subtitle">{t('Monthly reporting history')}</div>
+          {selected.monthly.length ? selected.monthly.map(record => <div className="sme-metrics-history-row" key={record.month}>
+            <div><Text strong>{record.month}</Text><div><Text type="secondary" className="sme-metrics-muted">{has(record.revenue) ? money(record.revenue) : t('Revenue not reported')} · {has(record.headPermanent) && has(record.headTemporary) ? `${record.headPermanent + record.headTemporary} ${t('employees')}` : t('Headcount not reported')}</Text></div></div>
+            <Tag color={record.verificationStatus === 'awaiting_confirmation' ? 'gold' : record.verificationStatus === 'confirmed' ? 'green' : 'blue'}>{formatStage(record.verificationStatus || 'self_reported')}</Tag>
+          </div>) : <Empty description={t('No monthly reports yet')} />}
+          <div className="sme-metrics-subtitle">{t('Market opportunities')}</div>
+          {opportunitiesLoading ? <Skeleton active paragraph={{ rows: 2 }} /> : opportunities.length ? opportunities.map(opp => <div className="sme-metrics-history-row" key={opp.id}>
+            <div><Text strong>{opp.title}</Text><div><Text type="secondary" className="sme-metrics-muted">{opp.type} · {opp.buyer || t('No buyer')} · {has(opp.value) ? money(opp.value) : t('Value not set')}</Text></div></div>
+            <Space><Tag color={stageColor[opp.stage] || 'default'}>{formatStage(opp.stage)}</Tag><Button size="small" type="text" icon={<EditOutlined />} onClick={() => openOpportunity(opp)} /></Space>
+          </div>) : <Empty description={t('No market opportunities recorded')} />}
+        </div>}
       </Modal>
 
-      <Modal
-        open={!!selectedSummary}
-        title={selectedSummary?.businessName || t('SME metrics')}
-        footer={null}
-        onCancel={() => setSelectedKey(null)}
-        width={920}
-      >
-        {selectedSummary && (
-          <Space direction="vertical" size={16} className="sme-metrics-drilldown">
-            <Row gutter={[12, 12]}>
-              <Col xs={12} md={6}>
-                <DashboardMetricCard icon={<BankOutlined />} label={t('Revenue')} value={formatCurrency(selectedSummary.revenue)} hint={`${selectedRevenueDelta?.label} from previous`} />
-              </Col>
-              <Col xs={12} md={6}>
-                <DashboardMetricCard icon={<BankOutlined />} label={t('Previous revenue')} value={formatCurrency(selectedSummary.previousRevenue)} />
-              </Col>
-              <Col xs={12} md={6}>
-                <DashboardMetricCard icon={<RiseOutlined />} label={t('Employees')} value={formatNumber(selectedSummary.employees)} hint={`${selectedEmployeeDelta?.label} from previous`} />
-              </Col>
-              <Col xs={12} md={6}>
-                <DashboardMetricCard icon={<RiseOutlined />} label={t('Previous employees')} value={formatNumber(selectedSummary.previousEmployees)} />
-              </Col>
-            </Row>
-            <Descriptions bordered size="small" column={{ xs: 1, md: 2 }}>
-              <Descriptions.Item label={t('Programme')}>{selectedSummary.programName}</Descriptions.Item>
-              <Descriptions.Item label={t('Sector')}>{selectedSummary.sector}</Descriptions.Item>
-              <Descriptions.Item label={t('Gender')}>{selectedSummary.gender}</Descriptions.Item>
-              <Descriptions.Item label={t('Province')}>{selectedSummary.province}</Descriptions.Item>
-              <Descriptions.Item label={t('B-BBEE')}>{selectedSummary.beeLevel}</Descriptions.Item>
-              <Descriptions.Item label={t('Period')}>{rangeLabel}</Descriptions.Item>
-            </Descriptions>
-            <Card className="dashboard-section-card">
-              {selectedBuckets.some(bucket => bucket.revenue > 0 || bucket.employees > 0)
-                ? <ThemedHighcharts options={selectedImpactOptions} />
-                : <Empty description={t('No individual metric history found for this period')} />}
-            </Card>
-          </Space>
-        )}
+      <Modal open={monthlyOpen} centered destroyOnHidden width={660} onCancel={() => { if (!saving) setMonthlyOpen(false) }}
+        title={`${t('Record SME metrics')} · ${selected?.businessName || ''}`} className="sme-metrics-modal"
+        footer={<div className="sme-metrics-modal-actions"><Button onClick={() => setMonthlyOpen(false)} disabled={saving}>{t('Cancel')}</Button><Button type="primary" loading={saving} onClick={() => monthlyForm.submit()} icon={<CheckCircleOutlined />}>{t('Save for SME')}</Button></div>}>
+        <Text type="secondary">{t('Operations-assisted entries will be marked as awaiting SME confirmation. Existing values in other sections will remain unchanged.')}</Text>
+        <Form form={monthlyForm} layout="vertical" onFinish={submitMonthly} className="sme-metrics-form" requiredMark={false}>
+          <Form.Item name="month" label={t('Reporting month')} rules={[{ required: true }]}>
+            <DatePicker picker="month" style={{ width: '100%' }} disabledDate={date => date.isAfter(dayjs(), 'month')} onChange={setMonthlyMonth} />
+          </Form.Item>
+          <div className="sme-metrics-subtitle">{t('What are you reporting?')}</div>
+          <Checkbox.Group value={chosenSections} onChange={v => setChosenSections(v as MetricSection[])} className="sme-metrics-section-grid">
+            {sections.map(s => <Checkbox key={s.key} value={s.key}>{t(s.label)}</Checkbox>)}
+          </Checkbox.Group>
+          {chosenSections.length === 0 && <Text type="danger">{t('Select at least one metric section.')}</Text>}
+          <Row gutter={[12, 0]}>
+            {sections.filter(s => chosenSections.includes(s.key)).flatMap(s => s.fields.map(field => <Col xs={24} sm={field === 'headPermanent' || field === 'headTemporary' ? 12 : 24} key={field}>
+              <Form.Item name={field} label={t(fieldLabel[field])} rules={[{ required: true, message: t('Required') }]}>
+                <InputNumber min={0} precision={field === 'revenue' ? 2 : 0} style={{ width:'100%' }} />
+              </Form.Item>
+            </Col>))}
+          </Row>
+          {chosenSections.includes('revenue') && <Form.Item label={t('Additional revenue evidence (optional)')}>
+            <Upload beforeUpload={() => false} multiple fileList={revenueFiles} onChange={info => setRevenueFiles(info.fileList)} accept=".pdf,.jpg,.jpeg,.png,.xlsx,.csv"><Button block icon={<UploadOutlined />}>{t('Attach statement or report')}</Button></Upload>
+          </Form.Item>}
+          {chosenSections.includes('employees') && <Form.Item label={t('Additional employment evidence (optional)')}>
+            <Upload beforeUpload={() => false} multiple fileList={employeeFiles} onChange={info => setEmployeeFiles(info.fileList)} accept=".pdf,.jpg,.jpeg,.png,.xlsx,.csv"><Button block icon={<UploadOutlined />}>{t('Attach supporting document')}</Button></Upload>
+          </Form.Item>}
+        </Form>
+      </Modal>
+
+      <Modal open={opportunityOpen} centered destroyOnHidden width={610} onCancel={() => { if (!saving) setOpportunityOpen(false) }} className="sme-metrics-modal"
+        title={`${editingOpportunity ? t('Update opportunity') : t('Add opportunity')} · ${selected?.businessName || ''}`}
+        footer={<div className="sme-metrics-modal-actions"><Button onClick={() => setOpportunityOpen(false)} disabled={saving}>{t('Cancel')}</Button><Button type="primary" loading={saving} icon={<FileAddOutlined />} onClick={() => opportunityForm.submit()}>{t('Save opportunity')}</Button></div>}>
+        <Form form={opportunityForm} layout="vertical" requiredMark={false} onFinish={submitOpportunity}>
+          <Form.Item name="title" label={t('Opportunity name')} rules={[{ required:true }]}><Input /></Form.Item>
+          <Row gutter={12}>
+            <Col xs={24} sm={12}><Form.Item name="buyer" label={t('Buyer / organisation')}><Input /></Form.Item></Col>
+            <Col xs={12} sm={6}><Form.Item name="type" label={t('Type')} rules={[{ required:true }]}><Select options={(['EOI','RFQ','RFP','Tender','Funding','Pitch','Other'] as OpportunityType[]).map(v => ({ value:v, label:v }))} /></Form.Item></Col>
+            <Col xs={12} sm={6}><Form.Item name="stage" label={t('Stage')} rules={[{ required:true }]}><Select options={opportunityStages.map(v => ({ value:v, label:t(formatStage(v)) }))} /></Form.Item></Col>
+            <Col xs={24} sm={12}><Form.Item name="value" label={t('Estimated value (R)')}><InputNumber min={0} style={{ width:'100%' }} /></Form.Item></Col>
+            <Col xs={12} sm={6}><Form.Item name="submittedAt" label={t('Submitted')}><DatePicker style={{ width:'100%' }} /></Form.Item></Col>
+            <Col xs={12} sm={6}><Form.Item name="closingAt" label={t('Closing')}><DatePicker style={{ width:'100%' }} /></Form.Item></Col>
+          </Row>
+          <Form.Item name="notes" label={t('Progress notes')}><Input.TextArea rows={3} /></Form.Item>
+          <Text type="secondary" className="sme-metrics-muted">{t('Staff-entered opportunities are awaiting SME confirmation.')}</Text>
+        </Form>
       </Modal>
     </DashboardPage>
   )
 }
-
 export default SmeMetricsPage

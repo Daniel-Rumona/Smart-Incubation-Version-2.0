@@ -1,6 +1,7 @@
 import { collection, documentId, getDoc, getDocs, query, serverTimestamp, doc, where, writeBatch } from 'firebase/firestore'
 import { getFirebaseDb } from '@/config/firebase'
 import { hasRolePermission } from '@/config/permissions'
+import { isPlatformAdmin } from '@/services/companiesService'
 import type { FullIdentity } from '@/types/identity'
 import type { OperationsApplication } from '@/types/operations'
 
@@ -26,6 +27,8 @@ const loadImages = async (collectionName: string, ids: string[], field: string) 
 export const listOperationsApplications = async (user: FullIdentity) => {
   if (!canView(user)) throw new Error('forbidden')
   const source = collection(getFirebaseDb(), 'applications')
+  // Everyone but a platform admin reads their own company's applications only; with no company there is nothing to show.
+  if (!user.companyCode && !isPlatformAdmin(user)) return []
   const snapshot = user.companyCode
     ? await getDocs(query(source, where('companyCode', '==', user.companyCode)))
     : await getDocs(source)
@@ -33,22 +36,11 @@ export const listOperationsApplications = async (user: FullIdentity) => {
   const participantIdOf = (data: Record<string, unknown>) => text(data.participantId || data.businessProfileId || data.uid || data.userId || data.applicantProfileId)
   const participantIds = [...new Set(snapshot.docs.map((record) => participantIdOf(record.data())).filter(Boolean))]
   const profileIds = [...new Set(snapshot.docs.map((record) => text(record.data().applicantProfileId || record.data().uid || record.data().userId)).filter(Boolean))]
-  const [participantImages, businessImages, applicantImages, complianceSnap] = await Promise.all([
+  const [participantImages, businessImages, applicantImages] = await Promise.all([
     loadImages('participants', participantIds, 'profileImageUrl'),
     loadImages('businessProfiles', participantIds, 'logoUrl'),
     loadImages('applicantProfiles', profileIds, 'profileImageUrl'),
-    getDocs(collection(getFirebaseDb(), 'complianceDocuments')).catch(() => undefined),
   ])
-  const complianceByParticipant = new Map<string, Array<{ type?: string, url?: string }>>()
-  complianceSnap?.docs.forEach((record) => {
-    const row = record.data()
-    const key = text(row.participantId)
-    if (!key) return
-    const list = complianceByParticipant.get(key) || []
-    list.push({ type: row.type || row.key, url: row.url || undefined })
-    complianceByParticipant.set(key, list)
-  })
-
   return snapshot.docs.map((record) => {
     const data = record.data()
     const participantId = participantIdOf(data)
@@ -67,6 +59,8 @@ export const listOperationsApplications = async (user: FullIdentity) => {
       province: data.province,
       beeLevel: data.beeLevel || data.bbeeLevel,
       complianceScore: typeof data.complianceScore === 'number' ? data.complianceScore : undefined,
+      programId: text(data.programId) || undefined,
+      participantId: participantId || undefined,
       programName: data.programName,
       companyCode: data.companyCode,
       applicationStatus: data.applicationStatus || 'Pending',
@@ -79,12 +73,22 @@ export const listOperationsApplications = async (user: FullIdentity) => {
       motivation: data.motivation,
       challenges: data.challenges,
       submittedAt: data.submittedAt || data.createdAt,
+      decidedAt: data.decidedAt || (['accepted', 'rejected'].includes(String(data.applicationStatus || '').toLowerCase()) ? data.updatedAt : undefined),
       imageUrl: participantImages.get(participantId) || businessImages.get(participantId) || applicantImages.get(text(data.applicantProfileId || data.uid || data.userId)) || text(data.profileImageUrl || data.logoUrl) || undefined,
-      documents: embedded.length ? embedded : complianceByParticipant.get(participantId) || [],
+      // Documents uploaded later live in complianceDocuments; the page loads those for the one application being read.
+      documents: embedded,
       growthPlanDocUrl: data.growthPlanDocUrl,
       rejectionReason: data.rejectionReason || undefined,
     } satisfies OperationsApplication
   })
+}
+
+/** The documents an applicant has uploaded to their compliance record. Loaded for one application at a time, not for the whole list. */
+export const loadApplicantComplianceDocuments = async (participantId: string, companyCode?: string) => {
+  if (!participantId) return []
+  // Staff read compliance documents one company at a time, so the query names the company.
+  const snapshot = await getDocs(query(collection(getFirebaseDb(), 'complianceDocuments'), where('participantId', '==', participantId), ...(companyCode ? [where('companyCode', '==', companyCode)] : [])))
+  return snapshot.docs.map((record) => { const row = record.data(); return { type: row.type || row.key, url: row.url || undefined } as { type?: string, url?: string } })
 }
 
 export const updateOperationsApplicationStatus = async (
@@ -106,6 +110,7 @@ export const updateOperationsApplicationStatus = async (
     applicationStatus: normalizedStatus,
     updatedAt: serverTimestamp(),
     updatedBy: user.uid,
+    decidedAt: normalizedStatus === 'Pending' ? null : serverTimestamp(),
     rejectionReason: normalizedStatus === 'Rejected' ? (rejectionReason?.trim() || null) : null,
   })
 

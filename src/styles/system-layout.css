@@ -887,36 +887,34 @@ html[data-theme='dark'] .app-scope-icon { background: rgba(139, 92, 246, 0.24); 
    Everything set-and-forget, off the bars.
    ========================================================= */
 
-.app-account-modal .ant-modal-content {
-    border-radius: 20px;
+.app-account-popover .ant-popover-inner {
+    padding: 14px;
+
+    border-radius: 16px;
 }
 
-.app-account-modal .ant-modal-header {
-    margin-bottom: 18px;
-}
-
-.app-account-modal .ant-modal-body {
+.app-account-panel {
     display: flex;
     flex-direction: column;
+    width: 320px;
+    max-width: calc(100vw - 32px);
 
-    gap: 16px;
+    gap: 12px;
 }
 
-.app-account-modal-title {
+.app-account-panel-header {
     display: flex;
     align-items: center;
-    justify-content: center;
 
-    gap: 16px;
+    gap: 12px;
 
-    /* Symmetric gutters keep the centred content clear of the close icon. */
-    padding-inline: 36px;
+    padding: 2px 2px 0;
 }
 
 .app-account-avatar {
     display: grid;
-    width: 88px;
-    height: 88px;
+    width: 44px;
+    height: 44px;
     flex: 0 0 auto;
     place-items: center;
     overflow: hidden;
@@ -926,7 +924,7 @@ html[data-theme='dark'] .app-scope-icon { background: rgba(139, 92, 246, 0.24); 
     background: #6d5dfb;
 
     color: #fff;
-    font-size: 36px;
+    font-size: 20px;
     font-weight: 800;
 }
 
@@ -951,7 +949,7 @@ html[data-theme='dark'] .app-scope-icon { background: rgba(139, 92, 246, 0.24); 
 .app-account-title-copy strong {
     max-width: 100%;
 
-    font-size: 17px;
+    font-size: 15px;
     line-height: 1.25;
     overflow-wrap: anywhere;
 }
@@ -2020,3 +2018,22 @@ html[data-theme='dark'] .app-topbar-actions .guide-me-launcher.guide-me-launcher
 
 .app-topbar-actions .app-icon-btn:hover .app-topbar-avatar { box-shadow: 0 0 0 2px rgba(109, 93, 251, 0.45); }
 html[data-theme='dark'] .app-topbar-actions .app-icon-btn .app-topbar-avatar { border-color: rgba(255, 255, 255, 0.12); }
+
+/* A solo director's Overview / Run the programme switch, beside the programme picker. */
+.app-workspace-and-scope {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.app-workspace-switch {
+    flex-shrink: 0;
+}
+
+@media (max-width: 575px) {
+    .app-workspace-and-scope {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+}

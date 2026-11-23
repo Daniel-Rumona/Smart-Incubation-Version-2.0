@@ -1,4 +1,4 @@
-import { addDoc, collection, doc, getDocs, query, updateDoc, where } from 'firebase/firestore'
+import { addDoc, collection } from 'firebase/firestore'
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import dayjs from 'dayjs'
 import { auth, db, storage } from '@/firebase'
@@ -247,13 +247,3 @@ export async function createProgramApplication(payload: ApplicationSubmissionPay
   return applicationRef.id
 }
 
-export async function updateCurrentUserRoleToIncubatee() {
-  const userEmail = auth.currentUser?.email
-  if (!userEmail) return
-
-  const usersRef = collection(db, 'users')
-  const snapshot = await getDocs(query(usersRef, where('email', '==', userEmail)))
-  if (snapshot.empty) return
-
-  await updateDoc(doc(db, 'users', snapshot.docs[0].id), { role: 'incubatee' })
-}

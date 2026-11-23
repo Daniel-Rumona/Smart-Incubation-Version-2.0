@@ -3,6 +3,7 @@ import { ArrowLeftOutlined, FileDoneOutlined, UploadOutlined, UserAddOutlined } 
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import DashboardPage from '@/components/shared/DashboardPage'
+import { BEE_LEVELS, BUSINESS_SECTORS } from '@/config/businessProfileOptions'
 import { useActiveProgramId } from '@/hooks/useActiveProgramId'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
 import { saveComplianceDocument, uploadComplianceFile } from '@/services/operationsComplianceService'
@@ -28,7 +29,10 @@ export const ParticipantOnboardingPage = () => {
   const values = Form.useWatch([], form) || {}
   // Reception registers walk-ins for review: no compliance documents, and the result is a pending application.
   const isReception = user?.role === 'admin'
-  const stepKeys = isReception ? ['details', 'questions', 'review'] as const : ['details', 'questions', 'documents', 'review'] as const
+  // The programme's extra questions are a step only when it has any.
+  const hasQuestions = Boolean(config?.questions.length)
+  const hasDocuments = !isReception && Boolean(config?.documents.length)
+  const stepKeys = ['details', ...(hasQuestions ? ['questions'] : []), ...(hasDocuments ? ['documents'] : []), 'review'] as Array<'details' | 'questions' | 'documents' | 'review'>
   const stepKey = stepKeys[step]
   const lastStep = stepKeys.length - 1
 
@@ -111,24 +115,24 @@ export const ParticipantOnboardingPage = () => {
   if (isAllPrograms) return <DashboardPage><Alert type="warning" showIcon message={t('operations.participants.selectProgramme')} action={<Button onClick={() => navigate('/shared/participants')}>{t('common.back')}</Button>} /></DashboardPage>
 
   return <DashboardPage className="operations-participant-onboarding">
-    <Card title={isReception ? t('Register a walk-in SME') : t('operations.participants.add')} extra={<Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/shared/participants')}>{t('common.back')}</Button>}>
+    <Card title={isReception ? t('Register a walk-in SME') : t('operations.participants.add')} extra={<Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/shared/participants')}>{t('Back to SMEs')}</Button>}>
       <Alert type="info" showIcon message={`${t('operations.participants.programme')}: ${config?.name || activeProgramId}`} style={{ marginBottom: 16 }} />
       <Steps current={step} responsive items={stepKeys.map((key) => ({
-        title: key === 'details' ? t('operations.participants.details') : key === 'questions' ? t('operations.participants.questions') : key === 'documents' ? t('operations.compliance.documents') : t('common.review'),
+        title: key === 'details' ? t('operations.participants.details') : key === 'questions' ? t('operations.participants.questions') : key === 'documents' ? t('Compliance documents') : t('common.review'),
       }))} />
       <Form form={form} layout="vertical" className="operations-onboarding-form">
-        {stepKey === 'details' && <Row gutter={[14, 0]}>
+        <Row gutter={[14, 0]} style={stepKey === 'details' ? undefined : { display: 'none' }}>
           <Col xs={24} md={12}><Form.Item name="participantName" label={t('common.name')} rules={[{ required: true }]}><Input /></Form.Item></Col>
           <Col xs={24} md={12}><Form.Item name="email" label={t('common.email')} rules={[{ required: true }, { type: 'email' }]}><Input /></Form.Item></Col>
           <Col xs={24} md={12}><Form.Item name="businessName" label={t('operations.participants.enterprise')} rules={[{ required: true }]}><Input /></Form.Item></Col>
           <Col xs={24} md={12}><Form.Item name="phone" label={t('common.phone')}><Input /></Form.Item></Col>
-          <Col xs={24} md={12}><Form.Item name="sector" label={t('common.sector')}><Input /></Form.Item></Col>
-          <Col xs={24} md={12}><Form.Item name="stage" label={t('operations.participants.stage')}><Select options={stages.map((value) => ({ value, label: value }))} /></Form.Item></Col>
+          <Col xs={24} md={12}><Form.Item name="sector" label={t('common.sector')}><Select showSearch allowClear placeholder={t('Select sector')} options={BUSINESS_SECTORS.map((value) => ({ value, label: t(value) }))} /></Form.Item></Col>
+          <Col xs={24} md={12}><Form.Item name="stage" label={t('operations.participants.stage')}><Select allowClear options={stages.map((value) => ({ value, label: t(value) }))} /></Form.Item></Col>
           <Col xs={24} md={12}><Form.Item name="province" label={t('common.province')}><Select showSearch options={provinces.map((value) => ({ value, label: value }))} /></Form.Item></Col>
-          <Col xs={24} md={12}><Form.Item name="beeLevel" label={t('common.beeLevel')}><Input /></Form.Item></Col>
-        </Row>}
-        {stepKey === 'questions' && <Space orientation="vertical" className="operations-onboarding-section">
-          {config?.questions.length ? config.questions.map(questionField) : <Alert type="info" showIcon message={t('applicant.application.noQuestions')} />}
+          <Col xs={24} md={12}><Form.Item name="beeLevel" label={t('common.beeLevel')}><Select allowClear placeholder={t('Select level')} options={BEE_LEVELS.map((value) => ({ value, label: t(value) }))} /></Form.Item></Col>
+        </Row>
+        {hasQuestions && <Space orientation="vertical" className="operations-onboarding-section" style={stepKey === 'questions' ? undefined : { display: 'none' }}>
+          {config?.questions.map(questionField)}
         </Space>}
         {stepKey === 'documents' && <Space orientation="vertical" className="operations-onboarding-section">
           <Typography.Paragraph type="secondary">{t('operations.participants.documentsHint')}</Typography.Paragraph>
@@ -148,9 +152,14 @@ export const ParticipantOnboardingPage = () => {
             { key: 'name', label: t('common.name'), children: values.participantName },
             { key: 'email', label: t('common.email'), children: values.email },
             { key: 'enterprise', label: t('operations.participants.enterprise'), children: values.businessName },
+            { key: 'phone', label: t('common.phone'), children: values.phone || '—' },
+            { key: 'sector', label: t('common.sector'), children: values.sector ? t(values.sector) : '—' },
+            { key: 'stage', label: t('operations.participants.stage'), children: values.stage ? t(values.stage) : '—' },
+            { key: 'province', label: t('common.province'), children: values.province || '—' },
+            { key: 'bee', label: t('common.beeLevel'), children: values.beeLevel ? t(values.beeLevel) : '—' },
             { key: 'program', label: t('operations.participants.programme'), children: config?.name },
-            { key: 'questions', label: t('operations.participants.questions'), children: Object.keys(values.onboardingAnswers || {}).length },
-            ...(isReception ? [] : [{ key: 'documents', label: t('operations.compliance.documents'), children: Object.keys(documents).length }]),
+            ...(hasQuestions ? [{ key: 'questions', label: t('operations.participants.questions'), children: Object.keys(values.onboardingAnswers || {}).length }] : []),
+            ...(hasDocuments ? [{ key: 'documents', label: t('Compliance documents'), children: Object.keys(documents).length }] : []),
           ]} />
         </Space>}
         <div className="operations-onboarding-footer">

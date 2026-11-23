@@ -475,9 +475,9 @@ export default function ApplicationConversationalFlow({
                 style={{
                     appearance: 'none',
                     width: '100%',
-                    minHeight: showYesNoIcon ? 78 : 64,
-                    padding: showYesNoIcon ? '12px 14px' : '10px 12px',
-                    borderRadius: 14,
+                    minHeight: showYesNoIcon ? 44 : 64,
+                    padding: showYesNoIcon ? '6px 12px' : '10px 12px',
+                    borderRadius: showYesNoIcon ? 12 : 14,
                     border: `1px solid ${selected ? token.colorPrimary : token.colorBorder}`,
                     background: selected ? token.colorPrimaryBg : token.colorBgContainer,
                     color: selected ? token.colorPrimary : token.colorText,
@@ -490,8 +490,8 @@ export default function ApplicationConversationalFlow({
                 }}
             >
                 {showYesNoIcon ? (
-                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-                        <span aria-hidden="true" style={{ width: 34, height: 34, borderRadius: 12, display: 'grid', placeItems: 'center', background: selected ? token.colorPrimary : token.colorFillSecondary, color: selected ? token.colorTextLightSolid : token.colorTextSecondary, fontSize: 16, flex: '0 0 auto' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                        <span aria-hidden="true" style={{ width: 24, height: 24, borderRadius: 8, display: 'grid', placeItems: 'center', background: selected ? token.colorPrimary : token.colorFillSecondary, color: selected ? token.colorTextLightSolid : token.colorTextSecondary, fontSize: 12, flex: '0 0 auto' }}>
                             {yesNoIcon}
                         </span>
                         <span>{option}</span>
@@ -791,14 +791,14 @@ export default function ApplicationConversationalFlow({
                                 {t('This is optional, but it helps us understand how customers find you.')}
                             </Paragraph>
 
-                            <div style={{ display: 'grid', gap: 16 }}>
+                            <div style={{ display: 'grid', gap: 12 }}>
                                 {([
                                     { key: 'facebook' as const, label: t('Facebook') },
                                     { key: 'instagram' as const, label: t('Instagram') },
                                     { key: 'linkedIn' as const, label: t('LinkedIn') },
                                 ]).map(({ key, label }) => (
                                     <div key={key}>
-                                        <Text style={{ display: 'block', marginBottom: 8, fontWeight: 600 }}>{label}</Text>
+                                        <Text style={{ display: 'block', marginBottom: 6, fontWeight: 600 }}>{label}</Text>
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
                                             {['Yes', 'No'].map((option) =>
                                                 renderChoiceCard(option, values[key] === option, () => onValuesChange({ [key]: option }), `${key}-${option}`, true),

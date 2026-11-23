@@ -1,12 +1,15 @@
-import { App, Col, Input, Row, Select, Space, Tag, Typography, type TableProps } from 'antd'
+import { App, Col, Input, Row, Select, Skeleton, Space, Tag, Typography, type TableProps } from 'antd'
 import { AppstoreOutlined, CheckCircleOutlined, ClockCircleOutlined, CloseCircleOutlined, SearchOutlined } from '@ant-design/icons'
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import DashboardPageShell from '@/components/shared/DashboardPage'
 import { FilterBar } from '@/components/shared/FilterBar'
 import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
 import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
+import { useUiMode } from '@/hooks/useUiMode'
+import { ApplicationTrackerSimple } from './ApplicationTrackerSimple'
 import { useLanguage, tEnglish } from '@/providers/LanguageProvider'
 import { listApplicantApplications } from '@/services/applicantService'
 import type { ApplicantApplication } from '@/types/applicant'
@@ -26,6 +29,11 @@ export const ApplicationTrackerPage = () => {
     const [loading, setLoading] = useState(false)
     const [status, setStatus] = useState('all')
     const [search, setSearch] = useState('')
+    // The SME's saved view (`?view=simple|full` overrides it for demos and screenshots).
+    const [searchParams] = useSearchParams()
+    const { mode: savedUiMode } = useUiMode()
+    const viewParam = searchParams.get('view')
+    const simpleLayout = (viewParam === 'simple' || viewParam === 'full' ? viewParam : savedUiMode) === 'simple'
 
     useEffect(() => {
         if (!user) return
@@ -67,6 +75,14 @@ export const ApplicationTrackerPage = () => {
         { title: t('applicant.tracker.status'), dataIndex: 'applicationStatus', render: (value: string | undefined) => <Tag color={statusColor(value)}>{value?.toUpperCase() ?? t('applicant.tracker.pending').toUpperCase()}</Tag> },
         { title: t('applicant.tracker.compliance'), dataIndex: 'complianceScore', render: (value: number | undefined) => <Typography.Text strong>{value ?? 0}%</Typography.Text> },
     ]
+
+    if (simpleLayout) {
+        return (
+            <DashboardPageShell className="applicant-page">
+                {loading ? <Skeleton active paragraph={{ rows: 6 }} /> : <ApplicationTrackerSimple applications={applications} />}
+            </DashboardPageShell>
+        )
+    }
 
     return (
         <DashboardPageShell className="applicant-page">

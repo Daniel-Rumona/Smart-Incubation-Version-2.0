@@ -1,12 +1,15 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react'
-import { onAuthStateChanged, reload } from 'firebase/auth'
-import { doc, onSnapshot } from 'firebase/firestore'
+import { onAuthStateChanged, reload, signOut } from 'firebase/auth'
+import { ACCOUNT_DEACTIVATED_MESSAGE, isDeactivatedProfile, rememberDeactivatedSignOut } from '@/utils/accountDeactivated'
+import { collection, doc, getDoc, getDocs, onSnapshot, query, where } from 'firebase/firestore'
 import { getFirebaseAuth, getFirebaseDb, isFirebaseConfigured } from '@/config/firebase'
 import { resolveIdentityPermissions } from '@/config/permissions'
 import { isUserRole } from '@/config/roles'
 import { isApplicantWorkspaceUser } from '@/services/applicationsService'
+import { isExternalWork, useSupportScope } from '@/hooks/useSupportScope'
+import { useDirectorWorkspace } from '@/hooks/useDirectorWorkspace'
 import { resolveAuthenticatedProfileData } from '@/services/authService'
-import type { FullIdentity } from '@/types/identity'
+import type { FullIdentity, UiMode } from '@/types/identity'
 import { decodeSignatureStrokes } from '@/utils/signatureStrokes'
 import { pendingProgramIdFrom, resolveSmeJourney } from '@/utils/smeJourney'
 
@@ -20,6 +23,13 @@ type IdentityContextValue = {
 
 const IdentityContext = createContext<IdentityContextValue | undefined>(undefined)
 
+/** Only directors carry a second role (operations, for those who run the programme alone). */
+const secondRoleFrom = (role: string, data: Record<string, unknown> | null | undefined) =>
+  (role === 'director' && data?.secondRole === 'operations' ? 'operations' as const : null)
+
+const uiModeFrom = (data: Record<string, unknown> | null | undefined): UiMode | undefined =>
+  (data?.uiMode === 'simple' || data?.uiMode === 'full' ? data.uiMode : undefined)
+
 const stringList = (value: unknown) => (Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string' && id.trim() !== '') : [])
 
 /** A funder organisation member's organisation and what its active links cover (blank for company-scoped funders). */
@@ -29,6 +39,27 @@ const funderOrgFields = (data: Record<string, unknown> | null | undefined): Part
   funderProgramIds: stringList(data?.funderProgramIds),
   funderCompanyCodes: stringList(data?.funderCompanyCodes),
 })
+
+/**
+ * Chose the independent route at onboarding: consultants and agents ('marketplace') or skipped. Read from what the
+ * join server recorded, not resolveSmeJourney, which calls anyone without a recorded route independent.
+ */
+const cameInAsIndependent = (profile: Record<string, unknown> | undefined) => {
+  const path = String(((profile?.smeOnboarding || {}) as Record<string, unknown>).path || '')
+  return path === 'marketplace' || path === 'skip'
+}
+
+/** Help the SME arranged outside the programme that is still going: no programme, not finished, not declined. */
+const isOngoingExternalWork = (raw: Record<string, unknown>) => {
+  if (!isExternalWork(raw)) return false
+  const lower = (value: unknown) => String(value || '').toLowerCase()
+  const finished = ['completed', 'cancelled', 'rejected', 'declined'].includes(lower(raw.status))
+    || lower(raw.completionStatus) === 'completed'
+    || Number(raw.progress) >= 100
+    || (lower(raw.assigneeCompletionStatus) === 'done' && lower(raw.participantCompletionStatus) === 'confirmed')
+  const declined = lower(raw.participantStatus) === 'declined' || lower(raw.assigneeStatus) === 'declined'
+  return !finished && !declined
+}
 
 export const IdentityProvider = ({ children }: PropsWithChildren) => {
   const [user, setUser] = useState<FullIdentity | null>(null)
@@ -51,6 +82,16 @@ export const IdentityProvider = ({ children }: PropsWithChildren) => {
       try {
         await reload(authUser).catch(() => undefined)
         const { data: profile } = await resolveAuthenticatedProfileData(authUser.uid, authUser.email ?? '')
+        // A deactivated account is signed straight back out (an older session, or a sign-in method that
+        // got past the disabled sign-in account).
+        if (isDeactivatedProfile(profile)) {
+          if (request !== identityRequest.current) return
+          rememberDeactivatedSignOut()
+          setUser(null)
+          setError(ACCOUNT_DEACTIVATED_MESSAGE)
+          await signOut(getFirebaseAuth()).catch(() => undefined)
+          return
+        }
         const role = isUserRole(profile?.role) ? profile.role : 'incubatee'
         const email = authUser.email ?? ''
         const isApplicant = role === 'incubatee'
@@ -99,6 +140,8 @@ export const IdentityProvider = ({ children }: PropsWithChildren) => {
           smeOnboardingComplete: profile?.smeOnboardingComplete !== false,
           smeJourney: role === 'incubatee' ? resolveSmeJourney(profile, isApplicant) : undefined,
           showProgrammes: profile?.smeShowProgrammes === true,
+          uiMode: uiModeFrom(profile),
+          secondRole: secondRoleFrom(role, profile),
           pendingProgramId: role === 'incubatee' ? pendingProgramIdFrom(profile) : null,
           ...(role === 'clientorg' ? {
             organisationId: typeof profile?.organisationId === 'string' ? profile.organisationId : null,
@@ -126,6 +169,13 @@ export const IdentityProvider = ({ children }: PropsWithChildren) => {
     return onSnapshot(doc(getFirebaseDb(), 'users', uid), (snapshot) => {
       const data = snapshot.data()
       if (!data) return
+      // Deactivated while signed in: end the session now rather than when the sign-in token next refreshes.
+      if (isDeactivatedProfile(data)) {
+        rememberDeactivatedSignOut()
+        setError(ACCOUNT_DEACTIVATED_MESSAGE)
+        void signOut(getFirebaseAuth()).catch(() => undefined)
+        return
+      }
       setUser((current) => {
         if (!current || current.uid !== uid) return current
         // Welcome can change a self-registered user's provisional SME role to consultant.
@@ -143,6 +193,7 @@ export const IdentityProvider = ({ children }: PropsWithChildren) => {
           ? {
             smeJourney: resolveSmeJourney(data, current.isApplicant),
             showProgrammes: data.smeShowProgrammes === true,
+            uiMode: uiModeFrom(data),
             pendingProgramId: pendingProgramIdFrom(data),
             companyCode: typeof data.companyCode === 'string' ? data.companyCode : current.companyCode,
             assignedProgramIds: Array.isArray(data.assignedProgramIds) ? data.assignedProgramIds.filter((id: unknown): id is string => typeof id === 'string') : current.assignedProgramIds,
@@ -152,6 +203,8 @@ export const IdentityProvider = ({ children }: PropsWithChildren) => {
         const verificationFields: Partial<FullIdentity> = {
           emailVerified: current.emailVerified || data.emailVerified === true,
           organisationAccessStatus: data.organisationAccessStatus,
+          // Set by the team-size setting (server-side) mid-session; follow it so the switch appears straight away.
+          secondRole: secondRoleFrom(effectiveRole, data),
         }
         // A funder's links are accepted, removed and confirmed mid-session; follow them so the pages reload.
         const funderFields: Partial<FullIdentity> = effectiveRole === 'funder' ? funderOrgFields(data) : {}
@@ -169,7 +222,52 @@ export const IdentityProvider = ({ children }: PropsWithChildren) => {
 
   const updateIdentity = useCallback((patch: Partial<FullIdentity>) => setUser((current) => (current ? { ...current, ...patch } : current)), [])
 
-  const value = useMemo(() => ({ user, loading, error, updateIdentity }), [error, loading, updateIdentity, user])
+  // An accepted SME with help outside their programme can switch to it (External support in the top bar).
+  const isAcceptedSme = user?.role === 'incubatee' && !user.isApplicant
+  const [hasExternalSupport, setHasExternalSupport] = useState(false)
+  useEffect(() => {
+    if (!isFirebaseConfigured || !uid || !isAcceptedSme) {
+      setHasExternalSupport(false)
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      const db = getFirebaseDb()
+      const profile = (await getDoc(doc(db, 'users', uid)).catch(() => null))?.data()
+      // Both must hold: they came in as an independent (chose consultants and agents, or skipped, at onboarding,
+      // before applying to a programme), and someone outside the programme is still helping them.
+      if (!cameInAsIndependent(profile)) {
+        if (!cancelled) setHasExternalSupport(false)
+        return
+      }
+      const ownWork = await getDocs(query(collection(db, 'assignedInterventions'), where('participantId', '==', uid))).catch(() => null)
+      if (!cancelled) setHasExternalSupport(Boolean(ownWork?.docs.some((row) => isOngoingExternalWork(row.data()))))
+    })()
+    return () => { cancelled = true }
+  }, [isAcceptedSme, uid])
+
+  const supportScope = useSupportScope()
+  const directorWorkspace = useDirectorWorkspace()
+  const effectiveUser = useMemo<FullIdentity | null>(() => {
+    // A director who runs the programme alone acts as operations while on that side: the operations pages, menus and
+    // permissions apply (the rules accept the second role too). baseRole keeps who they really are.
+    if (user?.role === 'director' && user.secondRole === 'operations') {
+      return directorWorkspace === 'operations'
+        ? { ...user, role: 'operations', baseRole: 'director', actingAs: 'operations', permissions: resolveIdentityPermissions('operations', undefined) }
+        : { ...user, baseRole: 'director', actingAs: 'overview' }
+    }
+    if (!user || !isAcceptedSme) return user
+    const scope = hasExternalSupport ? supportScope : 'programme'
+    return {
+      ...user,
+      acceptedSme: true,
+      hasExternalSupport,
+      supportScope: scope,
+      ...(scope === 'external' ? { isApplicant: true, smeJourney: 'independent' as const } : {}),
+    }
+  }, [directorWorkspace, hasExternalSupport, isAcceptedSme, supportScope, user])
+
+  const value = useMemo(() => ({ user: effectiveUser, loading, error, updateIdentity }), [effectiveUser, error, loading, updateIdentity])
 
   return <IdentityContext.Provider value={value}>{children}</IdentityContext.Provider>
 }

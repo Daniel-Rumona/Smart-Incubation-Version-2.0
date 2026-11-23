@@ -1,19 +1,60 @@
-.sme-metrics-page .filter-bar-primary > * {
-  min-width: 0;
+/* Operations SME metrics. No page heading: the shared layout owns the title. */
+.sme-metrics-page .filter-bar-primary > * { min-width: 0; }
+.sme-metrics-page .dashboard-metrics-row { margin-bottom: 12px; }
+.sme-metrics-main-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(320px, .85fr); gap: 12px; align-items: start; }
+.sme-metrics-right-stack { display: grid; gap: 12px; min-width: 0; }
+.sme-metrics-compact-card { min-width: 0; border-radius: 16px; }
+.sme-metrics-compact-card .ant-card-head { min-height: 48px; padding: 0 16px; }
+.sme-metrics-compact-card .ant-card-head-title { font-size: 14px; font-weight: 650; }
+.sme-metrics-compact-card .ant-card-body { padding: 14px 16px; }
+.sme-metrics-business-list { display: grid; gap: 0; }
+.sme-metrics-business { padding: 14px 0; border-bottom: 1px solid var(--ant-color-border-secondary, rgba(128,128,128,.15)); min-width: 0; }
+.sme-metrics-business:first-child { padding-top: 2px; }
+.sme-metrics-business:last-child { border-bottom: 0; padding-bottom: 0; }
+.sme-metrics-business-top, .sme-metrics-business-actions, .sme-metrics-detail-toolbar, .sme-metrics-history-row, .sme-metrics-coverage-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.sme-metrics-business-top { align-items: flex-start; }
+.sme-metrics-business-name { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.sme-metrics-business-name .ant-typography { overflow-wrap: anywhere; }
+.sme-metrics-muted { font-size: 12px; line-height: 1.45; }
+.sme-metrics-business-top .ant-tag { margin: 0; flex-shrink: 0; }
+.sme-metrics-business-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 12px 0; }
+.sme-metrics-business-stats > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.sme-metrics-business-stats span { color: var(--ant-color-text-secondary); font-size: 11px; }
+.sme-metrics-business-stats strong { color: var(--ant-color-text); font-size: 14px; overflow-wrap: anywhere; }
+.sme-metrics-business-actions { justify-content: flex-end; }
+.sme-metrics-coverage-line { margin: 4px 0 7px; font-size: 12px; }
+.sme-metrics-right-stack .ant-progress { margin-bottom: 10px; }
+.sme-metrics-detail { display: grid; gap: 14px; }
+.sme-metrics-detail-toolbar { align-items: flex-start; flex-wrap: wrap; }
+.sme-metrics-subtitle { font-size: 13px; font-weight: 700; color: var(--ant-color-text); margin: 12px 0 8px; }
+.sme-metrics-history-row { border-bottom: 1px solid var(--ant-color-border-secondary, rgba(128,128,128,.15)); padding: 10px 0; min-width: 0; }
+.sme-metrics-history-row > div:first-child { min-width: 0; overflow-wrap: anywhere; }
+.sme-metrics-history-row .ant-tag { margin: 0; }
+.sme-metrics-section-grid { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; margin: 8px 0 16px; }
+.sme-metrics-form { margin-top: 14px; }
+.sme-metrics-modal .ant-modal-content { border-radius: 20px; }
+.sme-metrics-modal .ant-modal-body { max-height: min(68vh, 690px); overflow-y: auto; overflow-x: hidden; }
+.sme-metrics-modal-actions { display: flex; gap: 8px; width: 100%; }
+.sme-metrics-modal-actions .ant-btn { flex: 1; border-radius: 999px; min-height: 40px; }
+.sme-metrics-modal .ant-upload-wrapper { width: 100%; }
+.sme-metrics-modal .ant-upload-wrapper .ant-upload-select { width: 100%; }
+.sme-metrics-modal .ant-upload-wrapper .ant-upload-select .ant-btn { width: 100%; }
+@media (max-width: 1080px) { .sme-metrics-main-grid { grid-template-columns: minmax(0, 1fr); } .sme-metrics-right-stack { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+@media (max-width: 767px) {
+  .sme-metrics-page .dashboard-metrics-row { margin-bottom: 10px; }
+  .sme-metrics-compact-card .ant-card-body { padding: 12px; }
+  .sme-metrics-right-stack { grid-template-columns: minmax(0,1fr); }
+  .sme-metrics-business { padding: 12px 0; }
+  .sme-metrics-business-stats { gap: 7px; }
+  .sme-metrics-business-stats strong { font-size: 13px; }
+  .sme-metrics-business-actions .ant-btn { flex: 1; }
+  .sme-metrics-business-actions { width: 100%; }
+  .sme-metrics-modal .ant-modal-content { padding: 18px 14px; }
+  .sme-metrics-modal .ant-modal-body { max-height: none; }
+  .sme-metrics-detail-toolbar > .ant-space { width: 100%; }
+  .sme-metrics-detail-toolbar > .ant-space .ant-space-item { flex: 1; }
+  .sme-metrics-detail-toolbar > .ant-space .ant-btn { width: 100%; }
+  .sme-metrics-history-row { align-items: flex-start; }
 }
-
-.sme-metrics-clickable-row {
-  cursor: pointer;
-}
-
-.sme-metrics-drilldown {
-  width: 100%;
-}
-
-.sme-metrics-drilldown .ant-card {
-  height: 100%;
-}
-
-.sme-metrics-drilldown .ant-card-body {
-  min-height: 116px;
-}
+@media (max-width: 400px) { .sme-metrics-section-grid { grid-template-columns: 1fr; } }
+.sme-metrics-list-pagination { margin-top: 12px; }

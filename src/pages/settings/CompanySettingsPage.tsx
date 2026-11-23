@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { EditSettingModal } from '@/components/settings/EditSettingModal'
 import { SetupChangeRequestModal } from '@/components/settings/SetupChangeRequestModal'
+import { TeamSizeCard } from '@/components/settings/TeamSizeCard'
 import { useSystemSettings } from '@/contexts/SystemSettingsContext'
 import { listCompanySettingsChanges, type DirectSettingKey, type SettingsChange } from '@/services/companySettingsEditService'
 import { ASSIGNMENT_OPTIONS, DELIVERY_ROLE_LABELS, DIVISION_OPTIONS, SETUP_SETTINGS, type SetupSettingKey } from '@/components/settings/setupSettings'
@@ -258,21 +259,21 @@ export const CompanySettingsPage = () => {
                                             <div className="settings-row">
                                                 <div>{t(SETUP_SETTINGS.assignmentModel)}<small>{t('Operations assigns them, or facilitators pick their own')}</small></div>
                                                 <div>
-                                                    {settings.assignmentModel ? t(ASSIGNMENT_OPTIONS[settings.assignmentModel] || settings.assignmentModel) : <Tag variant="borderless" color="orange">{t('Not set')}</Tag>}
+                                                    {settings.assignmentModel ? t(ASSIGNMENT_OPTIONS[settings.assignmentModel] || settings.assignmentModel) : <Tag variant="filled" color="orange">{t('Not set')}</Tag>}
                                                     {editLink('assignmentModel', settings.assignmentModel ? t('Change') : t('Set'))}
                                                 </div>
                                             </div>
                                             <div className="settings-row">
                                                 <div>{t(SETUP_SETTINGS.interventionDeliveryRoles)}</div>
                                                 <div>
-                                                    {deliveryRoles.map((role) => <Tag key={role} variant="borderless" style={{ margin: 0 }}>{t(DELIVERY_ROLE_LABELS[role])}</Tag>)}
+                                                    {deliveryRoles.map((role) => <Tag key={role} variant="filled" style={{ margin: 0 }}>{t(DELIVERY_ROLE_LABELS[role])}</Tag>)}
                                                     {editLink('interventionDeliveryRoles', t('Change'))}
                                                 </div>
                                             </div>
                                             <div className="settings-row">
                                                 <div>{t(SETUP_SETTINGS.smeDivisionModel)}</div>
                                                 <div>
-                                                    {settings.smeDivisionModel ? t(DIVISION_OPTIONS[settings.smeDivisionModel] || settings.smeDivisionModel) : <Tag variant="borderless" color="orange">{t('Not set')}</Tag>}
+                                                    {settings.smeDivisionModel ? t(DIVISION_OPTIONS[settings.smeDivisionModel] || settings.smeDivisionModel) : <Tag variant="filled" color="orange">{t('Not set')}</Tag>}
                                                     {editLink('smeDivisionModel', settings.smeDivisionModel ? t('Change') : t('Set'))}
                                                 </div>
                                             </div>
@@ -307,6 +308,8 @@ export const CompanySettingsPage = () => {
                                 </>
                             )}
                         </Card>
+
+                        {isDirector && settings && <TeamSizeCard teamSize={(settings as { teamSize?: 'solo' | 'small' | 'large' }).teamSize} />}
 
                         {isDirector && settings && (
                             <Card
@@ -354,14 +357,14 @@ export const CompanySettingsPage = () => {
                                 loading={loading}
                                 className="dashboard-section-card motion-card"
                                 title={<Space><MailOutlined /> {t('Change requests')}</Space>}
-                                extra={waiting ? <Tag variant="borderless" color="orange">{t('{count} waiting', undefined, { count: waiting })}</Tag> : undefined}
+                                extra={waiting ? <Tag variant="filled" color="orange">{t('{count} waiting', undefined, { count: waiting })}</Tag> : undefined}
                             >
                                 <div className="settings-requests">
                                     {shownRequests.map((request) => (
                                         <div key={request.id} className="settings-request">
                                             <div>
                                                 <Text strong>{request.reason.split('\n')[0]}</Text>
-                                                <Tag variant="borderless" color={REQUEST_STATUS[request.status]?.color} style={{ margin: 0 }}>{t(REQUEST_STATUS[request.status]?.label || request.status)}</Tag>
+                                                <Tag variant="filled" color={REQUEST_STATUS[request.status]?.color} style={{ margin: 0 }}>{t(REQUEST_STATUS[request.status]?.label || request.status)}</Tag>
                                             </div>
                                             <Text type="secondary" className="settings-hint">
                                                 {request.requestedAt ? t('Sent {date}', undefined, { date: dayjs(request.requestedAt).format('D MMM YYYY') }) : ''}

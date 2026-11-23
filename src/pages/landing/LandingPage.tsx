@@ -14,6 +14,7 @@ import {
     WhatsAppOutlined,
     SunOutlined,
     TeamOutlined,
+    RightOutlined,
     UserOutlined,
 } from '@ant-design/icons'
 import { MotionConfig, motion, type Variants } from 'framer-motion'
@@ -24,7 +25,6 @@ import { useAgent } from '@/providers/AgentProvider'
 import { useIdentity } from '@/contexts/IdentityProvider'
 import { workspaceDashboardPath } from '@/utils/workspacePath'
 import { getSignInPreference } from '@/services/signInPreference'
-import { logoutUser } from '@/services/authService'
 import { HolidayBanner } from '@/components/shared/HolidayBanner'
 import { LanguageMenu } from '@/components/shared/LanguageMenu'
 import { trackEvent } from '@/lib/analytics'
@@ -158,23 +158,17 @@ const LandingPage: React.FC = () => {
     const { mode, toggleTheme } = useThemeMode()
     const { registerPageContext } = useAgent()
 
-    // Someone already signed in sees a way straight back to their workspace instead of sign-up prompts.
+    // The landing page is the same for everyone. A saved sign-in is offered on the sign-in page instead
+    // ("Continue as …?"); only "Stay signed in" on this device skips straight to the workspace.
     const { user, loading: identityLoading } = useIdentity()
     const signedIn = !identityLoading && !!user
     // Book a demo opens a short form first (role, organisation, …) so the team can prepare.
     const [demoOpen, setDemoOpen] = useState(false)
 
-    // "Keep me signed in" on this device: go straight to the workspace. Otherwise the hero asks "Continue as …?".
-    // (src/services/signInPreference.ts; chosen on the sign-in form or in the account window.)
+    // "Stay signed in" on this device: go straight to the workspace (src/services/signInPreference.ts).
     useEffect(() => {
         if (signedIn && getSignInPreference() === 'keep') navigate(workspaceDashboardPath(user), { replace: true })
     }, [navigate, signedIn, user])
-
-    // Partly hidden (d•••@quantilytix.co.za): enough to recognise your own account, not to read someone else's.
-    const maskedEmail = (() => {
-        const [local = '', domain = ''] = String(user?.email || '').split('@')
-        return domain ? `${local.slice(0, 1)}•••@${domain}` : ''
-    })()
 
     useEffect(() => {
         registerPageContext({
@@ -213,13 +207,8 @@ const LandingPage: React.FC = () => {
         navigate(SIGNIN_PATH)
     }
 
-    const goWorkspace = (source: string) => {
-        track('open_workspace', source)
-        navigate(workspaceDashboardPath(user))
-    }
-
     // Returning users: one quiet line under the actions, so signing in is never only the small top-right button.
-    const renderReturning = (source: string) => !signedIn && (
+    const renderReturning = (source: string) => (
         // In the hero it joins the staggered entrance, right after the buttons.
         <motion.p className="landing-returning" initial="hidden" animate="show" variants={fadeUp} custom={source === 'hero' ? 0.2 : 0}>
             {t('Already registered?')}{' '}
@@ -227,25 +216,15 @@ const LandingPage: React.FC = () => {
         </motion.p>
     )
 
-    // The same actions sit in the hero and the closing section.
-    const signOutHere = async () => {
-        track('sign_out', 'landing')
-        await logoutUser()
-    }
+    // The hero's three ways in. The SME door carries the "use your incubator's link" hint, where SMEs read it.
+    const doors = [
+        { key: 'programme', primary: true, icon: <ProjectOutlined />, title: t('I run a programme'), text: t('Incubators, ESD teams and funders'), action: t('Book a demo'), onClick: () => { track('book_a_demo', 'hero'); setDemoOpen(true) } },
+        { key: 'sme', primary: false, icon: <TeamOutlined />, title: t("I'm an SME"), text: t('Use your incubator’s link, or apply here'), action: t('Apply'), onClick: () => goApply('hero') },
+        { key: 'account', primary: false, icon: <UserOutlined />, title: t('I have an account'), text: t('Staff, SMEs, facilitators and funders'), action: t('Sign in'), onClick: () => goSignin('hero') },
+    ]
 
-    const renderCtas = (source: string) => signedIn ? (
-        // Signed in on this device and asked each time: continue, or sign out if it isn't you.
-        <div className="landing-continue">
-            <span className="landing-continue-avatar" aria-hidden="true"><UserOutlined /></span>
-            <span className="landing-continue-copy">
-                <strong>{maskedEmail ? t('Continue as {email}?', undefined, { email: maskedEmail }) : t('Continue where you left off?')}</strong>
-                <button type="button" className="landing-returning-link" onClick={() => void signOutHere()}>{t('Not you? Sign out')}</button>
-            </span>
-            <Button type="primary" size="large" className="landing-get-started" icon={<ArrowRightOutlined />} iconPosition="end" onClick={() => goWorkspace(source)}>
-                {t('Continue')}
-            </Button>
-        </div>
-    ) : (
+    // The same actions sit in the closing section.
+    const renderCtas = (source: string) => (
         <>
             <Button
                 type="primary"
@@ -305,9 +284,9 @@ const LandingPage: React.FC = () => {
                         <Button
                             type="text"
                             className="landing-signin"
-                            onClick={() => (signedIn ? goWorkspace('topbar') : goSignin('topbar'))}
+                            onClick={() => goSignin('topbar')}
                         >
-                            {signedIn ? t('Open workspace') : t('Sign in')}
+                            {t('Sign in')}
                         </Button>
                     </Space>
                 </header>
@@ -328,30 +307,32 @@ const LandingPage: React.FC = () => {
                                 </Typography.Paragraph>
                             </motion.div>
 
-                            <motion.div
-                                className="landing-cta-group"
-                                initial="hidden"
-                                animate="show"
-                                variants={fadeUp}
-                                custom={0.16}
-                            >
-                                {renderCtas('hero')}
-                            </motion.div>
-
-                            {renderReturning('hero')}
-
-                            <motion.p
-                                className="landing-cta-hint"
-                                initial="hidden"
-                                animate="show"
-                                variants={fadeUp}
-                                custom={0.2}
-                            >
-                                {signedIn
-                                    // No name: this page is public, and on a shared computer it would show whoever last signed in.
-                                    ? t('Welcome back.')
-                                    : t('SMEs: use the link your incubator sent you, or apply here.')}
-                            </motion.p>
+                            {/* Three equal ways in, each saying who it's for: programmes book a demo, SMEs apply,
+                                and anyone with an account signs in (no longer a small line under the buttons). */}
+                            <nav className="landing-doors" aria-label={t('Get started')}>
+                                {doors.map((door, index) => (
+                                    <motion.button
+                                        key={door.key}
+                                        type="button"
+                                        className={`landing-door${door.primary ? ' is-primary' : ''}`}
+                                        onClick={door.onClick}
+                                        initial="hidden"
+                                        animate="show"
+                                        variants={fadeUp}
+                                        custom={0.16 + index * 0.06}
+                                    >
+                                        <span className="landing-door-icon" aria-hidden="true">{door.icon}</span>
+                                        <span className="landing-door-copy">
+                                            <strong>{door.title}</strong>
+                                            <small>{door.text}</small>
+                                        </span>
+                                        <span className="landing-door-go">
+                                            {door.action}
+                                            <RightOutlined aria-hidden="true" />
+                                        </span>
+                                    </motion.button>
+                                ))}
+                            </nav>
                         </div>
 
                         <motion.div

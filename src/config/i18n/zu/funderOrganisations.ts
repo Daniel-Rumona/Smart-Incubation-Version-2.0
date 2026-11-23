@@ -273,4 +273,6 @@ export const zuFunderOrganisations: Record<string, string> = {
   "declined": "kwenqatshiwe",
   "expired": "kuphelelwe yisikhathi",
   "Implementor and programme": "Umqalisi nohlelo",
+  "no monthly report for {count} months": "awukho umbiko wanyanga izinyanga ezingu-{count}",
+  "no monthly report since joining": "awukho umbiko wanyanga kusukela ekujoyineni",
 }

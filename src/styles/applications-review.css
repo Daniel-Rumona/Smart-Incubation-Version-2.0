@@ -1,4 +1,13 @@
-.applications-metrics { margin-bottom: 16px; }
+.applications-status-strip { margin-bottom: 12px; overflow-x: auto; }
+.applications-status-strip .ant-segmented { display: flex; width: 100%; }
+.applications-status-strip .ant-segmented-group { width: 100%; }
+.applications-status-strip .ant-segmented-item { flex: 1 1 0; text-align: center; }
+.applications-status-count { margin-left: 4px; font-variant-numeric: tabular-nums; opacity: .65; }
+.applications-ai-summary { display: grid; gap: 10px; padding: 12px; border: 1px solid rgba(109, 93, 251, .15); border-radius: 12px; background: rgba(109, 93, 251, .04); }
+.applications-ai-head { display: flex; flex-wrap: wrap; gap: 8px 28px; }
+.applications-ai-score { font-size: 28px; font-weight: 700; line-height: 1.1; }
+.applications-ai-justification { margin: 0 !important; }
+.applications-documents { display: grid; gap: 8px; }
 .applications-panel { border-radius: 18px !important; border: 1px solid rgba(109, 93, 251, .12) !important; }
 .applications-panel .ant-card-body { padding: 14px; }
 .applications-row { cursor: pointer; transition: background .2s ease; }
@@ -22,24 +31,13 @@
 .applications-decision-result { display: grid; justify-items: start; gap: 8px; padding: 12px; border: 1px dashed rgba(148, 163, 184, .4); border-radius: 12px; }
 html[data-theme='dark'] .applications-decision-card { background: rgba(30, 41, 59, .9); border-color: rgba(255, 255, 255, .3); }
 html[data-theme='dark'] .applications-decision-result { border-color: rgba(255, 255, 255, .18); }
-.applications-analytics-grid { display: grid; align-items: start; grid-template-columns: 1fr 1fr; grid-template-areas: 'gauge gender' 'gauge bee' 'words words'; gap: 14px; }
-.applications-analytics-gender { grid-area: gender; }
-.applications-analytics-bee { grid-area: bee; }
 .applications-analytics-card { display: grid; align-content: start; gap: 10px; padding: 14px; border: 1px solid rgba(109, 93, 251, .12); border-radius: 14px; background: rgba(109, 93, 251, .03); }
-.applications-analytics-gauge { grid-area: gauge; justify-items: center; text-align: center; }
-.applications-analytics-gauge .ant-progress { margin-top: 4px; }
 .applications-analytics-bar-row { display: grid; grid-template-columns: 72px 1fr auto; align-items: center; gap: 8px; }
 .applications-analytics-bar-label { overflow: hidden; font-size: 12px; font-weight: 600; color: #475569; text-overflow: ellipsis; text-transform: capitalize; white-space: nowrap; }
 .applications-analytics-bar-value { font-size: 12px; color: #64748b; white-space: nowrap; }
-.applications-analytics-wordmap-card { grid-area: words; }
-.applications-analytics-wordmap { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; padding: 4px 0 2px; }
-.applications-wordmap-word { font-weight: 700; line-height: 1; text-transform: lowercase; }
 html[data-theme='dark'] .applications-analytics-card { background: rgba(30, 41, 59, .55); border-color: rgba(255, 255, 255, .12); }
 html[data-theme='dark'] .applications-analytics-bar-label { color: #cbd5e1; }
 html[data-theme='dark'] .applications-analytics-bar-value { color: #94a3b8; }
-@media (max-width: 640px) {
-  .applications-analytics-grid { grid-template-columns: 1fr; grid-template-areas: 'gauge' 'gender' 'bee' 'words'; }
-}
 @media (max-width: 767px) {
   .applications-metrics > div:nth-child(n + 3) { display: none; }
   .applications-panel .ant-card-body { padding: 8px; }
@@ -89,3 +87,63 @@ html[data-theme='dark'] .applications-decision-card:not(:disabled):hover {
   }
   .applications-detail-scroll { overflow: visible; }
 }
+
+/* Decision lives in the panel header; facts are plain label/value, not a table. */
+.applications-status-tag { margin-left: 8px; vertical-align: middle; font-weight: 400; }
+.applications-decision-actions { flex: none; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px; }
+.applications-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px 20px; margin: 0; }
+.applications-facts dt { font-size: 12px; color: var(--ant-color-text-secondary, #64748b); }
+.applications-facts dd { margin: 2px 0 0; font-weight: 600; overflow-wrap: anywhere; }
+.applications-fact-missing { font-weight: 400; color: var(--ant-color-text-tertiary, #94a3b8); }
+.applications-answer { display: grid; gap: 2px; }
+.applications-answer .ant-typography { margin-bottom: 0; white-space: pre-wrap; }
+.applications-document-row { padding: 10px 12px; border: 1px solid rgba(148, 163, 184, .3); border-radius: 12px; }
+.applications-document-row.is-missing { border-style: dashed; border-color: var(--ant-color-error, #cf1322); background: var(--ant-color-error-bg, #fff1f0); }
+.applications-document-row.is-missing .applications-document-name, .applications-document-row.is-missing .anticon { color: var(--ant-color-error, #cf1322); }
+html[data-theme='dark'] .applications-document-row.is-missing { background: rgba(207, 19, 34, .12); }
+.applications-document-row .ant-tag { margin: 0 0 0 auto; }
+@media (max-width: 575px) {
+  .applications-detail-heading { flex-direction: column; }
+  .applications-decision-actions { justify-content: stretch; }
+  .applications-decision-actions .ant-btn-primary, .applications-decision-actions .ant-btn-dangerous { flex: 1 1 0; }
+}
+
+/* Analytics modal: summary tiles, applications per month, breakdowns. */
+.applications-analytics-modal .ant-modal-body { display: grid; gap: 14px; }
+.applications-analytics-scope { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.applications-analytics-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.applications-analytics-tile { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid rgba(109, 93, 251, .15); border-radius: 12px; }
+.applications-analytics-tile span { font-size: 12px; color: var(--ant-color-text-secondary, #64748b); }
+.applications-analytics-tile strong { font-size: 22px; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.applications-analytics-grid { display: grid; align-items: start; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.applications-analytics-hint { font-size: 12px; margin-top: -6px; }
+.applications-months { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; }
+.applications-month { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px 0; border: 0; border-radius: 8px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.applications-month:hover, .applications-month.is-active { background: rgba(109, 93, 251, .1); }
+.applications-month:focus-visible { outline: 2px solid var(--ant-color-primary, #6d5dfb); }
+.applications-month-total { height: 16px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.applications-month-track { display: flex; align-items: flex-end; width: 70%; max-width: 28px; height: 110px; }
+.applications-month-bar { display: flex; flex-direction: column-reverse; width: 100%; min-height: 0; overflow: hidden; border-radius: 4px 4px 0 0; }
+.applications-month-segment { min-height: 3px; }
+.applications-month-segment.is-accepted, .applications-month-legend .is-accepted::before { background: var(--ant-color-success, #389e0d); }
+.applications-month-segment.is-pending, .applications-month-legend .is-pending::before { background: var(--ant-color-warning, #d4b106); }
+.applications-month-segment.is-rejected, .applications-month-legend .is-rejected::before { background: var(--ant-color-error, #cf1322); }
+.applications-month-label { display: grid; justify-items: center; font-size: 12px; color: var(--ant-color-text-secondary, #64748b); line-height: 1.1; }
+.applications-month-label small { font-size: 10px; opacity: .7; }
+.applications-month-legend { display: flex; gap: 14px; font-size: 12px; color: var(--ant-color-text-secondary, #64748b); }
+.applications-month-legend span::before { content: ''; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 2px; }
+@media (max-width: 767px) {
+  .applications-analytics-tiles { grid-template-columns: repeat(3, 1fr); }
+  .applications-analytics-grid { grid-template-columns: 1fr; }
+  .applications-month-total { font-size: 10px; }
+}
+
+/* Filter bar controls share the full row width. */
+.applications-review-page .filter-bar-controls > *,
+.applications-review-page .filter-bar-controls > .ant-btn { flex: 1 1 0; min-width: 0; }
+.applications-review-page .filter-bar-controls > .ant-input-affix-wrapper { flex: 2 1 0; }
+.applications-review-page .filter-bar-controls > .ant-picker { width: auto; }
+.applications-review-page .filter-bar-controls .ant-badge { display: flex; width: 100%; }
+.applications-review-page .filter-bar-controls .ant-badge > .ant-btn { width: 100%; }
+/* With a date range set, months outside it are dimmed but stay clickable. */
+.applications-month.is-outside .applications-month-bar, .applications-month.is-outside .applications-month-total { opacity: .3; }

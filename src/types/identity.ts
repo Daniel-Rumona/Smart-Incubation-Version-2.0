@@ -50,6 +50,29 @@ export type FullIdentity = {
   smeJourney?: SmeJourney
   /** Independent SMEs only: they asked to see programmes after choosing consultants and agents (users/{uid}.smeShowProgrammes). */
   showProgrammes?: boolean
+  /**
+   * Directors who run the programme alone also hold the operations role (users.secondRole, set only server-side).
+   * While they are acting as operations, `role` is 'operations' and `baseRole` keeps 'director'.
+   */
+  secondRole?: UserRole | null
+  /** The role on the account, when `role` is the second role being acted as. */
+  baseRole?: UserRole
+  /** Directors with a second role: which side they are looking at. */
+  actingAs?: 'overview' | 'operations'
+  /** SMEs only: the view they picked for their pages (users/{uid}.uiMode). Unset means the default, Simple view. */
+  uiMode?: UiMode
+  /**
+   * Accepted SMEs who also get help outside their programme (they came in as independents, or have consultant or
+   * agent work with no programme). They get a top bar choice between their programme and "External support".
+   */
+  hasExternalSupport?: boolean
+  /**
+   * Which side such an SME is looking at. While 'external', isApplicant is true and smeJourney is 'independent', so
+   * the independent SME pages (dashboard, roadmap, marketplace) apply; acceptedSme stays true either way.
+   */
+  supportScope?: 'programme' | 'external'
+  /** The SME has been accepted into a programme (true even while viewing External support). */
+  acceptedSme?: boolean
   /** A programme whose link this person opened but has not joined yet (kept on the account, not just the browser). */
   pendingProgramId?: string | null
   /** Client company accounts (role clientorg): the company in the training company's records, and their role in it. */
@@ -67,3 +90,6 @@ export type FullIdentity = {
 }
 
 export type SmeJourney = 'programme' | 'independent'
+
+/** Simple view: one task at a time in plain words. Full view: the metric tiles and lists. */
+export type UiMode = 'simple' | 'full'

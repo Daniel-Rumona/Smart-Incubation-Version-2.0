@@ -7,6 +7,7 @@ import DashboardHeader from '@/components/shared/DashboardHeader'
 import DashboardPage from '@/components/shared/DashboardPage'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
+import { useUiMode } from '@/hooks/useUiMode'
 import { listActiveAgents } from '@/services/agentRegistryService'
 import { loadSavedSuggestions, matchToSteps, requestSuggestions, suggestionsAvailable, type SavedSuggestions, type SuggestedStep } from '@/services/roadmapSuggestionsService'
 import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
@@ -119,6 +120,11 @@ export default function ProviderMarketplacePage() {
     const [changesText, setChangesText] = useState('')
     const [acting, setActing] = useState(false)
     const [params] = useSearchParams()
+    // The SME's saved view (`?view=simple|full` overrides it for demos and screenshots; `?view=requests` still opens requests).
+    const { mode: savedUiMode } = useUiMode()
+    const simpleLayout = (params.get('view') === 'simple' || params.get('view') === 'full' ? params.get('view') : savedUiMode) === 'simple'
+    // Simple view asks only what and why in a request; delivery, timing and budget keep their defaults unless opened.
+    const [requestMore, setRequestMore] = useState(false)
 
     // Opened from an email or notification link: ?view=requests&request={id}.
     useEffect(() => {
@@ -188,6 +194,7 @@ export default function ProviderMarketplacePage() {
 
     const openRequest = (target: RequestTarget) => {
         setRequestTarget(target)
+        setRequestMore(false)
         const firstService = target.type === 'consultant' ? target.profile.services[0] : undefined
         form.setFieldsValue({
             areaOfSupport: firstService?.areaOfSupport || (target.type === 'agent' ? target.agent.capabilities[0] : undefined),
@@ -196,7 +203,8 @@ export default function ProviderMarketplacePage() {
             engagementDays: undefined,
             urgency: 'normal',
             budget: user?.consultingBudget,
-            note: '',
+            // Simple view starts from what they already told us; they can change it before sending.
+            note: simpleLayout && suggested?.challenge ? suggested.challenge : '',
         } as RequestFormValues)
     }
 
@@ -491,7 +499,7 @@ export default function ProviderMarketplacePage() {
                 </div>
                 <Text type="secondary" className="fs-row-facts">{factsFor(target)}</Text>
                 {openRequestIds.has(id)
-                    ? <Tag variant="borderless" className="fs-status">{t('Request sent')}</Tag>
+                    ? <Tag variant="filled" className="fs-status">{t('Request sent')}</Tag>
                     : <Button size="small" icon={<SendOutlined />} onClick={() => openRequest(target)}>{target.type === 'agent' ? t('Request') : t('Request support')}</Button>}
             </div>
         )
@@ -582,7 +590,7 @@ export default function ProviderMarketplacePage() {
                                         </Button>
                                     )}
                                 </div>
-                                {suggested.items.length > 1 && (
+                                {!simpleLayout && suggested.items.length > 1 && (
                                     <div className="fs-simple-step-filter">
                                         <Text type="secondary">{t('Focus on')}</Text>
                                         <Select
@@ -615,7 +623,7 @@ export default function ProviderMarketplacePage() {
                                                     </div>
                                                     <div className="fs-simple-provider-footer">
                                                         {openRequestIds.has(id) ? (
-                                                            <Tag variant="borderless" color="processing">{t('Request already sent')}</Tag>
+                                                            <Tag variant="filled" color="processing">{t('Request already sent')}</Tag>
                                                         ) : (
                                                             <Button type={index === 0 ? 'primary' : 'default'} onClick={() => openRequest(row.target)}>
                                                                 {t('Request support')} <ArrowRightOutlined />
@@ -629,7 +637,7 @@ export default function ProviderMarketplacePage() {
                                 ) : (
                                     <Empty description={t('No suitable matches found yet. You can browse all available support below.')} />
                                 )}
-                                <Text type="secondary" className="fs-simple-match-note">{t('Suggestions are based on listed services, not a guarantee of suitability or availability.')}</Text>
+                                {!simpleLayout && <Text type="secondary" className="fs-simple-match-note">{t('Suggestions are based on listed services, not a guarantee of suitability or availability.')}</Text>}
                             </section>
                         )}
 
@@ -704,7 +712,7 @@ export default function ProviderMarketplacePage() {
                                                 <Text type="secondary">{[row.targetType === 'agent' ? t('Thuso specialist') : t('Consultant'), row.areaOfSupport, `${t('Sent')} ${formatDate(row.createdAt)}`].filter(Boolean).join(' · ')}</Text>
                                                 {row.targetType === 'consultant' && lastMessage(row) && <Text type="secondary" className="marketplace-request-quote">“{lastMessage(row)?.text}”</Text>}
                                             </div>
-                                            <Tag variant="borderless" color={connectionStatusColor[row.status]} className="marketplace-request-tag">
+                                            <Tag variant="filled" color={connectionStatusColor[row.status]} className="marketplace-request-tag">
                                                 {row.targetType === 'agent' ? t(row.status === 'matched' ? 'Matched' : row.status === 'declined' ? 'Declined' : 'With operations') : t(connectionStatusText(row.status, 'sme', row.declinedBy))}
                                             </Tag>
                                         </div>
@@ -751,6 +759,12 @@ export default function ProviderMarketplacePage() {
                                 />
                             </Form.Item>
 
+                            {simpleLayout && (
+                                <Button type="link" size="small" className="fs-request-more" onClick={() => setRequestMore(!requestMore)} aria-expanded={requestMore}>
+                                    {requestMore ? t('Fewer options') : t('More options: delivery, timing and budget')}
+                                </Button>
+                            )}
+                            <div style={simpleLayout && !requestMore ? { display: 'none' } : undefined}>
                             <Row gutter={12}>
                                 <Col xs={24} md={12}>
                                     <Form.Item name="deliveryMode" label={t('How would you like it delivered?')} rules={[{ required: true, message: tr('Choose a delivery mode.') }]}>
@@ -781,6 +795,7 @@ export default function ProviderMarketplacePage() {
                                     </Form.Item>
                                 </Col>
                             </Row>
+                            </div>
 
                             <Form.Item
                                 name="note"
@@ -803,7 +818,7 @@ export default function ProviderMarketplacePage() {
                 {openedRequest && (
                     <Space direction="vertical" size={16} style={{ width: '100%' }}>
                         <Space wrap size={8}>
-                            <Tag variant="borderless" color={connectionStatusColor[openedRequest.status]}>
+                            <Tag variant="filled" color={connectionStatusColor[openedRequest.status]}>
                                 {openedRequest.targetType === 'agent' ? t(agentStatusHelp[openedRequest.status]) : t(connectionStatusText(openedRequest.status, 'sme', openedRequest.declinedBy))}
                             </Tag>
                             <Text type="secondary">{[openedRequest.areaOfSupport, openedRequest.preferredStartDate && `${t('Preferred start:')} ${openedRequest.preferredStartDate}`].filter(Boolean).join(' · ')}</Text>
@@ -877,7 +892,7 @@ export default function ProviderMarketplacePage() {
                                 <div key={targetIdOf(row.target)} className="fs-row fs-plan-sent-row">
                                     <ProviderAvatar target={row.target} />
                                     <div className="fs-row-main"><Text strong>{targetNameOf(row.target)}</Text><Text type="secondary" className="fs-row-sub">{row.steps.join(' · ')}</Text></div>
-                                    <Tag variant="borderless" color="gold" className="fs-status">{row.target.type === 'agent' ? t('With operations') : t('Waiting for a reply')}</Tag>
+                                    <Tag variant="filled" color="gold" className="fs-status">{row.target.type === 'agent' ? t('With operations') : t('Waiting for a reply')}</Tag>
                                 </div>
                             ))}
                         </div>

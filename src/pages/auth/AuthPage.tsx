@@ -1,5 +1,6 @@
 import {
   ArrowLeftOutlined,
+  ArrowRightOutlined,
   BulbOutlined,
   CheckCircleFilled,
   EyeInvisibleOutlined,
@@ -33,6 +34,7 @@ import { useThemeMode } from '@/providers/ThemeProvider'
 import { useLanguage } from '@/providers/LanguageProvider'
 import {
   loginUser,
+  logoutUser,
   loginWithFacebook,
   loginWithGoogle,
   registerUser,
@@ -46,6 +48,9 @@ import { getFirebaseAuth } from '@/config/firebase'
 import { PRIVACY_URL, TERMS_URL } from '@/config/company'
 import { HolidayBanner } from '@/components/shared/HolidayBanner'
 import { LanguageMenu } from '@/components/shared/LanguageMenu'
+import { ACCOUNT_DEACTIVATED_MESSAGE, takeDeactivatedNotice } from '@/utils/accountDeactivated'
+import { useIdentity } from '@/contexts/IdentityProvider'
+import { workspaceDashboardPath } from '@/utils/workspacePath'
 // Photo: Unsplash (unsplash.com/photos/8kMbEUF8kIQ), free Unsplash licence.
 import authPanelPhoto from '@/assets/auth-panel.jpg'
 import { singleActionFooter } from '@/components/shared/modalFooter'
@@ -96,11 +101,38 @@ export default function AuthPage() {
   const [rememberChoice, setRememberChoice] = useState<SignInPreference>(getSignInPreference)
   // Asked once per device: the first sign-in saves the choice, and the account window changes it after that.
   const [askRemember] = useState(() => !hasSignInPreference())
-  const [authError, setAuthError] = useState<AuthError | null>(null)
+  // A sign-in still open in this browser is offered here ("Continue as …?"), not on the landing page. Once the
+  // form is used, it's the form's sign-in that counts, so the card never flashes up mid sign-in.
+  const { user: sessionUser, loading: sessionLoading } = useIdentity()
+  const [usedForm, setUsedForm] = useState(false)
+  const savedSession = !sessionLoading && !!sessionUser && !usedForm
+  const [signingOut, setSigningOut] = useState(false)
+  // Partly hidden (d•••@quantilytix.co.za): enough to recognise your own account on a shared computer.
+  const maskedSessionEmail = (() => {
+    const [local = '', domain = ''] = String(sessionUser?.email || '').split('@')
+    return domain ? `${local.slice(0, 1)}•••@${domain}` : ''
+  })()
+  // Signed out because the account was deactivated: say so here instead of a silent return to sign-in.
+  const [authError, setAuthError] = useState<AuthError | null>(() => (
+    takeDeactivatedNotice() ? { message: ACCOUNT_DEACTIVATED_MESSAGE, code: 'account-deactivated' } : null
+  ))
   const [resetOpen, setResetOpen] = useState(false)
   const [resetLoading, setResetLoading] = useState(false)
 
   const [form] = Form.useForm<AuthFormValues>()
+
+  useEffect(() => {
+    if (savedSession && getSignInPreference() === 'keep') navigate(workspaceDashboardPath(sessionUser), { replace: true })
+  }, [navigate, savedSession, sessionUser])
+
+  const useAnotherAccount = async () => {
+    setSigningOut(true)
+    try {
+      await logoutUser()
+    } finally {
+      setSigningOut(false)
+    }
+  }
   const [resetForm] = Form.useForm<ResetPasswordValues>()
 
   const isLogin = authMode === 'login'
@@ -183,6 +215,7 @@ export default function AuthPage() {
     try {
       const values = await form.validateFields()
       setAuthError(null)
+      setUsedForm(true)
       setPending('email')
       await applySignInPreference(rememberChoice)
 
@@ -220,6 +253,7 @@ export default function AuthPage() {
   const handleSocialLogin = async (provider: 'google' | 'facebook') => {
     try {
       setAuthError(null)
+      setUsedForm(true)
       setPending(provider)
       await applySignInPreference(rememberChoice)
 
@@ -361,6 +395,21 @@ export default function AuthPage() {
               <span>{t('Smart Incubation')}</span>
             </div>
 
+            {savedSession ? (
+              <div className="auth-continue">
+                <span className="auth-continue-avatar" aria-hidden="true"><UserOutlined /></span>
+                <Title level={1} className="auth-continue-title">{t('Welcome back')}</Title>
+                <Paragraph className="auth-continue-who">
+                  {maskedSessionEmail ? t('You are still signed in as {email}.', undefined, { email: maskedSessionEmail }) : t('You are still signed in on this device.')}
+                </Paragraph>
+                <Button type="primary" size="large" block className="auth-submit-btn" icon={<ArrowRightOutlined />} iconPosition="end" onClick={() => navigate(workspaceDashboardPath(sessionUser))}>
+                  {t('Continue to your workspace')}
+                </Button>
+                <Button size="large" block className="auth-continue-switch" loading={signingOut} onClick={() => void useAnotherAccount()}>
+                  {t('Not you? Use another account')}
+                </Button>
+              </div>
+            ) : (<>
             <Segmented<AuthMode>
               block
               className="auth-segmented"
@@ -572,6 +621,7 @@ export default function AuthPage() {
                 {t('auth.facebook', 'Continue with Facebook')}
               </Button>
             </div>
+            </>)}
           </div>
         </div>
       </section>

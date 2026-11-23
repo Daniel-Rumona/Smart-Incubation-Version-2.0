@@ -88,6 +88,8 @@ export type ApplicantProgram = {
   openToExternalSmes?: boolean
   /** 'direct' = no application: SMEs join as soon as their profile is complete. */
   intakeMode?: string
+  /** Name of the company running the programme (resolved from companyCode). */
+  implementorName?: string
 }
 
 export type ApplicantApplication = {

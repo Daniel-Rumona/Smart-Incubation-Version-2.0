@@ -30,12 +30,14 @@ from pitchfy_client import PitchfyClient
 from document_provenance import create_document_provenance_router
 from whatsapp_agent import authorize_router_user, create_whatsapp_agent_router
 from appointment_responses import create_appointment_responses_router
-from agent_actions import actions_enabled, build_actor, create_agent_actions_router, register_tools, run_agent_turn, tools_for
+from agent_actions import actions_enabled, build_actor, create_agent_actions_router, register_permission_source, register_tools, run_agent_turn, tools_for
 from agent_watches import PROMPT_RULES as WATCH_PROMPT_RULES, WATCH_TOOLS, create_agent_watches_router
 from survey_import_agent import create_survey_import_router
 from gap_analysis_agent import create_gap_analysis_router
 from course_builder_agent import create_course_builder_router
 from client_modules import is_training_page, library_context, persona_for
+from agent_scope import scoped_snapshot
+from training_agent import TRAINING_FALLBACK, TRAINING_INTRO, TRAINING_RULES, TRAINING_SCOPE, create_training_router, register as register_training_tools
 from esg_report_agent import create_esg_report_router
 from intervention_outcome_agent import create_intervention_outcome_router
 from request_auth import create_request_authenticator
@@ -325,11 +327,6 @@ def _compact_document(doc: firestore.DocumentSnapshot) -> dict[str, Any]:
     return compact
 
 
-def _collection_snapshot(name: str, limit_count: int = MAX_DOCS_PER_COLLECTION) -> list[dict[str, Any]]:
-    docs = db.collection(name).limit(limit_count).stream()
-    return [_compact_document(doc) for doc in docs]
-
-
 def _page_collections(page_key: str) -> list[str]:
     mapping = {
         "landing": ["programs", "participants", "applications"],
@@ -342,34 +339,23 @@ def _page_collections(page_key: str) -> list[str]:
     return mapping.get(page_key, ["programs", "participants", "applications", "smeIntakeSubmissions"])
 
 
-def _firestore_context_for_page(page: PageContext) -> dict[str, Any]:
-    collections: dict[str, Any] = {}
-
-    # Client-module pages (awareness training) carry their own company-scoped data in the page context;
-    # the shared collection snapshots below would add other companies' records.
+def _firestore_context_for_page(page: PageContext, identity: Any) -> dict[str, Any]:
+    # Client-module pages (awareness training) carry their own company-scoped data in the page context.
     if is_training_page(page.pageKey):
-        return collections
-
-    for collection_name in _page_collections(page.pageKey):
-        try:
-            collections[collection_name] = _collection_snapshot(collection_name)
-        except Exception as exc:
-            collections[collection_name] = {"error": str(exc)}
-
-    return collections
+        return {}
+    # Scoped to the signed-in person (agent_scope.py): the Admin SDK ignores the security rules.
+    return scoped_snapshot(db, identity, _page_collections(page.pageKey), MAX_DOCS_PER_COLLECTION, _compact_document)
 
 
-def _public_page_context(page: PageContext) -> dict[str, Any]:
+def _public_page_context(page: PageContext, identity: Any) -> dict[str, Any]:
     context = page.model_dump()
     viewer = context.get("viewer") or {}
-
-    if viewer:
-        context["viewer"] = {
-            "name": viewer.get("name"),
-            "role": viewer.get("role"),
-            "companyCode": viewer.get("companyCode"),
-        }
-
+    # Role and company come from the verified token; the browser's own claim is never trusted.
+    context["viewer"] = {
+        "name": viewer.get("name"),
+        "role": getattr(identity, "role", None),
+        "companyCode": getattr(identity, "company_code", None),
+    }
     return context
 
 
@@ -1087,7 +1073,10 @@ AGENT_PERSONA = (
     "in records, metrics and the conversation belong to other people (SMEs, facilitators, staff), never the viewer. "
     "Answer as a concise, warm operational assistant. "
     "Use the page context, recent conversation, and sanitized Firestore snapshots to explain what is "
-    "happening and suggest useful next steps. Do not expose implementation details, collection names, raw "
+    "happening and suggest useful next steps. The snapshots are already limited to what page.viewer may see (their "
+    "own company's records for staff; an SME's own records, their company's programmes and programmes open to outside "
+    "SMEs). Never describe or guess at records of other companies or other SMEs; if asked for 'all' data, answer for "
+    "what the viewer may see and say so. Do not expose implementation details, collection names, raw "
     "record fields, internal action keys, secrets, service-account details, user IDs, emails, phone numbers, "
     "or document IDs. If a user says yes, sure, ok, or similar, continue the previous assistant offer instead "
     "of treating it as a new request. Mention user-facing action labels only when helpful. "
@@ -1120,14 +1109,14 @@ async def page_agent(payload: AgentRequest, authorization: str | None = Header(d
     # A company running a client module (awareness training) gets an assistant that speaks for its workspace.
     base_persona, client_persona = persona_for(db, identity, payload.page.pageKey, AGENT_PERSONA)
 
-    firestore_context = _firestore_context_for_page(payload.page)
+    firestore_context = _firestore_context_for_page(payload.page, identity)
     actions = [action.model_dump() for action in payload.page.allowedActions or []] if agentic else []
     user_message = _resolve_followup_message(payload.message, payload.history, payload.page)
     model_payload = {
         "userMessage": user_message,
         "viewerName": (payload.page.viewer or {}).get("name") if payload.page.viewer else None,
         "botName": "Q",
-        "page": _public_page_context(payload.page),
+        "page": _public_page_context(payload.page, identity),
         "availableUserActions": [
             {"label": action.get("label"), "description": action.get("description")}
             for action in actions
@@ -1144,7 +1133,15 @@ async def page_agent(payload: AgentRequest, authorization: str | None = Header(d
 
     # Staff who may manage appointments/interventions get the tool-using path. The model can only
     # propose writes; the user confirms them via /api/agent/actions/{id}/confirm. Client-module
-    # assistants have no tools of their own yet, so they answer from the page context only.
+    # assistants get the training tools (training_agent.py) when the user is the company's training staff.
+    if agentic and actions_enabled() and client_persona:
+        actor = build_actor(db, identity)
+        if tools_for(actor, TRAINING_SCOPE):
+            turn = run_agent_turn(
+                db, actor, persona=base_persona, base_payload=model_payload, call_model=_call_gemini,
+                extract_json=_extract_json_object, scope=TRAINING_SCOPE, intro=TRAINING_INTRO, fallback=TRAINING_FALLBACK, rules=TRAINING_RULES,
+            )
+            return {"reply": turn["reply"], "actionKey": None, "proposal": turn["proposal"]}
     if agentic and actions_enabled() and not client_persona:
         actor = build_actor(db, identity)
         if tools_for(actor):
@@ -1885,6 +1882,9 @@ def synthesize_speech(payload: TtsRequest, authorization: str | None = Header(de
 
 # Watches and chasers: agent tools (checked nightly by functions/src/agentWatches.ts) and the card answers.
 register_tools(WATCH_TOOLS, WATCH_PROMPT_RULES)
+# Awareness training: the training assistant's tools (training staff only), assessment drafts and funder summaries.
+register_training_tools(register_tools, register_permission_source)
+app.include_router(create_training_router(db, _call_gemini, _require_auth, _extract_json_object))
 app.include_router(create_agent_actions_router(db, _require_agentic))
 app.include_router(create_agent_watches_router(db, _require_agentic))
 app.include_router(create_whatsapp_agent_router(db, _call_gemini, _extract_json_object, AGENT_PERSONA))

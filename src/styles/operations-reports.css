@@ -176,6 +176,9 @@
   .pa-attention-item:hover { border-color: var(--ant-color-border); background: var(--ant-color-fill-quaternary); }
 }
 
+.pa-programme-delivery { display: grid; gap: 2px; margin-bottom: 16px; }
+.pa-programme-delivery .ant-progress { margin: 0; }
+
 .pa-report-figures { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 24px; }
 .pa-report-figures > div { display: grid; gap: 2px; padding: 10px 12px; border-radius: 10px; background: var(--ant-color-fill-quaternary); }
 .pa-report-figures strong { font-size: 22px; line-height: 1.2; }

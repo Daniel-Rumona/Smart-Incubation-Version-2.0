@@ -129,4 +129,14 @@ export const zuLanding: Record<string, string> = {
   "Continue as {email}?": "Qhubeka njengo-{email}?",
   "Continue where you left off?": "Qhubeka lapho ugcine khona?",
   "Not you? Sign out": "Akusiwe? Phuma",
+  // Hero: three ways in, and the activity row in the product preview.
+  "I run a programme": "Ngiqhuba uhlelo",
+  "Incubators, ESD teams and funders": "Ama-incubator, amathimba e-ESD nabaxhasi",
+  "I'm an SME": "Ngingu-SME",
+  "Use your incubator’s link, or apply here": "Sebenzisa isixhumanisi se-incubator yakho, noma ufake isicelo lapha",
+  "Apply": "Faka isicelo",
+  "I have an account": "Nginayo i-akhawunti",
+  "Staff, SMEs, facilitators and funders": "Abasebenzi, ama-SME, abasizi nabaxhasi",
+  "Get started": "Qala",
+  "2 min ago": "imizuzu emi-2 edlule",
 }

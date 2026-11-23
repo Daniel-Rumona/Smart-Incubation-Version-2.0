@@ -295,7 +295,7 @@ export const ConsultantDashboardPage = () => {
                 <Text strong ellipsis>{item.title}</Text>
                 <Text type="secondary" className="consultant-needs-detail">{item.detail}</Text>
             </div>
-            {item.tag && <Tag variant="borderless" color={item.tag.tone === 'danger' ? 'red' : 'gold'} className="consultant-needs-tag">{item.tag.text}</Tag>}
+            {item.tag && <Tag variant="filled" color={item.tag.tone === 'danger' ? 'red' : 'gold'} className="consultant-needs-tag">{item.tag.text}</Tag>}
             {item.action && <Button size="small" onClick={item.action.onClick}>{item.action.label}</Button>}
         </div>
     )
@@ -375,7 +375,7 @@ export const ConsultantDashboardPage = () => {
                 renderItem={(row) => (
                     <List.Item>
                         <List.Item.Meta
-                            title={<Space wrap><Text strong>{row.participant}</Text>{row.feedback.rating != null && <Tag variant="borderless">{row.feedback.rating}/5</Tag>}</Space>}
+                            title={<Space wrap><Text strong>{row.participant}</Text>{row.feedback.rating != null && <Tag variant="filled">{row.feedback.rating}/5</Tag>}</Space>}
                             description={row.feedback.comments || row.title}
                         />
                     </List.Item>

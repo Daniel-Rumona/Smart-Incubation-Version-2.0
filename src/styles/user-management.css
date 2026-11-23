@@ -11,9 +11,23 @@
 }
 
 
-/* FilterBar buttons share the row equally instead of sizing to their labels. */
+/* Buttons size to their labels; the search box takes the spare width and the role filter a fixed one. */
 .user-management-page .filter-bar-controls > .ant-btn {
-  flex: 1 1 0;
+  flex: 0 0 auto;
+}
+
+.user-management-page .filter-bar-controls > .ant-input-affix-wrapper {
+  flex: 1 1 240px;
+}
+
+.user-management-page .filter-bar-controls > .user-role-filter {
+  flex: 0 0 200px;
+}
+
+@media (max-width: 767px) {
+  .user-management-page .filter-bar-controls > .user-role-filter {
+    flex: 1 1 100%;
+  }
 }
 
 /* =========================================================

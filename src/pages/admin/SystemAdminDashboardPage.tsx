@@ -255,7 +255,7 @@ export const SystemAdminDashboardPage = () => {
                                 {summary.recentErrors.slice(0, 5).map((row) => (
                                     <li key={row.id}>
                                         <div className="admin-timeline-top">
-                                            <Tag color="orange" variant="borderless">{row.source}</Tag>
+                                            <Tag color="orange" variant="filled">{row.source}</Tag>
                                             <time>{row.createdAt ? dateFormatter.format(row.createdAt) : t('N/A')}</time>
                                         </div>
                                         <Typography.Paragraph ellipsis={{ rows: 2, tooltip: row.message }}>{row.message}</Typography.Paragraph>

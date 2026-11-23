@@ -12,7 +12,10 @@
 .applicant-program-card { height: 100%; }
 .applicant-program-card .ant-card-body, .applicant-program-card .ant-space { width: 100%; height: 100%; }
 .applicant-program-card h4, .applicant-program-card p { margin: 0 !important; }
-.applicant-program-card .ant-btn { margin-top: auto; }
+/* Cards in a row share a height, and the action button sits at the foot of each card whatever the description length. */
+.applicant-program-card .ant-card-body { display: flex; flex-direction: column; }
+.applicant-program-card .ant-card-body > .ant-space { flex: 1 1 auto; }
+.applicant-program-card .ant-card-body > .ant-space > .ant-space-item:last-child { margin-top: auto; }
 .applicant-application-form { margin-top: 20px; }
 .applicant-pagination { display: flex; justify-content: center; margin-top: 16px !important; }
 html[data-theme='dark'] .applicant-card { background: rgba(23, 25, 35, 0.9); }

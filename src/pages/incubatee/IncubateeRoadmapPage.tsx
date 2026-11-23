@@ -15,6 +15,8 @@ import {
 } from "antd";
 import {
     BulbOutlined,
+    DownOutlined,
+    UpOutlined,
     CheckCircleOutlined,
     InboxOutlined,
     RobotOutlined,
@@ -43,7 +45,9 @@ import { getAgentAuthHeaders } from "@/services/agentAuth";
 
 import { useActiveProgramId } from "@/lib/useActiveProgramId";
 import { useFullIdentity } from "@/hooks/useFullIdentity";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useUiMode } from "@/hooks/useUiMode";
+import "@/styles/incubatee-simple.css";
 import { workspaceCompanyCode } from "@/services/companiesService";
 import { loadSmeWork, type SmeWork } from "@/services/smeWorkService";
 import { listConnectionRequestsForSme } from "@/services/connectionRequestService";
@@ -507,6 +511,12 @@ const SMEIntakeRoadmapPage: React.FC = () => {
     const [showDone, setShowDone] = useState(false);
     const [openedWork, setOpenedWork] = useState<RoadmapWork | null>(null);
     const navigate = useNavigate();
+    // The SME's saved view (`?view=simple|full` overrides it for demos and screenshots).
+    const [searchParams] = useSearchParams();
+    const { mode: savedUiMode } = useUiMode();
+    const viewParam = searchParams.get("view");
+    const simpleLayout = (viewParam === "simple" || viewParam === "full" ? viewParam : savedUiMode) === "simple";
+    const [showMoreSimple, setShowMoreSimple] = useState(false);
 
     const userEmail = (
         auth.currentUser?.email ||
@@ -1102,6 +1112,23 @@ const SMEIntakeRoadmapPage: React.FC = () => {
         </Space>
     )
 
+    // How to act on a suggested step: who it was already asked of, or the ways to get it done.
+    const suggestionActions = (item: RoadmapItem) => {
+        // Already asked someone for this step (Find support's "Use this plan"): show who, not the options again.
+        const request = requestedSteps.get(cleanDocumentKey(item.title));
+        return request ? (
+            <div className="roadmap-suggestion-actions">
+                <Tag variant="filled" color="gold" style={{ margin: 0 }}>{t('Requested from {name}', undefined, { name: request.targetName })}</Tag>
+                <Button type="link" size="small" style={{ padding: 0 }} onClick={() => navigate(`/applicant/marketplace?view=requests&request=${request.id}`)}>{t('View request')}</Button>
+            </div>
+        ) : (
+            <div className="roadmap-suggestion-actions">
+                {isAgentApiConfigured && <Button size="small" icon={<RobotOutlined />} onClick={() => openAgent(agentForSuggestion(item))}>{t('Do it with an agent')}</Button>}
+                {canUseMarketplace && <Button size="small" icon={<TeamOutlined />} onClick={() => navigate(`/applicant/marketplace?q=${encodeURIComponent(item.department || item.title)}`)}>{t('Find a consultant')}</Button>}
+            </div>
+        );
+    };
+
     const workRow = (item: RoadmapWork) => (
         <div key={item.id} className="roadmap-row">
             <span className={`roadmap-dot is-${item.state}`} aria-hidden="true" />
@@ -1117,6 +1144,89 @@ const SMEIntakeRoadmapPage: React.FC = () => {
             {item.state !== 'done' && (item.helperType === 'agent'
                 ? <Button type="primary" size="small" onClick={() => openAgent(agentForWork(item))}>{t('Continue')}</Button>
                 : <Button size="small" onClick={() => openWork(item)}>{t('Open')}</Button>)}
+        </div>
+    )
+
+    // Simple view: one thing to do next (what is waiting on the SME first, then the next piece of work, then the top
+    // suggestion), a short list of the rest, and everything else behind "Show more detail".
+    const focusWork = activeWork.find((item) => item.state === 'waiting_you') || nextUp || null
+    const otherWork = activeWork.filter((item) => item.id !== focusWork?.id)
+    const focusSuggestion = !focusWork ? suggestionItems[0] : undefined
+    const moreSuggestions = suggestionItems.filter((item) => item !== focusSuggestion)
+    const workAction = (item: RoadmapWork) => item.helperType === 'agent'
+        ? <Button type="primary" size="large" block icon={<RobotOutlined />} onClick={() => openAgent(agentForWork(item))}>{t('Continue with the agent')}</Button>
+        : <Button type="primary" size="large" block onClick={() => openWork(item)}>{item.state === 'waiting_you' ? t('Open and respond') : t('Open')}</Button>
+    const simpleBody = (
+        <div className="roadmap-simple">
+            {nothingYet ? (
+                <section className="sme-simple-next" aria-label={t('What’s holding the business back?')}>
+                    <span className="sme-simple-eyebrow">{t('Start here')}</span>
+                    <h3 className="sme-simple-app-title">{t('What’s holding the business back?')}</h3>
+                    {challengeForm}
+                    {canUseMarketplace && (
+                        <div className="roadmap-or">
+                            <Text type="secondary">{t('Or go straight to help')}</Text>
+                            <Button onClick={() => navigate('/applicant/marketplace')}>{t('Find support')}</Button>
+                        </div>
+                    )}
+                </section>
+            ) : focusWork ? (
+                <section className="sme-simple-next" aria-label={t('Do this next')}>
+                    <span className="sme-simple-eyebrow">{focusWork.state === 'waiting_you' ? t('Waiting for you') : t('Do this next')}</span>
+                    <h3 className="sme-simple-app-title">{focusWork.title}</h3>
+                    <p className="sme-simple-app-next">
+                        {[workStateText(focusWork), focusWork.dueDate && t('due {date}', undefined, { date: formatDate(focusWork.dueDate) })].filter(Boolean).join(' · ')}
+                    </p>
+                    {focusWork.helperName && (
+                        <p className="sme-simple-app-next">
+                            {focusWork.helperType === 'agent' ? <RobotOutlined /> : <UserOutlined />} {focusWork.helperType === 'agent' ? t('{name}, AI agent', undefined, { name: focusWork.helperName }) : t('{name}, consultant', undefined, { name: focusWork.helperName })}
+                        </p>
+                    )}
+                    {focusWork.progress > 0 && <Progress percent={focusWork.progress} size="small" strokeColor="#6d5dfb" style={{ marginBottom: 12 }} />}
+                    {workAction(focusWork)}
+                </section>
+            ) : focusSuggestion ? (
+                <section className="sme-simple-next" aria-label={t('Suggested next')}>
+                    <span className="sme-simple-eyebrow">{t('Suggested next')}</span>
+                    <h3 className="sme-simple-app-title">{focusSuggestion.title}</h3>
+                    <p className="sme-simple-app-next">{focusSuggestion.reason || focusSuggestion.expectedImpact}</p>
+                    {suggestionActions(focusSuggestion)}
+                </section>
+            ) : null}
+
+            {otherWork.length > 0 && (
+                <Card className="roadmap-card" title={t('Also under way')}>
+                    {(showMoreSimple ? otherWork : otherWork.slice(0, 3)).map(workRow)}
+                </Card>
+            )}
+
+            {showMoreSimple && moreSuggestions.length > 0 && (
+                <Card className="roadmap-card" title={<Space size={8}>{t('Suggested next')}<Tag variant="filled" color="purple">{t('AI suggestion')}</Tag></Space>}>
+                    <div className="roadmap-suggestions">
+                        {moreSuggestions.map((item, index) => (
+                            <div key={`${item.title}-${index}`} className="roadmap-suggestion">
+                                <Text strong>{item.title}</Text>
+                                <Text type="secondary">{item.reason || item.expectedImpact}</Text>
+                                {suggestionActions(item)}
+                            </div>
+                        ))}
+                    </div>
+                </Card>
+            )}
+
+            {showMoreSimple && doneWork.length > 0 && (
+                <Card className="roadmap-card" title={<Space size={8}><CheckCircleOutlined className="roadmap-done-icon" />{t('Done ({count})', undefined, { count: doneWork.length })}</Space>}>
+                    {doneWork.map(workRow)}
+                </Card>
+            )}
+
+            {!nothingYet && (otherWork.length > 3 || moreSuggestions.length > 0 || doneWork.length > 0) && (
+                <div className="sme-simple-footer is-end">
+                    <button type="button" className="sme-simple-more is-inline" aria-expanded={showMoreSimple} onClick={() => setShowMoreSimple(!showMoreSimple)}>
+                        {showMoreSimple ? t('Show less') : t('Show more detail')} {showMoreSimple ? <UpOutlined /> : <DownOutlined />}
+                    </button>
+                </div>
+            )}
         </div>
     )
 
@@ -1137,7 +1247,9 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                 {totalCount > 0 && <Progress percent={Math.round((doneCount / totalCount) * 100)} showInfo={false} strokeColor="#6d5dfb" size="small" />}
             </section>
 
-            {nothingYet && (
+            {simpleLayout && simpleBody}
+
+            {!simpleLayout && nothingYet && (
                 <Card className="roadmap-card" title={t('What’s holding the business back?')}>
                     {challengeForm}
                     {canUseMarketplace && (
@@ -1149,16 +1261,16 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                 </Card>
             )}
 
-            {activeWork.length > 0 && (
+            {!simpleLayout && activeWork.length > 0 && (
                 <Card className="roadmap-card" title={t('Under way')} extra={<Text type="secondary" className="roadmap-card-note">{t('Progress from your consultants and agents')}</Text>}>
                     {activeWork.map(workRow)}
                 </Card>
             )}
 
-            {suggestionItems.length > 0 && (
+            {!simpleLayout && suggestionItems.length > 0 && (
                 <Card
                     className="roadmap-card"
-                    title={<Space size={8}>{t('Suggested next')}<Tag variant="borderless" color="purple">{t('AI suggestion')}</Tag></Space>}
+                    title={<Space size={8}>{t('Suggested next')}<Tag variant="filled" color="purple">{t('AI suggestion')}</Tag></Space>}
                     extra={<Text type="secondary" className="roadmap-card-note">{suggestionsFromIntake ? t('From your earlier intake') : t('From your business profile')}</Text>}
                 >
                     <div className="roadmap-suggestions">
@@ -1166,28 +1278,14 @@ const SMEIntakeRoadmapPage: React.FC = () => {
                             <div key={`${item.title}-${index}`} className="roadmap-suggestion">
                                 <Text strong>{item.title}</Text>
                                 <Text type="secondary">{item.reason || item.expectedImpact}</Text>
-                                {(() => {
-                                    // Already asked someone for this step (Find support's "Use this plan"): show who, not the options again.
-                                    const request = requestedSteps.get(cleanDocumentKey(item.title));
-                                    return request ? (
-                                        <div className="roadmap-suggestion-actions">
-                                            <Tag variant="borderless" color="gold" style={{ margin: 0 }}>{t('Requested from {name}', undefined, { name: request.targetName })}</Tag>
-                                            <Button type="link" size="small" style={{ padding: 0 }} onClick={() => navigate(`/applicant/marketplace?view=requests&request=${request.id}`)}>{t('View request')}</Button>
-                                        </div>
-                                    ) : (
-                                        <div className="roadmap-suggestion-actions">
-                                            {isAgentApiConfigured && <Button size="small" icon={<RobotOutlined />} onClick={() => openAgent(agentForSuggestion(item))}>{t('Do it with an agent')}</Button>}
-                                            {canUseMarketplace && <Button size="small" icon={<TeamOutlined />} onClick={() => navigate(`/applicant/marketplace?q=${encodeURIComponent(item.department || item.title)}`)}>{t('Find a consultant')}</Button>}
-                                        </div>
-                                    );
-                                })()}
+                                {suggestionActions(item)}
                             </div>
                         ))}
                     </div>
                 </Card>
             )}
 
-            {doneWork.length > 0 && (
+            {!simpleLayout && doneWork.length > 0 && (
                 <Card
                     className="roadmap-card"
                     title={<Space size={8}><CheckCircleOutlined className="roadmap-done-icon" />{t('Done ({count})', undefined, { count: doneWork.length })}</Space>}

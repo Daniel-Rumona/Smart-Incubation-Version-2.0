@@ -3,6 +3,7 @@ import dayjs from 'dayjs'
 import { Button, Input, Skeleton, Typography } from 'antd'
 import { ClockCircleOutlined, FileDoneOutlined, LoadingOutlined, RightOutlined, RobotOutlined, SendOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { AgentMessageContent } from '@/components/agent/AgentMessageContent'
+import { AgentProposalCard } from '@/components/agent/AgentProposalCard'
 import { TypingGreeting } from '@/components/agent/TypingGreeting'
 import { useOpenWorkspace } from '@/contexts/WorkspaceShellContext'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
@@ -13,7 +14,7 @@ import { listClassSubmissions, listSubmissionsAwaitingMarking } from '@/services
 import { listClassGroups, listCompanyTrainingLearners, listTrainingClasses } from '@/services/trainingService'
 import { classDatesLabel, classHoursLabel, classLocationLabel, classScheduleLines, classStatusLabel, hasMeetingLink } from '@/utils/trainingFormat'
 import { classPhase, learnerMayStart, learnerResult, trainingDayOn } from '@/utils/trainingResults'
-import type { AgentChatMessage, AgentPageContext } from '@/types/agent'
+import type { AgentChatMessage, AgentPageContext, AgentProposalStatus } from '@/types/agent'
 import type { FullIdentity } from '@/types/identity'
 import { listMyCertificates } from '@/services/trainingCertificatesService'
 import type { TrainingCertificate, TrainingClass, TrainingSubmission } from '@/types/training'
@@ -281,10 +282,16 @@ export const TrainingAgenticHome = () => {
             prompt,
             page: { ...home.page, updatedAt: new Date().toISOString() },
             history,
-            onCompleted: (result) => setMessages((current) => current.map((item) => item.id === pending.id ? { ...item, content: result, pending: false } : item)),
+            // Training staff get proposals (open a test, record attendance, review an ID copy) to confirm on a card.
+            onCompleted: (result, proposal) => setMessages((current) => current.map((item) => item.id === pending.id
+                ? { ...item, content: result, pending: false, ...(proposal ? { proposal, proposalStatus: 'pending' as const } : {}) }
+                : item)),
             onFailed: (error) => setMessages((current) => current.map((item) => item.id === pending.id ? { ...item, content: error, pending: false } : item)),
         })
     }
+
+    const updateProposal = (messageId: string, proposalStatus: AgentProposalStatus, proposalNote?: string) =>
+        setMessages((current) => current.map((item) => item.id === messageId ? { ...item, proposalStatus, proposalNote } : item))
 
     const metrics = home?.metrics || []
 
@@ -340,6 +347,14 @@ export const TrainingAgenticHome = () => {
                                 {item.role === 'agent'
                                     ? <div className="agentic-message-content">
                                         {item.pending ? <span className="agentic-pending-copy"><LoadingOutlined spin />{item.content}</span> : <AgentMessageContent content={item.content} />}
+                                        {item.proposal && (
+                                            <AgentProposalCard
+                                                proposal={item.proposal}
+                                                status={item.proposalStatus ?? 'pending'}
+                                                note={item.proposalNote}
+                                                onChange={(status, note) => updateProposal(item.id, status, note)}
+                                            />
+                                        )}
                                     </div>
                                     : <p>{item.content}</p>}
                             </div>

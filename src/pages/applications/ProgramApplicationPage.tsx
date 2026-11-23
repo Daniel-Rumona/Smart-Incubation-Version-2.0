@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { App, Button, Card, FloatButton, Grid, Progress, Space, Spin, Typography } from 'antd'
 import {
@@ -9,9 +9,9 @@ import { doc, getDoc } from 'firebase/firestore'
 import { auth, db } from '@/firebase'
 import ApplicationConversationalFlow from '@/components/applications/ApplicationConversationalFlow'
 import ApplicationReviewPanel from '@/components/applications/ApplicationReviewPanel'
-import ApplicantJourneySteps from '@/components/applicant/ApplicantJourneySteps'
 import { useFullscreenMobilePage } from '@/contexts/SystemLayoutTopbarContext'
 import { getApplicantProfileBundle } from '@/services/applicantService'
+import { clearDraft, loadDraft, saveDraftLocally, saveDraftRemotely } from '@/services/applicationDraftService'
 import { callableMessage, enrolInDirectProgramme } from '@/services/programLinkService'
 import {
     buildSelectedInterventions,
@@ -20,7 +20,6 @@ import {
     getAgeFromIdNumber,
     getMissingDocuments,
     uploadApplicationDocuments,
-    updateCurrentUserRoleToIncubatee,
 } from '@/services/applicationService'
 import {
     DEFAULT_INTERVENTION_POLICY,
@@ -71,6 +70,10 @@ export default function ProgramApplicationPage() {
     const [interventionPolicy, setInterventionPolicy] = useState<ProgramInterventionPolicy>(DEFAULT_INTERVENTION_POLICY)
     // No-application programmes accept the SME on arrival; this holds why that failed, if it did.
     const [enrolError, setEnrolError] = useState('')
+    // Drafts only save once the saved one (if any) has been restored, so loading never overwrites it.
+    const [draftReady, setDraftReady] = useState(false)
+    const [draftStatus, setDraftStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+    const remoteSaveTimer = useRef<number | undefined>(undefined)
 
     const isMobile = !screens.md
 
@@ -241,6 +244,21 @@ export default function ProgramApplicationPage() {
                         }
                         setValues(seedValues)
                     }
+
+                    if (programId) {
+                        const draft = await loadDraft(user.uid, programId)
+                        if (draft) {
+                            setValues((seed) => ({
+                                ...seed,
+                                ...draft.values,
+                                profile: { ...(seed.profile || {}), ...(draft.values.profile || {}) },
+                            }))
+                            setInterventionSelections(draft.interventionSelections || {})
+                            setDraftStatus('saved')
+                            message.info(t('We picked up your saved answers.'))
+                        }
+                        setDraftReady(true)
+                    }
                 }
             } catch (error) {
                 console.error(error)
@@ -252,6 +270,22 @@ export default function ProgramApplicationPage() {
 
         void loadApplicationContext()
     }, [message, programId, resolveProgramContext, t])
+
+    // Save as the SME answers: on this device straight away, to Firestore once they pause.
+    useEffect(() => {
+        const uid = auth.currentUser?.uid
+        if (!draftReady || !uid || !programId) return
+        const draft = { values, interventionSelections, savedAt: Date.now() }
+        saveDraftLocally(uid, programId, draft)
+        setDraftStatus('saving')
+        window.clearTimeout(remoteSaveTimer.current)
+        remoteSaveTimer.current = window.setTimeout(() => {
+            saveDraftRemotely(uid, programId, draft)
+                .catch((error) => console.warn('Draft kept on this device only', error))
+                .finally(() => setDraftStatus('saved'))
+        }, 1200)
+        return () => window.clearTimeout(remoteSaveTimer.current)
+    }, [draftReady, interventionSelections, programId, values])
 
     const validateBeforeSubmit = () => {
         if (!values.motivation?.trim() || !values.challenges?.trim()) {
@@ -328,7 +362,10 @@ export default function ProgramApplicationPage() {
                 },
             })
 
-            await updateCurrentUserRoleToIncubatee()
+            setDraftReady(false)
+            window.clearTimeout(remoteSaveTimer.current)
+            if (auth.currentUser && programId) await clearDraft(auth.currentUser.uid, programId)
+
             message.success(t('Application submitted successfully'))
             navigate('/applicant/application-tracker')
         } catch (error) {
@@ -367,9 +404,16 @@ export default function ProgramApplicationPage() {
                 <div className="program-application-heading">
                     <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)} aria-label={t('Back')}>{t('Back')}</Button>
 
-                    <Title level={3} className="program-application-title">
-                        {programName || t('Programme application')}
-                    </Title>
+                    <div className="program-application-title-wrap">
+                        <Title level={5} className="program-application-title">
+                            {programName || t('Programme application')}
+                        </Title>
+                        {draftStatus !== 'idle' && (
+                            <span className="program-application-draft-status" aria-live="polite">
+                                {draftStatus === 'saving' ? t('Saving draft...') : t('Draft saved')}
+                            </span>
+                        )}
+                    </div>
 
                     <div className="program-application-progress-arc-wrap">
                         <Progress
@@ -377,19 +421,17 @@ export default function ProgramApplicationPage() {
                             percent={progressPercent}
                             gapDegree={180}
                             gapPosition="bottom"
-                            size={isMobile ? 48 : 72}
-                            strokeWidth={10}
+                            size={isMobile ? 40 : 52}
+                            strokeWidth={9}
                             strokeColor="#6d5dfb"
                             showInfo={false}
                             className="program-application-progress-arc"
-                            style={{ height: isMobile ? 34 : 46 }}
+                            style={{ height: isMobile ? 26 : 32 }}
                         />
                         <span className="program-application-progress-label">{progressPercent}%</span>
                     </div>
                 </div>
             </Card>
-
-            <ApplicantJourneySteps current={1} />
 
             <div>
                 {reviewOpen ? (
@@ -402,17 +444,18 @@ export default function ProgramApplicationPage() {
                             programQuestions={programQuestions}
                         />
 
-                        <Space.Compact block={isMobile} className="program-application-actions">
-                            <Button onClick={() => setReviewOpen(false)}>{t('Back to application')}</Button>
+                        <div className="program-application-actions">
+                            <Button size="large" icon={<ArrowLeftOutlined />} onClick={() => setReviewOpen(false)}>{t('Back to application')}</Button>
                             <Button
                                 type="primary"
+                                size="large"
                                 icon={<SendOutlined />}
                                 loading={submitting}
                                 onClick={handleSubmit}
                             >
                                 {t('Submit application')}
                             </Button>
-                        </Space.Compact>
+                        </div>
                     </>
                 ) : (
                     <ApplicationConversationalFlow

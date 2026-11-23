@@ -98,6 +98,9 @@ const fetchAllCompanies = async () => {
   return [...companies.values()].sort((left, right) => left.name.localeCompare(right.name))
 }
 
+/** Every company, for labelling what a programme belongs to (its implementor). */
+export const listCompanyDirectory = () => fetchAllCompanies()
+
 /** Codes of companies whose team registers SMEs themselves, so their programmes are not offered for self-application. */
 export const listTeamRegisteredCompanyCodes = async () => {
   const companies = await fetchAllCompanies()
