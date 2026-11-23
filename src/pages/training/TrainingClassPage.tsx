@@ -6,6 +6,7 @@ import DashboardPage from '@/components/shared/DashboardPage'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import { MotionCard } from '@/components/shared/MotionCard'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
+import { AddLearnersToProspects } from '@/components/prospects/AddLearnersToProspects'
 import { AttendancePanel } from '@/components/training/AttendancePanel'
 import { GroupsPanel } from '@/components/training/GroupsPanel'
 import { LearnersPanel } from '@/components/training/LearnersPanel'
@@ -226,6 +227,7 @@ export default function TrainingClassPage() {
                                 </Button>
                             )}
                             <Button icon={<EditOutlined />} onClick={() => setEditingClass(true)}>{t('Edit class')}</Button>
+                            <AddLearnersToProspects trainingClass={trainingClass} learners={learners || []} />
                         </Space>
                     </Space>
                     <Typography.Text type="secondary">

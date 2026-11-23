@@ -26,6 +26,7 @@ import { seedEsgAndRevenue } from './seed-emulators-esg.mjs'
 import { seedCompaniesAndLibrary } from './seed-emulators-companies.mjs'
 import { seedSurveys } from './seed-emulators-surveys.mjs'
 import { seedTrainingOnly } from './seed-emulators-training-only.mjs'
+import { seedProspects } from './seed-emulators-prospects.mjs'
 
 const LIVE_PROJECT = 'smart-incubation-71f96'
 const liveArg = process.argv.indexOf('--live')
@@ -628,6 +629,10 @@ const trainingOnly = await seedTrainingOnly({ db, seedPerson, signature: sharedS
 
 // Ordinary incubator companies (no training module), to check the rest of the app next to it.
 const incubators = await seedIncubators({ db, Timestamp, FieldValue, seedPerson, signature: sharedSignature, day })
+
+// Prospects at every stage of both pipelines, with an event sign-up link each (emulators only: never on live).
+const prospects = LIVE ? null : await seedProspects({ db, keletsoUid })
+if (prospects) console.log(`Prospects: ${prospects.records} records. Public sign-up forms: ${prospects.links.incubation} and ${prospects.links.training}`)
 
 const signIns = [
     ...accounts.map((account) => ({ email: account.email, role: account.role, note: account.note })),
