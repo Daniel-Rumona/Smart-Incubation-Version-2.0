@@ -1144,6 +1144,8 @@ def confirm_proposal(db: Any, store: ProposalStore, actor: Actor, proposal_id: s
 
 
 DEFAULT_INTRO = "You can also help operations staff set up appointments and interventions using tools. "
+OPERATIONS_INTRO = DEFAULT_INTRO
+OPERATIONS_FALLBACK = "I couldn't complete that from what I have. Could you give me the SME, intervention and timing again?"
 
 
 def _system_prompt(persona: str, tools: list[Tool], actor: Actor, intro: str | None = None, scope: str = "staff", rules: str = "") -> str:
@@ -1153,12 +1155,15 @@ def _system_prompt(persona: str, tools: list[Tool], actor: Actor, intro: str | N
         f"{intro or DEFAULT_INTRO}"
         "Reply with ONE JSON object only: {\"reply\": string, \"toolCall\": null | {\"name\": string, \"arguments\": object}}.\n"
         "Rules:\n"
-        "- Use only the tools listed. Read tools return data to you on the next turn; use them to look up SMEs, "
-        "assignments, delivery owners and appointments instead of guessing ids. Never invent ids, names, dates or times.\n"
+        "- Use only the tools listed. Read tools return data to you on the next turn; use them to look records up "
+        "instead of guessing ids. Never invent ids, names, dates or times.\n"
         "- Write tools do NOT execute. Calling one prepares a proposal that the user must confirm with a button. "
         "Never say something was done; say it is ready for them to confirm. Never ask the user to type 'confirm'.\n"
-        "- If a required detail is missing or ambiguous (which SME, which delivery owner, date, time, format, "
+        "- If a detail a write tool needs is missing or ambiguous (which SME, which delivery owner, date, time, format, "
         "link or location), set toolCall to null and ask ONE concise question. Do not assume defaults.\n"
+        "- Read tools need no permission: never ask the user to confirm or narrow down a lookup before running it.\n"
+        "- If the user's message answers a question you asked in recentConversation (e.g. 'all of them', 'yes'), "
+        "act on it now; never ask the same question twice.\n"
         "- Ask before taking many actions; propose one action per turn.\n"
         f"- Now is {datetime.now(_timezone()).isoformat(timespec='minutes')} ({_timezone()}). Resolve relative dates "
         "('tomorrow', 'next Tuesday') from this and pass ISO-8601 local datetimes without an offset.\n"
@@ -1175,9 +1180,12 @@ def run_agent_turn(
     call_model: Callable[..., str], extract_json: Callable[[str], dict[str, Any] | None],
     store: ProposalStore | None = None,
     scope: str = "staff", intro: str | None = None, fallback: str | None = None, rules: str = "",
+    tools: list[Tool] | None = None, fallback_reply: str | None = None,
 ) -> dict[str, Any]:
+    """One planner turn. ``tools`` replaces the registered incubation tools (a client module brings its own)."""
     store = store or ProposalStore(db)
-    tools = {t.name: t for t in tools_for(actor, scope)}
+    # A caller may bring its own tools (a client module); otherwise the registered tools for this scope.
+    tools = {t.name: t for t in (tools if tools is not None else tools_for(actor, scope))}
     system = _system_prompt(persona, list(tools.values()), actor, intro, scope, rules)
     tool_results: list[dict[str, Any]] = []
 
@@ -1208,7 +1216,7 @@ def run_agent_turn(
             record["result"] = {"ok": False, "error": str(exc)}
         tool_results.append(record)
 
-    return {"reply": fallback or "I couldn't complete that from what I have. Could you give me the SME, intervention and timing again?", "proposal": None}
+    return {"reply": fallback or fallback_reply or OPERATIONS_FALLBACK, "proposal": None}
 
 
 # --------------------------------------------------------------------------- router

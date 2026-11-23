@@ -1841,5 +1841,55 @@ service cloud.firestore {
         || (isOwnParticipantId(resource.data.participantId) && isVerificationUnchanged());
       allow delete: if isComplianceStaff();
     }
+
+    // ----------------------------------------------------------------------
+    // Prospects (src/config/prospects.ts): businesses and people a company has reached who have not joined yet.
+    // Only the company's own staff; nothing is deleted (archive instead; the nightly retention job anonymises).
+    // The invite token, conversion links and anonymisation are set by Cloud Functions only.
+    // ----------------------------------------------------------------------
+    function isProspectStaff(companyCode, module) {
+      return hasRole(['projectadmin', 'projectmanager', 'operations'])
+        && belongsToCompany(companyCode)
+        && (module != 'training' || trainingEnabled(companyCode));
+    }
+
+    match /smeProspects/{prospectId} {
+      function serverOnlyFieldsUnchanged() {
+        return !changedKeys().hasAny(['companyCode', 'module', 'inviteToken', 'invitedAt', 'userUid', 'participantId', 'anonymisedAt', 'createdAt', 'createdBy', 'signupLinkId']);
+      }
+
+      allow read: if isProspectStaff(resource.data.companyCode, resource.data.module);
+      allow create: if isProspectStaff(request.resource.data.companyCode, request.resource.data.module)
+        && request.resource.data.module in ['incubation', 'training']
+        && (request.resource.data.module == 'training' || request.resource.data.get('kind', 'business') == 'business')
+        && request.resource.data.consent.given == true
+        && request.resource.data.createdBy == request.auth.uid
+        && !request.resource.data.keys().hasAny(['inviteToken', 'participantId', 'userUid', 'anonymisedAt']);
+      allow update: if isProspectStaff(resource.data.companyCode, resource.data.module)
+        && !('anonymisedAt' in resource.data)
+        && serverOnlyFieldsUnchanged()
+        && (resource.data.module == 'training' || request.resource.data.get('kind', 'business') == 'business')
+        && request.resource.data.updatedBy == request.auth.uid;
+      allow delete: if false;
+    }
+
+    // Each status change: who moved which prospect from where to where. Append-only.
+    match /smeProspectEvents/{eventId} {
+      allow read: if isProspectStaff(resource.data.companyCode, resource.data.module);
+      allow create: if isProspectStaff(request.resource.data.companyCode, request.resource.data.module)
+        && request.resource.data.by == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // Sign-up links behind an event's QR code. The public form reaches them through Cloud Functions only.
+    match /prospectSignupLinks/{linkId} {
+      allow read: if isProspectStaff(resource.data.companyCode, resource.data.module);
+      allow create: if isProspectStaff(request.resource.data.companyCode, request.resource.data.module)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.get('signups', 0) == 0;
+      allow update: if isProspectStaff(resource.data.companyCode, resource.data.module)
+        && changedKeys().hasOnly(['active', 'label', 'ownerUid', 'ownerName', 'programId', 'programName', 'updatedAt', 'updatedBy']);
+      allow delete: if false;
+    }
   }
 }

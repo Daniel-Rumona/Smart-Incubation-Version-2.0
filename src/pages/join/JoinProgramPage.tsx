@@ -3,7 +3,7 @@ import { Alert, Button, Card, Result, Skeleton, Space, Typography } from 'antd'
 import { ArrowRightOutlined, LoginOutlined } from '@ant-design/icons'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useLanguage } from '@/providers/LanguageProvider'
-import { callableMessage, getProgramLinkInfo, savePendingProgramLink, type ProgramLinkInfo } from '@/services/programLinkService'
+import { callableMessage, getProgramLinkInfo, savePendingProgramLink, saveProspectInviteToken, type ProgramLinkInfo } from '@/services/programLinkService'
 
 const { Title, Paragraph, Text } = Typography
 
@@ -30,6 +30,8 @@ export default function JoinProgramPage() {
 
   const start = (mode: 'signup' | 'login') => {
     savePendingProgramLink(programId)
+    // A personal invite (…?p=<token>): kept so the sign-up is matched to the prospect it was sent to.
+    saveProspectInviteToken(new URLSearchParams(window.location.search).get('p'))
     navigate(`/auth?mode=${mode}`)
   }
 

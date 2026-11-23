@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import cors from 'cors'
 import nodemailer from 'nodemailer'
 import { initializeApp } from 'firebase-admin/app'
@@ -30,6 +31,8 @@ import { ClientFunderError, clientFunderSummary } from './clientFunderSummary.js
 import { DemoRequestError, submitDemoRequestHandler } from './demoRequests.js'
 import { ChaseError, chaseSme } from './riskChases.js'
 import { JoinError, buildConfirmedSetPlan, enrolInDirectProgram, forcedProgramInterventions, getProgramLinkInfo, joinProgram, type JoinInput } from './programJoin.js'
+import { isReservedTestAddress } from './testAddresses.js'
+import { CONVERTED, EVENTS, PROSPECTS, ProspectError, convertOnClientCompany, convertOnParticipant, canSeeFunnel, funderScope, isAdvance, matchProspectOnJoin, mayEmail, prospectFunnel, runRetention, signupLinkInfo, submitSignup, type SignupInput } from './prospects.js'
 import {
   processWhatsAppInboundEvent,
   processWhatsAppMessageStatusEvent,
@@ -803,6 +806,8 @@ const canManageProjectStaff = (
 async function getSuppressedEmail(email: string) {
   const normalized = normalizeEmail(email)
   if (!normalized) return null
+  // Demo and seed accounts (*.test, example.com, ...): never sent, so they cannot bounce and get the sender blocked.
+  if (isReservedTestAddress(normalized)) return { email: normalized, reason: 'reserved_test_address', failureCount: 0 }
 
   const snap = await getFirestore()
     .collection('emailSuppressions')
@@ -3021,7 +3026,14 @@ export const joinProgramAsSme = onCall({ region }, async request => {
   const uid = request.auth?.uid
   if (!uid) throw new HttpsError('unauthenticated', 'not_authenticated')
   try {
-    return { ok: true, ...(await joinProgram(getFirestore(), uid, (request.data || {}) as JoinInput)) }
+    const input = (request.data || {}) as JoinInput & { prospectToken?: unknown }
+    const joined = await joinProgram(getFirestore(), uid, input)
+    // The prospect behind this sign-up (its invite link, or the same phone or email) is marked applied. Never fails the join.
+    if (joined.companyCode && input.path !== 'skip' && input.path !== 'marketplace') {
+      await matchProspectOnJoin(getFirestore(), uid, { companyCode: joined.companyCode, programId: joined.programId, token: String(input.prospectToken || '') })
+        .catch((error) => console.warn('Prospect match on join failed', error))
+    }
+    return { ok: true, ...joined }
   } catch (error) {
     throw joinErrorToHttps(error)
   }
@@ -4256,3 +4268,142 @@ export const chaseSmeFromRiskRegister = onCall({ region }, async (request) => {
     throw error
   }
 })
+
+// ---- Prospects (functions/src/prospects.ts) ---------------------------------------------------------------------
+
+const prospectErrorToHttps = (error: unknown) => {
+  if (error instanceof ProspectError) {
+    const code = error.code === 'invalid' ? 'invalid-argument' : error.code === 'rate_limited' ? 'resource-exhausted' : error.code === 'forbidden' ? 'permission-denied' : 'not-found'
+    return new HttpsError(code, error.message)
+  }
+  console.error('Prospects', error)
+  return new HttpsError('internal', 'Something went wrong. Please try again.')
+}
+
+const PROSPECT_STAFF_ROLES = new Set(['projectadmin', 'projectmanager', 'operations'])
+
+/** The signed-in caller's profile; throws unless signed in. */
+const callerProfile = async (uid?: string) => {
+  if (!uid) throw new HttpsError('unauthenticated', 'not_authenticated')
+  return (await getFirestore().collection('users').doc(uid).get()).data() || {}
+}
+
+/** A participant was created: the prospect it came from has joined. */
+export const convertProspectOnParticipant = onDocumentCreated({ document: 'participants/{participantId}', region }, async (event) => {
+  const data = event.data?.data()
+  if (data) await convertOnParticipant(getFirestore(), event.params.participantId, data).catch((error) => console.warn('Prospect conversion failed', error))
+})
+
+/** A training company registered a client company: the prospect for it is now a client. */
+export const convertProspectOnClientCompany = onDocumentCreated({ document: 'trainingOrganisations/{organisationId}', region }, async (event) => {
+  const data = event.data?.data()
+  if (data) await convertOnClientCompany(getFirestore(), event.params.organisationId, data).catch((error) => console.warn('Prospect conversion failed', error))
+})
+
+/** The public sign-up form behind an event's QR code: what to show (no sign-in). */
+export const getProspectSignupInfo = onCall({ region }, async (request) => {
+  try {
+    const { info } = await signupLinkInfo(getFirestore(), String((request.data as { code?: unknown } | undefined)?.code || ''))
+    return { ok: true, ...info }
+  } catch (error) {
+    throw prospectErrorToHttps(error)
+  }
+})
+
+/** Someone fills in the event's sign-up form themselves (no sign-in). */
+export const submitProspectSignup = onCall({ region }, async (request) => {
+  try {
+    const result = await submitSignup(getFirestore(), (request.data || {}) as SignupInput)
+    return { ok: true, existing: Boolean((result as { existing?: boolean }).existing) }
+  } catch (error) {
+    throw prospectErrorToHttps(error)
+  }
+})
+
+/**
+ * Funnel counts per source (numbers only). Staff see the whole company, plus the per-event view; a funder sees only
+ * the prospects tied to what it funds (its programmes, or the classes it pays for), never the whole company's reach.
+ */
+export const getProspectFunnel = onCall({ region }, async (request) => {
+  const caller = await callerProfile(request.auth?.uid)
+  const input = (request.data || {}) as { companyCode?: unknown, module?: unknown }
+  const companyCode = String(input.companyCode || caller.companyCode || '').trim()
+  const module = input.module === 'training' ? 'training' : 'incubation'
+  if (!companyCode || !canSeeFunnel(caller, companyCode)) throw new HttpsError('permission-denied', 'permission_denied')
+  const isFunder = String(caller.role) === 'funder'
+  const db = getFirestore()
+  const scope = isFunder ? await funderScope(db, caller, companyCode, module) : null
+  const result = await prospectFunnel(db, companyCode, module, scope, !isFunder)
+  return { ok: true, module, scope: isFunder ? 'funded' : 'company', ...result }
+})
+
+/**
+ * Invites an incubation prospect to a programme: a personal link (/join/<programme>?p=<token>) that marks them
+ * applied when they sign up through it. Emails it only when the prospect agreed to messages; always returns the
+ * link so staff can share it themselves (copy or WhatsApp).
+ */
+export const sendProspectInvite = onCall({ region }, async (request) => {
+  const caller = await callerProfile(request.auth?.uid)
+  const input = (request.data || {}) as { prospectId?: unknown, programId?: unknown, sendEmail?: unknown }
+  const db = getFirestore()
+  const prospectId = String(input.prospectId || '').trim()
+  if (!prospectId || prospectId.includes('/')) throw new HttpsError('invalid-argument', 'prospect_required')
+  const ref = db.collection(PROSPECTS).doc(prospectId)
+  const prospect = (await ref.get()).data()
+  if (!prospect || prospect.anonymisedAt) throw new HttpsError('not-found', 'prospect_not_found')
+  const companyCode = String(prospect.companyCode || '')
+  if (!PROSPECT_STAFF_ROLES.has(String(caller.role)) || String(caller.companyCode || '') !== companyCode) throw new HttpsError('permission-denied', 'permission_denied')
+  if (prospect.module !== 'incubation') throw new HttpsError('invalid-argument', 'incubation_only')
+
+  const programId = String(input.programId || prospect.programId || '').trim()
+  if (!programId || programId.includes('/')) throw new HttpsError('invalid-argument', 'programme_required')
+  const program = (await db.collection('programs').doc(programId).get()).data()
+  if (!program || String(program.companyCode || '') !== companyCode) throw new HttpsError('not-found', 'programme_not_found')
+  const company = (await db.collection('companies').doc(companyCode).get()).data() || {}
+  const programName = String(program.name || programId)
+  const companyName = String(company.companyName || company.name || companyCode)
+
+  const token = String(prospect.inviteToken || '') || randomBytes(16).toString('base64url')
+  const link = `${getAppBaseUrl(request.rawRequest)}/join/${encodeURIComponent(programId)}?p=${token}`
+  const emailed = input.sendEmail === true && mayEmail(prospect)
+  if (input.sendEmail === true && !emailed) throw new HttpsError('failed-precondition', 'no_email_consent')
+
+  const at = new Date().toISOString()
+  const extra = { inviteToken: token, invitedAt: at, programId, programName, updatedAt: at, updatedBy: request.auth?.uid }
+  const batch = db.batch()
+  if (isAdvance('incubation', prospect.status, 'invited')) {
+    batch.update(ref, { ...extra, status: 'invited', statusChangedAt: at })
+    batch.set(db.collection(EVENTS).doc(), {
+      companyCode, prospectId, module: 'incubation', from: prospect.status || null, to: 'invited', at, by: request.auth?.uid,
+      byName: String(caller.name || caller.displayName || caller.email || ''), note: emailed ? `Invited to ${programName} by email` : `Invite link for ${programName}`,
+    })
+  } else {
+    batch.update(ref, extra)
+  }
+  await batch.commit()
+
+  if (emailed) {
+    await queueTemplateMail({
+      to: String(prospect.email),
+      source: 'prospectInvite',
+      template: buildAuthActionTemplate({
+        title: `${companyName} invites you to apply: ${programName}`,
+        name: String(prospect.contactName || prospect.businessName || ''),
+        intro: `${companyName} would like to invite ${prospect.businessName || 'you'} to apply for ${programName} on Smart Incubation. Use the link below to sign up and apply. What you already shared with us is filled in for you.`,
+        actionLabel: 'Apply now',
+        actionUrl: link,
+        expiryNote: 'You can use this link while the programme is accepting applications. If you were not expecting this email, you can ignore it.',
+      }),
+    })
+  }
+  return { ok: true, link, emailed, converted: prospect.status === CONVERTED.incubation }
+})
+
+/** Every night (02:30 UTC): prospects that never converted are archived after 12 months and anonymised 30 days later. */
+export const prospectRetention = onSchedule(
+  { schedule: '30 2 * * *', timeZone: 'Etc/UTC', region, timeoutSeconds: 300 },
+  async () => {
+    const result = await runRetention(getFirestore())
+    console.log('Prospect retention', result)
+  },
+)

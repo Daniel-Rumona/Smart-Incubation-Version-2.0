@@ -57,9 +57,33 @@ export const rememberProgramLinkOnAccount = async (uid: string) => {
   }).catch(() => undefined)
 }
 
+const INVITE_KEY = 'smart-incubation:prospect-invite'
+
+/** The token of a personal programme invite (a prospect's link), kept until the SME joins. */
+export const saveProspectInviteToken = (token: string | null) => {
+  try {
+    if (token && /^[A-Za-z0-9_-]{8,64}$/.test(token)) window.localStorage.setItem(INVITE_KEY, token)
+  } catch {
+    // Blocked storage: the server still matches the sign-up on phone or email.
+  }
+}
+
+const readProspectInviteToken = () => {
+  try {
+    return window.localStorage.getItem(INVITE_KEY) || ''
+  } catch {
+    return ''
+  }
+}
+
 /** Forgets the programme link everywhere once it has been used (or turned out to be unusable). */
 export const forgetProgramLink = async (uid: string) => {
   clearPendingProgramLink()
+  try {
+    window.localStorage.removeItem(INVITE_KEY)
+  } catch {
+    // Nothing to clear.
+  }
   await updateDoc(doc(getFirebaseDb(), 'users', uid), { pendingProgramLink: deleteField() }).catch(() => undefined)
 }
 
@@ -97,8 +121,11 @@ export type JoinPath = 'program_link' | 'company_program' | 'open_program' | 'ma
 export type JoinRequest = { path: JoinPath; programId?: string; companyCode?: string; consultingBudget?: number; wantsSpecificProgram?: boolean }
 export type JoinResult = { companyCode: string; companyName: string; programId: string; programName: string; direct?: boolean }
 
-export const joinProgramAsSme = async (request: JoinRequest): Promise<JoinResult> =>
-  (await callable<JoinRequest, JoinResult & { ok: boolean }>('joinProgramAsSme')(request)).data
+export const joinProgramAsSme = async (request: JoinRequest): Promise<JoinResult> => {
+  // A personal invite's token goes with a programme-link join, so the server can match the prospect it was sent to.
+  const prospectToken = request.path === 'program_link' ? readProspectInviteToken() : ''
+  return (await callable<JoinRequest & { prospectToken?: string }, JoinResult & { ok: boolean }>('joinProgramAsSme')({ ...request, ...(prospectToken ? { prospectToken } : {}) })).data
+}
 
 /** Staff moved an application to another programme: give it that programme's confirmed set list, if it has one. */
 export const applyProgrammeGrowthPlan = async (applicationId: string): Promise<{ applied: boolean }> =>

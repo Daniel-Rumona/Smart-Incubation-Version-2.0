@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import type Highcharts from 'highcharts'
 import { AdminKpiTile, type AdminKpiTrend } from '@/components/admin/AdminKpiTile'
 import DashboardPage from '@/components/shared/DashboardPage'
+import { ProspectReachCard } from '@/components/prospects/ProspectFunnel'
 import { ThemedHighcharts } from '@/components/shared/ThemedHighcharts'
 import { useRegisterAgentPageContext } from '@/context/AgentPageContext'
 import { useLanguage } from '@/providers/LanguageProvider'
@@ -269,6 +270,8 @@ export const FunderDashboardPage = () => {
                     </ul>
                 ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('No activity yet.')} />}
             </Card>
+            {/* Prince's prospects: how many people the funded programmes have reached. */}
+            {user && !isOrgFunder(user) && user.companyCode && <ProspectReachCard module="incubation" companyCode={String(user.companyCode)} />}
         </DashboardPage>
     )
 }

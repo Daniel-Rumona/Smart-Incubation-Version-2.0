@@ -4,6 +4,7 @@ import { BankOutlined, EditOutlined, FileTextOutlined, ManOutlined, PlusOutlined
 import dayjs from 'dayjs'
 import type Highcharts from 'highcharts'
 import DashboardPage from '@/components/shared/DashboardPage'
+import { ProspectReachCard } from '@/components/prospects/ProspectFunnel'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
 import { ThemedHighcharts } from '@/components/shared/ThemedHighcharts'
 import { esgReportingOn } from '@/config/clientModules'
@@ -347,6 +348,7 @@ export default function FunderReportPage() {
                     </Space>
                 </Card>
             )}
+            {user?.companyCode && <ProspectReachCard module="training" companyCode={String(user.companyCode)} />}
             {isStaff && <Funders funders={funders} accounts={accounts} onChanged={() => void loadFunders()} showEsg={showEsg} />}
         </DashboardPage>
     )

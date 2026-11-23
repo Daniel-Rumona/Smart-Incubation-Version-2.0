@@ -42,6 +42,7 @@ import {
     UserOutlined,
     UserSwitchOutlined,
     RiseOutlined,
+    FunnelPlotOutlined,
 } from '@ant-design/icons'
 import type { ComponentType } from 'react'
 import AuthPage from '@/pages/auth/AuthPage'
@@ -70,6 +71,8 @@ import ClientModulesPage from '@/pages/admin/ClientModulesPage'
 import TrainingHomePage from '@/pages/training/TrainingHomePage'
 import TrainingClassesPage from '@/pages/training/TrainingClassesPage'
 import TrainingCompaniesPage from '@/pages/training/TrainingCompaniesPage'
+import ProspectsPage from '@/pages/prospects/ProspectsPage'
+import ProspectSignupPage from '@/pages/prospects/ProspectSignupPage'
 import TrainingLibraryPage from '@/pages/training/TrainingLibraryPage'
 import TrainingSurveysPage from '@/pages/training/TrainingSurveysPage'
 import TrainingSurveyPage from '@/pages/training/TrainingSurveyPage'
@@ -194,6 +197,8 @@ export const publicRoutes: PublicRoute[] = [
     { path: '/join/:programId', labelKey: 'nav.join', element: JoinProgramPage },
     // Public check behind a training certificate's link and QR code (no sign-in).
     { path: '/verify/:certificateId', labelKey: 'nav.verifyCertificate', element: VerifyCertificatePage },
+    // Public sign-up form behind an event's QR code or WhatsApp link (no sign-in): the business becomes a prospect.
+    { path: '/p/:code', labelKey: 'nav.prospectSignup', element: ProspectSignupPage },
 ]
 
 const allRoles = Object.values(USER_ROLES)
@@ -425,6 +430,7 @@ export const appRoutes: AppRoute[] = [
         audiences: ['operations'],
         showInNav: true,
         children: [
+            { path: '/operations/participants/prospects', labelKey: 'nav.prospects', icon: <FunnelPlotOutlined />, element: <ProspectsPage module="incubation" />, allowedRoles: interventionWorkspaceRoles, audiences: ['operations'], showInNav: true, agentEnabled: true },
             { path: '/operations/participants/diagnostic-plans', labelKey: 'nav.diagnosticPlans', icon: <FileSearchOutlined />, element: <DiagnosticPlansPage />, allowedRoles: operationsRoles, requiredPermission: 'view_diagnostic_plans', audiences: ['operations'], showInNav: true },
             { path: '/operations/gap-analysis', labelKey: 'nav.gapAnalysis', icon: <FileSearchOutlined />, element: <GapAnalysisPage />, allowedRoles: operationsRoles, requiredPermission: 'view_diagnostic_plans', audiences: ['operations'], showInNav: true },
             { path: '/shared/participants', labelKey: 'nav.viewAll', icon: <ApartmentOutlined />, element: <ParticipantsPage />, allowedRoles: operationsRoles, requiredPermission: 'view_participants', audiences: ['operations'], showInNav: true },
@@ -532,6 +538,7 @@ export const appRoutes: AppRoute[] = [
             { path: '/training/twin', labelKey: 'nav.digitalTwin', icon: <FundProjectionScreenOutlined />, element: <TrainingTwinPage />, allowedRoles: trainingStaffRoles, requiredSetting: awarenessTrainingSetting, audiences: ['operations'], showInNav: true },
             { path: '/training/twin/:organisationId', labelKey: 'nav.digitalTwin', icon: <FundProjectionScreenOutlined />, element: <TrainingTwinPage />, allowedRoles: trainingStaffRoles, requiredSetting: awarenessTrainingSetting, audiences: ['operations'], showInNav: false },
             { path: '/training/companies', labelKey: 'nav.trainingCompanies', icon: <BankOutlined />, element: <TrainingCompaniesPage />, allowedRoles: trainingStaffRoles, requiredSetting: awarenessTrainingSetting, audiences: ['operations'], showInNav: true, agentEnabled: true },
+            { path: '/training/prospects', labelKey: 'nav.prospects', icon: <FunnelPlotOutlined />, element: <ProspectsPage module="training" />, allowedRoles: trainingStaffRoles, requiredSetting: awarenessTrainingSetting, audiences: ['operations'], showInNav: true, agentEnabled: true },
             { path: '/training/surveys', labelKey: 'nav.trainingSurveys', icon: <FormOutlined />, element: <TrainingSurveysPage />, allowedRoles: trainingStaffRoles, requiredSetting: awarenessTrainingSetting, audiences: ['operations'], showInNav: true, agentEnabled: true },
             { path: '/training/library', labelKey: 'nav.trainingLibrary', icon: <FolderOpenOutlined />, element: <TrainingLibraryPage />, allowedRoles: trainingStaffRoles, requiredSetting: awarenessTrainingSetting, audiences: ['operations'], showInNav: true, agentEnabled: true },
             { path: '/training/revenue', labelKey: 'nav.revenue', icon: <DollarOutlined />, element: <RevenuePage />, allowedRoles: trainingStaffRoles, requiredSetting: awarenessTrainingSetting, audiences: ['operations'], showInNav: true, agentEnabled: true },

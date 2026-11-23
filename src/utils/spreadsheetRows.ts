@@ -66,6 +66,6 @@ const readCsv = (text: string): string[][] => {
 
 /** Rows of cell text with fully empty rows dropped. The first row is the header. */
 export const readSpreadsheetRows = async (file: File): Promise<string[][]> => {
-    const rows = /\.csv$/i.test(file.name) ? readCsv((await file.text()).replace(/^﻿/, '')) : readXlsx(await file.arrayBuffer())
+    const rows = /\.csv$/i.test(file.name) ? readCsv((await file.text()).replace(/^\uFEFF/, '')) : readXlsx(await file.arrayBuffer())
     return rows.filter((row) => row.some((cell) => cell))
 }
