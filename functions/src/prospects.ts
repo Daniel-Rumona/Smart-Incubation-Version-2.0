@@ -215,6 +215,9 @@ export async function signupLinkInfo(db: Firestore, code: string) {
   if (!/^[A-Za-z0-9_-]{6,64}$/.test(id)) throw new ProspectError('not_found', 'This sign-up link is not valid.')
   const link = await db.collection(SIGNUP_LINKS).doc(id).get()
   if (!link.exists || link.get('active') !== true) throw new ProspectError('not_found', 'This sign-up link is closed.')
+  // An event's codes close the day after the event (functions/src/teamEvents.ts).
+  const closesAt = clean(link.get('closesAt'))
+  if (closesAt && closesAt < new Date().toISOString()) throw new ProspectError('not_found', 'This sign-up link is closed.')
   const company = (await db.collection('companies').doc(clean(link.get('companyCode'))).get()).data() || {}
   return {
     link,
@@ -223,6 +226,8 @@ export async function signupLinkInfo(db: Firestore, code: string) {
       module: link.get('module') === 'training' ? 'training' : 'incubation',
       companyName: clean(company.companyName || company.name),
       logoUrl: clean(company.logoUrl),
+      // An event code belongs to one team member: their first name, so they know the code on screen is theirs.
+      ownerFirstName: clean(link.get('ownerName')).split(/\s+/)[0] || '',
     },
   }
 }

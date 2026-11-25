@@ -38,6 +38,11 @@ import { matchesActiveProgram } from '@/services/workspaceProgramsService'
 import { useLanguage, tr } from '@/providers/LanguageProvider'
 import { workspaceCompanyCode } from '@/services/companiesService'
 import { ModalActions } from '@/components/shared/ModalActions'
+import { TeamEventModal, type TeamMember } from '@/components/events/TeamEventModal'
+import { TeamEventDetailModal } from '@/components/events/TeamEventDetailModal'
+import { canManageTeamEvents, listTeamMembers, watchTeamEvents } from '@/services/teamEventsService'
+import { listProgramsForCompany } from '@/services/workspaceProgramsService'
+import { TEAM_EVENT_TYPE_LABELS, type TeamEvent } from '@/types/teamEvents'
 
 type AppointmentRow = {
     id: string
@@ -64,6 +69,8 @@ type AppointmentRow = {
     declineReasonCode?: string | null
     declineNeedsReview?: boolean | null
     rescheduleRequest?: RescheduleRequest | null
+    /** A team event shown on the calendar, not an appointment. */
+    isEvent?: boolean
     [key: string]: unknown
 }
 
@@ -184,6 +191,13 @@ export const InterventionAppointmentsPage = () => {
     const [createGuideComplete, setCreateGuideComplete] = useState(false)
     const [outcomeGuideComplete, setOutcomeGuideComplete] = useState(false)
     const [outcomeStep, setOutcomeStep] = useState(0)
+    // Team events (expos, workshops, visits) sit on the calendar beside the appointments.
+    const [teamEvents, setTeamEvents] = useState<TeamEvent[]>([])
+    const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
+    const [eventPrograms, setEventPrograms] = useState<Array<{ id: string, name: string }>>([])
+    const [eventForm, setEventForm] = useState<{ event?: TeamEvent } | null>(null)
+    const [openEventId, setOpenEventId] = useState<string>()
+    const canAddEvents = canManageTeamEvents(user)
 
     const assignableInterventions = useMemo(() => assignments
         .filter(inScope)
@@ -220,6 +234,45 @@ export const InterventionAppointmentsPage = () => {
     useEffect(() => {
         void loadAppointments()
     }, [user?.companyCode, activeProgramId, assignments.length]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
+        if (!user) return
+        return watchTeamEvents(user, (rows) => setTeamEvents(rows))
+    }, [user])
+
+    useEffect(() => {
+        if (!user || !canAddEvents) return
+        let cancelled = false
+        void Promise.all([
+            listTeamMembers(user).catch(() => []),
+            listProgramsForCompany(workspaceCompanyCode(user) || '').catch(() => []),
+        ]).then(([members, programs]) => {
+            if (cancelled) return
+            setTeamMembers(members)
+            setEventPrograms(programs.map((row) => ({ id: row.id, name: row.name })))
+        })
+        return () => { cancelled = true }
+    }, [canAddEvents, user])
+
+    const eventRows = useMemo<AppointmentRow[]>(() => {
+        const needle = search.trim().toLowerCase()
+        return teamEvents
+            .filter((event) => !needle || `${event.title} ${event.venue}`.toLowerCase().includes(needle))
+            .map((event) => ({
+                id: `event:${event.id}`,
+                isEvent: true,
+                assignedInterventionId: '',
+                interventionTitle: event.recruiting ? `◎ ${event.title}` : event.title,
+                participantName: [t(TEAM_EVENT_TYPE_LABELS[event.type]), t('{count} going', undefined, { count: event.attendees.length }), event.recruiting ? t('Looking for SMEs') : ''].filter(Boolean).join(' · '),
+                meetingType: 'in_person',
+                location: event.venue,
+                status: 'accepted',
+                startTime: event.startTime,
+                endTime: event.endTime,
+            }))
+    }, [search, t, teamEvents])
+
+    const openEvent = teamEvents.find((event) => event.id === openEventId)
 
     const rows = useMemo(() => {
         const needle = search.trim().toLowerCase()
@@ -267,8 +320,9 @@ export const InterventionAppointmentsPage = () => {
         ]
     }, [])
 
-    const calendarRows = rows.length ? rows : demoAppointments
-    const isDemoData = rows.length === 0
+    const isDemoData = rows.length === 0 && eventRows.length === 0
+    const calendarRows = useMemo(() => (isDemoData ? demoAppointments : [...rows, ...eventRows]
+        .sort((left, right) => (toDate(left.startTime)?.getTime() ?? 0) - (toDate(right.startTime)?.getTime() ?? 0))), [demoAppointments, eventRows, isDemoData, rows])
 
     // One pre-bucketed lookup keeps the panel from rescanning the whole list on every render.
     const selectedDayAppointments = useMemo(() => {
@@ -320,7 +374,9 @@ export const InterventionAppointmentsPage = () => {
 
     const openCreate = () => {
         form.resetFields()
-        form.setFieldsValue({ timeRange: [selectedDate.hour(9).minute(0), selectedDate.hour(10).minute(0)] })
+        // A past day picked on the calendar isn't bookable, so the "New" button starts from today instead.
+        const day = selectedDate.isBefore(dayjs(), 'day') ? dayjs() : selectedDate
+        form.setFieldsValue({ timeRange: [day.hour(9).minute(0), day.hour(10).minute(0)] })
         setCreateGuideComplete(false)
         setCreateOpen(true)
     }
@@ -490,6 +546,10 @@ export const InterventionAppointmentsPage = () => {
     }
 
     const openDetail = (appointment: AppointmentRow) => {
+        if (appointment.isEvent) {
+            setOpenEventId(String(appointment.id).replace(/^event:/, ''))
+            return
+        }
         setSelected(appointment)
         setDetailOpen(true)
     }
@@ -649,13 +709,15 @@ export const InterventionAppointmentsPage = () => {
                             <Segmented value={calendarView} onChange={(value) => handleChangeView(value as CalendarView)} options={CALENDAR_VIEWS} />
                             <Button shape="circle" aria-label={t('Next range')} icon={<RightOutlined />} onClick={() => moveCalendar(1)} />
                             <Button onClick={goToToday}>{t('Today')}</Button>
-                            <Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('Search')} allowClear />
-                            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>{t('New')}</Button>
+                            <Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('Search SME, intervention or event')} allowClear />
+                            {canAddEvents && <Button icon={<PlusOutlined />} onClick={() => setEventForm({})}>{t('Event')}</Button>}
+                            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>{canAddEvents ? t('Appointment') : t('New')}</Button>
                         </div>
                     </div>
 
                     <div className="apt-legend">
                         {LEGEND.map((entry) => <span key={entry.status} className={`apt-legend-item is-${entry.status}`}><i />{entry.label}</span>)}
+                        {(teamEvents.length > 0 || canAddEvents) && <span className="apt-legend-item is-event"><i />{t('Team events')}</span>}
                         {isDemoData && <Tooltip title={t('No appointments exist for this program yet, so a sample week is shown.')}><span className="apt-legend-sample">{t('Sample data')}</span></Tooltip>}
                     </div>
 
@@ -680,9 +742,29 @@ export const InterventionAppointmentsPage = () => {
                         selected={selectedDayAppointments.find((row) => row.id === selected?.id)}
                         onSelect={openDetail}
                         onCreate={openCreate}
+                        searching={Boolean(search.trim())}
                     />
                 </Card>
             </div>
+
+            <TeamEventDetailModal
+                event={openEvent}
+                onClose={() => setOpenEventId(undefined)}
+                onEdit={(event, turnOnRecruiting) => {
+                    setOpenEventId(undefined)
+                    setEventForm({ event: turnOnRecruiting ? { ...event, recruiting: true } : event })
+                }}
+            />
+
+            <TeamEventModal
+                open={Boolean(eventForm)}
+                event={eventForm?.event}
+                defaultDate={selectedDate}
+                members={teamMembers}
+                programs={eventPrograms}
+                onClose={() => setEventForm(null)}
+                onSaved={(id) => setOpenEventId(id)}
+            />
 
             <AppointmentDetailModal
                 open={detailOpen}

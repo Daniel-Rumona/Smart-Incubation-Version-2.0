@@ -32,6 +32,7 @@ import { DemoRequestError, submitDemoRequestHandler } from './demoRequests.js'
 import { ChaseError, chaseSme } from './riskChases.js'
 import { JoinError, buildConfirmedSetPlan, enrolInDirectProgram, forcedProgramInterventions, getProgramLinkInfo, joinProgram, type JoinInput } from './programJoin.js'
 import { isReservedTestAddress } from './testAddresses.js'
+import { TEAM_EVENTS, syncTeamEvent } from './teamEvents.js'
 import { CONVERTED, EVENTS, PROSPECTS, ProspectError, convertOnClientCompany, convertOnParticipant, canSeeFunnel, funderScope, isAdvance, matchProspectOnJoin, mayEmail, prospectFunnel, runRetention, signupLinkInfo, submitSignup, type SignupInput } from './prospects.js'
 import {
   processWhatsAppInboundEvent,
@@ -4308,6 +4309,17 @@ export const getProspectSignupInfo = onCall({ region }, async (request) => {
   } catch (error) {
     throw prospectErrorToHttps(error)
   }
+})
+
+/**
+ * A team event was saved: give each person going their own sign-up code when the team is looking for SMEs there,
+ * and message them on WhatsApp when asked (functions/src/teamEvents.ts).
+ */
+export const syncTeamEventCodes = onDocumentWritten({ document: `${TEAM_EVENTS}/{eventId}`, region, timeoutSeconds: 120 }, async (event) => {
+  await syncTeamEvent(getFirestore(), event.params.eventId, event.data?.before?.data(), event.data?.after?.data(), {
+    appUrl: getAppBaseUrl(),
+    sendWhatsApp: sendWhatsAppAlert,
+  }).catch((error) => console.error('Team event sync failed', event.params.eventId, error))
 })
 
 /** Someone fills in the event's sign-up form themselves (no sign-in). */

@@ -73,6 +73,7 @@ import TrainingClassesPage from '@/pages/training/TrainingClassesPage'
 import TrainingCompaniesPage from '@/pages/training/TrainingCompaniesPage'
 import ProspectsPage from '@/pages/prospects/ProspectsPage'
 import ProspectSignupPage from '@/pages/prospects/ProspectSignupPage'
+import ProspectSignupQrPage from '@/pages/prospects/ProspectSignupQrPage'
 import TrainingLibraryPage from '@/pages/training/TrainingLibraryPage'
 import TrainingSurveysPage from '@/pages/training/TrainingSurveysPage'
 import TrainingSurveyPage from '@/pages/training/TrainingSurveyPage'
@@ -199,6 +200,8 @@ export const publicRoutes: PublicRoute[] = [
     { path: '/verify/:certificateId', labelKey: 'nav.verifyCertificate', element: VerifyCertificatePage },
     // Public sign-up form behind an event's QR code or WhatsApp link (no sign-in): the business becomes a prospect.
     { path: '/p/:code', labelKey: 'nav.prospectSignup', element: ProspectSignupPage },
+    // A team member's own event code, full screen, to show at the stand (sent to them on WhatsApp).
+    { path: '/p/:code/qr', labelKey: 'nav.prospectSignup', element: ProspectSignupQrPage },
 ]
 
 const allRoles = Object.values(USER_ROLES)

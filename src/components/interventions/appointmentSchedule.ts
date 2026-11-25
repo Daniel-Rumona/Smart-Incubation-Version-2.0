@@ -25,6 +25,8 @@ export type CalendarAppointment = {
     declineNeedsReview?: boolean | null
     /** An SME's ask to move the meeting; `status: 'requested'` means it still needs an answer. */
     rescheduleRequest?: RescheduleRequest | null
+    /** A team event (src/types/teamEvents.ts) drawn in its own colour, not an appointment. */
+    isEvent?: boolean
 }
 
 export type RescheduleRequest = {

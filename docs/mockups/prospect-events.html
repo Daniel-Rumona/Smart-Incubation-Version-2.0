@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Events on the calendar</title>
+<style>
+  :root {
+    --accent: #6d5dfb; --accent-2: #4f7df3; --accent-soft: rgba(109,93,251,.12);
+    --bg: #f5f6fb; --surface: #ffffff; --surface-2: #eef0f8; --ink: #172033; --muted: #5b6478; --line: rgba(109,93,251,.14);
+    --ok: #059669; --ok-bg: rgba(5,150,105,.1); --amber: #d97706; --amber-bg: rgba(217,119,6,.12); --off: #dc2626;
+    --event: #db2777; --event-bg: rgba(219,39,119,.1); --session: #2563eb; --session-bg: rgba(37,99,235,.1);
+    --wa-bg: #e7fbe9; --wa-chat: #efeae2; --wa-out: #d9fdd3;
+    --note: #b45309; --note-bg: rgba(217,119,6,.1);
+    --ease: cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  [data-theme="dark"] {
+    --bg: #0f1117; --surface: #1b1e2a; --surface-2: #232737; --ink: #eef0f6; --muted: #a1a9bd; --line: rgba(139,92,246,.24); --accent-soft: rgba(109,93,251,.22);
+    --ok: #34d399; --ok-bg: rgba(52,211,153,.12); --amber: #fbbf24; --amber-bg: rgba(251,191,36,.12);
+    --event: #f472b6; --event-bg: rgba(244,114,182,.14); --session: #60a5fa; --session-bg: rgba(96,165,250,.14);
+    --wa-bg: rgba(37,211,102,.14); --wa-chat: #0b141a; --wa-out: #005c4b;
+    --note: #fbbf24; --note-bg: rgba(251,191,36,.12);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
+  button, input, select { font: inherit; color: inherit; }
+
+  .controls { position: sticky; top: 0; z-index: 30; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; padding: 12px; background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+  .seg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); }
+  .seg button { border: 0; background: none; color: var(--muted); font-weight: 650; font-size: 13px; padding: 7px 14px; border-radius: 999px; cursor: pointer; }
+  .seg button.on { color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+  .stage { display: flex; justify-content: center; padding: 24px 16px 60px; }
+  .frame { position: relative; width: 1200px; max-width: 100%; container-type: inline-size; transition: width .35s var(--ease); }
+  .stage.phone .frame { width: 375px; }
+  .view { display: none; } .view.on { display: block; }
+  .chg { display: none; margin: 12px 0; padding: 9px 12px; border-radius: 10px; font-size: 12.5px; line-height: 1.45; color: var(--note); background: var(--note-bg); border: 1px dashed color-mix(in srgb, var(--note) 50%, transparent); }
+  .show-notes .chg { display: block; }
+
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; min-width: 0; }
+  .muted { color: var(--muted); } .small { font-size: 12.5px; }
+  h1 { font-size: 22px; margin: 0; } h3 { font-size: 15px; margin: 0 0 10px; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .spacer { flex: 1; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; cursor: pointer; font-size: 13px; }
+  .btn.primary { color: #fff; border: 0; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+  .btn.small { height: 30px; padding: 0 10px; font-size: 12px; }
+  .btn.wa { border-color: transparent; background: var(--wa-bg); color: #128c3e; }
+  [data-theme="dark"] .btn.wa { color: #4ade80; }
+  .tag { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 650; white-space: nowrap; background: var(--surface-2); color: var(--muted); }
+  .tag.ok { color: var(--ok); background: var(--ok-bg); } .tag.warn { color: var(--amber); background: var(--amber-bg); } .tag.blue { color: var(--accent); background: var(--accent-soft); }
+  .tag.event { color: var(--event); background: var(--event-bg); } .tag.recruit { color: #fff; background: var(--event); }
+  .grid { display: grid; gap: 14px; }
+  .g2 { grid-template-columns: 1fr 1fr; } .g-13-10 { grid-template-columns: 13fr 10fr; align-items: start; } .g-cal { grid-template-columns: 1fr 340px; align-items: start; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 10px 8px; border-top: 1px solid var(--line); vertical-align: middle; }
+  th { border-top: 0; color: var(--muted); font-weight: 600; font-size: 12px; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  tfoot td { font-weight: 700; }
+  .avatar { width: 28px; height: 28px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 11px; font-weight: 700; color: #fff; flex: none; }
+  .avatars { display: inline-flex; } .avatars .avatar { margin-left: -7px; border: 2px solid var(--surface); } .avatars .avatar:first-child { margin-left: 0; }
+  .who { display: flex; align-items: center; gap: 8px; }
+  .qr { width: 44px; height: 44px; border-radius: 6px; background: #fff; padding: 3px; border: 1px solid var(--line); display: block; }
+  .qr.big { width: 150px; height: 150px; padding: 8px; }
+  .bar { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; } .bar b { display: block; height: 100%; border-radius: 999px; background: var(--accent); }
+
+  /* calendar */
+  .month { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+  .month .dow { padding: 6px 8px; font-size: 11.5px; font-weight: 700; color: var(--muted); border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .month .day { min-height: 92px; padding: 6px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); display: grid; align-content: start; gap: 3px; }
+  .month .day > span { font-size: 12px; color: var(--muted); }
+  .month .day.today > span { color: #fff; background: var(--accent); border-radius: 999px; width: 22px; text-align: center; }
+  .pill { display: block; padding: 2px 6px; border-radius: 6px; font-size: 11.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+  .pill.session { color: var(--session); background: var(--session-bg); }
+  .pill.event { color: var(--event); background: var(--event-bg); border-left: 3px solid var(--event); }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--muted); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  .agenda { display: grid; gap: 8px; }
+  .agenda .item { display: grid; grid-template-columns: 50px 1fr; gap: 10px; padding: 10px; border-radius: 12px; background: var(--surface-2); cursor: pointer; }
+  .agenda .item.is-event { background: var(--event-bg); }
+  .agenda time { font-weight: 700; font-size: 12.5px; }
+
+  /* modal */
+  .overlay { position: fixed; inset: 0; z-index: 40; background: rgba(15,17,23,.45); display: none; place-items: center; padding: 20px; }
+  .overlay.open { display: grid; }
+  .modal { width: 560px; max-width: 100%; max-height: 90vh; overflow: auto; background: var(--surface); border-radius: 16px; box-shadow: 0 24px 60px rgba(0,0,0,.3); }
+  .modal header { display: flex; justify-content: space-between; align-items: center; padding: 16px 18px; border-bottom: 1px solid var(--line); font-weight: 700; }
+  .modal .body { padding: 16px 18px; display: grid; gap: 12px; }
+  .modal footer { padding: 12px 18px; border-top: 1px solid var(--line); display: grid; }
+  label.f { display: grid; gap: 5px; font-size: 12.5px; font-weight: 600; }
+  .input { height: 36px; width: 100%; padding: 0 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; border-radius: 9px; border: 1px solid var(--line); min-height: 40px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px 2px 2px; border-radius: 999px; background: var(--accent-soft); font-size: 12.5px; font-weight: 600; }
+  .chip .avatar { width: 22px; height: 22px; font-size: 9.5px; }
+  .toggle { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border-radius: 12px; border: 1px solid var(--line); cursor: pointer; }
+  .toggle.on { border-color: var(--event); background: var(--event-bg); }
+  .switch { width: 36px; height: 20px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); position: relative; flex: none; margin-top: 2px; }
+  .switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--muted); transition: left .2s var(--ease); }
+  .toggle.on .switch { background: var(--event); border-color: transparent; } .toggle.on .switch::after { left: 18px; background: #fff; }
+  .recruit-extra { display: none; gap: 10px; padding-left: 48px; }
+  .toggle.on + .recruit-extra { display: grid; }
+  .check { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; }
+
+  /* WhatsApp */
+  .wa-phone { width: 300px; max-width: 100%; border-radius: 28px; border: 8px solid #111; background: var(--wa-chat); overflow: hidden; }
+  .wa-top { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: #075e54; color: #fff; font-size: 13px; font-weight: 650; }
+  [data-theme="dark"] .wa-top { background: #202c33; }
+  .wa-body { padding: 12px 10px 14px; display: grid; gap: 8px; min-height: 380px; align-content: start; }
+  .bubble { max-width: 86%; padding: 7px 9px; border-radius: 10px; font-size: 13px; line-height: 1.4; background: var(--surface); box-shadow: 0 1px 1px rgba(0,0,0,.08); }
+  .bubble.out { justify-self: end; background: var(--wa-out); }
+  .bubble small { display: block; text-align: right; color: var(--muted); font-size: 10.5px; margin-top: 2px; }
+  .bubble .img { background: #fff; border-radius: 8px; padding: 10px; display: grid; place-items: center; margin-bottom: 6px; }
+  .bubble a { color: #027eb5; word-break: break-all; }
+  .chat { display: grid; gap: 10px; }
+  .msg { max-width: 92%; padding: 10px 12px; border-radius: 14px; font-size: 13.5px; }
+  .msg.me { justify-self: end; background: var(--accent); color: #fff; }
+  .msg.ai { background: var(--surface-2); }
+  .proposal { margin-top: 8px; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); display: grid; gap: 6px; }
+  .proposal ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 12.5px; }
+
+  @container (max-width: 760px) {
+    .g2, .g-13-10, .g-cal { grid-template-columns: 1fr; }
+    .hide-sm { display: none; }
+    .month .day { min-height: 54px; } .pill { font-size: 0; height: 6px; padding: 0; }
+    .row .btn { flex: 1; }
+  }
+</style>
+</head>
+<body>
+<div class="controls">
+  <div class="seg" id="page"><button data-p="calendar" class="on">Calendar</button><button data-p="detail">An event</button><button data-p="plain">A non-recruiting event</button><button data-p="prospects">Prospects</button><button data-p="whatsapp">WhatsApp and assistant</button></div>
+  <div class="seg" id="view"><button class="on" data-v="desktop">Desktop</button><button data-v="phone">Phone</button></div>
+  <div class="seg" id="theme"><button class="on" data-t="light">Light</button><button data-t="dark">Dark</button></div>
+  <div class="seg" id="notes"><button class="on" data-n="on">Show changes</button><button data-n="off">Hide changes</button></div>
+</div>
+
+<div class="stage show-notes" id="stage">
+  <div class="frame">
+
+    <!-- ================= CALENDAR ================= -->
+    <section class="view on" id="calendar">
+      <div class="row" style="margin-bottom:12px">
+        <h1>Appointments</h1>
+        <span class="spacer"></span>
+        <span class="btn">+ Session</span>
+        <button class="btn primary" id="new-event">+ Event</button>
+      </div>
+      <div class="chg"><b>Events live on the calendar, with the sessions.</b> An expo, a workshop, a networking evening or a funder visit is something the team goes to, so it sits on Appointments next to the sessions rather than on Prospects. "+ Event" sits beside the existing "+ Session". <i>Click "+ Event", or an event on the calendar.</i></div>
+      <div class="grid g-cal">
+        <div class="card">
+          <div class="row" style="margin-bottom:10px"><b>March 2026</b><span class="spacer"></span><div class="legend"><span><i style="background:var(--session)"></i>Sessions</span><span><i style="background:var(--event)"></i>Events</span></div></div>
+          <div class="month" id="month"></div>
+        </div>
+        <div class="card">
+          <h3>Coming up</h3>
+          <div class="agenda" id="agenda"></div>
+        </div>
+      </div>
+      <div class="chg">Events are drawn in their own colour with a solid edge, so they stand out from the many sessions. An event where you're looking for SMEs carries a small "Recruiting" tag; most events won't.</div>
+    </section>
+
+    <!-- ================= ONE EVENT (RECRUITING) ================= -->
+    <section class="view" id="detail">
+      <div class="row" style="margin-bottom:12px">
+        <span class="btn small" data-back>← Appointments</span>
+        <div><h1>Township business expo</h1><div class="muted small">Sat 14 Mar 2026 · 09:00–15:00 · Soweto Theatre · Expo</div></div>
+        <span class="tag recruit">Recruiting SMEs</span>
+        <span class="spacer"></span>
+        <span class="btn">⇩ All QR codes (PDF)</span>
+        <span class="btn">Edit event</span>
+      </div>
+      <div class="chg">An event where the team said it would look for SMEs. Its page adds the recruiting part: each team member's sign-up code, how many people each brought in, and who signed up. Everything else is the same as any event.</div>
+      <div class="grid g-13-10">
+        <div class="card">
+          <div class="row" style="margin-bottom:6px"><h3 style="margin:0">Team going</h3><span class="spacer"></span><span class="btn small">+ Add someone</span></div>
+          <table id="team-table"></table>
+        </div>
+        <div class="card">
+          <h3>Recruiting so far</h3>
+          <div class="grid" id="funnel" style="gap:10px"></div>
+          <div class="muted small" style="margin-top:12px">Programme they'd join: Women in Agri Accelerator 2026. Codes close the day after the event.</div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <h3>Who signed up</h3>
+        <table id="signups"></table>
+      </div>
+      <div class="chg">Sign-ups arrive in Prospects as usual, with the event as where they came from and the team member whose code they used as "follows up".</div>
+    </section>
+
+    <!-- ================= ONE EVENT (PLAIN) ================= -->
+    <section class="view" id="plain">
+      <div class="row" style="margin-bottom:12px">
+        <span class="btn small" data-back>← Appointments</span>
+        <div><h1>Funder site visit</h1><div class="muted small">Wed 18 Mar 2026 · 10:00–12:00 · Hammanskraal hub · Visit</div></div>
+        <span class="spacer"></span>
+        <span class="btn">Edit event</span>
+      </div>
+      <div class="chg"><b>Most events aren't SME hunts.</b> Without the recruiting switch, an event is just a date, a place and who's going, with notes. No codes, no funnel, nothing on Prospects.</div>
+      <div class="grid g-13-10">
+        <div class="card">
+          <h3>Team going</h3>
+          <table><tbody>
+            <tr><td><span class="who"><span class="avatar" style="background:#6d5dfb">TM</span>Thandi Mokoena</span></td><td class="muted small">Host</td></tr>
+            <tr><td><span class="who"><span class="avatar" style="background:#d97706">RC</span>Rumbi Chikwanha (you)</span></td><td class="muted small">Presenting results</td></tr>
+          </tbody></table>
+        </div>
+        <div class="card">
+          <h3>Notes</h3>
+          <p class="small" style="margin:0">Walk-through of the hydroponics tunnel with Acme Foundation; lunch with three SMEs.</p>
+          <div class="row" style="margin-top:12px"><span class="btn small">Turn on SME recruiting</span></div>
+        </div>
+      </div>
+      <div class="chg">You can still switch recruiting on later from here, for example if the visit turns into an open day.</div>
+    </section>
+
+    <!-- ================= PROSPECTS ================= -->
+    <section class="view" id="prospects">
+      <div class="row" style="margin-bottom:12px"><h1>Prospects</h1><span class="spacer"></span><span class="btn">Import</span><span class="btn primary">+ Add prospect</span></div>
+      <div class="chg"><b>Prospects keeps the results, not the events.</b> It gets one new card, "From events", with the recruiting events and how each did, plus who on the team brings people in. Clicking an event opens it on the calendar side. The separate "Sign-up links" drawer goes: links now belong to an event's team members.</div>
+      <div class="grid g2">
+        <div class="card">
+          <h3>From events</h3>
+          <table>
+            <thead><tr><th>Event</th><th class="num">Sign-ups</th><th class="num">Applied</th><th class="num">Joined</th></tr></thead>
+            <tbody>
+              <tr><td><b>Township business expo</b><div class="muted small">14 Mar · 3 going</div></td><td class="num">67</td><td class="num">18</td><td class="num">7</td></tr>
+              <tr><td><b>Women in Agri open day</b><div class="muted small">2 Mar · 2 going</div></td><td class="num">41</td><td class="num">15</td><td class="num">6</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card">
+          <h3>Who brings people in</h3>
+          <table id="leaderboard"></table>
+        </div>
+      </div>
+      <div class="card" style="margin-top:14px"><h3>Prospects</h3><p class="muted small" style="margin:0">The prospect list as today: name, came from (now naming the event and team member), programme, follows up, next follow-up, status.</p></div>
+    </section>
+
+    <!-- ================= WHATSAPP + ASSISTANT ================= -->
+    <section class="view" id="whatsapp">
+      <div class="grid g2">
+        <div class="card">
+          <h3>Ask the assistant</h3>
+          <div class="chat">
+            <div class="msg me">Put the Township business expo on the calendar for 14 March at Soweto Theatre. Thandi, Sipho and I are going, and we'll be looking for SMEs. Send us our codes.</div>
+            <div class="msg ai">I've prepared this. Please check and confirm:
+              <div class="proposal">
+                <b>New event: Township business expo</b>
+                <ul><li>Sat 14 Mar 2026 · Soweto Theatre · Expo</li><li>Going: Thandi Mokoena, Sipho Dlamini, you</li><li>Recruiting SMEs for Women in Agri Accelerator 2026</li><li>Each of you gets a sign-up code on WhatsApp</li></ul>
+                <div class="row"><span class="btn small primary">Confirm</span><span class="btn small">Change</span></div>
+              </div>
+            </div>
+            <div class="msg me">Also add the funder visit on the 18th, just me and Thandi.</div>
+            <div class="msg ai">Ready to confirm: Funder site visit, Wed 18 Mar, Hammanskraal hub, you and Thandi. No recruiting, so no codes.</div>
+          </div>
+        </div>
+        <div class="card" style="display:grid;place-items:center">
+          <div class="wa-phone">
+            <div class="wa-top"><span class="avatar" style="background:#6d5dfb">Q</span>Smart Incubation</div>
+            <div class="wa-body">
+              <div class="bubble">Hi Thandi, you're down for <b>Township business expo</b> on Sat 14 March, 09:00 at Soweto Theatre. You're looking for SMEs there, so here's your sign-up code.<small>08:02</small></div>
+              <div class="bubble"><div class="img"><svg class="qr big" data-qr="thandi"></svg></div>Show this at the stand. Everyone who signs up with it is added to your follow-ups.<br><a>https://app.smartincubation.co.za/p/tx14-thandi</a><small>08:02</small></div>
+              <div class="bubble out">Thanks! 🙌<small>08:05 ✓✓</small></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="chg">The assistant puts any event on the calendar; codes only go out when recruiting is on. Team members get a reminder either way, and the code only when there's one to send. The people met at the event sign up by scanning, which is how they consent; the system doesn't message strangers first.</div>
+    </section>
+  </div>
+</div>
+
+<div class="overlay" id="modal">
+  <div class="modal">
+    <header>New event <span class="muted" style="cursor:pointer" id="close-modal">✕</span></header>
+    <div class="body">
+      <label class="f">Event name<input class="input" value="Township business expo"></label>
+      <div class="grid g2" style="gap:10px"><label class="f">Type<select class="input"><option>Expo</option><option>Workshop</option><option>Networking</option><option>Visit</option><option>Other</option></select></label><label class="f">Date and time<input class="input" value="Sat 14 Mar 2026, 09:00–15:00"></label></div>
+      <label class="f">Venue<input class="input" value="Soweto Theatre"></label>
+      <label class="f">Who from the team is going<div class="chips"><span class="chip"><span class="avatar" style="background:#6d5dfb">TM</span>Thandi Mokoena ✕</span><span class="chip"><span class="avatar" style="background:#0891b2">SD</span>Sipho Dlamini ✕</span><span class="chip"><span class="avatar" style="background:#d97706">RC</span>You ✕</span></div></label>
+      <div class="toggle" id="recruit-toggle"><span class="switch"></span><div><b>We'll be looking for SMEs here</b><div class="muted small">Gives each person going their own sign-up code, and counts who signs up.</div></div></div>
+      <div class="recruit-extra">
+        <label class="f">For which programme (optional)<select class="input"><option>Women in Agri Accelerator 2026</option></select></label>
+        <label class="check"><input type="checkbox" checked><span>Send each person their code on WhatsApp</span></label>
+      </div>
+    </div>
+    <footer><span class="btn primary" id="create-label">Add to calendar</span></footer>
+  </div>
+</div>
+
+<script>
+  const seg = (id, fn) => document.getElementById(id).addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return
+    document.querySelectorAll('#' + id + ' button').forEach(x => x.classList.toggle('on', x === b))
+    fn(b.dataset)
+  })
+  const show = (p) => {
+    document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === p))
+    document.querySelectorAll('#page button').forEach(b => b.classList.toggle('on', b.dataset.p === p))
+  }
+  seg('page', d => show(d.p))
+  seg('view', d => document.getElementById('stage').classList.toggle('phone', d.v === 'phone'))
+  seg('theme', d => document.documentElement.dataset.theme = d.t)
+  seg('notes', d => document.getElementById('stage').classList.toggle('show-notes', d.n === 'on'))
+
+  const drawQr = (svg) => {
+    let seed = [...svg.dataset.qr].reduce((a, c) => a * 31 + c.charCodeAt(0), 7)
+    const rand = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648)
+    const n = 21, cells = []
+    const finder = (x, y) => `<rect x="${x}" y="${y}" width="7" height="7" fill="#111"/><rect x="${x + 1}" y="${y + 1}" width="5" height="5" fill="#fff"/><rect x="${x + 2}" y="${y + 2}" width="3" height="3" fill="#111"/>`
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const inFinder = (x < 8 && y < 8) || (x > 12 && y < 8) || (x < 8 && y > 12)
+      if (!inFinder && rand() > .52) cells.push(`<rect x="${x}" y="${y}" width="1" height="1" fill="#111"/>`)
+    }
+    svg.setAttribute('viewBox', `0 0 ${n} ${n}`)
+    svg.innerHTML = cells.join('') + finder(0, 0) + finder(14, 0) + finder(0, 14)
+  }
+
+  // March 2026 starts on a Sunday; Monday-first grid.
+  const ITEMS = {
+    3: [['session', 'Kasi Car Wash · Finance']], 5: [['session', 'Zulu Crafts · Marketing'], ['session', 'Lekgotla · Tax']],
+    2: [['event', 'Women in Agri open day', 'detail', true]], 10: [['session', 'Mabele Farms · Sales']], 12: [['session', 'Kwena Feeds · Systems']],
+    14: [['event', 'Township business expo', 'detail', true]], 16: [['session', 'Vula Vineyards · Export']], 18: [['event', 'Funder site visit', 'plain', false], ['session', 'Thabo Hydroponics']],
+    20: [['session', 'Bophelo Organics · Web']], 24: [['event', 'Finance workshop', 'plain', false]], 26: [['session', 'Khula Nursery · Finance']], 28: [['event', 'Youth enterprise fair', 'detail', true]],
+  }
+  const dows = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+  let cells = dows.map(d => `<div class="dow">${d}</div>`).join('')
+  const lead = 6 // 1 March 2026 is a Sunday
+  for (let i = 0; i < lead; i++) cells += '<div class="day"></div>'
+  for (let d = 1; d <= 31; d++) {
+    cells += `<div class="day${d === 11 ? ' today' : ''}"><span>${d}</span>${(ITEMS[d] || []).map(([kind, label, open, recruit]) => `<span class="pill ${kind}" ${open ? `data-open="${open}"` : ''}>${recruit ? '◎ ' : ''}${label}</span>`).join('')}</div>`
+  }
+  while ((lead + 31) % 7 !== 0 && cells.split('class="day').length - 1 < 42) { cells += '<div class="day"></div>'; if ((cells.split('class="day').length - 1) % 7 === 0) break }
+  document.getElementById('month').innerHTML = cells
+
+  document.getElementById('agenda').innerHTML = [
+    ['Thu 12', 'Kwena Feeds · Systems review', 'Session · Sipho Dlamini', false],
+    ['Sat 14', 'Township business expo', 'Event · 3 going · <span class="tag recruit">Recruiting</span>', 'detail'],
+    ['Wed 18', 'Funder site visit', 'Event · 2 going', 'plain'],
+    ['Tue 24', 'Finance workshop', 'Event · 4 going', 'plain'],
+  ].map(([when, title, meta, open]) => `<div class="item${open ? ' is-event' : ''}" ${open ? `data-open="${open}"` : ''}><time>${when}</time><div><b>${title}</b><div class="muted small">${meta}</div></div></div>`).join('')
+
+  const TEAM = [['Thandi Mokoena', 'TM', '#6d5dfb', 50, 15, 6], ['Sipho Dlamini', 'SD', '#0891b2', 38, 11, 4], ['Rumbi Chikwanha (you)', 'RC', '#d97706', 20, 7, 3]]
+  const av = (i) => `<span class="avatar" style="background:${TEAM[i][2]}" title="${TEAM[i][0]}">${TEAM[i][1]}</span>`
+  document.getElementById('team-table').innerHTML = `<thead><tr><th>Person</th><th>Their code</th><th class="hide-sm">On WhatsApp</th><th class="num">Sign-ups</th></tr></thead><tbody>` +
+    TEAM.map(([name], i) => `<tr><td><span class="who">${av(i)}${name}</span></td><td><svg class="qr" data-qr="${name}"></svg></td><td class="hide-sm">${i === 2 ? '<span class="tag warn">No number</span> <span class="btn small">Email it</span>' : '<span class="tag ok">Sent 08:02</span> <span class="btn small wa">Resend</span>'}</td><td class="num">${[31, 22, 14][i]}</td></tr>`).join('') +
+    `</tbody><tfoot><tr><td>All</td><td></td><td class="hide-sm"></td><td class="num">67</td></tr></tfoot>`
+  document.getElementById('funnel').innerHTML = [['Scanned a code', 99], ['Signed up', 67], ['Applied', 18], ['Joined', 7]].map(([label, n]) =>
+    `<div><div class="row small" style="justify-content:space-between"><span>${label}</span><b>${n}</b></div><div class="bar"><b style="width:${n / 99 * 100}%"></b></div></div>`).join('')
+  document.getElementById('signups').innerHTML = `<thead><tr><th>Signed up</th><th class="hide-sm">Business</th><th>Through</th><th>Status</th></tr></thead><tbody>` +
+    [['Lerato Mokoena', 'Lekgotla Greens', 0, 'Applied', 'blue'], ['Kabelo Nkosi', 'Kasi Car Wash', 1, 'New', ''], ['Ayanda Zulu', 'Zulu Crafts', 0, 'Joined', 'ok'], ['Precious Mahlangu', '—', 2, 'Contacted', 'warn']]
+      .map(([who, biz, by, status, tone]) => `<tr><td>${who}</td><td class="hide-sm">${biz}</td><td><span class="who">${av(by)}<span class="hide-sm">${TEAM[by][0].replace(' (you)', '')}</span></span></td><td><span class="tag ${tone}">${status}</span></td></tr>`).join('') + '</tbody>'
+  document.getElementById('leaderboard').innerHTML = `<thead><tr><th>Team member</th><th class="num">Sign-ups</th><th class="num">Joined</th><th class="hide-sm">Joined share</th></tr></thead><tbody>` +
+    TEAM.map(([name, , , signups, , joined], i) => `<tr><td><span class="who">${av(i)}${name}</span></td><td class="num">${signups}</td><td class="num">${joined}</td><td class="hide-sm"><div class="row" style="flex-wrap:nowrap"><div class="bar" style="flex:1"><b style="width:${Math.round(joined / signups * 100)}%"></b></div><span class="small" style="width:34px;text-align:right">${Math.round(joined / signups * 100)}%</span></div></td></tr>`).join('') + '</tbody>'
+
+  document.querySelectorAll('svg[data-qr]').forEach(drawQr)
+  document.addEventListener('click', e => {
+    if (e.target.closest('#new-event')) document.getElementById('modal').classList.add('open')
+    if (e.target.closest('#close-modal') || e.target.id === 'modal') document.getElementById('modal').classList.remove('open')
+    const toggle = e.target.closest('#recruit-toggle')
+    if (toggle) {
+      toggle.classList.toggle('on')
+      document.getElementById('create-label').textContent = toggle.classList.contains('on') ? 'Add to calendar and send codes' : 'Add to calendar'
+    }
+    const open = e.target.closest('[data-open]')
+    if (open) show(open.dataset.open)
+    if (e.target.closest('[data-back]')) show('calendar')
+  })
+</script>
+</body>
+</html>

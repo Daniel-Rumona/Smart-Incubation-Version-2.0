@@ -195,7 +195,7 @@ function MonthChip<T extends CalendarAppointment>({ appointment, selected, onSel
         <Tooltip title={`${formatSpan(appointment)} · ${appointment.interventionTitle}${appointment.participantName ? ` · ${appointment.participantName}` : ''}`} mouseEnterDelay={0.35}>
             <button
                 type="button"
-                className={`apt-chip is-${appointment.status}${selected ? ' is-selected' : ''}`}
+                className={`apt-chip is-${appointment.status}${appointment.isEvent ? ' is-event' : ''}${selected ? ' is-selected' : ''}`}
                 onClick={(event) => { event.stopPropagation(); onSelect() }}
             >
                 <span className="apt-chip-dot" />
@@ -346,7 +346,7 @@ function TimeGridEvent<T extends CalendarAppointment>({ appointment, selected, t
         <Tooltip title={`${formatSpan(appointment)} · ${appointment.interventionTitle}${appointment.participantName ? ` · ${appointment.participantName}` : ''}`} mouseEnterDelay={0.35}>
             <button
                 type="button"
-                className={`apt-event is-${appointment.status}${selected ? ' is-selected' : ''}${compact ? ' is-compact' : ''}`}
+                className={`apt-event is-${appointment.status}${appointment.isEvent ? ' is-event' : ''}${selected ? ' is-selected' : ''}${compact ? ' is-compact' : ''}`}
                 style={{ top, height, left: `${(lane / lanes) * 100}%`, width: `${(1 / lanes) * 100}%` }}
                 onClick={onSelect}
             >
@@ -390,7 +390,7 @@ function AgendaView<T extends CalendarAppointment>({ appointments, selectedId, o
                             <button
                                 type="button"
                                 key={row.id}
-                                className={`apt-agenda-row is-${row.status}${row.id === selectedId ? ' is-selected' : ''}`}
+                                className={`apt-agenda-row is-${row.status}${row.isEvent ? ' is-event' : ''}${row.id === selectedId ? ' is-selected' : ''}`}
                                 onClick={() => onSelectAppointment(row)}
                             >
                                 <span className="apt-agenda-time">{formatSpan(row)}</span>

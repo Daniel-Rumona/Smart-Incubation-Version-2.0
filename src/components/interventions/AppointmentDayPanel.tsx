@@ -30,6 +30,8 @@ type AppointmentDayPanelProps<T extends CalendarAppointment> = {
     selected?: T
     onSelect: (appointment: T) => void
     onCreate: () => void
+    /** The page's search is narrowing the list, so an empty day may still have appointments. */
+    searching?: boolean
 }
 
 /**
@@ -38,9 +40,16 @@ type AppointmentDayPanelProps<T extends CalendarAppointment> = {
  * fixed instead of shifting when a busy day is opened.
  */
 export function AppointmentDayPanel<T extends CalendarAppointment>({
-    date, appointments, selected, onSelect, onCreate,
+    date, appointments, selected, onSelect, onCreate, searching = false,
 }: AppointmentDayPanelProps<T>) {
     const { t } = useLanguage()
+    // Nothing can be booked into a day that has already gone.
+    const isPast = date.isBefore(dayjs(), 'day')
+    const emptyText = appointments.length
+        ? t('Nothing matches this filter')
+        : searching
+            ? t('Nothing on this day matches your search')
+            : t('No appointments on this day')
     const [statusFilter, setStatusFilter] = useState<AppointmentStatus | 'all'>('all')
 
     const counts = useMemo(() => appointments.reduce((totals, appointment) => {
@@ -91,9 +100,9 @@ export function AppointmentDayPanel<T extends CalendarAppointment>({
                 {groups.length === 0 && (
                     <Empty
                         image={Empty.PRESENTED_IMAGE_SIMPLE}
-                        description={appointments.length ? t('Nothing matches this filter') : t('No appointments on this day')}
+                        description={emptyText}
                     >
-                        {!appointments.length && <Button size="small" type="primary" icon={<PlusOutlined />} onClick={onCreate}>{t('Schedule one')}</Button>}
+                        {!appointments.length && !searching && !isPast && <Button size="small" type="primary" icon={<PlusOutlined />} onClick={onCreate}>{t('Schedule one')}</Button>}
                     </Empty>
                 )}
                 {groups.map(({ period, rows }) => (
@@ -103,7 +112,7 @@ export function AppointmentDayPanel<T extends CalendarAppointment>({
                             <button
                                 type="button"
                                 key={row.id}
-                                className={`apt-panel-item is-${row.status}${selected?.id === row.id ? ' is-selected' : ''}`}
+                                className={`apt-panel-item is-${row.status}${row.isEvent ? ' is-event' : ''}${selected?.id === row.id ? ' is-selected' : ''}`}
                                 onClick={() => onSelect(row)}
                             >
                                 <span className="apt-panel-item-rail" />

@@ -1035,6 +1035,28 @@ html[data-theme='dark'] .sunken-panel {
 .apt-workspace .is-declined, .apt-detail.is-declined,
 .apt-workspace .is-cancelled, .apt-detail.is-cancelled { --apt-status: #dc2626; --apt-status-soft: rgba(220, 38, 38, .13); }
 
+/* Team events (expos, workshops, visits) stand apart from the sessions: their own colour and a solid edge. */
+.apt-workspace .is-event { --apt-status: #db2777; --apt-status-soft: rgba(219, 39, 119, .12); }
+.apt-chip.is-event { box-shadow: inset 3px 0 0 var(--apt-status); font-weight: 600; }
+
+/* Team event windows (src/components/events). */
+.team-event-form-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 12px; }
+.team-event-recruit { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border: 1px solid var(--ant-color-border); border-radius: 12px; cursor: pointer; transition: background-color .2s ease, border-color .2s ease; }
+.team-event-recruit .ant-switch { margin-top: 2px; flex: none; }
+.team-event-recruit.is-on { border-color: #db2777; background: rgba(219, 39, 119, .08); }
+.team-event-recruit.is-on .ant-switch { background: #db2777; }
+.team-event-recruit:focus-visible { outline: 2px solid var(--ant-color-primary); outline-offset: 2px; }
+.team-event-recruit-extra { padding: 12px 0 0 46px; }
+.team-event-recruit-tag.ant-tag { color: #fff; background: #db2777; border-color: transparent; }
+.team-event-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.team-event-grid.is-recruiting { grid-template-columns: minmax(0, 13fr) minmax(0, 8fr); }
+.team-event-qr { display: block; padding: 0; border: 1px solid var(--ant-color-border-secondary); border-radius: 6px; background: #fff; cursor: zoom-in; line-height: 0; }
+.team-event-qr .ant-qrcode { padding: 3px !important; }
+@media (max-width: 767px) {
+    .team-event-form-row, .team-event-grid, .team-event-grid.is-recruiting { grid-template-columns: minmax(0, 1fr); }
+    .team-event-recruit-extra { padding-left: 0; }
+}
+
 .apt-calendar-card,
 .apt-panel-card { height: var(--apt-shell-height); overflow: hidden; }
 .apt-panel-card { position: sticky; top: 16px; }
