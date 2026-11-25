@@ -874,6 +874,13 @@ html[data-theme='dark'] .dashboard-metric-card.is-active {
     border-radius: 18px !important;
 }
 
+/* 100% height only works when the card has its column to itself (it then matches the cards beside it).
+   Next to a filter bar, heading or another card it overshoots by their height and leaves empty space
+   at the bottom, so there it sizes to its content. */
+.ant-col > .dashboard-section-card:not(:only-child) {
+    height: auto;
+}
+
 
 /* =========================================================
    Dashboard Mobile Records
