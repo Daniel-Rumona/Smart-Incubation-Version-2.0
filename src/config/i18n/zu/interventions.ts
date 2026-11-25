@@ -153,6 +153,8 @@ export const zuInterventions: Record<string, string> = {
   "No appointments exist for this program yet, so a sample week is shown.": "Azikho izikhathi ezibekiwe zalolu hlelo okwamanje, ngakho kukhonjiswa iviki lesibonelo.",
   "No appointments match this view": "Azikho izikhathi ezibekiwe ezifana nalokhu kubuka",
   "No appointments on this day": "Azikho izikhathi ezibekiwe kulolu suku",
+  "Nothing on this day matches your search": "Akukho kulolu suku okufana nosesho lwakho",
+  "Search SME, intervention or event": "Sesha i-SME, ukungenelela noma umcimbi",
   "No assigned interventions match the selected filters.": "Akukho kungenelela okwabelwe okufanele izihlungi ezikhethiwe.",
   "No documents have been produced for these interventions yet.": "Awekho amadokhumenti akhiqizwe walokhu kungenelela okwamanje.",
   "No email": "Ayikho i-imeyili",

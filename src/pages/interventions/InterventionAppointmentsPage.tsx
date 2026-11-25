@@ -320,9 +320,18 @@ export const InterventionAppointmentsPage = () => {
         ]
     }, [])
 
-    const isDemoData = rows.length === 0 && eventRows.length === 0
-    const calendarRows = useMemo(() => (isDemoData ? demoAppointments : [...rows, ...eventRows]
-        .sort((left, right) => (toDate(left.startTime)?.getTime() ?? 0) - (toDate(right.startTime)?.getTime() ?? 0))), [demoAppointments, eventRows, isDemoData, rows])
+    // Sample week only when there is nothing real at all (not when a search hides everything), and the
+    // search narrows the sample rows too, so typing always visibly does something.
+    const isDemoData = appointments.length === 0 && teamEvents.length === 0
+    const calendarRows = useMemo(() => {
+        if (isDemoData) {
+            const needle = search.trim().toLowerCase()
+            return needle
+                ? demoAppointments.filter((row) => `${row.interventionTitle} ${row.participantName}`.toLowerCase().includes(needle))
+                : demoAppointments
+        }
+        return [...rows, ...eventRows].sort((left, right) => (toDate(left.startTime)?.getTime() ?? 0) - (toDate(right.startTime)?.getTime() ?? 0))
+    }, [demoAppointments, eventRows, isDemoData, rows, search])
 
     // One pre-bucketed lookup keeps the panel from rescanning the whole list on every render.
     const selectedDayAppointments = useMemo(() => {
