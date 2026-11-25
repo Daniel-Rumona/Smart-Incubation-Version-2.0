@@ -725,8 +725,6 @@ export const zuAccount: Record<string, string> = {
   "Signature": "Isiginesha",
   "On file": "Ikhona",
   "Not added yet": "Ayikengezwa",
-  "No signature yet. You will be asked to add one the first time you sign an agreement or document.": "Ayikho isiginesha okwamanje. Uzocelwa ukuthi uyengeze okokuqala lapho usayina isivumelwano noma idokhumenti.",
-  "This goes on the agreements and documents you sign.": "Le isiginesha ifakwa ezivumelwaneni nasemadokhumentini owasayinayo.",
   // How this device remembers a sign-in.
   "On this device": "Kule divayisi",
   "Ask me each time": "Ngibuze njalo",
@@ -743,4 +741,12 @@ export const zuAccount: Record<string, string> = {
   "You are still signed in as {email}.": "Usangene njengo-{email}.",
   "You are still signed in on this device.": "Usangene kule divayisi.",
   "Not you? Use another account": "Akusiwe? Sebenzisa enye i-akhawunti",
+  "Signature saved.": "Isiginesha igciniwe.",
+  "Add signature": "Engeza isiginesha",
+  "Change your signature": "Shintsha isiginesha yakho",
+  "Add your signature": "Engeza isiginesha yakho",
+  "No signature yet. Add one now, or you will be asked for it the first time you sign an agreement or document.": "Ayikho isiginesha okwamanje. Yengeze manje, noma uzoyicelwa okokuqala lapho usayina isivumelwano noma idokhumenti.",
+  "This goes on the agreements and documents you sign from now on. Documents you have already signed keep the signature you used then.": "Le isiginesha izofakwa ezivumelwaneni nasemadokhumentini ozowasayina kusukela manje. Amadokhumenti osuwasayinile agcina isiginesha owasebenzisa ngaleso sikhathi.",
+  "Draw your new signature below. Documents you have already signed keep the signature you used then.": "Dweba isiginesha yakho entsha ngezansi. Amadokhumenti osuwasayinile agcina isiginesha owasebenzisa ngaleso sikhathi.",
+  "Draw your signature below. It is added to the agreements and documents you sign.": "Dweba isiginesha yakho ngezansi. Izofakwa ezivumelwaneni nasemadokhumentini owasayinayo.",
 }

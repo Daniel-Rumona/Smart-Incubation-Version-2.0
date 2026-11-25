@@ -33,3 +33,6 @@
 /* Consultant profile: a section of the identity card rather than a card of its own. */
 .consultant-profile-signature { padding-top: 14px; border-top: 1px solid rgba(100, 116, 139, 0.14); text-align: left; }
 .consultant-profile-signature .signature-card-paper { height: 90px; }
+
+.signature-card-action { margin-left: auto; }
+.signature-card-modal-footer { display: flex; justify-content: flex-end; gap: 8px; }
