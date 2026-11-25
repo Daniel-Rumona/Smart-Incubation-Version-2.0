@@ -203,7 +203,7 @@ type QuickLinkGroupSpec = { group: string, label?: string, children: QuickLinkPa
 const INCUBATEES_QUICK_GROUP: QuickLinkGroupSpec = {
     group: '/operations/participants',
     label: 'Incubatees',
-    children: [{ path: '/shared/participants', label: 'All' }, '/shared/applications', '/operations/participants/compliance'],
+    children: [{ path: '/shared/participants', label: 'All' }, '/operations/participants/prospects', '/shared/applications', '/operations/participants/compliance'],
 }
 const INTERVENTIONS_QUICK_GROUP: QuickLinkGroupSpec = {
     group: '/operations/interventions',

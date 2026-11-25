@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Button, Card, Checkbox, Form, Input, Radio, Result, Skeleton, Typography } from 'antd'
+import { Button, Card, Checkbox, Form, Input, Radio, Result, Select, Skeleton, Typography } from 'antd'
 import { useParams } from 'react-router-dom'
+import { PROSPECT_PROVINCES, PROSPECT_SECTORS, withCurrent } from '@/config/prospects'
 import { isFirebaseConfigured } from '@/config/firebase'
 import { useLanguage } from '@/providers/LanguageProvider'
 import { callableMessage } from '@/services/programLinkService'
@@ -79,8 +80,8 @@ export default function ProspectSignupPage() {
                             </Form.Item>
                             <Form.Item name="phone" label={t('Phone (WhatsApp)')}><Input maxLength={40} autoComplete="tel" inputMode="tel" /></Form.Item>
                             <Form.Item name="email" label={t('Email')} rules={[{ type: 'email', message: t('Enter a valid email address.') }]}><Input maxLength={160} autoComplete="email" inputMode="email" /></Form.Item>
-                            {kind !== 'person' && <Form.Item name="sector" label={t('Sector')}><Input maxLength={80} /></Form.Item>}
-                            <Form.Item name="province" label={t('Province')}><Input maxLength={60} /></Form.Item>
+                            {kind !== 'person' && <Form.Item name="sector" label={t('Sector')}><Select allowClear showSearch options={withCurrent(PROSPECT_SECTORS).map((option) => ({ ...option, label: t(option.label) }))} /></Form.Item>}
+                            <Form.Item name="province" label={t('Province')}><Select allowClear showSearch options={withCurrent(PROSPECT_PROVINCES)} /></Form.Item>
                             {info.module === 'training' && <Form.Item name="interest" label={t('What are you interested in?')}><Input maxLength={160} /></Form.Item>}
                             {/* Hidden from people; bots fill it in. */}
                             <Form.Item name="website" style={{ position: 'absolute', left: -10000, height: 0, overflow: 'hidden' }} aria-hidden>

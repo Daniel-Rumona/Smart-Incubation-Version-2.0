@@ -6,6 +6,9 @@
  * Every status change is also written to smeProspectEvents, which the funnel reports are built from.
  */
 
+import { BUSINESS_SECTORS } from '@/config/businessProfileOptions'
+import { SADC_PROVINCES } from '@/config/sadc'
+
 export type ProspectModule = 'incubation' | 'training'
 
 export type ProspectStatus =
@@ -70,6 +73,12 @@ export const CONSENT_SOURCES: Array<{ key: ConsentSource, label: string }> = [
     { key: 'email', label: 'Agreed by email or WhatsApp' },
     { key: 'other', label: 'Other' },
 ]
+
+/** Sector and province are picked from the same lists as the business profile; a value typed or imported earlier stays selectable. */
+export const PROSPECT_SECTORS: string[] = BUSINESS_SECTORS
+export const PROSPECT_PROVINCES: string[] = SADC_PROVINCES['South Africa']
+export const withCurrent = (list: string[], current?: string) =>
+    (current && !list.includes(current) ? [...list, current] : list).map((value) => ({ value, label: value }))
 
 export const OWNERSHIP_OPTIONS = [
     { key: 'black', label: 'Black-owned' },

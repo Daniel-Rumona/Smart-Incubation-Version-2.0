@@ -430,7 +430,7 @@ export const retentionStep = (data: Data, now = new Date()): 'keep' | 'archive' 
 /** Personal details out; what the funnel needs (side, source, status, dates, sector, province) stays. */
 export const ANONYMISED_FIELDS = {
   businessName: 'Anonymised prospect', contactName: '', phone: '', email: '', registrationNumber: '', notes: '', sourceDetail: '',
-  ownerName: null, keys: { phone: '', email: '', registration: '' }, inviteToken: null, 'consent.note': null,
+  ownerName: null, extraDetails: [], keys: { phone: '', email: '', registration: '' }, inviteToken: null, 'consent.note': null,
 }
 
 export async function runRetention(db: Firestore, now = new Date()) {

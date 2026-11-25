@@ -2,10 +2,11 @@ import { collection, doc, getDocs, query, where, writeBatch } from 'firebase/fir
 import { getFunctions, httpsCallable } from 'firebase/functions'
 import { firebaseApp, getFirebaseDb } from '@/config/firebase'
 import { CONVERTED_STATUS, PROSPECT_STATUSES, allowsPeople, isClosedStatus, isForwardMove, type ConsentSource, type OwnershipKey, type ProspectModule, type ProspectSource, type ProspectStatus } from '@/config/prospects'
+import { DEFAULT_FOLLOW_UP_WORKING_DAYS, addWorkingDays } from '@/utils/prospectFormat'
 import { listTrainingOrganisations } from '@/services/trainingOrganisationsService'
 import { addTrainingLearners } from '@/services/trainingService'
 import type { FullIdentity } from '@/types/identity'
-import { prospectName, type Prospect, type ProspectDuplicate, type ProspectEvent, type ProspectFunnel as ProspectFunnelResult, type ProspectSignupLink, type ProspectValues } from '@/types/prospects'
+import { prospectName, type Prospect, type ProspectDetail, type ProspectDuplicate, type ProspectEvent, type ProspectFunnel as ProspectFunnelResult, type ProspectSignupLink, type ProspectValues } from '@/types/prospects'
 import { contactKeys, sharedKeys, type ContactKeys } from '@/utils/contactKeys'
 
 /**
@@ -20,8 +21,9 @@ const STAFF_ROLES = new Set(['projectadmin', 'projectmanager', 'operations'])
 const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '')
 const now = () => new Date().toISOString()
 
-export const canManageProspects = (user?: Pick<FullIdentity, 'role' | 'companyCode'> | null) =>
-    Boolean(user && STAFF_ROLES.has(String(user.role)) && text(user.companyCode))
+/** A director who runs the programme alone also holds the operations role (secondRole), as the rules allow. */
+export const canManageProspects = (user?: Pick<FullIdentity, 'role' | 'secondRole' | 'companyCode'> | null) =>
+    Boolean(user && (STAFF_ROLES.has(String(user.role)) || STAFF_ROLES.has(String(user.secondRole))) && text(user.companyCode))
 
 const companyOf = (user?: FullIdentity | null) => {
     if (!user || !canManageProspects(user)) throw new Error('forbidden')
@@ -29,6 +31,12 @@ const companyOf = (user?: FullIdentity | null) => {
 }
 
 const nameOf = (user: FullIdentity) => text(user.displayName) || text(user.name) || text(user.email)
+
+/** Up to 20 label and value pairs; blank ones are dropped and long ones cut. */
+const cleanDetails = (value: unknown): ProspectDetail[] => (Array.isArray(value) ? value : [])
+    .map((row) => ({ label: text((row as Record<string, unknown>)?.label).slice(0, 60), value: text((row as Record<string, unknown>)?.value).slice(0, 200) }))
+    .filter((row) => row.label && row.value)
+    .slice(0, 20)
 
 const STATUS_KEYS = new Set(Object.values(PROSPECT_STATUSES).flat().map((option) => option.key))
 
@@ -49,6 +57,7 @@ export const toProspect = (id: string, data: Record<string, unknown>): Prospect 
         registrationNumber: text(data.registrationNumber),
         sector: text(data.sector),
         province: text(data.province),
+        extraDetails: cleanDetails(data.extraDetails),
         ownership: (Array.isArray(data.ownership) ? data.ownership : []).filter((item): item is OwnershipKey => typeof item === 'string'),
         source: (text(data.source) || 'other') as ProspectSource,
         sourceDetail: text(data.sourceDetail),
@@ -65,6 +74,7 @@ export const toProspect = (id: string, data: Record<string, unknown>): Prospect 
         bookedClassId: text(data.bookedClassId) || undefined,
         bookedClassLabel: text(data.bookedClassLabel) || undefined,
         userUid: text(data.userUid) || undefined,
+        signupLinkId: text(data.signupLinkId) || undefined,
         statusChangedAt: text(data.statusChangedAt) || text(data.createdAt),
         consent: {
             given: consent.given === true,
@@ -108,7 +118,7 @@ export const listProspectOwners = async (user: FullIdentity) => {
     const snapshot = await getDocs(query(collection(getFirebaseDb(), 'users'), where('companyCode', '==', companyCode)))
     return snapshot.docs.flatMap((row) => {
         const data = row.data()
-        if (!STAFF_ROLES.has(String(data.role)) || data.status === 'deleted' || data.status === 'inactive' || data.active === false) return []
+        if (!(STAFF_ROLES.has(String(data.role)) || STAFF_ROLES.has(String(data.secondRole))) || data.status === 'deleted' || data.status === 'inactive' || data.active === false) return []
         return [{ uid: row.id, name: text(data.name) || text(data.displayName) || text(data.email) }]
     }).sort((a, b) => a.name.localeCompare(b.name))
 }
@@ -182,6 +192,7 @@ const cleanValues = (values: ProspectValues, module: ProspectModule) => {
         sector: text(values.sector),
         province: text(values.province),
         ownership: Array.from(new Set(values.ownership || [])),
+        extraDetails: cleanDetails(values.extraDetails),
         source: values.source,
         sourceDetail: text(values.sourceDetail),
         notes: text(values.notes).slice(0, 4000),
@@ -208,12 +219,14 @@ export const saveProspect = async (user: FullIdentity, module: ProspectModule, v
     const fit = module === 'incubation'
         ? { programId: program?.id || null, programName: program?.name || null }
         : { interest: text(values.interest) || null }
+    // The form no longer asks how they agreed: an existing record keeps its method, a new one was told in person or by phone.
+    const consentSource: ConsentSource = values.consentSource || existing?.consent.source || 'verbal'
     const consent = {
         given: existing ? existing.consent.given || values.consentGiven : true,
-        source: values.consentSource,
+        source: consentSource,
         contactAllowed: values.contactAllowed === true,
-        at: existing?.consent.at && existing.consent.source === values.consentSource && existing.consent.contactAllowed === values.contactAllowed ? existing.consent.at : at,
-        recordedBy: existing?.consent.recordedBy && existing.consent.source === values.consentSource && existing.consent.contactAllowed === values.contactAllowed ? existing.consent.recordedBy : user.uid,
+        at: existing?.consent.at && existing.consent.source === consentSource && existing.consent.contactAllowed === values.contactAllowed ? existing.consent.at : at,
+        recordedBy: existing?.consent.recordedBy && existing.consent.source === consentSource && existing.consent.contactAllowed === values.contactAllowed ? existing.consent.recordedBy : user.uid,
         ...(text(values.consentNote) ? { note: text(values.consentNote) } : {}),
     }
     const fields = { ...cleanValues(values, module), ...fit, ownerUid: owner?.uid || null, ownerName: owner?.name || null, consent, updatedAt: at, updatedBy: user.uid }
@@ -242,8 +255,8 @@ export const setProspectStatus = async (user: FullIdentity, prospect: Prospect, 
     batch.update(doc(db, PROSPECTS, prospect.id), {
         status: to, statusChangedAt: at, updatedAt: at, updatedBy: user.uid,
         closedReason: isClosedStatus(to) ? text(note) || null : null,
-        // Moving a prospect on means the follow-up happened: whoever follows up next sets a new date.
-        nextFollowUpAt: null,
+        // Moving a prospect on means the follow-up happened: the next one is due in 3 working days, unless it is closed or has joined.
+        nextFollowUpAt: isClosedStatus(to) || converted ? null : addWorkingDays(DEFAULT_FOLLOW_UP_WORKING_DAYS),
         ...(converted && !prospect.convertedAt ? { convertedAt: at } : {}),
     })
     batch.set(doc(collection(db, EVENTS)), eventDoc(user, companyCode, prospect.id, prospect.module, prospect.status, to, at, text(note) || undefined))
@@ -307,8 +320,8 @@ export const importProspects = async (user: FullIdentity, module: ProspectModule
 const callable = <Input, Output>(name: string) => httpsCallable<Input, Output>(getFunctions(firebaseApp, 'us-central1'), name)
 
 /** A personal invite link to a programme (incubation); emailed too when the prospect agreed to messages. */
-export const inviteProspect = async (prospect: Prospect, programId: string, sendEmail: boolean) =>
-    (await callable<{ prospectId: string, programId: string, sendEmail: boolean }, { link: string, emailed: boolean }>('sendProspectInvite')({ prospectId: prospect.id, programId, sendEmail })).data
+export const inviteProspect = async (prospect: Prospect, programId: string, sendEmail: boolean, markSent = false) =>
+    (await callable<{ prospectId: string, programId: string, sendEmail: boolean, markSent: boolean }, { link: string, emailed: boolean }>('sendProspectInvite')({ prospectId: prospect.id, programId, sendEmail, markSent })).data
 
 /**
  * Funnel counts per source, worked out on the server. Staff get the whole company and the per-event view; a funder
@@ -364,7 +377,7 @@ export const signupLinkUrl = (id: string) => `${window.location.origin}/p/${enco
 
 // ---- Public sign-up form (no sign-in) ---------------------------------------------------------------------------
 
-export type SignupInfo = { label: string, module: ProspectModule, companyName: string, logoUrl: string }
+export type SignupInfo = { label: string, module: ProspectModule, companyName: string, logoUrl: string, ownerFirstName?: string }
 
 export const getSignupInfo = async (code: string) =>
     (await callable<{ code: string }, SignupInfo & { ok: boolean }>('getProspectSignupInfo')({ code })).data
@@ -394,10 +407,36 @@ export const bookProspectIntoClass = async (
     const forward = isForwardMove('training', prospect.status, 'booked')
     batch.update(doc(db, PROSPECTS, prospect.id), {
         bookedClassId: trainingClass.id, bookedClassLabel: trainingClass.label, updatedAt: at, updatedBy: user.uid,
-        ...(forward ? { status: 'booked', statusChangedAt: at, nextFollowUpAt: null, closedReason: null } : {}),
+        ...(forward ? { status: 'booked', statusChangedAt: at, nextFollowUpAt: addWorkingDays(DEFAULT_FOLLOW_UP_WORKING_DAYS), closedReason: null } : {}),
     })
     batch.set(doc(collection(db, EVENTS)), eventDoc(user, companyCode, prospect.id, 'training', prospect.status, forward ? 'booked' : prospect.status, at,
         `Booked into ${trainingClass.label} (${added} ${added === 1 ? 'person' : 'people'})`))
     await batch.commit()
     return { added, skipped }
+}
+
+export type ContactChannel = 'whatsapp' | 'email' | 'call' | 'meeting' | 'other'
+
+/**
+ * Records that staff reached out to a prospect (a message sent from their own WhatsApp or email app, a call, a meeting):
+ * a prospect still at "new" moves to "contacted", the next follow-up is set, and the history keeps who, how and what.
+ */
+export const logProspectContact = async (
+    user: FullIdentity,
+    prospect: Prospect,
+    contact: { channel: ContactChannel, note?: string, nextFollowUpAt?: string | null },
+) => {
+    const companyCode = companyOf(user)
+    const db = getFirebaseDb()
+    const at = now()
+    const to: ProspectStatus = prospect.status === 'new' ? 'contacted' : prospect.status
+    const label = { whatsapp: 'WhatsApp', email: 'Email', call: 'Phone call', meeting: 'Meeting', other: 'Contact' }[contact.channel]
+    const batch = writeBatch(db)
+    batch.update(doc(db, PROSPECTS, prospect.id), {
+        updatedAt: at, updatedBy: user.uid, lastContactedAt: at,
+        nextFollowUpAt: text(contact.nextFollowUpAt) || null,
+        ...(to !== prospect.status ? { status: to, statusChangedAt: at, closedReason: null } : {}),
+    })
+    batch.set(doc(collection(db, EVENTS)), eventDoc(user, companyCode, prospect.id, prospect.module, prospect.status, to, at, [label, text(contact.note)].filter(Boolean).join(': ')))
+    await batch.commit()
 }

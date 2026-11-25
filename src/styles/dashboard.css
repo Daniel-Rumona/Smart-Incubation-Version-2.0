@@ -1864,3 +1864,14 @@ html[data-theme='dark'] .dashboard-metric-sparkline-area { fill: rgba(165, 155, 
         max-width: 50%;
     }
 }
+
+/* Prospects: the search and filters share the whole bar (the buttons keep their size). */
+.prospects-page .filter-bar-controls > .ant-input-affix-wrapper { flex: 1 1 0; }
+.prospects-page .filter-bar-controls > .ant-select { flex: 1 1 0; min-width: 0; }
+.prospects-page .prospects-archive-toggle { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 8px; }
+
+/* On the Analytics tab the switch is the whole bar, so it spans the row. */
+.prospects-page .filter-bar-controls > .ant-segmented.prospects-view-switch-wide { flex: 1 1 auto; }
+
+/* The Filters button keeps its own width so the search takes all the spare room. */
+.prospects-page .filter-bar-controls > .ant-badge { flex: 0 0 auto; }

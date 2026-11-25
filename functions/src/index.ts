@@ -4344,7 +4344,7 @@ export const getProspectFunnel = onCall({ region }, async (request) => {
  */
 export const sendProspectInvite = onCall({ region }, async (request) => {
   const caller = await callerProfile(request.auth?.uid)
-  const input = (request.data || {}) as { prospectId?: unknown, programId?: unknown, sendEmail?: unknown }
+  const input = (request.data || {}) as { prospectId?: unknown, programId?: unknown, sendEmail?: unknown, markSent?: unknown }
   const db = getFirestore()
   const prospectId = String(input.prospectId || '').trim()
   if (!prospectId || prospectId.includes('/')) throw new HttpsError('invalid-argument', 'prospect_required')
@@ -4368,14 +4368,17 @@ export const sendProspectInvite = onCall({ region }, async (request) => {
   const emailed = input.sendEmail === true && mayEmail(prospect)
   if (input.sendEmail === true && !emailed) throw new HttpsError('failed-precondition', 'no_email_consent')
 
+  // "Invited" means the invite went out: the system emailed it, or staff confirmed they sent the link themselves.
+  // Creating the link alone changes nothing about the status.
+  const sent = emailed || input.markSent === true
   const at = new Date().toISOString()
-  const extra = { inviteToken: token, invitedAt: at, programId, programName, updatedAt: at, updatedBy: request.auth?.uid }
+  const extra = { inviteToken: token, programId, programName, updatedAt: at, updatedBy: request.auth?.uid, ...(sent ? { invitedAt: at } : {}) }
   const batch = db.batch()
-  if (isAdvance('incubation', prospect.status, 'invited')) {
+  if (sent && isAdvance('incubation', prospect.status, 'invited')) {
     batch.update(ref, { ...extra, status: 'invited', statusChangedAt: at })
     batch.set(db.collection(EVENTS).doc(), {
       companyCode, prospectId, module: 'incubation', from: prospect.status || null, to: 'invited', at, by: request.auth?.uid,
-      byName: String(caller.name || caller.displayName || caller.email || ''), note: emailed ? `Invited to ${programName} by email` : `Invite link for ${programName}`,
+      byName: String(caller.name || caller.displayName || caller.email || ''), note: emailed ? `Invited to ${programName} by email` : `Invite to ${programName} sent by ${String(caller.name || caller.displayName || 'staff')}`,
     })
   } else {
     batch.update(ref, extra)

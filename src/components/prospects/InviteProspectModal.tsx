@@ -22,7 +22,7 @@ export function InviteProspectModal({ prospect, programs, onClose, onInvited }: 
     const { message } = App.useApp()
     const [programId, setProgramId] = useState(prospect.programId || programs[0]?.id)
     const [link, setLink] = useState<string>()
-    const [busy, setBusy] = useState<'link' | 'email' | null>(null)
+    const [busy, setBusy] = useState<'link' | 'email' | 'sent' | null>(null)
     const mayMessage = prospect.consent.contactAllowed
     const phone = phoneKey(prospect.phone).replace('+', '')
     const program = programs.find((row) => row.id === programId)
@@ -39,6 +39,22 @@ export function InviteProspectModal({ prospect, programs, onClose, onInvited }: 
             message.error(callableMessage(error, t('The invite could not be prepared.')) === 'no_email_consent'
                 ? t('They have not agreed to receive emails from us.')
                 : t('The invite could not be prepared.'))
+        } finally {
+            setBusy(null)
+        }
+    }
+
+    /** Staff sent the link themselves (WhatsApp or copied): only now does the prospect count as invited. */
+    const confirmSent = async () => {
+        if (!programId) return
+        setBusy('sent')
+        try {
+            await inviteProspect(prospect, programId, false, true)
+            message.success(t('{name} is now marked as invited.', undefined, { name: prospectName(prospect) }))
+            onInvited()
+            onClose()
+        } catch {
+            message.error(t('The invite could not be recorded.'))
         } finally {
             setBusy(null)
         }
@@ -69,6 +85,12 @@ export function InviteProspectModal({ prospect, programs, onClose, onInvited }: 
                             <Button icon={<MailOutlined />} loading={busy === 'email'} onClick={() => void run(true)}>{t('Email it')}</Button>
                         )}
                     </Space>
+                    {prospect.status !== 'invited' && (
+                        <>
+                            <Typography.Text type="secondary">{t('They are only marked as invited once you confirm the link was sent.')}</Typography.Text>
+                            <Button type="primary" loading={busy === 'sent'} onClick={() => void confirmSent()}>{t('I sent it')}</Button>
+                        </>
+                    )}
                 </Space>
             ) : (
                 <Button type="primary" block disabled={!programId} loading={busy === 'link'} onClick={() => void run(false)}>{t('Create invite link')}</Button>

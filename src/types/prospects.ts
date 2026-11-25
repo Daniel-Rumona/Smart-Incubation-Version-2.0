@@ -12,6 +12,9 @@ export type ProspectConsent = {
     note?: string
 }
 
+/** A detail the team chose to record about a prospect, beyond the fixed fields (e.g. "Employees": "12"). */
+export type ProspectDetail = { label: string, value: string }
+
 export type Prospect = {
     id: string
     companyCode: string
@@ -27,6 +30,8 @@ export type Prospect = {
     sector: string
     province: string
     ownership: OwnershipKey[]
+    /** Anything else the team recorded; wiped when the prospect is anonymised. */
+    extraDetails: ProspectDetail[]
     source: ProspectSource
     sourceDetail: string
     /** Incubation: the programme they might fit. */
@@ -47,6 +52,8 @@ export type Prospect = {
     /** Training: the class they were booked into from here. */
     bookedClassId?: string
     bookedClassLabel?: string
+    /** The sign-up code they used (an event's or a campaign's), when they signed up themselves. */
+    signupLinkId?: string
     /** The account they signed up with (set by the server when they join through a link). */
     userUid?: string
     consent: ProspectConsent
@@ -68,6 +75,8 @@ export const prospectName = (prospect: Pick<Prospect, 'businessName' | 'contactN
 export type ProspectValues = Pick<Prospect,
     'kind' | 'businessName' | 'contactName' | 'phone' | 'email' | 'registrationNumber' | 'sector' | 'province' | 'ownership'
     | 'source' | 'sourceDetail' | 'programId' | 'interest' | 'ownerUid' | 'notes' | 'nextFollowUpAt'> & {
+    /** Optional extra details (label and value pairs). */
+    extraDetails?: ProspectDetail[]
     consentGiven: boolean
     consentSource: ConsentSource
     contactAllowed: boolean

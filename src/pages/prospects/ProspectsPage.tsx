@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Alert, App, AutoComplete, Button, Card, Checkbox, Col, Dropdown, Form, Input, Modal, Radio, Row, Select, Space, Switch, Tag, Timeline, Tooltip, Typography, type TableProps } from 'antd'
+import { Alert, App, AutoComplete, Button, Card, Checkbox, Col, DatePicker, Dropdown, Form, Input, Modal, Radio, Row, Segmented, Select, Space, Switch, Tag, Tooltip, Typography, type TableProps } from 'antd'
 import {
-    BankOutlined, CalendarOutlined, DownloadOutlined, EditOutlined, FunnelPlotOutlined, ImportOutlined, InboxOutlined, MoreOutlined,
+    ArrowRightOutlined, DeleteOutlined, BarChartOutlined, MessageOutlined, UndoOutlined, CalendarOutlined, DownloadOutlined, EditOutlined, FunnelPlotOutlined, ImportOutlined, InboxOutlined, MoreOutlined,
     PlusOutlined, QrcodeOutlined, RollbackOutlined, SearchOutlined, SendOutlined, TeamOutlined, UserAddOutlined,
 } from '@ant-design/icons'
 import DashboardMetricCard from '@/components/shared/DashboardMetricCard'
@@ -10,27 +10,33 @@ import { FilterBar } from '@/components/shared/FilterBar'
 import { ResponsiveDataView } from '@/components/shared/ResponsiveDataView'
 import { ImportProspectsModal } from '@/components/prospects/ImportProspectsModal'
 import { InviteProspectModal } from '@/components/prospects/InviteProspectModal'
+import { ProspectDetailModal } from '@/components/prospects/ProspectDetailModal'
+import { ContactProspectModal } from '@/components/prospects/ContactProspectModal'
 import { BookIntoClassModal } from '@/components/prospects/BookIntoClassModal'
 import { ProspectFunnel } from '@/components/prospects/ProspectFunnel'
 import { SignupLinksDrawer } from '@/components/prospects/SignupLinksDrawer'
+import { ProspectsFromEvents } from '@/components/events/ProspectsFromEvents'
 import {
-    CONSENT_SOURCES,
     CONVERTED_STATUS,
-    OWNERSHIP_OPTIONS,
+    PROSPECT_PROVINCES,
+    PROSPECT_SECTORS,
     PROSPECT_SOURCES,
     PROSPECT_STATUSES,
     allowsPeople,
     isClosedStatus,
+    withCurrent,
     statusOption,
     type ProspectModule,
     type ProspectStatus,
 } from '@/config/prospects'
+import dayjs from 'dayjs'
+import { useSystemSettings } from '@/contexts/SystemSettingsContext'
 import { useFullIdentity } from '@/hooks/useFullIdentity'
+import { watchTeamEvents } from '@/services/teamEventsService'
 import { useLanguage } from '@/providers/LanguageProvider'
 import {
     assignProspects,
     findProspectDuplicates,
-    listProspectEvents,
     listProspectOwners,
     listProspects,
     saveProspect,
@@ -41,8 +47,8 @@ import { saveTrainingOrganisation } from '@/services/trainingOrganisationsServic
 import { listTrainingClasses } from '@/services/trainingService'
 import { listProgramsForCompany } from '@/services/workspaceProgramsService'
 import { useRegisterAgentPageContext } from '@/shared/hooks/useRegisterAgentPageContext'
-import { prospectName, type Prospect, type ProspectDuplicate, type ProspectEvent, type ProspectValues } from '@/types/prospects'
-import { downloadText, formatDate, isFollowUpDue, prospectsCsv, todaySa } from '@/utils/prospectFormat'
+import { prospectName, type Prospect, type ProspectDuplicate, type ProspectValues } from '@/types/prospects'
+import { DEFAULT_FOLLOW_UP_WORKING_DAYS, addWorkingDays, downloadText, formatDate, isFollowUpDue, prospectsCsv, todaySa } from '@/utils/prospectFormat'
 
 /**
  * Prospects: businesses and people a company has reached who have not joined yet. The same page serves incubation
@@ -54,7 +60,7 @@ import { downloadText, formatDate, isFollowUpDue, prospectsCsv, todaySa } from '
  * both are recognised by the server when they happen, so the prospect converts on its own.
  */
 
-type Lookups = { programs: Array<{ id: string, name: string }>, owners: Array<{ uid: string, name: string }>, interests: string[] }
+type Lookups = { programs: Array<{ id: string, name: string }>, owners: Array<{ uid: string, name: string }>, interests: string[], classes: string[] }
 type StatusFilter = ProspectStatus | 'open' | 'all' | 'due'
 
 const EMPTY_VALUES: Partial<ProspectValues> = {
@@ -67,8 +73,16 @@ export default function ProspectsPage({ module }: { module: ProspectModule }) {
     const { user } = useFullIdentity()
     const [form] = Form.useForm<ProspectValues>()
     const kind = Form.useWatch('kind', form)
+    const sourceKind = Form.useWatch('source', form)
+    const sectorValue = Form.useWatch('sector', form)
+    const provinceValue = Form.useWatch('province', form)
+    const { settings } = useSystemSettings()
+    const trainingEnabled = module === 'training' || settings.awarenessTrainingEnabled === true
+    const [eventTitles, setEventTitles] = useState<string[]>([])
     const [prospects, setProspects] = useState<Prospect[]>()
-    const [lookups, setLookups] = useState<Lookups>({ programs: [], owners: [], interests: [] })
+    const [lookups, setLookups] = useState<Lookups>({ programs: [], owners: [], interests: [], classes: [] })
+    const [moreOpen, setMoreOpen] = useState(false)
+    const [tab, setTab] = useState<'list' | 'analytics'>('list')
     const [search, setSearch] = useState('')
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('open')
     const [sourceFilter, setSourceFilter] = useState<string>('all')
@@ -76,10 +90,11 @@ export default function ProspectsPage({ module }: { module: ProspectModule }) {
     const [showArchived, setShowArchived] = useState(false)
     const [selected, setSelected] = useState<Set<string>>(new Set())
     const [editing, setEditing] = useState<{ prospect?: Prospect } | null>(null)
-    const [events, setEvents] = useState<ProspectEvent[]>([])
     const [duplicates, setDuplicates] = useState<ProspectDuplicate[] | null>(null)
     const [closing, setClosing] = useState<{ prospect: Prospect, to: ProspectStatus, reason: string } | null>(null)
     const [inviting, setInviting] = useState<Prospect | null>(null)
+    const [viewingId, setViewingId] = useState<string | null>(null)
+    const [contacting, setContacting] = useState<Prospect | null>(null)
     const [booking, setBooking] = useState<Prospect | null>(null)
     const [importing, setImporting] = useState(false)
     const [linksOpen, setLinksOpen] = useState(false)
@@ -94,19 +109,32 @@ export default function ProspectsPage({ module }: { module: ProspectModule }) {
         try {
             const [rows, owners, programs, classes] = await Promise.all([
                 listProspects(user, module),
-                listProspectOwners(user).catch(() => []),
+                listProspectOwners(user).catch(() => [] as Array<{ uid: string, name: string }>),
                 module === 'incubation' ? listProgramsForCompany(String(user.companyCode || '')).catch(() => []) : Promise.resolve([]),
-                module === 'training' ? listTrainingClasses(user).catch(() => []) : Promise.resolve([]),
+                trainingEnabled ? listTrainingClasses(user).catch(() => []) : Promise.resolve([]),
             ])
             const courses = Array.from(new Set(classes.map((row) => row.courseTitle).filter(Boolean)))
             setProspects(rows)
-            setLookups({ owners, programs: programs.map((row) => ({ id: row.id, name: row.name })), interests: [...courses, 'ESG report', 'Carbon footprint', 'In-house training for staff'] })
+            const selfName = String(user.name || user.displayName || user.email || '').trim()
+            if (selfName && !owners.some((row) => row.uid === user.uid)) owners.push({ uid: user.uid, name: selfName })
+            owners.sort((a, b) => a.name.localeCompare(b.name))
+            setLookups({
+                owners,
+                programs: programs.map((row) => ({ id: row.id, name: row.name })),
+                interests: [...courses, 'ESG report', 'Carbon footprint', 'In-house training for staff'],
+                classes: Array.from(new Set(classes.map((row) => [row.courseTitle, row.startDate].filter(Boolean).join(', ')).filter(Boolean))),
+            })
             setRefreshKey((key) => key + 1)
         } catch {
             setProspects([])
             message.error(t('Prospects could not be loaded.'))
         }
-    }, [message, module, t, user])
+    }, [message, module, t, trainingEnabled, user])
+
+    useEffect(() => {
+        if (!user) return
+        return watchTeamEvents(user, (rows) => setEventTitles(Array.from(new Set(rows.map((row) => row.title).filter(Boolean)))))
+    }, [user])
 
     useEffect(() => {
         const timeout = window.setTimeout(() => void load(), 0)
@@ -151,17 +179,16 @@ export default function ProspectsPage({ module }: { module: ProspectModule }) {
     const startEdit = async (prospect?: Prospect) => {
         setEditing({ prospect })
         setDuplicates(null)
-        setEvents([])
         form.resetFields()
+        setMoreOpen(Boolean(prospect && (prospect.sector || prospect.province || prospect.registrationNumber || prospect.extraDetails.length)))
         form.setFieldsValue(prospect ? {
             kind: prospect.kind, businessName: prospect.businessName, contactName: prospect.contactName, phone: prospect.phone, email: prospect.email,
-            registrationNumber: prospect.registrationNumber, sector: prospect.sector, province: prospect.province, ownership: prospect.ownership,
+            registrationNumber: prospect.registrationNumber, sector: prospect.sector, province: prospect.province, ownership: prospect.ownership, extraDetails: prospect.extraDetails,
             source: prospect.source, sourceDetail: prospect.sourceDetail, programId: prospect.programId, interest: prospect.interest,
             ownerUid: prospect.ownerUid, notes: prospect.notes, nextFollowUpAt: prospect.nextFollowUpAt,
             consentGiven: prospect.consent.given, consentSource: prospect.consent.source,
             contactAllowed: prospect.consent.contactAllowed, consentNote: prospect.consent.note,
-        } : { ...EMPTY_VALUES, ownerUid: user?.uid })
-        if (prospect && user) setEvents(await listProspectEvents(user, prospect).catch(() => []))
+        } : { ...EMPTY_VALUES, ownerUid: user?.uid, nextFollowUpAt: addWorkingDays(DEFAULT_FOLLOW_UP_WORKING_DAYS) })
     }
 
     const save = async (confirmedDuplicates = false) => {
@@ -182,9 +209,12 @@ export default function ProspectsPage({ module }: { module: ProspectModule }) {
             await load()
         } catch (error) {
             const code = error instanceof Error ? error.message : ''
+            console.error('Prospect save failed', error)
             message.error(code === 'consent_required'
                 ? t('Record their consent before adding them.')
-                : t('The prospect could not be saved.'))
+                : code === 'forbidden' || (error as { code?: string })?.code === 'permission-denied'
+                    ? t('You do not have permission to save prospects for this company.')
+                    : t('The prospect could not be saved.'))
         } finally {
             setSaving(false)
         }
@@ -253,17 +283,44 @@ export default function ProspectsPage({ module }: { module: ProspectModule }) {
         return next
     })
 
-    const statusSelect = (row: Prospect) => (
-        <Select
-            size="small"
-            value={row.status}
-            disabled={Boolean(row.archivedAt)}
-            style={{ minWidth: 150 }}
-            onClick={(event) => event.stopPropagation()}
-            onChange={(value) => void moveTo(row, value)}
-            options={statuses.map((option) => ({ value: option.key, label: <Tag color={option.color} style={{ marginInlineEnd: 0 }}>{t(option.label)}</Tag> }))}
-        />
-    )
+    /** The next stage for a prospect, or why there isn't a button: joining happens when they sign up, not by hand. */
+    const nextStage = (row: Prospect) => {
+        if (row.archivedAt || row.status === converted) return null
+        if (isClosedStatus(row.status)) return { reopen: true as const }
+        const open = statuses.filter((option) => !isClosedStatus(option.key))
+        const next = open[open.findIndex((option) => option.key === row.status) + 1]
+        if (!next) return null
+        if (module === 'incubation' && (next.key === 'applied' || next.key === converted)) return null
+        if (module === 'training' && next.key === converted && (row.kind !== 'business' || Boolean(row.organisationId))) return null
+        return { next: next.key, label: next.label }
+    }
+
+    const advance = (row: Prospect, stage: NonNullable<ReturnType<typeof nextStage>>) => {
+        if ('reopen' in stage) { void moveTo(row, 'new'); return }
+        if (stage.next === 'contacted') setContacting(row)
+        else if (module === 'incubation' && stage.next === 'invited') setInviting(row)
+        else if (module === 'training' && stage.next === 'booked') setBooking(row)
+        else if (module === 'training' && stage.next === converted) void makeClient(row)
+        else void moveTo(row, stage.next)
+    }
+
+    const stageCell = (row: Prospect) => {
+        const option = statusOption(module, row.status)
+        const stage = nextStage(row)
+        const waiting = !stage && !row.archivedAt && row.status !== converted && !isClosedStatus(row.status)
+        return (
+            <Space size={8} wrap onClick={(event) => event.stopPropagation()}>
+                <Tooltip title={waiting ? (module === 'incubation' ? t('Moves on by itself when they sign up.') : t('Moves on when they are registered as a client.')) : undefined}>
+                    <Tag color={option.color} style={{ marginInlineEnd: 0 }}>{t(option.label)}</Tag>
+                </Tooltip>
+                {stage && (
+                    <Button size="small" icon={'reopen' in stage ? <UndoOutlined /> : <ArrowRightOutlined />} onClick={() => advance(row, stage)}>
+                        {'reopen' in stage ? t('Reopen') : t('Move to {stage}', undefined, { stage: t(stage.label) })}
+                    </Button>
+                )}
+            </Space>
+        )
+    }
 
     const sourceLabel = (row: Prospect) => [t(PROSPECT_SOURCES.find((option) => option.key === row.source)?.label || 'Other'), row.sourceDetail].filter(Boolean).join(' · ')
 
@@ -277,18 +334,20 @@ export default function ProspectsPage({ module }: { module: ProspectModule }) {
     const actions = (row: Prospect) => {
         const items = [
             { key: 'edit', icon: <EditOutlined />, label: t('Edit'), onClick: () => void startEdit(row) },
-            ...(module === 'incubation' && !row.archivedAt && row.status !== converted
-                ? [{ key: 'invite', icon: <SendOutlined />, label: t('Invite to a programme'), onClick: () => setInviting(row) }] : []),
-            ...(module === 'training' && !row.archivedAt
-                ? [{ key: 'book', icon: <CalendarOutlined />, label: t('Book into a class'), onClick: () => setBooking(row) }] : []),
-            ...(module === 'training' && !row.archivedAt && row.kind === 'business' && !row.organisationId
-                ? [{ key: 'client', icon: <BankOutlined />, label: t('Register as client company'), onClick: () => void makeClient(row) }] : []),
+            ...(!row.archivedAt && !isClosedStatus(row.status) && row.status !== converted
+                ? [
+                    { key: 'notInterested', label: t('Mark not interested'), onClick: () => void moveTo(row, 'not_interested') },
+                    { key: 'lost', label: t('Mark lost'), onClick: () => void moveTo(row, 'lost') },
+                ] : []),
             row.archivedAt
                 ? { key: 'restore', icon: <RollbackOutlined />, label: t('Restore'), onClick: () => void archive(row, false) }
                 : { key: 'archive', icon: <InboxOutlined />, label: t('Archive'), onClick: () => void archive(row, true) },
         ]
         return (
             <Space onClick={(event) => event.stopPropagation()}>
+                {!row.archivedAt && !isClosedStatus(row.status) && row.status !== converted && (
+                    <Tooltip title={t('Contact')}><Button icon={<MessageOutlined />} onClick={() => setContacting(row)} aria-label={t('Contact')} /></Tooltip>
+                )}
                 {module === 'training' && !row.archivedAt && (
                     <Tooltip title={t('Book into a class')}><Button icon={<CalendarOutlined />} onClick={() => setBooking(row)} aria-label={t('Book into a class')} /></Tooltip>
                 )}
@@ -322,7 +381,7 @@ export default function ProspectsPage({ module }: { module: ProspectModule }) {
         { title: module === 'training' ? t('Interested in') : t('Programme'), key: 'fit', render: (_, row) => (row.bookedClassLabel ? <Space orientation="vertical" size={0}><span>{row.interest || '—'}</span><Typography.Text type="secondary">{t('Booked: {label}', undefined, { label: row.bookedClassLabel })}</Typography.Text></Space> : row.programName || row.interest || '—') },
         { title: t('Follows up'), key: 'owner', render: (_, row) => row.ownerName || '—' },
         { title: t('Next follow-up'), key: 'followUp', render: (_, row) => followUpCell(row) },
-        { title: t('Status'), key: 'status', render: (_, row) => statusSelect(row) },
+        { title: t('Status'), key: 'status', render: (_, row) => stageCell(row) },
         { title: '', key: 'actions', align: 'right', render: (_, row) => actions(row) },
     ]
 
@@ -333,7 +392,7 @@ export default function ProspectsPage({ module }: { module: ProspectModule }) {
     }
 
     return (
-        <DashboardPage className={module === 'training' ? 'training-page' : undefined}>
+        <DashboardPage className={module === 'training' ? 'prospects-page training-page' : 'prospects-page'}>
             <Row gutter={[14, 14]} className="dashboard-metrics-row">
                 <Col xs={12} lg={6}><DashboardMetricCard loading={!prospects} icon={<TeamOutlined />} label={t('Prospects')} value={counts.total} /></Col>
                 <Col xs={12} lg={6}><DashboardMetricCard loading={!prospects} icon={<FunnelPlotOutlined />} label={t('Still open')} value={counts.open} /></Col>
@@ -341,13 +400,29 @@ export default function ProspectsPage({ module }: { module: ProspectModule }) {
                 <Col xs={12} lg={6}><DashboardMetricCard loading={!prospects} icon={<CalendarOutlined />} label={t('Follow-ups due')} value={counts.due} /></Col>
             </Row>
             <FilterBar
-                primary={<Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('Search name, contact, sector or event')} allowClear />}
-                advanced={(
+                compact={tab === 'analytics'}
+                advancedDisplay="dropdown"
+                onReset={() => { setStatusFilter('open'); setSourceFilter('all'); setOwnerFilter('all'); setShowArchived(false) }}
+                primary={(
+                    <>
+                        <Segmented
+                            block={tab === 'analytics'}
+                            className={tab === 'analytics' ? 'prospects-view-switch-wide' : undefined}
+                            value={tab}
+                            onChange={(value) => setTab(value as 'list' | 'analytics')}
+                            options={[
+                                { value: 'list', label: t('Prospects'), icon: <TeamOutlined /> },
+                                { value: 'analytics', label: t('Analytics'), icon: <BarChartOutlined /> },
+                            ]}
+                        />
+                        {tab === 'list' && <Input prefix={<SearchOutlined />} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('Search name, contact, sector or event')} allowClear />}
+                    </>
+                )}
+                advanced={tab !== 'list' ? undefined : (
                     <>
                         <Select
                             value={statusFilter}
                             onChange={setStatusFilter}
-                            style={{ minWidth: 170 }}
                             options={[
                                 { value: 'open', label: t('Still open') },
                                 { value: 'due', label: t('Follow-up due') },
@@ -355,20 +430,21 @@ export default function ProspectsPage({ module }: { module: ProspectModule }) {
                                 ...statuses.map((option) => ({ value: option.key, label: t(option.label) })),
                             ]}
                         />
-                        <Select value={sourceFilter} onChange={setSourceFilter} style={{ minWidth: 160 }} options={[{ value: 'all', label: t('All sources') }, ...PROSPECT_SOURCES.map((option) => ({ value: option.key, label: t(option.label) }))]} />
-                        <Select value={ownerFilter} onChange={setOwnerFilter} style={{ minWidth: 160 }} options={[{ value: 'all', label: t('Everyone') }, { value: 'none', label: t('Nobody yet') }, ...lookups.owners.map((row) => ({ value: row.uid, label: row.name }))]} />
-                        <Space><Switch size="small" checked={showArchived} onChange={setShowArchived} /><Typography.Text>{t('Archive')}</Typography.Text></Space>
+                        <Select value={sourceFilter} onChange={setSourceFilter} options={[{ value: 'all', label: t('All sources') }, ...PROSPECT_SOURCES.map((option) => ({ value: option.key, label: t(option.label) }))]} />
+                        <Select value={ownerFilter} onChange={setOwnerFilter} options={[{ value: 'all', label: t('Everyone') }, { value: 'none', label: t('Nobody yet') }, ...lookups.owners.map((row) => ({ value: row.uid, label: row.name }))]} />
+                        <div className="prospects-archive-toggle"><Switch size="small" checked={showArchived} onChange={setShowArchived} /><Typography.Text>{t('Archive')}</Typography.Text></div>
                     </>
                 )}
-                actions={(
+                actions={tab !== 'list' ? undefined : (
                     <>
-                        <Button icon={<QrcodeOutlined />} onClick={() => setLinksOpen(true)}>{t('Sign-up links')}</Button>
+                        {module === 'training' && <Button icon={<QrcodeOutlined />} onClick={() => setLinksOpen(true)}>{t('Sign-up links')}</Button>}
                         <Button icon={<ImportOutlined />} onClick={() => setImporting(true)}>{t('Import')}</Button>
                         <Button icon={<DownloadOutlined />} disabled={!visible.length} onClick={() => exportRows(visible)}>{t('Export')}</Button>
                         <Button type="primary" icon={<PlusOutlined />} onClick={() => void startEdit()}>{t('Add prospect')}</Button>
                     </>
                 )}
             />
+            {tab === 'list' && <>
             {selectedRows.length > 0 && (
                 <Card size="small" style={{ marginBottom: 12 }}>
                     <Space wrap>
@@ -389,7 +465,7 @@ export default function ProspectsPage({ module }: { module: ProspectModule }) {
                 rows={visible}
                 columns={columns}
                 loading={!prospects}
-                onRowClick={(row) => void startEdit(row)}
+                onRowClick={(row) => setViewingId(row.id)}
                 emptyText={showArchived
                     ? t('Nothing in the archive.')
                     : active.length ? t('No prospects match these filters.') : module === 'training'
@@ -400,14 +476,21 @@ export default function ProspectsPage({ module }: { module: ProspectModule }) {
                         <Typography.Text strong>{prospectName(row)}</Typography.Text>
                         <Typography.Text type="secondary">{[sourceLabel(row), row.programName || row.interest, row.ownerName].filter(Boolean).join(' · ')}</Typography.Text>
                         {row.nextFollowUpAt && <span>{followUpCell(row)}</span>}
-                        <Space wrap>{statusSelect(row)}{actions(row)}</Space>
+                        <Space wrap>{stageCell(row)}{actions(row)}</Space>
                     </Space>
                 )}
             />
 
-            <Card title={t('Reach beyond the enrolled cohort')} style={{ marginTop: 16 }} extra={<Typography.Text type="secondary">{t('Each funder sees only the numbers for what it funds, never names.')}</Typography.Text>}>
-                <ProspectFunnel module={module} refreshKey={refreshKey} />
-            </Card>
+            </>}
+
+            {tab === 'analytics' && (
+                <>
+                    <Card title={t('Reach beyond the enrolled cohort')} extra={<Typography.Text type="secondary">{t('Each funder sees only the numbers for what it funds, never names.')}</Typography.Text>}>
+                        <ProspectFunnel module={module} refreshKey={refreshKey} />
+                    </Card>
+                    {module === 'incubation' && <ProspectsFromEvents prospects={prospects} />}
+                </>
+            )}
 
             <Modal
                 open={editing !== null}
@@ -451,24 +534,37 @@ export default function ProspectsPage({ module }: { module: ProspectModule }) {
                         <Col xs={24} sm={12}><Form.Item name="email" label={t('Email')} rules={[{ type: 'email', message: t('Enter a valid email address.') }]}><Input maxLength={160} /></Form.Item></Col>
                     </Row>
                     <Row gutter={12}>
-                        <Col xs={24} sm={8}><Form.Item name="sector" label={t('Sector')}><Input maxLength={80} /></Form.Item></Col>
-                        <Col xs={24} sm={8}><Form.Item name="province" label={t('Province')}><Input maxLength={60} /></Form.Item></Col>
-                        {kind !== 'person' && <Col xs={24} sm={8}><Form.Item name="registrationNumber" label={t('Registration number')}><Input maxLength={40} /></Form.Item></Col>}
-                    </Row>
-                    {kind !== 'person' && (
-                        <Form.Item name="ownership" label={t('Ownership (optional)')}>
-                            <Checkbox.Group options={OWNERSHIP_OPTIONS.map((option) => ({ value: option.key, label: t(option.label) }))} />
-                        </Form.Item>
-                    )}
-                    <Row gutter={12}>
                         <Col xs={24} sm={12}>
                             <Form.Item name="source" label={t('Where you met them')}>
-                                <Select options={PROSPECT_SOURCES.map((option) => ({ value: option.key, label: t(option.label) }))} />
+                                <Select
+                                    onChange={() => form.setFieldValue('sourceDetail', '')}
+                                    options={[
+                                        ...(trainingEnabled ? [{ value: 'training_class', label: t('Training class') }] : []),
+                                        { value: 'event', label: t('Event') },
+                                        { value: 'referral', label: t('Referral') },
+                                        // A prospect added another way (an imported list, say) keeps showing how.
+                                        ...(sourceKind && !['training_class', 'event', 'referral'].includes(sourceKind) ? [{ value: sourceKind, label: t(PROSPECT_SOURCES.find((option) => option.key === sourceKind)?.label || 'Other') }] : []),
+                                    ]}
+                                />
                             </Form.Item>
                         </Col>
                         <Col xs={24} sm={12}>
-                            <Form.Item name="sourceDetail" label={t('Which one')} extra={t('e.g. the event, class or person who referred them')}>
-                                <Input maxLength={160} />
+                            <Form.Item
+                                name="sourceDetail"
+                                label={sourceKind === 'referral' ? t('Who referred them') : sourceKind === 'training_class' ? t('Which class') : sourceKind === 'event' ? t('Which event') : t('Which one')}
+                                extra={sourceKind === 'event' ? t('Pick one of your events, or type another.') : sourceKind === 'training_class' ? t('Pick a class, or type another.') : undefined}
+                            >
+                                {sourceKind === 'event' || sourceKind === 'training_class' ? (
+                                    <AutoComplete
+                                        allowClear
+                                        maxLength={160}
+                                        options={(sourceKind === 'event' ? eventTitles : lookups.classes).map((value) => ({ value }))}
+                                        placeholder={sourceKind === 'event' ? t('Event name') : t('Class')}
+                                        filterOption={(input, option) => String(option?.value || '').toLowerCase().includes(input.toLowerCase())}
+                                    />
+                                ) : (
+                                    <Input maxLength={160} placeholder={sourceKind === 'referral' ? t('Name of the person or business') : undefined} />
+                                )}
                             </Form.Item>
                         </Col>
                     </Row>
@@ -476,7 +572,7 @@ export default function ProspectsPage({ module }: { module: ProspectModule }) {
                         <Col xs={24} sm={12}>
                             {module === 'incubation' ? (
                                 <Form.Item name="programId" label={t('Programme they might fit')}>
-                                    <Select allowClear options={lookups.programs.map((row) => ({ value: row.id, label: row.name }))} placeholder={t('Not decided yet')} />
+                                    <Select allowClear options={lookups.programs.map((row) => ({ value: row.id, label: row.name }))} placeholder={t('Not decided yet')} notFoundContent={t('No programmes yet. Add one under Programmes.')} />
                                 </Form.Item>
                             ) : (
                                 <Form.Item name="interest" label={t('Interested in')}>
@@ -490,56 +586,56 @@ export default function ProspectsPage({ module }: { module: ProspectModule }) {
                             </Form.Item>
                         </Col>
                         <Col xs={24} sm={6}>
-                            <Form.Item name="nextFollowUpAt" label={t('Next follow-up')}>
-                                <Input type="date" min={editing?.prospect ? undefined : today} />
+                            <Form.Item
+                                name="nextFollowUpAt"
+                                label={t('Next follow-up')}
+                                getValueProps={(value?: string) => ({ value: value ? dayjs(value) : null })}
+                                normalize={(value?: dayjs.Dayjs | null) => (value ? value.format('YYYY-MM-DD') : '')}
+                            >
+                                <DatePicker style={{ width: '100%' }} format="D MMM YYYY" disabledDate={editing?.prospect ? undefined : (date) => !!date && date.format('YYYY-MM-DD') < today} />
                             </Form.Item>
                         </Col>
                     </Row>
                     <Form.Item name="notes" label={t('Notes')}><Input.TextArea rows={3} maxLength={4000} /></Form.Item>
+                    <Button type="link" style={{ paddingInline: 0, marginBottom: 12 }} onClick={() => setMoreOpen((open) => !open)}>
+                        {moreOpen ? t('Fewer details') : t('Add more details')}
+                    </Button>
+                    {/* Kept mounted when closed so what was entered is still saved. */}
+                    <div style={{ display: moreOpen ? 'block' : 'none' }}>
+                        <Row gutter={12}>
+                            <Col xs={24} sm={8}><Form.Item name="sector" label={t('Sector')}><Select allowClear showSearch options={withCurrent(PROSPECT_SECTORS, sectorValue).map((option) => ({ ...option, label: t(option.label) }))} /></Form.Item></Col>
+                            <Col xs={24} sm={8}><Form.Item name="province" label={t('Province')}><Select allowClear showSearch options={withCurrent(PROSPECT_PROVINCES, provinceValue)} /></Form.Item></Col>
+                            {kind !== 'person' && <Col xs={24} sm={8}><Form.Item name="registrationNumber" label={t('Registration number')}><Input maxLength={40} /></Form.Item></Col>}
+                        </Row>
+                        <Form.List name="extraDetails">
+                            {(fields, { add, remove }) => (
+                                <>
+                                    {fields.map((field) => (
+                                        <Row gutter={8} key={field.key} align="middle">
+                                            <Col xs={10}><Form.Item name={[field.name, 'label']}><Input maxLength={60} placeholder={t('Detail, e.g. Employees')} /></Form.Item></Col>
+                                            <Col xs={12}><Form.Item name={[field.name, 'value']}><Input maxLength={200} placeholder={t('Value')} /></Form.Item></Col>
+                                            <Col xs={2}><Form.Item><Button type="text" icon={<DeleteOutlined />} aria-label={t('Remove')} onClick={() => remove(field.name)} /></Form.Item></Col>
+                                        </Row>
+                                    ))}
+                                    {fields.length < 20 && <Button type="dashed" icon={<PlusOutlined />} onClick={() => add({ label: '', value: '' })} style={{ marginBottom: 16 }}>{t('Add your own detail')}</Button>}
+                                </>
+                            )}
+                        </Form.List>
+                    </div>
 
-                    <Typography.Title level={5}>{t('Consent')}</Typography.Title>
+                    <Typography.Title level={5}>{t('Keeping their details')}</Typography.Title>
                     <Form.Item
                         name="consentGiven"
                         valuePropName="checked"
-                        rules={[{ validator: (_, value) => (value ? Promise.resolve() : Promise.reject(new Error(t('They must agree before you add them.')))) }]}
-                        extra={t('Only keep people on record who agreed to it. Prospects that never join are anonymised after 12 months.')}
+                        rules={[{ validator: (_, value) => (value ? Promise.resolve() : Promise.reject(new Error(t('Tell them first, then tick this to add them.')))) }]}
+                        extra={t('Their details are only used to follow up. If they never join, they are anonymised after 12 months.')}
                     >
-                        <Checkbox disabled={Boolean(editing?.prospect?.consent.given)}>{t('They agreed that we keep their details to follow up')}</Checkbox>
+                        <Checkbox disabled={Boolean(editing?.prospect?.consent.given)}>{t('I told them we will keep their details to follow up, and they are happy with that')}</Checkbox>
                     </Form.Item>
-                    <Row gutter={12}>
-                        <Col xs={24} sm={12}>
-                            <Form.Item name="consentSource" label={t('How they agreed')}>
-                                <Select options={CONSENT_SOURCES.map((option) => ({ value: option.key, label: t(option.label) }))} />
-                            </Form.Item>
-                        </Col>
-                        <Col xs={24} sm={12}>
-                            <Form.Item name="contactAllowed" valuePropName="checked" label={t('Messages from the system')}>
-                                <Checkbox>{t('They agreed to receive WhatsApp or email from us')}</Checkbox>
-                            </Form.Item>
-                        </Col>
-                    </Row>
-                    <Form.Item name="consentNote" label={t('Consent note (optional)')}><Input maxLength={300} /></Form.Item>
+                    <Form.Item name="contactAllowed" valuePropName="checked">
+                        <Checkbox>{t('They are happy to hear from us on WhatsApp or email')}</Checkbox>
+                    </Form.Item>
                 </Form>
-
-                {editing?.prospect && events.length > 0 && (
-                    <>
-                        <Typography.Title level={5}>{t('History')}</Typography.Title>
-                        <Timeline
-                            items={events.map((event) => ({
-                                key: event.id,
-                                content: (
-                                    <Typography.Text>
-                                        {event.from && event.from !== event.to
-                                            ? t('{from} → {to}', undefined, { from: t(statusOption(module, event.from).label), to: t(statusOption(module, event.to).label) })
-                                            : event.from ? t(statusOption(module, event.to).label) : t('Added')}
-                                        {event.note && <Typography.Text type="secondary">{` · ${event.note}`}</Typography.Text>}
-                                        <Typography.Text type="secondary">{` · ${event.byName} · ${formatDate(event.at)}`}</Typography.Text>
-                                    </Typography.Text>
-                                ),
-                            }))}
-                        />
-                    </>
-                )}
             </Modal>
 
             <Modal
@@ -562,6 +658,20 @@ export default function ProspectsPage({ module }: { module: ProspectModule }) {
                 </Space>
             </Modal>
 
+            {viewingId && (() => {
+                const viewing = (prospects || []).find((row) => row.id === viewingId)
+                return viewing ? (
+                    <ProspectDetailModal
+                        prospect={viewing}
+                        module={module}
+                        onClose={() => setViewingId(null)}
+                        onEdit={() => { setViewingId(null); void startEdit(viewing) }}
+                    />
+                ) : null
+            })()}
+            {contacting && (
+                <ContactProspectModal prospect={contacting} onClose={() => setContacting(null)} onRecorded={() => void load()} />
+            )}
             {inviting && (
                 <InviteProspectModal prospect={inviting} programs={lookups.programs} onClose={() => setInviting(null)} onInvited={() => void load()} />
             )}
